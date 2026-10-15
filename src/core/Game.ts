@@ -136,7 +136,7 @@ export class Game {
     const toC = Math.atan2(central.center[0] - spawn.p[0], central.center[1] - spawn.p[1]);
     this.intro = { active: true, t: 0, fromYaw: toC, toYaw: heading };
     this.cam.yaw = toC;
-    this.cam.pitch = 0.05;
+    this.cam.pitch = -0.32; // olhando para cima: torre inteira no quadro
 
     // construir chunks próximos antes de mostrar
     progress(0.72, 'Montando ruas, calçadas e edifícios');
@@ -315,7 +315,7 @@ export class Game {
         while (d > Math.PI) d -= Math.PI * 2;
         while (d < -Math.PI) d += Math.PI * 2;
         this.cam.yaw = this.intro.fromYaw + d * k;
-        this.cam.pitch = 0.05 + 0.12 * k;
+        this.cam.pitch = -0.32 + 0.5 * k;
       }
     }
 

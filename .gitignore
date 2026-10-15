@@ -7,3 +7,5 @@ screenshots/tmp/
 # derivados do pipeline (regeneráveis com `npm run map`)
 data/processed/*.json
 screenshots/tmp/
+screenshots/*.png
+screenshots/*.json
