@@ -1,0 +1,15 @@
+{
+  "source": "OpenStreetMap contributors",
+  "license": "ODbL 1.0 (https://opendatacommons.org/licenses/odbl/1-0/)",
+  "endpoint": "https://overpass-api.de/api/interpreter",
+  "query": "[out:json][timeout:180];\n(\n  node(-22.9095,-43.1965,-22.8965,-43.1735);\n  way(-22.9095,-43.1965,-22.8965,-43.1735);\n  relation[\"type\"=\"multipolygon\"](-22.9095,-43.1965,-22.8965,-43.1735);\n  relation[\"type\"=\"building\"](-22.9095,-43.1965,-22.8965,-43.1735);\n);\n(._;>;);\nout body;",
+  "bbox": {
+    "south": -22.9095,
+    "west": -43.1965,
+    "north": -22.8965,
+    "east": -43.1735
+  },
+  "fetchedAt": "2026-10-15T21:09:19.297Z",
+  "osmBaseTimestamp": "2026-10-15T21:07:51Z",
+  "elementCount": 88902
+}
