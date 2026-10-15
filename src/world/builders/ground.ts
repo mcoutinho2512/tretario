@@ -213,7 +213,7 @@ export function buildGroundMeshes(chunk: ChunkData, lib: MaterialLibrary, detail
       // borda: normal deve apontar para fora; testamos com a orientação do anel
       let a = 0;
       for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) a += (ring[j][0] + ring[i][0]) * (ring[j][1] - ring[i][1]);
-      addVerticalStrip(plat, closed, 0, PLATFORM_HEIGHT, a < 0);
+      addVerticalStrip(plat, closed, 0, PLATFORM_HEIGHT, a > 0);
     }
   }
   mk(plat, lib.concrete, 'platform', true, detailed);

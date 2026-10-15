@@ -40,8 +40,8 @@ function addWalls(acc: Acc, ring: XZ[], isHole: boolean, b: BuildingRec, f1: num
   // garantir orientação: externos CCW no plano (x,z) visto de cima → normais para fora
   let pts = ring;
   const area = signedArea(ring);
-  // no sistema x=leste, z=sul, área "positiva" pela fórmula acima ≈ horário visto de cima
-  if ((area < 0) !== isHole) pts = [...ring].reverse();
+  // com esta fórmula (= −shoelace), área NEGATIVA é a orientação em que (dz, −dx) aponta para fora
+  if ((area > 0) !== isHole) pts = [...ring].reverse();
   let perim = b.seed * 37; // deslocamento para que prédios vizinhos não alinhem janelas
   const y0 = b.minHeight, y1 = b.height;
   for (let i = 0; i < n; i++) {

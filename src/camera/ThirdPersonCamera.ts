@@ -45,7 +45,7 @@ export class ThirdPersonCamera {
     const pivot = this.smoothTarget.clone().addScaledVector(right, -0.35);
     const desired = pivot.clone().addScaledVector(dir, this.distance);
     // colisão com edifícios
-    const t = this.world.raycast(pivot.x, pivot.y, pivot.z, desired.x, desired.y, desired.z);
+    const t = this.distance > 20 ? 1 : this.world.raycast(pivot.x, pivot.y, pivot.z, desired.x, desired.y, desired.z);
     let dist = this.distance;
     if (t < 1) dist = Math.max(0.6, this.distance * t - 0.35);
     // aproxima rápido quando obstruída, afasta devagar

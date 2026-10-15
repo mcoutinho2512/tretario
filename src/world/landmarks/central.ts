@@ -21,8 +21,8 @@ export interface LandmarkInstance {
   update(simTime: Date, cameraPos: THREE.Vector3): void;
 }
 
-const CREAM = 0xe6dfcf;
-const CREAM_DARK = 0xcfc6b2;
+const CREAM = 0xeee8da;
+const CREAM_DARK = 0xd8d0be;
 
 // parâmetros (metros) — ESTIMATIVAS a validar
 export const CENTRAL_PARAMS = {
@@ -40,18 +40,26 @@ export const CENTRAL_PARAMS = {
   mastTop: 125,
 };
 
+function pointInRing(p: XZ, ring: XZ[]) {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const xi = ring[i][0], zi = ring[i][1], xj = ring[j][0], zj = ring[j][1];
+    if (zi > p[1] !== zj > p[1] && p[0] < ((xj - xi) * (p[1] - zi)) / (zj - zi) + xi) inside = !inside;
+  }
+  return inside;
+}
+
 function frameFromFootprint(fp: XZ[]) {
-  // orientação do polígono
-  let area = 0;
-  for (let i = 0, j = fp.length - 1; i < fp.length; j = i++) area += (fp[j][0] + fp[i][0]) * (fp[j][1] - fp[i][1]);
-  // fachada leste = maior aresta cuja normal externa aponta para leste
+  // fachada leste = maior aresta cuja normal EXTERNA aponta para leste (testada por ponto-no-polígono)
   let best = { len: 0, a: fp[0], b: fp[1], nx: 1, nz: 0 };
   for (let i = 0; i < fp.length; i++) {
     const a = fp[i], b = fp[(i + 1) % fp.length];
     const dx = b[0] - a[0], dz = b[1] - a[1];
     const len = Math.hypot(dx, dz);
+    if (len < 1) continue;
     let nx = dz / len, nz = -dx / len;
-    if (area < 0) { nx = -nx; nz = -nz; }
+    const mid: XZ = [(a[0] + b[0]) / 2 + nx * 0.5, (a[1] + b[1]) / 2 + nz * 0.5];
+    if (pointInRing(mid, fp)) { nx = -nx; nz = -nz; }
     if (nx > 0.7 && len > best.len) best = { len, a, b, nx, nz };
   }
   // origem: extremidade SUL da aresta (maior z)
@@ -114,8 +122,6 @@ export function buildCentral(lm: LandmarkRec, buildingMat: THREE.Material, archM
   ];
   const T = P.towerSize;
   recs.push(vol(rect(P.towerU, P.towerV, T, T), P.shaftTop, P.mainBlockHeight - 0.5, FacadeStyle.ArtDecoPiers, 3.3, 0.3, 0.12));
-  recs.push(vol(rect(P.towerU, P.towerV, T - 1.4, T - 1.4), P.clockStageTop, P.shaftTop, FacadeStyle.Institutional, 99, 0.3, 0.5));
-  for (const [y0, y1, s] of P.crown) recs.push(vol(rect(P.towerU, P.towerV, s, s), y1, y0, FacadeStyle.Institutional, 99, 0.3, 0.4));
   const geo = buildBuildingsGeometry(recs, { roofDetails: false });
   if (geo) {
     const m = new THREE.Mesh(geo, buildingMat);
@@ -147,6 +153,9 @@ export function buildCentral(lm: LandmarkRec, buildingMat: THREE.Material, archM
       ab.box(0.5, P.shaftTop - P.mainBlockHeight, 0.7, tu + k * (T / 5), P.mainBlockHeight, Z(tv + side * (T / 2 + 0.2)), CREAM, 'stone');
     }
   }
+  // estágio do relógio e coroamento escalonado (pedra/reboco creme)
+  ab.box(T - 1.4, P.clockStageTop - P.shaftTop, T - 1.4, tu, P.shaftTop, Z(tv), CREAM);
+  for (const [y0, y1, s] of P.crown) ab.box(s, y1 - y0, s, tu, y0, Z(tv), CREAM);
   // cornijas dos escalonamentos
   ab.box(T + 1.6, 1.0, T + 1.6, tu, P.shaftTop - 0.6, Z(tv), CREAM_DARK);
   ab.box(T + 0.4, 0.8, T + 0.4, tu, P.clockStageTop - 0.4, Z(tv), CREAM_DARK);

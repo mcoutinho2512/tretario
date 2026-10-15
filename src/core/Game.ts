@@ -406,8 +406,23 @@ export class Game {
         if (yaw !== undefined) { this.cam.yaw = yaw; this.player.heading = yaw; }
         this.intro.active = false;
       },
-      camera: (yaw: number, pitch: number, dist: number) => { this.cam.yaw = yaw; this.cam.pitch = pitch; this.cam.zoom(Math.log(dist / this.cam.distance)); this.intro.active = false; },
+      camera: (yaw: number, pitch: number, dist: number) => { this.cam.maxDistance = Math.max(16, dist); this.cam.yaw = yaw; this.cam.pitch = pitch; this.cam.zoom(Math.log(dist / this.cam.distance)); this.intro.active = false; },
       toggleDebug: () => this.debug.toggle(),
+      /** identifica o objeto sob um pixel (coordenadas de tela) */
+      pick: (px: number, py: number) => {
+        const rc = new THREE.Raycaster();
+        const r = this.canvas.getBoundingClientRect();
+        rc.setFromCamera(new THREE.Vector2((px / r.width) * 2 - 1, -(py / r.height) * 2 + 1), this.camera);
+        const hit = rc.intersectObjects(this.scene.children, true).find((h) => h.object.visible && h.object.name !== 'clouds' && !(h.object as any).isSky);
+        if (!hit) return null;
+        const geo = (hit.object as THREE.Mesh).geometry as THREE.BufferGeometry;
+        const f1 = geo.getAttribute('aFacade'), f2 = geo.getAttribute('aFacade2');
+        const vi = hit.face?.a ?? 0;
+        return {
+          name: hit.object.name, parent: hit.object.parent?.name, point: hit.point.toArray(), normal: hit.face?.normal.toArray(),
+          facade: f1 ? [f1.getX(vi), f1.getY(vi), f1.getZ(vi), f1.getW(vi)] : null, facade2: f2 ? [f2.getX(vi), f2.getY(vi), f2.getZ(vi), f2.getW(vi)] : null,
+        };
+      },
       hud: (v: boolean) => { this.hud.style.display = v ? '' : 'none'; },
       env: () => ({
         sunDir: this.env.sunDir.toArray(), sunI: this.env.sun.intensity, night: this.env.night,

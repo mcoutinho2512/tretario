@@ -170,7 +170,7 @@ export function createLandmarkMaterials(noise: THREE.Texture): Record<ArchMat, T
           float n1 = texture2D(uNoise, tuv * 0.045).r;
           float n2 = texture2D(uNoise, tuv * 0.21).g;
           float streak = texture2D(uNoise, vec2(tuv.x * 0.09, vLWPos.y * 0.008)).a;
-          float dirt = smoothstep(0.5, 0.9, streak) * 0.18 * (1.0 - an.y);
+          float dirt = smoothstep(0.6, 0.95, streak) * 0.08 * (1.0 - an.y);
           diffuseColor.rgb *= (0.9 + n1 * 0.16 + (n2 - 0.5) * 0.08) * (1.0 - dirt);
           diffuseColor.rgb *= mix(0.78, 1.0, smoothstep(0.0, 2.5, vLWPos.y));
         }`);
