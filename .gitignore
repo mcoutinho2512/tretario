@@ -6,3 +6,4 @@ dist/
 screenshots/tmp/
 # derivados do pipeline (regeneráveis com `npm run map`)
 data/processed/*.json
+screenshots/tmp/

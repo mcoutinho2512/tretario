@@ -87,8 +87,8 @@ function areaOf(pts: XZ[]) {
 const waterPaths = difference(union(polysToPaths(byKind('water'))), roadPaths);
 const greenPaths = difference(union(grassPaths, polysToPaths(parkGreen)), union(roadPaths, waterPaths));
 const platformPaths = difference(union(polysToPaths(byKind('platform'))), roadPaths);
-const ballastPaths = difference(union(polysToPaths(byKind('rail_yard'))), union(roadPaths, platformPaths, ));
-const plazaPaths = difference(union(polysToPaths(byKind('plaza').concat(parkPlaza))), union(roadPaths, greenPaths, platformPaths, waterPaths));
+const ballastPaths = difference(union(polysToPaths(byKind('rail_yard'))), union(roadPaths, platformPaths));
+const plazaPaths = difference(union(polysToPaths(byKind('plaza').concat(parkPlaza))), union(union(roadPaths, greenPaths), union(platformPaths, waterPaths)));
 const nonGround = union(roadPaths, union(greenPaths, union(platformPaths, union(ballastPaths, union(plazaPaths, waterPaths)))));
 log('superfícies globais prontas');
 
@@ -185,7 +185,8 @@ const signalProps: PropRec[] = [];
       if (placed.some((q) => Math.hypot(q[0] - p[0], q[1] - p[1]) < 7)) continue;
       placed.push(p);
       // cabeça do semáforo voltada para o tráfego que chega
-      signalProps.push({ k: 'signal', p: [r2(p[0]), r2(p[1])], r: r2(s.dir + (side > 0 ? 0 : Math.PI)) });
+      // lado +1 = direita do sentido `dir` (mão direita no Brasil): encara o tráfego que chega
+      signalProps.push({ k: 'signal', p: [r2(p[0]), r2(p[1])], r: r2(s.dir + (side > 0 ? Math.PI : 0)) });
     }
   }
 }

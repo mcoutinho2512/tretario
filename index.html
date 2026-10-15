@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#101418" />
+    <title>Presidente Vargas 3D — MVP</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23101418'/><rect x='13' y='5' width='6' height='22' fill='%23e6dfcf'/><circle cx='16' cy='10' r='2.2' fill='%23101418'/><rect x='3' y='26' width='26' height='2' fill='%23e0483c'/></svg>" />
+  </head>
+  <body>
+    <div id="app">
+      <section id="start" class="screen">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true"><span></span></div>
+          <h1>PRESIDENTE VARGAS 3D <small>— MVP</small></h1>
+          <p class="sub">Central do Brasil → Av. Presidente Vargas → Candelária · Rio de Janeiro</p>
+        </div>
+        <button id="explore" class="btn-primary" disabled>EXPLORAR</button>
+        <div class="quality">
+          <span>Qualidade:</span>
+          <label><input type="radio" name="q" value="auto" checked /> Automático</label>
+          <label><input type="radio" name="q" value="low" /> Baixo</label>
+          <label><input type="radio" name="q" value="medium" /> Médio</label>
+          <label><input type="radio" name="q" value="high" /> Alto</label>
+        </div>
+        <p class="detected" id="detected"></p>
+        <p class="foot">Mapa: © OpenStreetMap contributors (ODbL) · Horário e iluminação reais do Rio</p>
+      </section>
+      <section id="loading" class="screen hidden">
+        <h2>CARREGANDO CENTRO DO RIO</h2>
+        <div class="bar"><div id="bar-fill"></div></div>
+        <p id="loading-label">Preparando…</p>
+      </section>
+      <section id="error" class="screen hidden">
+        <h2>Não foi possível iniciar</h2>
+        <p id="error-msg"></p>
+      </section>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
