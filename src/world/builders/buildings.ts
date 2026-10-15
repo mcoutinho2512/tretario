@@ -301,9 +301,9 @@ export function createBuildingMaterial(noise: THREE.Texture): THREE.MeshStandard
           col = mix(avg, detailed, detail);
           float glassAmt = isWin * (1.0 - blind) * (1.0 - frame) * detail + winArea * 0.6 * (1.0 - detail);
           // noite: parte das janelas acesas (escritórios/residências), tons quentes e frios
-          float lit = step(0.62 - fTint * 0.15, fh1(vec2(bay * 3.1, level * 7.3) + fSeed * 5.0));
+          float lit = step(0.74 - fTint * 0.12, fh1(vec2(bay * 3.1, level * 7.3) + fSeed * 5.0));
           vec3 litC = mix(vec3(1.0, 0.78, 0.45), vec3(0.85, 0.92, 1.0), step(0.6, r));
-          fEmissive = litC * uNight * 1.35 * (isWin * (1.0 - frame) * lit * detail + winArea * 0.32 * (1.0 - detail));
+          fEmissive = litC * uNight * (0.55 + r2 * 0.6) * (isWin * (1.0 - frame) * lit * detail + winArea * 0.32 * (1.0 - detail));
           if (topBand > 0.5) col = wallC * 0.9;
           // ---- térreo: comércio / portas de aço / galeria
           if (yRel < fGroundH) {
@@ -323,7 +323,7 @@ export function createBuildingMaterial(noise: THREE.Texture): THREE.MeshStandard
               float shutter = step(0.62, rs);
               float corrug = 0.85 + 0.15 * sin(yRel * 60.0);
               vec3 shutterC = vec3(0.55, 0.57, 0.58) * corrug;
-              vec3 vitrine = mix(vec3(0.06,0.07,0.08), vec3(0.25,0.22,0.18), step(yRel, 1.0) * 0.3 + rs * 0.3);
+              vec3 vitrine = mix(vec3(0.10,0.11,0.12), vec3(0.32,0.28,0.22), step(yRel, 1.0) * 0.3 + rs * 0.35);
               vec3 openC = mix(vitrine, shutterC, shutter);
               // letreiro/toldo colorido sobre a loja
               float sign = step(fGroundH - 0.7, yRel) * step(yRel, fGroundH - 0.1) * step(0.04, sx) * step(sx, 0.96);

@@ -93,7 +93,10 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); o
 .touch-btn.jump { bottom: 30px; right: 110px; }
 .touch-btn.on { background: rgba(224, 72, 60, 0.7); }
 @media (max-width: 600px) {
-  .minimap { top: 8px; right: 8px; transform: scale(0.72); transform-origin: top right; }
+  .minimap { top: 8px; right: 8px; transform: scale(0.6); transform-origin: top right; }
+  .help { bottom: auto; top: 8px; left: 8px; max-width: 52vw; font-size: 11px; }
+  .touch-btn.run { bottom: 150px; }
+  .touch-btn.jump { bottom: 60px; right: 24px; }
   .minimap.expanded { transform: translate(50%, -50%); }
   .debug-panel { min-width: 0; font-size: 10px; }
 }

@@ -1,0 +1,12 @@
+# Cabeçalhos de cache (formato Netlify / Cloudflare Pages; ver docs/PERFORMANCE.md para nginx/CDN)
+# Código e estilos com hash no nome → cache longo e imutável
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+# Chunks do mapa têm hash de conteúdo no nome → imutáveis
+/world/chunk_*
+  Cache-Control: public, max-age=31536000, immutable
+# Manifesto aponta para os chunks atuais → sempre revalidar
+/world/manifest.json
+  Cache-Control: public, max-age=0, must-revalidate
+/index.html
+  Cache-Control: public, max-age=0, must-revalidate

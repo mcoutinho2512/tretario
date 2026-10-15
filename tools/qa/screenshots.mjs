@@ -16,8 +16,8 @@ mkdirSync('screenshots', { recursive: true });
 const browser = await puppeteer.launch({
   executablePath: chrome,
   headless: process.env.HEADFUL ? false : 'new',
-  args: ['--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist', '--window-size=1600,900'],
-  defaultViewport: { width: 1600, height: 900 },
+  args: ['--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist', '--window-size=1920,1080', ...(process.env.UNCAPPED ? ['--disable-gpu-vsync', '--disable-frame-rate-limit'] : [])],
+  defaultViewport: { width: 1920, height: 1080 },
 });
 const page = await browser.newPage();
 const logs = [];
@@ -30,7 +30,7 @@ const loadMs = Date.now() - t0;
 const results = { quality, time, loadMs, shots: {} };
 for (const s of shots) {
   await page.evaluate((n) => { window.__pv.setShot(n); window.__pv.hud(s_hud()); function s_hud(){ return true; } }, s);
-  await new Promise((r) => setTimeout(r, 3500));
+  await new Promise((r) => setTimeout(r, 4500));
   const m = await page.evaluate(() => window.__pv.metrics());
   await page.screenshot({ path: `screenshots/${s}${process.env.SUFFIX ?? ''}.png` });
   results.shots[s] = m;
