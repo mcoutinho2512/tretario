@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 import {
   asphaltTexture, portugueseStoneTexture, concreteSlabTexture, grassTexture, ballastTexture, trackbedTexture,
-  paintWearTexture, noiseTexture, type PbrSet,
+  paintWearTexture, noiseTexture, graniteTexture, type PbrSet,
 } from './textures';
 
 export interface MaterialLibrary {
@@ -59,11 +59,12 @@ export async function createMaterialLibrary(onStep?: (label: string) => void): P
   const noise = noiseTexture(256);
   onStep?.('asfalto');
   await yieldFrame();
-  const asphalt = pbr(asphaltTexture(1024), 9, { color: 0xffffff });
-  addMacroVariation(asphalt, noise, 0.35, 70);
+  // tile de 11 m (≈1 cm/px); normal suave; variação macro maior quebra a repetição
+  const asphalt = pbr(asphaltTexture(1024), 11, { color: 0xffffff, normalScale: new THREE.Vector2(0.7, 0.7) });
+  addMacroVariation(asphalt, noise, 0.3, 60);
   onStep?.('pedra portuguesa');
   await yieldFrame();
-  const sidewalk = pbr(portugueseStoneTexture(1024, 'plain', 110), 5.5, { color: 0xf2efe8 });
+  const sidewalk = pbr(portugueseStoneTexture(1024, 'plain', 110), 5.5, { color: 0xf2efe8, normalScale: new THREE.Vector2(0.8, 0.8) });
   addMacroVariation(sidewalk, noise, 0.3, 45);
   await yieldFrame();
   const plaza = pbr(portugueseStoneTexture(1024, 'wave', 120), 6.5);
@@ -76,7 +77,8 @@ export async function createMaterialLibrary(onStep?: (label: string) => void): P
   await yieldFrame();
   const concrete = pbr(concreteSlabTexture(512, 4, 0.62), 6);
   addMacroVariation(concrete, noise, 0.3, 40);
-  const curb = pbr(concreteSlabTexture(256, 2, 0.72), 2, { color: 0xe8e6e0 });
+  // meio-fio de granito (padrão das calçadas cariocas)
+  const curb = pbr(graniteTexture(256), 1.2, { color: 0xffffff });
   const ballast = pbr(ballastTexture(512), 3);
   const tb = trackbedTexture(512);
   const trackbed = new THREE.MeshStandardMaterial({ map: tb.map, normalMap: tb.normalMap, roughnessMap: tb.roughnessMap, roughness: 1 });
@@ -85,10 +87,10 @@ export async function createMaterialLibrary(onStep?: (label: string) => void): P
   const wear = paintWearTexture(256);
   wear.repeat.set(1 / 3, 1 / 3);
   const paintOpts: THREE.MeshStandardMaterialParameters = {
-    roughness: 0.62, metalness: 0, alphaMap: wear, alphaTest: 0.5,
+    roughness: 0.7, metalness: 0, alphaMap: wear, alphaTest: 0.5,
     polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4,
   };
-  const paintWhite = new THREE.MeshStandardMaterial({ color: 0xdcdcd4, ...paintOpts });
+  const paintWhite = new THREE.MeshStandardMaterial({ color: 0xd2d1ca, ...paintOpts });
   const paintYellow = new THREE.MeshStandardMaterial({ color: 0xd9a21c, ...paintOpts });
 
   const water = new THREE.MeshStandardMaterial({ color: 0x2a3d3a, roughness: 0.08, metalness: 0.2 });

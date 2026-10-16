@@ -13,3 +13,4 @@ server/node_modules/
 screenshots/walkthrough*/
 screenshots/loadtest.json
 .claude/
+screenshots/bg_*/

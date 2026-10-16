@@ -1,18 +1,26 @@
 /**
- * Edifícios procedurais a partir dos footprints reais do OSM.
+ * Edifícios procedurais a partir dos footprints reais do OSM (alturas reais preservadas).
  *
- * Geometria: paredes extrudadas (base → topo) + cobertura triangulada + volumes técnicos
- * (caixas d'água / casas de máquinas, típicos dos telhados do Centro) em prédios altos.
- * Aparência: UM material compartilhado; toda a variedade vem de atributos por vértice
- * (estilo, altura do pavimento, cor, semente) interpretados no shader de fachada.
+ * Geometria: paredes extrudadas (base → topo) + cobertura triangulada; no LOD próximo
+ * (`roofDetails`) também platibanda (face interna + rufo), marquises sobre o térreo comercial,
+ * casas de máquinas/reservatórios nos prédios altos e caixas d'água de fibra nos telhados baixos.
+ * Aparência: UM material compartilhado (facadeShader.ts); toda a variedade vem de atributos por
+ * vértice (estilo, altura do pavimento, cor, semente, flags) interpretados no shader de fachada.
  */
 import * as THREE from 'three';
 import type { BuildingRec, XZ } from '../types';
 import { FacadeStyle } from '../types';
 import { timeUniforms } from '../../renderer/timeOfDay';
+import { renderQuality } from '../../renderer/quality';
+import {
+  FACADE_FLAGS, FACADE_VERTEX_COMMON, FACADE_VERTEX_MAIN, FACADE_FRAGMENT_COMMON, FACADE_FRAGMENT_MAIN, FACADE_NORMAL,
+} from './facadeShader';
 
 // atributos: aFacade = (style, floorHeight, tint, seed) ; aFacade2 = (height, minHeight, flags, groundFloorH)
-const FLAG_ARCADE = 1, FLAG_ROOF = 2, FLAG_SHOPS = 4, FLAG_CANOPY = 8;
+const FLAG_ARCADE = FACADE_FLAGS.ARCADE, FLAG_ROOF = FACADE_FLAGS.ROOF, FLAG_SHOPS = FACADE_FLAGS.SHOPS, FLAG_CANOPY = FACADE_FLAGS.CANOPY;
+const FLAG_PARAPET = FACADE_FLAGS.PARAPET, FLAG_MARQUISE = FACADE_FLAGS.MARQUISE, FLAG_TECH = FACADE_FLAGS.TECH, FLAG_TANK = FACADE_FLAGS.TANK;
+/** altura da platibanda (a laje de cobertura fica abaixo do topo real; o topo OSM não muda) */
+const PARAPET_H = 1.0;
 
 interface Acc {
   pos: number[]; nor: number[]; uv: number[]; f1: number[]; f2: number[]; idx: number[];
@@ -163,9 +171,84 @@ function addBox(acc: Acc, cx: number, cz: number, w: number, d: number, y0: numb
     id: 0, poly: { outer: ring }, height: y0 + h, minHeight: y0, levels: 1, heightSource: 'estimate', cls: 'D',
     style: FacadeStyle.Institutional, tint: f1[2], seed: f1[3],
   };
-  const bf2 = [y0 + h, y0, 0, 0];
+  const bf2 = [y0 + h, y0, FLAG_TECH, 0];
   addWalls(acc, ring, false, fake, [FacadeStyle.Institutional, 99, f1[2], f1[3]], bf2);
   addRoof(acc, fake, y0 + h, [FacadeStyle.Institutional, 99, f1[2], f1[3]], bf2);
+}
+
+/** Anel orientado de modo que (dz, −dx)/len seja a normal para FORA do volume (mesma regra de addWalls). */
+function orientRing(ring: XZ[], isHole: boolean): XZ[] {
+  const area = signedArea(ring);
+  return (area > 0) !== isHole ? [...ring].reverse() : ring;
+}
+
+/** Platibanda: face interna (voltada para a laje) + rufo (topo) ao longo de cada aresta. */
+function addParapet(acc: Acc, ring: XZ[], isHole: boolean, yRoof: number, yTop: number, f1: number[], f2: number[]) {
+  const pts = orientRing(ring, isHole);
+  const t = 0.2;
+  const pf2 = [f2[0], f2[1], FLAG_PARAPET, f2[3]];
+  let perim = 0;
+  for (let i = 0; i < pts.length; i++) {
+    const a = pts[i], c = pts[(i + 1) % pts.length];
+    const dx = c[0] - a[0], dz = c[1] - a[1];
+    const len = Math.hypot(dx, dz);
+    if (len < 0.3) continue;
+    const nx = dz / len, nz = -dx / len;
+    const ai: XZ = [a[0] - nx * t, a[1] - nz * t], ci: XZ = [c[0] - nx * t, c[1] - nz * t];
+    quad(acc, [[ai[0], yRoof, ai[1]], [ci[0], yRoof, ci[1]], [ci[0], yTop, ci[1]], [ai[0], yTop, ai[1]]], [-nx, 0, -nz],
+      [[perim + len, yRoof], [perim, yRoof], [perim, yTop], [perim + len, yTop]], f1, pf2);
+    quad(acc, [[a[0], yTop, a[1]], [c[0], yTop, c[1]], [ci[0], yTop, ci[1]], [ai[0], yTop, ai[1]]], [0, 1, 0],
+      [[a[0], a[1]], [c[0], c[1]], [ci[0], ci[1]], [ai[0], ai[1]]], f1, pf2);
+    perim += len;
+  }
+}
+
+/** Marquise de concreto sobre o térreo comercial (arestas externas sem galeria). */
+function addMarquises(acc: Acc, b: BuildingRec, y: number, depth: number, f1: number[], f2: number[], skip?: Map<string, number>) {
+  const pts = orientRing(b.poly.outer, false);
+  const th = 0.16;
+  const mf2 = [f2[0], f2[1], FLAG_MARQUISE, f2[3]];
+  let count = 0;
+  for (let i = 0; i < pts.length && count < 6; i++) {
+    const a = pts[i], c = pts[(i + 1) % pts.length];
+    if (skip?.has(edgeKey(a, c))) continue;
+    const dx = c[0] - a[0], dz = c[1] - a[1];
+    const len = Math.hypot(dx, dz);
+    if (len < 5) continue;
+    const ux = dx / len, uz = dz / len, nx = uz, nz = -ux;
+    const inset = 0.3;
+    const p0: XZ = [a[0] + ux * inset, a[1] + uz * inset], p1: XZ = [c[0] - ux * inset, c[1] - uz * inset];
+    const q0: XZ = [p0[0] + nx * depth, p0[1] + nz * depth], q1: XZ = [p1[0] + nx * depth, p1[1] + nz * depth];
+    const y0 = y - th, y1 = y;
+    const L = len - 2 * inset;
+    // fundo (spots), topo, testeira e laterais
+    quad(acc, [[p0[0], y0, p0[1]], [p1[0], y0, p1[1]], [q1[0], y0, q1[1]], [q0[0], y0, q0[1]]], [0, -1, 0],
+      [[p0[0], p0[1]], [p1[0], p1[1]], [q1[0], q1[1]], [q0[0], q0[1]]], f1, mf2);
+    quad(acc, [[p0[0], y1, p0[1]], [p1[0], y1, p1[1]], [q1[0], y1, q1[1]], [q0[0], y1, q0[1]]], [0, 1, 0],
+      [[p0[0], p0[1]], [p1[0], p1[1]], [q1[0], q1[1]], [q0[0], q0[1]]], f1, mf2);
+    quad(acc, [[q0[0], y0, q0[1]], [q1[0], y0, q1[1]], [q1[0], y1 + 0.06, q1[1]], [q0[0], y1 + 0.06, q0[1]]], [nx, 0, nz],
+      [[0, y0], [L, y0], [L, y1 + 0.06], [0, y1 + 0.06]], f1, mf2);
+    quad(acc, [[p0[0], y0, p0[1]], [q0[0], y0, q0[1]], [q0[0], y1, q0[1]], [p0[0], y1, p0[1]]], [-ux, 0, -uz],
+      [[0, y0], [depth, y0], [depth, y1], [0, y1]], f1, mf2);
+    quad(acc, [[p1[0], y0, p1[1]], [q1[0], y0, q1[1]], [q1[0], y1, q1[1]], [p1[0], y1, p1[1]]], [ux, 0, uz],
+      [[0, y0], [depth, y0], [depth, y1], [0, y1]], f1, mf2);
+    count++;
+  }
+}
+
+/** Caixa d'água cilíndrica (fibra), 8 lados. */
+function addTank(acc: Acc, cx: number, cz: number, r: number, y0: number, h: number, f1: number[]) {
+  const tf2 = [y0 + h, y0, FLAG_TANK, 0];
+  const n = 8;
+  for (let k = 0; k < n; k++) {
+    const a0 = (k / n) * Math.PI * 2, a1 = ((k + 1) / n) * Math.PI * 2, am = (a0 + a1) / 2;
+    const x0 = cx + Math.cos(a0) * r, z0 = cz + Math.sin(a0) * r, x1 = cx + Math.cos(a1) * r, z1 = cz + Math.sin(a1) * r;
+    quad(acc, [[x0, y0, z0], [x1, y0, z1], [x1, y0 + h, z1], [x0, y0 + h, z0]], [Math.cos(am), 0, Math.sin(am)],
+      [[0, y0], [1, y0], [1, y0 + h], [0, y0 + h]], f1, tf2);
+    // tampa (leque a partir do centro, em quads degenerados)
+    quad(acc, [[cx, y0 + h + 0.12, cz], [x0, y0 + h, z0], [x1, y0 + h, z1], [cx, y0 + h + 0.12, cz]], [0, 1, 0],
+      [[cx, cz], [x0, z0], [x1, z1], [cx, cz]], f1, tf2);
+  }
 }
 
 function pointInRing(p: XZ, ring: XZ[]) {
@@ -203,11 +286,39 @@ export function buildBuildingsGeometry(buildings: BuildingRec[], opts: BuildingB
     addWalls(acc, b.poly.outer, false, b, f1, f2, keys);
     for (const h of b.poly.holes ?? []) addWalls(acc, h, true, b, f1, f2);
     if (spans.length) addArcades(acc, b, spans, f1, f2);
-    addRoof(acc, b, b.height, f1, f2);
+    const details = opts.roofDetails !== false;
+    const parapet = details && !b.canopy && !b.plain && b.height - b.minHeight > 5 && b.cls !== 'D';
+    if (parapet) {
+      const yRoof = b.height - PARAPET_H;
+      addRoof(acc, b, yRoof, f1, f2);
+      addParapet(acc, b.poly.outer, false, yRoof, b.height, f1, f2);
+      for (const h of b.poly.holes ?? []) addParapet(acc, h, true, yRoof, b.height, f1, f2);
+    } else {
+      addRoof(acc, b, b.height, f1, f2);
+    }
     if (b.canopy) addRoof(acc, b, b.minHeight, f1, f2, true);
+    // marquises sobre lojas (parte dos prédios; determinístico pela semente)
+    if (details && (flags & FLAG_SHOPS) && !b.arcade && b.minHeight < 0.5 && b.height > 7) {
+      const chance = b.style === FacadeStyle.Sobrado ? 0.35 : 0.7;
+      if (((b.seed * 7.31) % 1) < chance) addMarquises(acc, b, groundH - 0.05, 1.4 + ((b.seed * 3.7) % 1) * 0.9, f1, f2, keys);
+    }
+    // caixas d'água de fibra nos telhados baixos (sobrados/prédios pequenos)
+    if (details && parapet && b.height < 22 && b.cls !== 'D') {
+      const ring = b.poly.outer;
+      let cx = 0, cz = 0;
+      for (const p of ring) { cx += p[0]; cz += p[1]; }
+      cx /= ring.length; cz /= ring.length;
+      const area = Math.abs(signedArea(ring));
+      const r = 0.55 + ((b.seed * 5.3) % 1) * 0.35;
+      if (area > 40 && ((b.seed * 11.7) % 1) < 0.7) {
+        const ox = (((b.seed * 2.9) % 1) - 0.5) * Math.sqrt(area) * 0.4, oz = (((b.seed * 4.1) % 1) - 0.5) * Math.sqrt(area) * 0.4;
+        const pts: XZ[] = [[cx + ox, cz + oz], [cx + ox, cz + oz + r], [cx + ox + r, cz + oz], [cx + ox - r, cz + oz], [cx + ox, cz + oz - r]];
+        if (pts.every((q) => pointInRing(q, ring))) addTank(acc, cx + ox, cz + oz, r, b.height - PARAPET_H, 1.0 + r * 0.4, f1);
+      }
+    }
 
     // volumes técnicos na cobertura (prédios ≥ 6 pavimentos, determinístico pela semente)
-    if (opts.roofDetails !== false && !b.canopy && b.height > 20 && b.cls !== 'D') {
+    if (parapet && b.height > 20) {
       const ring = b.poly.outer;
       let cx = 0, cz = 0;
       for (const p of ring) { cx += p[0]; cz += p[1]; }
@@ -224,10 +335,10 @@ export function buildBuildingsGeometry(buildings: BuildingRec[], opts: BuildingB
         const s = Math.min(9, Math.sqrt(area) * 0.32);
         if (s > 2.5) {
           const boxH = 2.6 + b.seed * 2.2;
-          addBox(acc, cx, cz, s, s * (0.6 + b.tint * 0.5), b.height, boxH, rot, f1, f2);
+          addBox(acc, cx, cz, s, s * (0.6 + b.tint * 0.5), b.height - PARAPET_H, boxH + PARAPET_H, rot, f1, f2);
           if (b.seed > 0.45 && s > 4) {
             const ox = Math.cos(rot) * s * 0.75, oz = Math.sin(rot) * s * 0.75;
-            if (pointInRing([cx + ox, cz + oz], ring)) addBox(acc, cx + ox, cz + oz, s * 0.45, s * 0.45, b.height, 1.8, rot, f1, f2);
+            if (pointInRing([cx + ox, cz + oz], ring)) addBox(acc, cx + ox, cz + oz, s * 0.45, s * 0.45, b.height - PARAPET_H, 1.8 + PARAPET_H, rot, f1, f2);
           }
         }
       }
@@ -247,194 +358,58 @@ export function buildBuildingsGeometry(buildings: BuildingRec[], opts: BuildingB
 }
 
 // -------------------------------------------------------------------------------------------
-// Material com shader de fachada procedural
+// Material com shader de fachada procedural (ver facadeShader.ts)
 // -------------------------------------------------------------------------------------------
+/** Palavras GENÉRICAS de comércio do Centro (sem marcas reais) para os letreiros das lojas. */
+const SIGN_WORDS = [
+  'MODAS', 'CALÇADOS', 'BAZAR', 'PAPELARIA', 'DROGARIA', 'ÓTICA', 'LANCHONETE', 'TECIDOS',
+  'ARMARINHO', 'RELOJOARIA', 'CELULARES', 'PADARIA', 'CAFÉ & BAR', 'PRESENTES', 'BIJUTERIAS', 'ELETRÔNICOS',
+];
+
+/** Atlas 512×1024 (16 linhas de 8:1) desenhado em canvas no carregamento — custo de download zero. */
+function signAtlas(): THREE.Texture {
+  const W = 512, H = 1024, row = H / SIGN_WORDS.length;
+  const c = document.createElement('canvas');
+  c.width = W; c.height = H;
+  const g = c.getContext('2d')!;
+  g.fillStyle = '#000';
+  g.fillRect(0, 0, W, H);
+  g.fillStyle = '#fff';
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  SIGN_WORDS.forEach((w, i) => {
+    let size = row * 0.78;
+    g.font = `bold ${size}px "Arial Narrow", Arial, Helvetica, sans-serif`;
+    const mw = g.measureText(w).width;
+    if (mw > W * 0.94) { size *= (W * 0.94) / mw; g.font = `bold ${size}px "Arial Narrow", Arial, Helvetica, sans-serif`; }
+    g.fillText(w, W / 2, i * row + row * 0.54);
+  });
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.NoColorSpace;
+  t.anisotropy = 4;
+  t.generateMipmaps = true;
+  t.minFilter = THREE.LinearMipmapLinearFilter;
+  return t;
+}
+
 export function createBuildingMaterial(noise: THREE.Texture): THREE.MeshStandardMaterial {
   const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.85, metalness: 0.0 });
+  // BAIXO: sem parallax/relevo (mesma paleta e composição; custo de fragmento menor)
+  const detail = renderQuality.level === 'low' ? 0 : 1;
+  const signs = signAtlas();
   mat.onBeforeCompile = (shader) => {
     shader.uniforms.uNoise = { value: noise };
     shader.uniforms.uNight = timeUniforms.night;
+    shader.uniforms.uSunDir = timeUniforms.sunDir;
+    shader.uniforms.uDetail = { value: detail };
+    shader.uniforms.uSigns = { value: signs };
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', `#include <common>
-        attribute vec4 aFacade;
-        attribute vec4 aFacade2;
-        varying vec4 vFacade;
-        varying vec4 vFacade2;
-        varying vec2 vFUV;
-        varying vec3 vFNormal;`)
-      .replace('#include <uv_vertex>', `#include <uv_vertex>
-        vFacade = aFacade; vFacade2 = aFacade2; vFUV = uv; vFNormal = normal;`);
-
+      .replace('#include <common>', `#include <common>\n${FACADE_VERTEX_COMMON}`)
+      .replace('#include <uv_vertex>', `#include <uv_vertex>\n${FACADE_VERTEX_MAIN}`);
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', `#include <common>
-        uniform sampler2D uNoise;
-        uniform float uNight;
-        varying vec4 vFacade;
-        varying vec4 vFacade2;
-        varying vec2 vFUV;
-        varying vec3 vFNormal;
-        float fh1(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
-        vec3 wallPalette(float style, float t){
-          // paletas inspiradas no Centro: concreto claro, bege, pastilha, granito, casario colorido
-          if (style > 4.5) {
-            vec3 e0 = vec3(0.86,0.82,0.72), e1 = vec3(0.80,0.68,0.50), e2 = vec3(0.84,0.66,0.62), e3 = vec3(0.72,0.70,0.66);
-            float k = floor(t * 4.0);
-            return k < 1.0 ? e0 : k < 2.0 ? e1 : k < 3.0 ? e2 : e3;
-          }
-          if (style > 2.5 && style < 3.5) {
-            vec3 c0 = vec3(0.86,0.78,0.55), c1 = vec3(0.70,0.80,0.80), c2 = vec3(0.88,0.66,0.58), c3 = vec3(0.78,0.84,0.66), c4 = vec3(0.92,0.90,0.84), c5 = vec3(0.62,0.70,0.82);
-            float k = floor(t * 6.0);
-            return k < 1.0 ? c0 : k < 2.0 ? c1 : k < 3.0 ? c2 : k < 4.0 ? c3 : k < 5.0 ? c4 : c5;
-          }
-          // concreto claro, bege, cinza, pastilha creme, granito escuro, rosado, verde-acinzentado, branco
-          vec3 c0 = vec3(0.80,0.78,0.73), c1 = vec3(0.72,0.66,0.57), c2 = vec3(0.86,0.85,0.82), c3 = vec3(0.56,0.57,0.58);
-          vec3 c4 = vec3(0.78,0.71,0.60), c5 = vec3(0.42,0.40,0.38), c6 = vec3(0.80,0.70,0.66), c7 = vec3(0.66,0.70,0.66);
-          float k = floor(t * 8.0);
-          return k < 1.0 ? c0 : k < 2.0 ? c1 : k < 3.0 ? c2 : k < 4.0 ? c3 : k < 5.0 ? c4 : k < 6.0 ? c5 : k < 7.0 ? c6 : c7;
-        }`)
-      .replace('#include <map_fragment>', `#include <map_fragment>
-        float fStyle = vFacade.x;
-        float fFloorH = vFacade.y;
-        float fTint = vFacade.z;
-        float fSeed = vFacade.w;
-        float fTop = vFacade2.x;
-        float fFlags = vFacade2.z;
-        float fGroundH = vFacade2.w;
-        bool isRoof = mod(floor(fFlags / 2.0), 2.0) > 0.5;
-        bool isArcade = mod(fFlags, 2.0) > 0.5;
-        bool hasShops = mod(floor(fFlags / 4.0), 2.0) > 0.5;
-        bool isCanopy = mod(floor(fFlags / 8.0), 2.0) > 0.5;
-        float fRough = 0.86;
-        float fMetal = 0.0;
-        vec3 fEmissive = vec3(0.0);
-        vec3 wall = wallPalette(fStyle, fTint);
-        if (isRoof || fFloorH > 90.0) {
-          // laje de cobertura: manta/concreto com manchas
-          float n = texture2D(uNoise, vFUV * 0.05).r;
-          float n2 = texture2D(uNoise, vFUV * 0.31).g;
-          vec3 roofC = mix(vec3(0.42,0.41,0.39), vec3(0.55,0.53,0.50), n);
-          if (fFloorH > 90.0 && !isRoof) roofC = wall * (0.9 + n * 0.12);
-          roofC *= 0.85 + n2 * 0.25;
-          if (isCanopy) roofC = vec3(0.55,0.56,0.58) * (0.8 + n2 * 0.3);
-          diffuseColor.rgb = roofC;
-          fRough = 0.92;
-        } else {
-          vec2 m = vFUV; // metros: x = ao longo da fachada, y = altura
-          float yRel = m.y;
-          // largura do vão por estilo
-          float bayW = fStyle < 0.5 ? 1.5 : fStyle < 1.5 ? 2.6 : fStyle < 2.5 ? 2.1 : fStyle < 3.5 ? 3.4 : fStyle < 4.5 ? 4.2 : 3.6;
-          bayW *= 0.9 + fract(fSeed * 13.7) * 0.25;
-          float fy = (yRel - fGroundH) / fFloorH;
-          float level = floor(fy);
-          float ly = fract(fy);
-          float bx = fract(m.x / bayW);
-          float bay = floor(m.x / bayW);
-          // janela dentro do vão
-          vec2 wmin, wmax;
-          if (fStyle < 0.5) { wmin = vec2(0.04, 0.22); wmax = vec2(0.96, 0.92); }          // faixa contínua
-          else if (fStyle < 1.5) { wmin = vec2(0.22, 0.28); wmax = vec2(0.78, 0.82); }     // recortada
-          else if (fStyle < 2.5) { wmin = vec2(0.26, 0.18); wmax = vec2(0.74, 0.90); }     // art déco: pilastras
-          else if (fStyle < 3.5) { wmin = vec2(0.30, 0.12); wmax = vec2(0.70, 0.80); }     // sobrado: portas-janela altas
-          else if (fStyle < 4.5) { wmin = vec2(0.30, 0.25); wmax = vec2(0.70, 0.85); }     // institucional
-          else { wmin = vec2(0.32, 0.16); wmax = vec2(0.68, 0.74); }                       // eclético: janelas altas
-          float inX = step(wmin.x, bx) * step(bx, wmax.x);
-          float inY = step(wmin.y, ly) * step(ly, wmax.y);
-          float isWin = inX * inY * step(0.0, fy);
-          // cornija/topo: faixa sem janelas perto do topo
-          float topBand = step(fTop - 1.1, yRel);
-          isWin *= 1.0 - topBand;
-          // variação de janelas (persianas, cortinas, luzes)
-          float r = fh1(vec2(bay, level) + fSeed * 91.0);
-          float r2 = fh1(vec2(level, bay * 1.7) + fSeed * 17.0);
-          // cor do vidro: reflexo escuro azulado / esverdeado
-          vec3 glass = mix(vec3(0.10,0.13,0.16), vec3(0.16,0.20,0.22), r);
-          if (fStyle < 0.5) glass = mix(vec3(0.12,0.17,0.20), vec3(0.20,0.26,0.28), fTint);
-          // persiana/cortina parcialmente fechada
-          float blind = step(0.55, r2) * step(1.0 - (r2 - 0.55) * 1.8, ly / max(0.01, wmax.y));
-          vec3 blindC = vec3(0.72, 0.70, 0.64) * (0.8 + r * 0.2);
-          // moldura
-          float frameW = 0.035;
-          float frame = isWin * (1.0 - step(wmin.x + frameW, bx) * step(bx, wmax.x - frameW) * step(wmin.y + frameW * 1.5, ly) * step(ly, wmax.y - frameW * 1.5));
-          // pilastras art déco: relevo vertical claro
-          float pier = 0.0;
-          if (fStyle > 1.5 && fStyle < 2.5) pier = 1.0 - smoothstep(0.0, 0.08, min(bx, 1.0 - bx));
-          // eclético: pilastras a cada 2 vãos, frontão sobre as janelas, base rusticada
-          float eclectic = step(4.5, fStyle);
-          float pediment = 0.0, rustic = 0.0;
-          if (eclectic > 0.5) {
-            float b2 = fract(m.x / (bayW * 2.0));
-            pier = (1.0 - smoothstep(0.0, 0.05, min(b2, 1.0 - b2))) * step(fGroundH, yRel);
-            pediment = step(wmin.x - 0.05, bx) * step(bx, wmax.x + 0.05) * step(wmax.y + 0.03, ly) * step(ly, wmax.y + 0.1) * step(0.0, fy);
-            rustic = (1.0 - step(fGroundH * 1.9, yRel)) * step(0.82, fract(yRel / 0.45));
-          }
-          // peitoril (sombra sob a janela)
-          float sill = inX * step(wmin.y - 0.06, ly) * step(ly, wmin.y) * step(0.0, fy);
-          // sujeira escorrida (vertical) e encardido na base
-          float streak = texture2D(uNoise, vec2(m.x * 0.11, m.y * 0.012)).r;
-          float grime = smoothstep(0.45, 0.85, streak) * 0.22 + (1.0 - smoothstep(0.0, 3.0, yRel)) * 0.18;
-          float wn = texture2D(uNoise, m * vec2(0.07, 0.05)).a;
-          vec3 wallC = wall * (0.86 + wn * 0.22) * (1.0 - grime);
-          wallC = mix(wallC, wallC * 1.08, pier);
-          wallC = mix(wallC, wallC * 0.78, rustic);
-          wallC = mix(wallC, wallC * 1.12, pediment);
-          vec3 col = wallC;
-          // ---- anti-moiré: média do padrão quando o pixel cobre muitos vãos/andares
-          vec2 fw = fwidth(m);
-          float detail = 1.0 - smoothstep(0.25, 0.6, max(fw.x / bayW, fw.y / fFloorH));
-          vec3 winC = mix(glass, blindC, blind);
-          winC = mix(winC, wallC * 0.75, frame);
-          float winArea = (wmax.x - wmin.x) * (wmax.y - wmin.y);
-          vec3 avg = mix(wallC, glass * 1.2, winArea * 0.85);
-          vec3 detailed = mix(col, winC, isWin);
-          detailed = mix(detailed, wallC * 0.55, sill);
-          col = mix(avg, detailed, detail);
-          float glassAmt = isWin * (1.0 - blind) * (1.0 - frame) * detail + winArea * 0.6 * (1.0 - detail);
-          // noite: parte das janelas acesas (escritórios/residências), tons quentes e frios
-          float lit = step(0.74 - fTint * 0.12, fh1(vec2(bay * 3.1, level * 7.3) + fSeed * 5.0));
-          vec3 litC = mix(vec3(1.0, 0.78, 0.45), vec3(0.85, 0.92, 1.0), step(0.6, r));
-          fEmissive = litC * uNight * (0.55 + r2 * 0.6) * (isWin * (1.0 - frame) * lit * detail + winArea * 0.32 * (1.0 - detail));
-          if (topBand > 0.5) col = wallC * 0.9;
-          if (eclectic > 0.5 && yRel > fTop - 2.0 && yRel < fTop - 1.1) col = wallC * 1.1;
-          if (eclectic > 0.5 && yRel > fTop - 2.4 && yRel < fTop - 2.0) col = wallC * 0.62;
-          // ---- térreo: comércio / portas de aço / galeria
-          if (yRel < fGroundH) {
-            float shopW = 4.5 + fract(fSeed * 7.3) * 2.0;
-            float sx = fract(m.x / shopW);
-            float shop = floor(m.x / shopW);
-            float rs = fh1(vec2(shop, fSeed * 33.0));
-            if (isArcade) {
-              // galeria (pilotis): fundo sombreado + pilares
-              float pillar = 1.0 - step(0.12, sx) * step(sx, 0.88);
-              vec3 recess = vec3(0.08, 0.08, 0.085) + vec3(0.06) * step(0.15, sx) * step(sx, 0.85) * step(yRel, 3.2) * rs;
-              col = mix(recess, wallC * 0.95, pillar);
-              glassAmt = (1.0 - pillar) * 0.3;
-            } else if (hasShops) {
-              float opening = step(0.06, sx) * step(sx, 0.94) * step(yRel, fGroundH - 0.7);
-              // porta de aço enrolável (ondulada) vs vitrine
-              float shutter = step(0.62, rs);
-              float corrug = 0.85 + 0.15 * sin(yRel * 60.0);
-              vec3 shutterC = vec3(0.55, 0.57, 0.58) * corrug;
-              vec3 vitrine = mix(vec3(0.10,0.11,0.12), vec3(0.32,0.28,0.22), step(yRel, 1.0) * 0.3 + rs * 0.35);
-              vec3 openC = mix(vitrine, shutterC, shutter);
-              // letreiro/toldo colorido sobre a loja
-              float sign = step(fGroundH - 0.7, yRel) * step(yRel, fGroundH - 0.1) * step(0.04, sx) * step(sx, 0.96);
-              vec3 signC = vec3(fh1(vec2(shop, 1.0)), fh1(vec2(shop, 2.0)), fh1(vec2(shop, 3.0))) * 0.7 + 0.15;
-              col = mix(wallC * 0.8, openC, opening);
-              col = mix(col, signC, sign * step(0.35, rs));
-              glassAmt = opening * (1.0 - shutter) * 0.9;
-              fEmissive = vec3(1.0, 0.85, 0.6) * uNight * opening * (1.0 - shutter) * step(0.5, rs) * 1.6;
-              if (shutter > 0.5) { fMetal = opening * 0.5; }
-            } else {
-              col = wallC * 0.92;
-              glassAmt = 0.0;
-            }
-          }
-          diffuseColor.rgb = col;
-          fRough = mix(0.88, 0.12, glassAmt);
-          fMetal = max(fMetal, glassAmt * 0.55);
-          // leve oclusão na base do edifício
-          diffuseColor.rgb *= mix(0.72, 1.0, smoothstep(0.0, 1.6, yRel));
-        }`)
+      .replace('#include <common>', `#include <common>\n${FACADE_FRAGMENT_COMMON}`)
+      .replace('#include <map_fragment>', `#include <map_fragment>\n${FACADE_FRAGMENT_MAIN}`)
+      .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>\n${FACADE_NORMAL}`)
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
         totalEmissiveRadiance += fEmissive;`)
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
@@ -442,6 +417,6 @@ export function createBuildingMaterial(noise: THREE.Texture): THREE.MeshStandard
       .replace('#include <metalnessmap_fragment>', `#include <metalnessmap_fragment>
         metalnessFactor = fMetal;`);
   };
-  mat.customProgramCacheKey = () => 'pv-building-facade-v3';
+  mat.customProgramCacheKey = () => `pv-building-facade-v5-${detail}`;
   return mat;
 }

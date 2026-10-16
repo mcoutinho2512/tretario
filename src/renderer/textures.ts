@@ -61,46 +61,60 @@ function fieldToPbr(f: Field, normalStrength: number): PbrSet {
   return { map: toTexture(alb, n, true), normalMap: toTexture(nor, n, false), roughnessMap: toTexture(rou, n, false) };
 }
 
-/** Asfalto urbano gasto: agregado, remendos, manchas de óleo e trincas finas. Período: 1 tile. */
+/**
+ * Asfalto urbano (CBUQ envelhecido): agregado fino, remendos discretos, manchas de óleo e
+ * trincas FINAS e ESPARSAS (rodada 5: antes a rede de trincas cobria todo o tile com células de
+ * ~1.5 m — "trincas gigantes"). Agora: trincas só em zonas (máscara de baixa frequência),
+ * mais estreitas e com frequência maior; normal mais suave. Período: 1 tile.
+ */
 export function asphaltTexture(size = 1024): PbrSet {
   const f = newField(size);
   const rnd = mulberry32(11);
-  // remendos (patches) retangulares
-  const patches = Array.from({ length: 7 }, () => ({ x: rnd(), y: rnd(), w: 0.05 + rnd() * 0.2, h: 0.04 + rnd() * 0.12, d: (rnd() - 0.5) * 0.05 }));
+  // remendos (patches) retangulares, discretos
+  const patches = Array.from({ length: 4 }, () => ({ x: rnd(), y: rnd(), w: 0.06 + rnd() * 0.14, h: 0.05 + rnd() * 0.1, d: (rnd() - 0.5) * 0.035 }));
   for (let y = 0; y < size; y++) {
     for (let x = 0; x < size; x++) {
       const u = x / size, v = y / size;
       const i = y * size + x;
-      const large = tileFbm(u, v, 4, 4, 1);
-      const mid = tileFbm(u, v, 24, 3, 2);
+      const large = tileFbm(u, v, 3, 4, 1);
+      const mid = tileFbm(u, v, 20, 3, 2);
       const grain = hash2(x, y, 3);
       const stone = hash2(x >> 1, y >> 1, 4);
-      let g = 0.33 + (large - 0.5) * 0.08 + (mid - 0.5) * 0.05;
-      // agregado claro/escuro
-      if (stone > 0.93) g += 0.09 * (stone - 0.93) / 0.07;
-      else if (stone < 0.05) g -= 0.05;
-      g += (grain - 0.5) * 0.035;
-      // remendos
+      let g = 0.34 + (large - 0.5) * 0.06 + (mid - 0.5) * 0.04;
+      // agregado claro/escuro (pedrisco ~1–2 cm)
+      if (stone > 0.94) g += 0.08 * (stone - 0.94) / 0.06;
+      else if (stone < 0.05) g -= 0.04;
+      g += (grain - 0.5) * 0.03;
+      let ht = 0.5 + (stone - 0.5) * 0.5 + (mid - 0.5) * 0.2;
+      // remendos: borda levemente marcada
       for (const p of patches) {
         const dx = Math.abs(((u - p.x + 1.5) % 1) - 0.5), dy = Math.abs(((v - p.y + 1.5) % 1) - 0.5);
-        if (dx < p.w / 2 && dy < p.h / 2) g += p.d;
+        if (dx < p.w / 2 && dy < p.h / 2) {
+          g += p.d;
+          const edge = Math.min(p.w / 2 - dx, p.h / 2 - dy);
+          if (edge < 0.0015) { g -= 0.03; ht -= 0.15; }
+        }
       }
-      // manchas de óleo (faixa central das pistas tem mais)
-      const oil = tileFbm(u, v, 8, 3, 9);
-      if (oil > 0.62) g -= (oil - 0.62) * 0.35;
-      // trincas
-      const crack = Math.abs(tileFbm(u, v, 6, 4, 21) - 0.5);
-      let ht = 0.5 + (stone - 0.5) * 0.6 + (mid - 0.5) * 0.3;
-      if (crack < 0.006) { g -= 0.08; ht -= 0.4; }
-      g = Math.max(0.12, Math.min(0.52, g));
-      f.albedo[i * 3] = g * 1.0;
+      // manchas de óleo
+      const oil = tileFbm(u, v, 6, 3, 9);
+      if (oil > 0.64) g -= (oil - 0.64) * 0.3;
+      // trincas finas, só em zonas fissuradas (≈ 25% da área)
+      const zone = tileFbm(u, v, 2, 3, 77);
+      if (zone > 0.56) {
+        const crack = Math.abs(tileFbm(u, v, 14, 3, 21) - 0.5);
+        const w = 0.0035 * Math.min(1, (zone - 0.56) / 0.1);
+        if (crack < w) { g -= 0.07; ht -= 0.3; }
+      }
+      g = Math.max(0.14, Math.min(0.5, g));
+      // tom neutro-quente (o asfalto real não é azulado)
+      f.albedo[i * 3] = g * 1.02;
       f.albedo[i * 3 + 1] = g * 1.0;
-      f.albedo[i * 3 + 2] = g * 1.04;
+      f.albedo[i * 3 + 2] = g * 0.96;
       f.height[i] = ht;
-      f.rough[i] = Math.min(1, 0.86 + (grain - 0.5) * 0.1 - (oil > 0.62 ? (oil - 0.62) * 0.8 : 0));
+      f.rough[i] = Math.min(1, 0.9 + (grain - 0.5) * 0.08 - (oil > 0.64 ? (oil - 0.64) * 0.7 : 0));
     }
   }
-  return fieldToPbr(f, 2.2);
+  return fieldToPbr(f, 1.3);
 }
 
 /**
@@ -132,21 +146,22 @@ export function portugueseStoneTexture(size = 1024, pattern: 'plain' | 'wave' = 
         const w = Math.sin((u * 2 + Math.sin(v * Math.PI * 2) * 0.18) * Math.PI * 2);
         dark = w > 0.35;
       }
-      let base = dark ? 0.12 + sv * 0.08 : 0.68 + sv * 0.16;
-      const tint = dark ? [1, 1, 1.03] : [1.0, 0.98, 0.93];
+      // calcário branco (levemente creme) e basalto preto; juntas com areia/terra
+      let base = dark ? 0.13 + sv * 0.07 : 0.74 + sv * 0.14;
+      const tint = dark ? [1, 1, 1.02] : [1.0, 0.985, 0.95];
       const dirt = tileFbm(x / size, y / size, 6, 4, 33);
       base *= 0.86 + dirt * 0.2;
       const joint = edge < 0.09;
-      const jointCol = 0.32 + dirt * 0.08;
+      const jointCol = 0.42 + dirt * 0.08;
       const c = joint ? jointCol : base;
       f.albedo[i * 3] = c * tint[0];
       f.albedo[i * 3 + 1] = c * tint[1];
       f.albedo[i * 3 + 2] = c * tint[2];
       f.height[i] = joint ? 0.1 : 0.55 + Math.min(edge, 0.4) + sv * 0.1;
-      f.rough[i] = joint ? 0.95 : 0.72 + sv * 0.15;
+      f.rough[i] = joint ? 0.95 : 0.66 + sv * 0.16; // pedra polida pelo uso
     }
   }
-  return fieldToPbr(f, 3.5);
+  return fieldToPbr(f, 2.2);
 }
 
 /** Placas de concreto (canteiros, plataformas) com juntas a cada 1/4 da textura. */
@@ -168,6 +183,32 @@ export function concreteSlabTexture(size = 512, joints = 4, tone = 0.6): PbrSet 
     }
   }
   return fieldToPbr(f, 1.6);
+}
+
+/** Granito cinza (meio-fio): grão salpicado preto/branco/rosado; sem juntas (uv do topo é do mundo). */
+export function graniteTexture(size = 256): PbrSet {
+  const f = newField(size);
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const i = y * size + x;
+      const u = x / size, v = y / size;
+      const n = tileFbm(u, v, 4, 4, 141);
+      const gr = hash2(x >> 1, y >> 1, 142);
+      const gr2 = hash2(x, y, 143);
+      let r = 0.56 + (n - 0.5) * 0.08, g = 0.55 + (n - 0.5) * 0.08, b = 0.54 + (n - 0.5) * 0.08;
+      if (gr < 0.16) { r -= 0.18; g -= 0.18; b -= 0.17; } // biotita (preto)
+      else if (gr > 0.86) { r += 0.16; g += 0.15; b += 0.14; } // quartzo (branco)
+      else if (gr > 0.8) { r += 0.12; g += 0.04; b += 0.02; } // feldspato (rosado)
+      const k = 0.94 + (gr2 - 0.5) * 0.08;
+      // sujeira/limo no meio-fio
+      const dirt = tileFbm(u, v, 8, 3, 144);
+      const d = dirt > 0.6 ? 1 - (dirt - 0.6) * 0.6 : 1;
+      f.albedo[i * 3] = r * k * d; f.albedo[i * 3 + 1] = g * k * d; f.albedo[i * 3 + 2] = b * k * d * 0.98;
+      f.height[i] = 0.5 + (gr2 - 0.5) * 0.2 + (n - 0.5) * 0.3;
+      f.rough[i] = 0.62 + (gr2 - 0.5) * 0.12;
+    }
+  }
+  return fieldToPbr(f, 1.2);
 }
 
 export function grassTexture(size = 512): PbrSet {
