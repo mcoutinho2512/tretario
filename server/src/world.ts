@@ -8,6 +8,7 @@ import { dirname, resolve } from 'node:path';
 import { WallGrid, decodeSegments } from '../../src/physics/walls.ts';
 import type { WorldManifest } from '../../src/world/types.ts';
 import type { EventDef } from '../../src/events/types.ts';
+import { registerCampaigns } from '../../src/social/designs.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const PUBLIC = resolve(here, '../../public');
@@ -32,6 +33,10 @@ export function loadWorld(): ServerWorld {
     const f = `${PUBLIC}/events/${id}.json`;
     if (existsSync(f)) events.set(id, JSON.parse(readFileSync(f, 'utf8')) as EventDef);
   }
+  // designs de campanha são DADOS (mesmo arquivo do cliente): o servidor valida ids de design contra eles
+  const camp = `${PUBLIC}/designs/campaigns.json`;
+  const nCamp = existsSync(camp) ? registerCampaigns(JSON.parse(readFileSync(camp, 'utf8'))) : 0;
+  console.log(`[world] ${nCamp} designs de campanha`);
   console.log(`[world] ${walls.segmentCount} paredes, ${manifest.vehicleSpawns?.length ?? 0} veículos, ${events.size} eventos (${Date.now() - t0} ms)`);
   return { manifest, walls, events, defaultEvent: idx.default };
 }

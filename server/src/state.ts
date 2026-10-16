@@ -25,6 +25,16 @@ export const NetPlayer = schema({
   interaction: t.string(),
   /** 0 normal · 1 caído · 2 levantando */
   status: t.uint8(),
+  /** ação social em curso (src/social/actions.ts; 0 = nenhuma) — validada pelo servidor */
+  act: t.uint8(),
+  /** início da ação no relógio do servidor (ms): todos tocam a mesma fase */
+  actAt: t.float64(),
+  /** variação da ação (desfasamento/espelho), 0..7 */
+  actVar: t.uint8(),
+  /** item segurado (src/social/props.ts; 0 = mãos vazias) */
+  prop: t.uint8(),
+  /** design do item (src/social/designs.ts; 0 = padrão) */
+  design: t.uint16(),
 }, 'NetPlayer');
 export type NetPlayer = SchemaType<typeof NetPlayer>;
 

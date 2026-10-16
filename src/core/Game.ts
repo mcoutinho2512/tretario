@@ -19,6 +19,7 @@ import { stepPlayer } from '../player/PlayerController';
 import { AvatarVisual } from '../player/AvatarVisual';
 import { VEHICLE_BOX, impactAllowed, vehicleBlock, type Mode, type VehicleKind } from '../net/rules';
 import { HumanCharacter } from '../characters/human/HumanCharacter';
+import { registerCampaigns } from '../social/designs';
 import { FrameGovernor } from './frameGovernor';
 import { deviceProfile } from './settings';
 import { loadClips, loadLod, preloadCrowd } from '../characters/human/HumanAssets';
@@ -261,6 +262,11 @@ export class Game {
     try {
       await this.events.load(new URLSearchParams(location.search).get('event') ?? undefined);
     } catch (e) { console.warn('evento não carregado', e); }
+    // designs de campanha (DADOS, não código): mesmo arquivo que o servidor usa para validar
+    try {
+      const r = await fetch(`${import.meta.env.BASE_URL}designs/campaigns.json`);
+      if (r.ok) registerCampaigns(await r.json());
+    } catch (e) { console.warn('designs de campanha não carregados', e); }
     this.interaction.setPolicy(this.events.current?.interaction);
     // veículos utilizáveis nas estações reais de bicicleta compartilhada
     const kinds = (this.events.current?.vehicles ?? [{ kind: 'bicycle' }, { kind: 'scooter' }, { kind: 'car' }, { kind: 'moto' }]).map((v) => v.kind);

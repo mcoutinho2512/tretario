@@ -20,6 +20,7 @@ import { RULES, STATUS, VEHICLE_BOX, VEHICLE_STATE, canPush, canEnter, impactAll
 import { metrics } from './metrics.ts';
 import { SpatialGrid, selectInterest, selectInterestSlots, InterestScratch, makeSlotView, type SlotView } from '../../src/net/spatialGrid.ts';
 import { CrowdTable } from '../../src/net/crowdCodec.ts';
+import { ACTION_RULES, applyAction, applyProp, cancelsOnMove, onceFinished, validateAction, validateProp, type ActionActor } from '../../src/social/actionRules.ts';
 
 const AOI_RADIUS = Number(process.env.PV_AOI ?? 220); // m — jogadores/veículos visíveis
 /** histerese da AOI: entra a ≤ R, sai só além de R × AOI_HYST */
@@ -67,6 +68,8 @@ interface PlayerRT {
   aoiCap: number;
   /** nids cuja aparência este cliente já recebeu pela mensagem "crowd" */
   crowdKnown: Set<number>;
+  /** ações sociais / item segurado (regras puras em src/social/actionRules.ts) */
+  social: ActionActor;
 }
 
 export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
@@ -106,6 +109,9 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     enter: (client: Client, m: { id: string; seq?: number } | string) => this.withNet(client, false, () => this.onEnter(client, typeof m === 'string' ? m : m?.id, typeof m === 'object' ? m?.seq : undefined)),
     exit: (client: Client, m?: { seq?: number }) => this.withNet(client, false, () => this.onExit(client, m?.seq)),
     push: (client: Client, target: string) => this.withNet(client, false, () => this.onPush(client, target)),
+    // ações sociais (emotes) e itens seguráveis: só ids pequenos — os outros clientes tocam a animação localmente
+    act: (client: Client, m: { a?: unknown; v?: unknown }) => this.onAct(client, m),
+    prop: (client: Client, m: { p?: unknown; d?: unknown }) => this.onProp(client, m),
     appearance: (client: Client, opts: Partial<JoinOptions>) => {
       const p = this.state.players.get(client.sessionId);
       if (p && opts) this.applyAppearance(p, opts);
@@ -174,6 +180,12 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
         r.actor.immuneUntil = now + RULES.immuneMs;
         if (r.rest) { r.last = { x: r.rest.x, y: 0, z: r.rest.z, t: now, seq: r.last.seq }; r.rest = null; }
       }
+    }
+    // ações `once` que terminaram; quem caiu perde a ação
+    for (const [id, r] of this.rt) {
+      const p = this.state.players.get(id);
+      if (!p || p.act === 0) continue;
+      if (p.status !== STATUS.OK || onceFinished(r.social, now)) this.setAct(p, r, 0, now);
     }
     // grade espacial (O(N)) — base de todas as consultas de vizinhança
     this.rebuildGrid();
@@ -329,6 +341,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
       view, inView: makeSlotView(), vehInView: new Set(), rest: null, pendingIn: 0,
       nid: p.nid, overflow: [], crowdKnown: new Set(), slot: this.allocSlot(client.sessionId),
       aoiCap: clientCap(options?.aoiMax),
+      social: { act: 0, actAt: 0, prop: 0, design: 0, status: 0, vehicle: '', recent: [] },
     };
     this.slotNid[r.slot] = p.nid;
     this.rt.set(client.sessionId, r);
@@ -388,6 +401,8 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
         if (b.blocked) { res.x = b.x; res.z = b.z; res.ok = false; res.reason = 'bloqueado'; }
       }
     }
+    // andar cancela ações que não permitem movimento (dançar, sentar, pose…); as de "andar com bandeira" seguem
+    if (p.act !== 0 && cancelsOnMove(p.act, Math.hypot(res.x - prevX, res.z - prevZ))) this.setAct(p, r, 0, now);
     p.x = res.x; p.y = res.y; p.z = res.z;
     p.heading = m.heading;
     p.speed = Math.min(Math.abs(m.speed), MAX_SPEED[mode]);
@@ -428,6 +443,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     v!.occupant = client.sessionId;
     v!.state = VEHICLE_STATE.OCCUPIED;
     p.vehicle = id;
+    if (p.act !== 0) this.setAct(p, r, 0, Date.now()); // ação social termina ao entrar no veículo
     r.actor.vehicle = id;
     // o ocupante "assume" a posição do veículo (autoritativa)
     // movimentos a pé ainda em trânsito (seq ≤ seq do pedido) passam a ser descartados
@@ -463,6 +479,37 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
   }
 
   // ---------------------------------------------------------------- interação física
+  private setAct(p: NetPlayer, r: PlayerRT, act: number, now: number, variation = 0) {
+    r.social.act = act; r.social.actAt = now;
+    p.act = act; p.actAt = now; p.actVar = variation;
+  }
+
+  private onAct(client: Client, m: { a?: unknown; v?: unknown }) {
+    const p = this.state.players.get(client.sessionId), r = this.rt.get(client.sessionId);
+    if (!p || !r || !m) return;
+    const now = Date.now();
+    const s = r.social;
+    s.status = p.status; s.vehicle = p.vehicle; s.prop = p.prop;
+    const v = validateAction(s, m.a, now);
+    if (!v.ok) { client.send('act_denied', v.reason); return; }
+    applyAction(s, m.a as number, now);
+    const variation = typeof m.v === 'number' ? Math.max(0, Math.min(ACTION_RULES.maxVariation, m.v | 0)) : 0;
+    this.setAct(p, r, m.a as number, now, variation);
+  }
+
+  private onProp(client: Client, m: { p?: unknown; d?: unknown }) {
+    const p = this.state.players.get(client.sessionId), r = this.rt.get(client.sessionId);
+    if (!p || !r || !m) return;
+    const now = Date.now();
+    const s = r.social;
+    s.status = p.status; s.vehicle = p.vehicle; s.act = p.act;
+    const v = validateProp(s, m.p, m.d ?? 0, now);
+    if (!v.ok) { client.send('prop_denied', v.reason); return; }
+    applyProp(s, m.p as number, typeof m.d === 'number' ? m.d : 0, now);
+    p.prop = s.prop; p.design = s.design;
+    if (p.act !== s.act) this.setAct(p, r, s.act, now);
+  }
+
   private knockdown(targetId: string, fromX: number, fromZ: number, distance: number, kind: 'push' | 'impact', by: string, strength: number) {
     const tp = this.state.players.get(targetId);
     const tr = this.rt.get(targetId);

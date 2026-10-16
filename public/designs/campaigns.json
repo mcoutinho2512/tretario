@@ -1,0 +1,27 @@
+[
+ {
+  "id": 100,
+  "key": "campanha_13",
+  "name": "LULA",
+  "number": "13",
+  "party": "PT",
+  "palette": {
+   "bg": "#c8102e",
+   "fg": "#ffffff",
+   "accent": "#8f0a1f"
+  },
+  "pattern": "border"
+ },
+ {
+  "id": 101,
+  "key": "campanha_22",
+  "name": "BOLSONARO",
+  "number": "22",
+  "palette": {
+   "bg": "#009c3b",
+   "fg": "#ffdf00",
+   "accent": "#002776"
+  },
+  "pattern": "split_h"
+ }
+]
