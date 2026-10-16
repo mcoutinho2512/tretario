@@ -59,10 +59,9 @@ interface VatSet {
   natural: { walk: number; jog: number };
   layerAvg: THREE.Color[];
   aAnim: THREE.InstancedBufferAttribute;
-  aSkin: THREE.InstancedBufferAttribute;
-  aHair: THREE.InstancedBufferAttribute;
-  aTop: THREE.InstancedBufferAttribute;
-  aBottom: THREE.InstancedBufferAttribute;
+  /** tintas pele/cabelo/camisa/calça (4 × RGB) empacotadas em 3 vec4: o WebGL limita os atributos por vértice (16) e
+   * VAT + ações + variantes de roupa já usam o resto (com 4 vec3 o programa não compilava: "Too many attributes") */
+  aTint: THREE.InstancedBufferAttribute[];
   /** variantes de roupa e camisa por instância (garmentShader): [look empacotado, slot do design] */
   aLook: THREE.InstancedBufferAttribute;
   tex: THREE.DataTexture;
@@ -205,8 +204,9 @@ export class CrowdRenderer {
 
     const cap = this.capacity;
     const mk = (n: number) => { const a = new THREE.InstancedBufferAttribute(new Float32Array(cap * n), n); a.setUsage(THREE.DynamicDrawUsage); return a; };
-    const aAnim = mk(3), aSkin = mk(3), aHair = mk(3), aTop = mk(3), aBottom = mk(3);
-    g.setAttribute('aAnim', aAnim); g.setAttribute('aSkin', aSkin); g.setAttribute('aHair', aHair); g.setAttribute('aTop', aTop); g.setAttribute('aBottom', aBottom);
+    const aAnim = mk(3), aTint = [mk(4), mk(4), mk(4)];
+    g.setAttribute('aAnim', aAnim);
+    aTint.forEach((a, k) => g.setAttribute(`aTint${k}`, a));
     const aLook = mk(2);
     g.setAttribute('aLook', aLook);
 
@@ -222,10 +222,13 @@ uniform int uVatW;
 uniform int uVerts;
 attribute vec3 aAnim;
 attribute float _layer;
-attribute vec3 aSkin;
-attribute vec3 aHair;
-attribute vec3 aTop;
-attribute vec3 aBottom;
+attribute vec4 aTint0;
+attribute vec4 aTint1;
+attribute vec4 aTint2;
+#define aSkin aTint0.xyz
+#define aHair vec3(aTint0.w, aTint1.xy)
+#define aTop vec3(aTint1.zw, aTint2.x)
+#define aBottom aTint2.yzw
 varying vec3 vTint;
 vec3 vatFetch(int frame) {
   int idx = frame * uVerts + gl_VertexID;
@@ -250,7 +253,7 @@ vTint = li == 0 ? aSkin : li == 1 ? aHair : li == 2 ? aTop : li == 3 ? aBottom :
     mesh.receiveShadow = true;
     mesh.count = 0;
     void bi;
-    return { body: bi, lod, mesh, clips: clipRows, acts, natural, layerAvg, aAnim, aSkin, aHair, aTop, aBottom, aLook, tex, count: 0 };
+    return { body: bi, lod, mesh, clips: clipRows, acts, natural, layerAvg, aAnim, aTint, aLook, tex, count: 0 };
   }
 
   private setFor(a: CrowdAgent): VatSet | null {
@@ -305,10 +308,10 @@ vTint = li == 0 ? aSkin : li == 1 ? aHair : li == 2 ? aTop : li == 3 ? aBottom :
             this.stats.acting++;
           }
         }
-        this.writeTint(s.aSkin, i, a.skin, s.layerAvg[LAYER_INDEX.BODY], 'BODY');
-        this.writeTint(s.aHair, i, a.hair, s.layerAvg[LAYER_INDEX.HAIR], 'HAIR');
-        this.writeTint(s.aTop, i, a.top, s.layerAvg[LAYER_INDEX.SHIRT], 'SHIRT');
-        this.writeTint(s.aBottom, i, a.bottom, s.layerAvg[LAYER_INDEX.PANTS], 'PANTS');
+        this.writeTint(s.aTint, i, 0, a.skin, s.layerAvg[LAYER_INDEX.BODY], 'BODY');
+        this.writeTint(s.aTint, i, 3, a.hair, s.layerAvg[LAYER_INDEX.HAIR], 'HAIR');
+        this.writeTint(s.aTint, i, 6, a.top, s.layerAvg[LAYER_INDEX.SHIRT], 'SHIRT');
+        this.writeTint(s.aTint, i, 9, a.bottom, s.layerAvg[LAYER_INDEX.PANTS], 'PANTS');
         const lk = s.aLook.array as Float32Array;
         lk[i * 2] = a.look; lk[i * 2 + 1] = shirtSlot(a.shirt);
       }
@@ -320,7 +323,7 @@ vTint = li == 0 ? aSkin : li == 1 ? aHair : li == 2 ? aTop : li == 3 ? aBottom :
       s.mesh.visible = s.count > 0;
       if (!s.count) continue;
       calls++;
-      for (const at of [s.mesh.instanceMatrix, s.aAnim, s.aSkin, s.aHair, s.aTop, s.aBottom, s.aLook]) {
+      for (const at of [s.mesh.instanceMatrix, s.aAnim, ...s.aTint, s.aLook]) {
         at.clearUpdateRanges();
         at.addUpdateRange(0, s.count * at.itemSize);
         at.needsUpdate = true;
@@ -329,11 +332,14 @@ vTint = li == 0 ? aSkin : li == 1 ? aHair : li == 2 ? aTop : li == 3 ? aBottom :
     this.stats.drawn = lod2 + lod3; this.stats.lod2 = lod2; this.stats.lod3 = lod3; this.stats.calls = calls;
   }
 
-  private writeTint(attr: THREE.InstancedBufferAttribute, i: number, hex: number, avg: THREE.Color, layer: string) {
+  /** grava a tinta (RGB) a partir do componente `c0` (0..11) das 3 vec4 empacotadas da instância `i` */
+  private writeTint(attrs: THREE.InstancedBufferAttribute[], i: number, c0: number, hex: number, avg: THREE.Color, layer: string) {
     _target.setHex(hex);
     const t = tint(_target, avg, layer);
-    const arr = attr.array as Float32Array;
-    arr[i * 3] = t[0]; arr[i * 3 + 1] = t[1]; arr[i * 3 + 2] = t[2];
+    for (let k = 0; k < 3; k++) {
+      const c = c0 + k;
+      (attrs[c >> 2].array as Float32Array)[i * 4 + (c & 3)] = t[k];
+    }
   }
 
   dispose() {
