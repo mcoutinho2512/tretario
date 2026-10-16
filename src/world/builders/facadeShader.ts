@@ -524,7 +524,9 @@ export const FACADE_FRAGMENT_MAIN = /* glsl */ `
     float lit = step(1.0 - litP - fTint * 0.08, pvH(vec2(bay * 3.1, level * 7.3) + fSeed * 5.0));
     vec3 litC = mix(vec3(1.0, 0.74, 0.42), vec3(0.82, 0.9, 1.0), step(0.55, rW)) * (0.55 + rW2 * 0.6);
     litC = mix(litC, litC * curtC * 1.3, curt);
-    fEmissive = litC * uNight * lit * upper * (inOpen * inGlass * (1.0 - caix) * (1.0 - shutter) * detail + winFrac * 0.45 * (1.0 - detail));
+    // à distância as janelas acesas convergem antes para o brilho médio (evita "chuvisco" nas torres distantes)
+    float detE = 1.0 - smoothstep(0.08, 0.3, max(aa.x / bayW, aa.y / fh));
+    fEmissive = litC * uNight * upper * (lit * inOpen * inGlass * (1.0 - caix) * (1.0 - shutter) * detE + winFrac * (litP + 0.04) * 0.75 * (1.0 - detE));
 
     // ---------- cornija / platibanda ----------
     if (yRel > fTop - topBand && fGroundH < fTop - topBand) {
