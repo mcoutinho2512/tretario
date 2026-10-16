@@ -20,6 +20,7 @@
   },
   "dependencies": {
     "@colyseus/sdk": "^0.18.4",
+    "@dimforge/rapier3d-compat": "^0.21.0",
     "three": "^0.170.0"
   },
   "devDependencies": {

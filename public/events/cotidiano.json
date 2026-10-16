@@ -2,17 +2,57 @@
   "id": "cotidiano",
   "name": "Dia comum na Presidente Vargas",
   "category": "cotidiano",
-  "interaction": "pacifico",
+  "interaction": "opcional",
   "billboards": {
     "rotateSeconds": 12,
     "playlist": [
-      { "type": "text", "text": "PRESIDENTE VARGAS 3D", "subtext": "Espaço publicitário disponível", "colors": ["#0d1b2a", "#ffcc33"] },
-      { "type": "text", "text": "SEU ANÚNCIO AQUI", "subtext": "Painel digital virtual • Centro do Rio", "colors": ["#1b1b3a", "#3df5a6"] },
-      { "type": "text", "text": "CENTRO DO RIO", "subtext": "Central do Brasil → Candelária", "colors": ["#2a0d0d", "#ffffff"] }
+      {
+        "type": "text",
+        "text": "PRESIDENTE VARGAS 3D",
+        "subtext": "Espaço publicitário disponível",
+        "colors": [
+          "#0d1b2a",
+          "#ffcc33"
+        ]
+      },
+      {
+        "type": "text",
+        "text": "SEU ANÚNCIO AQUI",
+        "subtext": "Painel digital virtual • Centro do Rio",
+        "colors": [
+          "#1b1b3a",
+          "#3df5a6"
+        ]
+      },
+      {
+        "type": "text",
+        "text": "CENTRO DO RIO",
+        "subtext": "Central do Brasil → Candelária",
+        "colors": [
+          "#2a0d0d",
+          "#ffffff"
+        ]
+      }
     ]
   },
   "vehicles": [
-    { "id": "bike", "kind": "bicycle", "name": "Bicicleta", "spawn": "bike-stations" },
-    { "id": "patinete", "kind": "scooter", "name": "Patinete", "spawn": "bike-stations" }
+    {
+      "id": "bike",
+      "kind": "bicycle",
+      "name": "Bicicleta",
+      "spawn": "bike-stations"
+    },
+    {
+      "id": "patinete",
+      "kind": "scooter",
+      "name": "Patinete",
+      "spawn": "bike-stations"
+    },
+    {
+      "id": "carro",
+      "kind": "car",
+      "name": "Automóvel",
+      "spawn": "none"
+    }
   ]
 }

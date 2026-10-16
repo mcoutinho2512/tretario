@@ -1,4 +1,4 @@
-/** Estado sincronizado da sala (Colyseus Schema v5). */
+/** Estado sincronizado da sala (Colyseus Schema v5). Coleções com `.view()` → filtradas por área de interesse. */
 import { schema, t, type SchemaType } from '@colyseus/schema';
 
 export const NetPlayer = schema({
@@ -15,18 +15,34 @@ export const NetPlayer = schema({
   heading: t.float32(),
   speed: t.float32(),
   loco: t.uint8(),
-  /** veículo em uso ('' = a pé) */
+  /** id do veículo em uso ('' = a pé) */
   vehicle: t.string(),
-  /** modo de interação decidido pelo servidor */
+  /** 'pacifico' | 'interacao' — decidido pelo servidor */
   interaction: t.string(),
+  /** 0 normal · 1 caído · 2 levantando */
+  status: t.uint8(),
 }, 'NetPlayer');
 export type NetPlayer = SchemaType<typeof NetPlayer>;
 
+export const NetVehicle = schema({
+  kind: t.string(),
+  x: t.float32(),
+  z: t.float32(),
+  y: t.float32(),
+  heading: t.float32(),
+  speed: t.float32(),
+  /** sessionId do ocupante ('' = livre) */
+  occupant: t.string(),
+}, 'NetVehicle');
+export type NetVehicle = SchemaType<typeof NetVehicle>;
+
 export const WorldState = schema({
-  players: t.map(NetPlayer),
-  /** evento ativo (id do JSON em public/events) */
+  players: t.map(NetPlayer).view(),
+  vehicles: t.map(NetVehicle).view(),
   eventId: t.string(),
-  /** relógio do servidor (ms) — base para semáforos/eventos sincronizados */
+  /** semente do mundo (aparência de NPCs, etc.) */
+  seed: t.uint32(),
+  /** relógio do servidor (ms) — base de semáforos/eventos */
   serverTime: t.float64(),
 }, 'WorldState');
 export type WorldState = SchemaType<typeof WorldState>;

@@ -1,0 +1,40 @@
+/**
+ * Mundo do servidor: carrega do mesmo pipeline do cliente (public/world) só o necessário para autoridade:
+ * colisão 2D (segmentos), faixas de tráfego/semáforos, veículos utilizáveis e definições de eventos.
+ */
+import { readFileSync, existsSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, resolve } from 'node:path';
+import { WallGrid, decodeSegments } from '../../src/physics/walls.ts';
+import type { WorldManifest, TrafficData } from '../../src/world/types.ts';
+import type { EventDef } from '../../src/events/types.ts';
+
+const here = dirname(fileURLToPath(import.meta.url));
+const PUBLIC = resolve(here, '../../public');
+
+export interface ServerWorld {
+  manifest: WorldManifest;
+  walls: WallGrid;
+  traffic: TrafficData;
+  events: Map<string, EventDef>;
+  defaultEvent: string;
+}
+
+export function loadWorld(): ServerWorld {
+  const t0 = Date.now();
+  const manifest = JSON.parse(readFileSync(`${PUBLIC}/world/manifest.json`, 'utf8')) as WorldManifest;
+  if (!manifest.collision) throw new Error('manifest sem arquivo de colisão — rode `npm run map:build`');
+  const buf = readFileSync(`${PUBLIC}/world/${manifest.collision}`);
+  const walls = new WallGrid();
+  walls.addAll(decodeSegments(new Float32Array(buf.buffer, buf.byteOffset, buf.byteLength / 4)));
+  const tr = JSON.parse(readFileSync(`${PUBLIC}/world/${manifest.traffic}`, 'utf8')) as TrafficData;
+  const traffic: TrafficData = { lanes: tr.lanes ?? [], junctions: tr.junctions ?? [], crossings: tr.crossings ?? [] };
+  const idx = JSON.parse(readFileSync(`${PUBLIC}/events/index.json`, 'utf8')) as { default: string; events: string[] };
+  const events = new Map<string, EventDef>();
+  for (const id of idx.events) {
+    const f = `${PUBLIC}/events/${id}.json`;
+    if (existsSync(f)) events.set(id, JSON.parse(readFileSync(f, 'utf8')) as EventDef);
+  }
+  console.log(`[world] ${walls.segmentCount} paredes, ${traffic.lanes.length} faixas, ${traffic.junctions.length} semáforos, ${manifest.vehicleSpawns?.length ?? 0} veículos, ${events.size} eventos (${Date.now() - t0} ms)`);
+  return { manifest, walls, traffic, events, defaultEvent: idx.default };
+}

@@ -31,6 +31,8 @@ export interface JoinOptions {
   top: number;
   bottom: number;
   shoes: number;
+  /** SOMENTE servidor em modo de teste (PV_TEST=1): ponto de spawn para cenas reproduzíveis */
+  testSpawn?: { x: number; z: number };
 }
 
 export interface MoveMsg {
