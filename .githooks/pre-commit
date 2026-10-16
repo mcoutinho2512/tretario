@@ -1,0 +1,7 @@
+#!/bin/sh
+# Barreira obrigatória: nenhum commit com typecheck, testes ou build quebrados.
+# Ativada automaticamente por `npm install` (script "prepare" → core.hooksPath=.githooks).
+set -e
+echo "[pre-commit] verificando (typecheck + testes + build + servidor)…"
+npm run --silent verify || { echo "[pre-commit] FALHOU — commit bloqueado."; exit 1; }
+echo "[pre-commit] ok"
