@@ -47,6 +47,44 @@ cílios e peles do pacote de sistema são **CC0**.
 (https://quaternius.com/packs/universalanimationlibrary.html · https://opengameart.org/node/174563),
 retargetadas para o rig do MakeHuman por `tools/character/retarget.py`.
 
+#### Peças variantes (rodada 7 — `public/characters/<corpo>-<camada>-<estilo>[_lod1].glb`)
+Mesmo pipeline (configs `tools/character/variants/*.json`, campo `"variants"`). Licença conferida no PRÓPRIO `.mhclo`
+e no `.mhmat` de cada peça (não só no rótulo do pacote). Alterações (indicadas conforme CC BY): ajuste ao corpo pelo
+MPFB, decimação (LOD1), textura das roupas convertida para base neutra em tons de cinza (tingida no jogo), texturas de
+cabelo clareadas por `tools/character/make_light_hair.py`.
+
+| Asset | Autor | Licença | Pacote | Origem | Usado em (estilo) |
+|---|---|---|---|---|---|
+| `elvs_male_shirt_untucked_bd1` | Elvaerwyn | CC-BY | shirts02 | http://www.makehumancommunity.org/node/1800 | homem, idoso (camisa) |
+| `punkduck_lace_up_blouse` | punkduck | CC BY 4.0 | shirts02 | http://www.makehumancommunity.org/node/1775 | mulher, idosa (camisa/blusa) |
+| `toigo_camisole_top` | MargaretToigo | CC0 | shirts01 | http://www.makehumancommunity.org/node/1726 | mulher, idosa (regata) |
+| regata derivada de `toigo_basic_tucked_t-shirt` (mangas cortadas no build) | MargaretToigo | CC0 | shirts01 | http://www.makehumancommunity.org | homem (regata) |
+| `toigo_basic_tucked_t-shirt` | MargaretToigo | CC0 | shirts01 | http://www.makehumancommunity.org | idoso (camiseta) |
+| `namuhekam_male_polo_shirt` | namuhekam | CC0 | shirts01 | http://www.makehumancommunity.org/node/2909 | homem (polo) |
+| `elvs_male_trouser_short_2` | Elvaerwyn | CC-BY | pants03 | http://www.makehumancommunity.org/node/1806 | homem, idoso (bermuda) |
+| `punkduck_female_short_jeans` | punkduck | CC BY 4.0 | pants03 | http://www.makehumancommunity.org/node/392 | mulher, idosa (bermuda/short) |
+| `elvs_male_trouser` | Elvaerwyn | CC-BY | pants02 | http://www.makehumancommunity.org/node/1796 | homem (calça social) |
+| `mindfront_female_trousers_1` | Mindfront | CC BY 4.0 | pants02 | http://www.makehumancommunity.org/node/790 | mulher (calça social) |
+| `punkduck_male_classic_jeans` | punkduck | CC BY 4.0 | pants02 | http://www.makehumancommunity.org/node/1655 | idoso (jeans) |
+| `punkduck_female_tight_jeans` | punkduck | CC BY 3.0 | pants02 | http://www.makehumancommunity.org/node/391 | idosa (jeans) |
+| `elvs_male_flip_flop_sandals1` | Elvaerwyn | CC-BY | shoes02 | http://www.makehumancommunity.org/node/1453 | todos (chinelo) |
+| `mindfront_shoes_oxford_male` | Mindfront | CC BY 4.0 | shoes02 | http://www.makehumancommunity.org/node/620 | homem (sapato) |
+| `toigo_flats` | MargaretToigo | CC0 | shoes01 | http://www.makehumancommunity.org/node/1117 | mulher (sapatilha) |
+| `punkduck_running_shoes_01` | punkduck | CC BY 3.0 | shoes02 | http://www.makehumancommunity.org/node/570 | idoso (tênis) |
+| `punkduck_comfortable_sneakers` | punkduck | CC BY 3.0 | shoes02 | http://www.makehumancommunity.org/node/438 | idosa (tênis) |
+| `afro01` (+ base clara) | makehuman_system | CC0 | makehuman_system_assets | http://www.makehumancommunity.org | homem, mulher (crespo) |
+| `short02` (+ base clara) | makehuman_system | CC0 | makehuman_system_assets | http://www.makehumancommunity.org | homem (curto 2) |
+| `bob01` (+ base clara) | makehuman_system | CC0 | makehuman_system_assets | http://www.makehumancommunity.org | mulher (chanel) |
+| `long01` (+ base clara) | makehuman_system | CC0 | makehuman_system_assets | http://www.makehumancommunity.org | mulher (longo) |
+| `short04` (+ base clara) | makehuman_system | CC0 | makehuman_system_assets | http://www.makehumancommunity.org | idosa (curto) |
+
+Avaliados e NÃO usados (rodada 7): `ews_striped_shirt`, `dressupdoc_*`, `callharvey3d_*`, `skalldyrssuppe_tube_top_*`,
+`culturalibre_hair_01/02`, `littleright_bobcut_hair`, `elvs_witchy_lil_bob` e outros que declaram **AGPL-3** no
+arquivo; `punkduck_diver_scuba_rig` (CC-BY-NC-SA, não comercial); `toigo_maga_hat` (político); `punkduck_deathnote_t-shirt`
+(estampa de obra de terceiros). **Barba:** nenhum pacote disponível (shirts/pants/shoes/hats/hair/eyebrows/equipment,
+system assets) traz barba ou bigode com licença compatível — não incluída. Camisas de futebol: **nenhuma textura** —
+padrões e cores calculados no shader a partir de `src/social/designs.ts` (sem escudos, marcas, textos ou uniformes).
+
 Rejeitados por licença: `kwnet_at_optical_glasses` e `frankyaye_glasses_library_male` (o arquivo declara AGPL-3,
 apesar de estarem num pacote rotulado CC0) e `toigo_maga_hat` (conteúdo político, fora do escopo).
 

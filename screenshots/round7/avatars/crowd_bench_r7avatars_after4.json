@@ -1,0 +1,32 @@
+[
+  {
+    "bots": 500,
+    "preset": "high",
+    "fps": 70.09,
+    "frameMs": 14.56,
+    "worstMs": 29.799999952316284,
+    "cpuMs": 11.11,
+    "gpuMs": 7.87,
+    "calls": 1471,
+    "trianglesK": 4602,
+    "heapMB": 250.6,
+    "geometries": 744,
+    "textures": 593,
+    "remotes": 48,
+    "far": 451,
+    "humans": 555,
+    "skinned": 24,
+    "instanced": 241,
+    "instancedCalls": 8,
+    "hidden": 0,
+    "lods": [
+      6,
+      18,
+      0,
+      0
+    ],
+    "peds": 56,
+    "crowdMs": 0.14,
+    "netInKBps": 17.6
+  }
+]

@@ -30,5 +30,47 @@
     "elvs_sling_purse1.mhclo": "ACC_bolsa",
     "punkduck_shopping_bag01.mhclo": "ACC_mochila"
   },
-  "eyes": "low-poly.mhclo"
+  "eyes": "low-poly.mhclo",
+  "styles": {
+    "SHIRT": "polo",
+    "PANTS": "social",
+    "SHOES": "sapato",
+    "HAIR": "curto"
+  },
+  "variants": [
+    {
+      "layer": "SHIRT",
+      "style": "camiseta",
+      "file": "toigo_basic_tucked_t-shirt.mhclo"
+    },
+    {
+      "layer": "SHIRT",
+      "style": "camisa",
+      "file": "elvs_male_shirt_untucked_bd1.mhclo"
+    },
+    {
+      "layer": "PANTS",
+      "style": "bermuda",
+      "file": "elvs_male_trouser_short_2.mhclo"
+    },
+    {
+      "layer": "PANTS",
+      "style": "jeans",
+      "file": "punkduck_male_classic_jeans.mhclo"
+    },
+    {
+      "layer": "SHOES",
+      "style": "tenis",
+      "file": "punkduck_running_shoes_01.mhclo"
+    },
+    {
+      "layer": "SHOES",
+      "style": "chinelo",
+      "file": "elvs_male_flip_flop_sandals1.mhclo"
+    },
+    {
+      "layer": "HAIR",
+      "style": "raspado"
+    }
+  ]
 }

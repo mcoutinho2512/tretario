@@ -26,6 +26,7 @@ import { createPlayerState, type PlayerState } from '../player/PlayerState';
 import type { Accessory, BodyType, CharacterAppearance } from '../characters/bodyTypes';
 import { decodeCrowd } from './crowdCodec';
 import { anonymousClientId } from './clientId';
+import { packLook } from '../characters/garments';
 import { createAgent, type CrowdAgent } from '../characters/crowd/crowdBudget';
 import type { CrowdDirector } from '../characters/crowd/CrowdDirector';
 import type { SocialState } from '../social/types';
@@ -162,7 +163,7 @@ export class NetworkClient {
     this.status = 'connecting';
     try {
       const client = new Client(this.endpoint);
-      const opts: JoinOptions = { name, body: app.body, skin: app.skin, hair: app.hair, top: app.top, bottom: app.bottom, shoes: app.shoes, accessory: app.accessory ?? 'nenhum', acc: app.acc ?? 0x222222, cid: anonymousClientId(), ...(testSpawn ? { testSpawn } : {}), ...(this.crowd ? { aoiMax: Math.max(16, Math.min(64, this.crowd.budget.skinned * 2)) } : {}) };
+      const opts: JoinOptions = { name, body: app.body, skin: app.skin, hair: app.hair, top: app.top, bottom: app.bottom, shoes: app.shoes, accessory: app.accessory ?? 'nenhum', acc: app.acc ?? 0x222222, topStyle: app.topStyle, bottomStyle: app.bottomStyle, shoeStyle: app.shoeStyle, hairStyle: app.hairStyle, shirtDesign: app.shirtDesign ?? 0, cid: anonymousClientId(), ...(testSpawn ? { testSpawn } : {}), ...(this.crowd ? { aoiMax: Math.max(16, Math.min(64, this.crowd.budget.skinned * 2)) } : {}) };
       const room = await client.joinOrCreate(ROOM_NAME, opts);
       this.room = room;
       this.sessionId = room.sessionId;
@@ -279,10 +280,13 @@ export class NetworkClient {
 
   // ---------------------------------------------------------------- remotos
   private addRemote(id: string, p: any) {
-    const app: CharacterAppearance = { body: (p.body || 'homem') as BodyType, skin: p.skin, hair: p.hair, top: p.top, bottom: p.bottom, shoes: p.shoes, scale: 1, accessory: (p.accessory || 'nenhum') as Accessory, acc: p.acc };
+    const app: CharacterAppearance = {
+      body: (p.body || 'homem') as BodyType, skin: p.skin, hair: p.hair, top: p.top, bottom: p.bottom, shoes: p.shoes, scale: 1, accessory: (p.accessory || 'nenhum') as Accessory, acc: p.acc,
+      topStyle: p.topStyle || undefined, bottomStyle: p.bottomStyle || undefined, shoeStyle: p.shoeStyle || undefined, hairStyle: p.hairStyle || undefined, shirtDesign: p.shirtDesign || 0,
+    };
     const nid = Number(p.nid) || 0;
     if (nid) { this.remoteNids.add(nid); this.far.delete(nid); }
-    const agent = createAgent({ x: p.x, y: p.y, z: p.z, heading: p.heading, body: bodyIndex(app.body), skin: app.skin, hair: app.hair, top: app.top, bottom: app.bottom });
+    const agent = createAgent({ x: p.x, y: p.y, z: p.z, heading: p.heading, body: bodyIndex(app.body), skin: app.skin, hair: app.hair, top: app.top, bottom: app.bottom, look: packLook(app), shirt: app.shirtDesign ?? 0 });
     const label = document.createElement('div');
     label.className = 'name-label';
     label.textContent = p.name || 'Visitante';

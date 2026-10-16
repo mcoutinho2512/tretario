@@ -4,11 +4,15 @@
  * Ações sociais: &act=<ActionDefinition.key>&prop=<PropKind>&var=<0..7>&t=<s> (t congela o instante)
  * &proxy=1 desenha um item aproximado (cartaz/mastro/faixa) entre as mãos — conferir a pegada.
  * Design do item: &design=<chave ou id>; vento das bandeiras: &wind=0..1
+ * Folha de contatos (variedade): ?sheet=random&n=24&seed=7&football=0.2&lod=0 · ?sheet=football&lod=0 (um design por
+ * pessoa, corpos alternados) · ?sheet=styles&body=homem (cada peça variante do corpo)
  */
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { HumanCharacter } from '../src/characters/human/HumanCharacter';
-import { DEFAULT_PLAYER_APPEARANCE, type BodyType } from '../src/characters/bodyTypes';
+import { DEFAULT_PLAYER_APPEARANCE, randomAppearance, type BodyType, type CharacterAppearance } from '../src/characters/bodyTypes';
+import { BODY_GARMENTS, GARMENT_SLOTS, SLOT_FIELD } from '../src/characters/garments';
+import { shirtDesigns } from '../src/characters/human/garmentShader';
 import type { Lod } from '../src/characters/human/HumanAssets';
 import { ACTIONS, ACTION_BY_KEY } from '../src/social/actions';
 import { PROPS, PROP_BY_KIND, type PropKind } from '../src/social/props';
@@ -67,15 +71,58 @@ const body = (q.get('body') ?? 'homem') as BodyType;
 const app = { ...DEFAULT_PLAYER_APPEARANCE[body], accessory: (q.get('acc') ?? 'nenhum') as never, acc: 0x2b4a7a };
 if (q.get('top')) app.top = parseInt(q.get('top')!, 16);
 if (q.get('skin')) app.skin = parseInt(q.get('skin')!, 16);
+// variantes de peça e camisa com design: ?ts=regata&bs=bermuda&ss=chinelo&hs=afro&design=200
+Object.assign(app, { topStyle: q.get('ts') ?? undefined, bottomStyle: q.get('bs') ?? undefined, shoeStyle: q.get('ss') ?? undefined, hairStyle: q.get('hs') ?? undefined, shirtDesign: Number(q.get('design') ?? 0) });
 const chars: HumanCharacter[] = [];
-const lods: Lod[] = mode === 'lods' ? [0, 1, 2, 3] : [Number(q.get('lod') ?? 0) as Lod];
-lods.forEach((l, i) => {
-  const h = new HumanCharacter(app, { lod: l });
-  h.root.position.x = mode === 'lods' ? (i - 1.5) * 1.1 : 0;
-  h.root.rotation.y = Number(q.get('yaw') ?? 0.3);
-  scene.add(h.root);
-  chars.push(h);
-});
+const sheet = q.get('sheet');
+if (sheet) {
+  // folha de contatos: grade de personagens (variedade de avatares / camisas de futebol / peças de um corpo)
+  const bodies: BodyType[] = ['homem', 'mulher', 'idoso', 'idosa'];
+  const seed = Number(q.get('seed') ?? 1);
+  let apps: CharacterAppearance[] = [];
+  if (sheet === 'football') {
+    apps = shirtDesigns().filter((d) => d.family === 'football').flatMap((d, i) => [0, 1].map((k) => {
+      const a = randomAppearance(seed * 97 + i * 13 + k, bodies[(i + k) % 2], { football: 0 });
+      return { ...a, topStyle: 'camiseta' as const, shirtDesign: d.id, accessory: 'nenhum' as const };
+    }));
+  } else if (sheet === 'styles') {
+    const b = body;
+    apps.push({ ...app, accessory: 'nenhum' });
+    for (const slot of GARMENT_SLOTS) for (const st of [...BODY_GARMENTS[b][slot].pieces, ...(BODY_GARMENTS[b][slot].bare ?? [])]) {
+      apps.push({ ...app, accessory: 'nenhum', [SLOT_FIELD[slot]]: st });
+    }
+  } else {
+    const n = Number(q.get('n') ?? 24);
+    apps = Array.from({ length: n }, (_, i) => randomAppearance(seed * 1000 + i * 7919, bodies[i % 4], { football: Number(q.get('football') ?? 0.2) }));
+  }
+  const cols = Math.ceil(Math.sqrt(apps.length * 2.2));
+  const rows = Math.ceil(apps.length / cols);
+  apps.forEach((a, i) => {
+    const h = new HumanCharacter(a, { lod: Number(q.get('lod') ?? 0) as Lod });
+    const r = Math.floor(i / cols), c = i % cols;
+    h.root.position.set((c - (cols - 1) / 2) * 0.78 + (r % 2) * 0.2, 0, -r * 1.1);
+    h.root.rotation.y = Number(q.get('yaw') ?? 0.15);
+    scene.add(h.root);
+    chars.push(h);
+  });
+  const w = cols * 0.78;
+  cam.fov = 30;
+  cam.position.set(0, 1.3 + rows * 0.45, 0.8 + w * 0.95 + rows * 0.3);
+  cam.lookAt(0, 0.55, -(rows - 1) * 0.55);
+  cam.updateProjectionMatrix();
+  sun.shadow.camera.left = sun.shadow.camera.bottom = -w;
+  sun.shadow.camera.right = sun.shadow.camera.top = w;
+  sun.shadow.camera.updateProjectionMatrix();
+} else {
+  const lods: Lod[] = mode === 'lods' ? [0, 1, 2, 3] : [Number(q.get('lod') ?? 0) as Lod];
+  lods.forEach((l, i) => {
+    const h = new HumanCharacter(app, { lod: l });
+    h.root.position.x = mode === 'lods' ? (i - 1.5) * 1.1 : 0;
+    h.root.rotation.y = Number(q.get('yaw') ?? 0.3);
+    scene.add(h.root);
+    chars.push(h);
+  });
+}
 // design do item: ?design=brasil (chave ou id); vento: ?wind=0..1
 const designQ = q.get('design');
 const designId = designQ ? (DESIGN_BY_KEY.get(designQ)?.id ?? (Number(designQ) || 0)) : 0;
@@ -84,7 +131,8 @@ let speed = Number(q.get('speed') ?? 0);
 const pose = q.get('pose');
 let t0 = performance.now();
 await Promise.all(chars.map((c) => c.ready));
-await new Promise((r) => setTimeout(r, 400));
+// LOD0/1 e peças avulsas chegam depois do LOD3 inicial
+await new Promise((r) => setTimeout(r, sheet ? 2500 : 400));
 
 /** item aproximado (só QA): cartaz/faixa entre as mãos, mastro passando pela mão direita */
 const proxy = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({ color: 0xf1e7c8, roughness: 0.8 }));

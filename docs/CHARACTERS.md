@@ -45,6 +45,86 @@ por camada.
 
 Download inicial: animações + LOD0 do próprio avatar + LOD3 dos quatro corpos (~2 MB); o resto em segundo plano.
 
+## Peças variantes e camisas de futebol (rodada 7)
+Muito mais variedade **sem novos esqueletos nem corpos**: cada corpo ganhou peças alternativas de roupa e cabelo,
+ajustadas a ele pelo MPFB no mesmo build e publicadas como **GLBs avulsos** (`<corpo>-<camada>-<estilo>.glb` +
+`_lod1`), baixados só quando alguém as veste de perto. Registro único: `src/characters/garments.ts` (espelha
+`tools/character/variants/*.json`; `tests/garments.test.ts` confere configs × registro × arquivos publicados).
+
+| Corpo | Camisa | Calça | Calçado | Cabelo | combinações de peças |
+|---|---|---|---|---|---|
+| homem | **camiseta**, regata, polo, camisa | **jeans**, bermuda, social | **tênis**, chinelo, sapato | **curto**, curto 2, crespo, raspado | 144 |
+| mulher | **camiseta**, regata (camisete), camisa (blusa) | **jeans**, bermuda (short), social | **tênis**, chinelo, sapatilha | **rabo de cavalo**, crespo, chanel, longo | 108 |
+| idoso | **polo**, camiseta, camisa | **social**, bermuda, jeans | **sapato**, tênis, chinelo | **curto**, raspado | 54 |
+| idosa | **camiseta**, camisa (blusa), regata | **social**, jeans, bermuda | **sapato**, tênis, chinelo | **chanel**, curto | 54 |
+
+Em negrito a peça base (dentro do GLB do corpo). 360 combinações de peças × 7 tons de pele × cores de cabelo/roupa ×
+acessórios × 8 camisas de futebol. 31 peças avulsas.
+
+**Aparência** (`CharacterAppearance`, campos opcionais e retrocompatíveis): `topStyle`, `bottomStyle`, `shoeStyle`,
+`hairStyle` (ausente ou inexistente no corpo = peça base) e `shirtDesign` (id de `src/social/designs.ts` com alvo
+`'shirt'`; 0 = lisa). Rede: `JoinOptions` + `NetPlayer` (strings/u16), validados no servidor (`sanitizeStyle`,
+`sanitizeShirtDesign`). Tela inicial: chips de modelo por peça (só o que o corpo veste) e "camisa de time".
+Barba: nenhum asset com licença compatível nos pacotes disponíveis — não incluída (ver ASSET_LICENSES).
+
+### Como funciona
+- **LOD0/LOD1**: `HumanCharacter.dress()` carrega as peças que faltam (cache por arquivo; texturas soltas da CPU após o
+  upload), recorta a pele coberta por ESTA combinação e só então troca o que aparece (a roupa anterior fica até lá).
+  Peças que saem do corpo são soltas (NPCs reciclados não acumulam malhas).
+- **Pele sob a roupa por combinação**: o MakeHuman apagava do corpo a pele sob a roupa padrão; com variantes, o build
+  só apaga a **interseção** das máscaras das peças da mesma camada (uma regata/bermuda/chinelo nunca mostra buraco).
+  O resto é recortado no jogo (`hideCovered`): uma máscara de vértices cobertos por **(corpo, peça)**, calculada uma
+  vez no Worker, e o índice da combinação vestida = união das máscaras (cache por combinação; atributos compartilhados
+  → um upload só). Calça × camisa idem. Calçados entram no recorte (pé sob o tênis).
+- **LOD2/LOD3 e multidão VAT** continuam com a malha única da roupa base (sem custo extra de download); as variantes
+  são **aproximadas no shader** (`human/garmentShader.ts`) por zonas calculadas pelos ossos do próprio esqueleto:
+  regata = braço da camisa com cor de pele, camisa = antebraço com cor da camisa, bermuda = canela com cor de pele
+  (corte reto por fragmento na altura do joelho), chinelo, cabeça raspada. Na multidão: um atributo por instância
+  `aLook` = (aparência empacotada `packLook`, slot do design). No build, a pele da malha única sob a roupa base é
+  removida pelo mesmo teste do jogo (raio pela normal) — acabou a pele "furando" a camiseta no LOD2/3.
+- **Camisas de futebol** (`FootballShirtDesign` = designs da família `'football'`): padrão calculado no shader no
+  espaço do corpo em repouso (m, relativo ao peito) a partir da paleta — aros, listras verticais, tricolor, faixa
+  diagonal, gola/punhos (distância à borda da peça), liso. Mesma estampa em LOD0/1 (camada SHIRT: textura neutra ×
+  padrão) e LOD2/3/multidão. **Sem escudos, textos, marcas ou uniformes oficiais.** Uniforme licenciado no futuro:
+  um design com `licensed` + `texture` (layout de UV da camiseta base) — `HumanCharacter` já troca o mapa da camiseta
+  base por essa textura; nos LODs de malha única vale a paleta.
+- **Sorteio** (`randomAppearance(seed, body, { football })`): pesos plausíveis por corpo (idosos quase nunca de
+  regata; calçado pela calça — bermuda com tênis/chinelo, social com sapato), camisa de futebol ~6 % no dia a dia e
+  ~20 % num ato (evento com grupos; metade disso entre idosos), sempre modelo camiseta. Os sorteios novos vêm depois
+  dos de cor: uma semente mantém as cores de antes. 100 aparências sorteadas = 100 assinaturas visuais distintas
+  (54 combinações de peças diferentes) — teste exige ≥ 80.
+
+### Como adicionar uma peça
+1. Conferir a licença no PRÓPRIO `.mhclo`/`.mhmat` (CC0/CC-BY; nada de AGPL, NC, política, marcas) e registrar em
+   `docs/ASSET_LICENSES.md` + `public/CREDITS.txt` (CC-BY).
+2. Extrair o pacote na pasta de dados do MPFB e acrescentar em `tools/character/variants/<corpo>.json`:
+   `{"layer": "SHIRT", "style": "<estilo>", "file": "<asset>.mhclo"}` (cabelo: `"kind": "hair"` e `"texture"` com a
+   base clara de `make_light_hair.py`; sem `file` = estilo sem malha; `"derive": "sleeveless"` = regata cortada da
+   camiseta base). Estilo novo: acrescentar NO FIM da lista em `garments.ts` (índices empacotados) e o rótulo.
+3. Acrescentar o estilo em `BODY_GARMENTS` e, se for o caso, nos pesos de `randomAppearance`; rodar o build do corpo
+   (`--no-anims` para não regravar `anims.glb`) e `pack.sh`. As texturas das peças viram base neutra em cinza (tinta
+   exata) e não levam mapa de normais.
+4. Conferir recorte/atravessamento: `/dev/human.html?sheet=styles&body=<corpo>&lod=0|1&speed=0|1.2|3.2&t=…` e
+   `npm test` (garments.test).
+
+### Medições (rodada 7, Mac M-series; máquina compartilhada com outros agentes → FPS ruidoso)
+| | antes | depois |
+|---|---|---|
+| GLB do corpo LOD0 (homem/mulher/idoso/idosa) | 1,45 / 1,12 / 1,26 / 1,07 MB | 1,50 / 1,15 / 1,29 / 1,11 MB (pele sob roupas curtas) |
+| LOD1 / LOD2 / LOD3 (pré-carregados: LOD2/3) | — | iguais (± 1 %) |
+| Peças avulsas (31, sob demanda) | — | LOD0 4,40 MB no total (41–570 KB cada), LOD1 1,99 MB |
+| 1ª visita 4G até jogar | 3,6 MB | **3,57 MB** (inalterado) |
+| 4G após 30 s / 4G lento após 30 s | 5,9 / 6,5 MB | 6,8 / 5,9 MB |
+| HIGH, corredor ida e volta: performance.memory pós-GC (fim) | 131 MB | 153 MB |
+| HIGH: texturas NPC GPU / CPU (Candelária) | 106 / 79 MB | 128 / 98 MB |
+| Multidão 500 bots LOW (mesmos bots/servidor, cliente antes × depois) | 47,3 FPS, CPU 4,0 ms | 47,4 FPS, CPU 4,1 ms |
+| Multidão 500 bots HIGH, CPU/GPU por quadro (2 pares alternados) | 11,7 / 7,1 · 9,3 / 8,6 ms | 10,7 / 7,0 · 11,1 / 7,9 ms |
+| Multidão 500 bots HIGH, FPS (mesmos pares; varia com a carga da máquina) | 78 · 42 | 56 · 70 |
+
+Crescimento de memória = peças de roupa realmente vestidas pelos NPCs/jogadores próximos (texturas 1024² de camisa/
+calça/cabelo) e índices por combinação; o download inicial não muda. Não foram criados novos corpos/fenótipos:
+cada corpo extra custaria ~0,13 MB pré-carregados (LOD2/3), ~2 MB sob demanda, +2 draw calls e um VAT a mais.
+
 ## Animação
 - Clipes: idle, walk, jog, sprint, jump (start/loop/land), drive, sit, push, dance, hit, talk, interact.
 - **Idle ↔ Walk ↔ Jog ↔ Sprint** com crossfade contínuo pela velocidade (interpolação entre as velocidades naturais
@@ -65,8 +145,9 @@ osso. Verificado numericamente: direção dos ossos dos membros idêntica à ori
 ## Reproduzir o build
 1. Blender ≥ 4.2 com a extensão MPFB2 (`blender --command extension install-file -r user_default -e mpfb.zip`).
 2. Pacotes da MakeHuman Community extraídos em `~/Library/Application Support/Blender/<v>/extensions/.user/user_default/mpfb/data`
-   (system assets, shirts01, pants01/02, shoes01/02, hair01, eyebrows01, eyelashes01, hats01/03, glasses01, equipment03,
-   system_clothes/hair_materials01).
+   (system assets, shirts01/02, pants01/02/03, shoes01/02, hair01, eyebrows01, eyelashes01, hats01/03, glasses01,
+   equipment03, system_clothes/hair_materials01); bases claras de cabelo com `tools/character/make_light_hair.py`
+   (`<difuso>_light.png` ao lado do original: short01, short02, short04, afro01, bob01, long01).
 3. Animações: `universal_animation_librarystandard.zip` (OpenGameArt, CC0) em `~/pv3d-assets-src/ual/`.
 4. `blender -b --python tools/character/build_character.py -- tools/character/variants/homem.json <saida>` (idem para os demais)
 5. `sh tools/character/pack.sh <saida>` → `public/characters/`.
@@ -77,4 +158,8 @@ Página de teste (só desenvolvimento): `/dev/human.html?body=mulher&cam=lods`.
 - O tom de pele é um multiplicador sobre texturas de pele clara: tons muito escuros perdem um pouco de detalhe.
 - Cabelos são "cards" com alpha test (sem transparência ordenada): bordas serrilhadas de perto.
 - Camiseta masculina de gola larga; cós da calça aparece por cima da barra da camisa em alguns ângulos.
+- Variantes no LOD2/3/multidão são aproximações por cor (a silhueta é a da roupa base: bermuda = canela cor de pele
+  sobre a calça). Multidão distante da rede (mensagem binária) ainda sem peças/design: mostra a roupa base.
+- Regata derivada (homem) tem um pequeno degrau no fundo da cava; no LOD1 a bermuda pode deixar um fio de pele na
+  virilha ao correr. Sem barba (nenhum asset licenciado disponível).
 - LOD1 decimado degrada o rosto de perto (por isso os retratos e personagens próximos usam LOD0).

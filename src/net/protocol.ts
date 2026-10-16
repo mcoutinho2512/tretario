@@ -9,6 +9,9 @@
  *  - modo de interação, combate, inventário, dinheiro: nunca aceitos do cliente sem regra do servidor
  */
 
+import { BOTTOM_STYLES, HAIR_STYLES, SHOE_STYLES, TOP_STYLES } from '../characters/garments';
+import { DESIGN_BY_ID } from '../social/designs';
+
 export const ROOM_NAME = 'presidente_vargas';
 export const NET_TICK_HZ = 15; // envio de movimento pelo cliente
 export const SERVER_PATCH_MS = 50; // 20 Hz de patches de estado
@@ -37,6 +40,13 @@ export interface JoinOptions {
   shoes: number;
   accessory?: string;
   acc?: number;
+  /** peças variantes (src/characters/garments.ts); ausente/inválido = roupa base do corpo */
+  topStyle?: string;
+  bottomStyle?: string;
+  shoeStyle?: string;
+  hairStyle?: string;
+  /** camisa com design (src/social/designs.ts, alvo 'shirt'); 0 = lisa */
+  shirtDesign?: number;
   /** máximo de jogadores com estado completo que ESTE cliente quer receber (preset; o servidor limita a PV_AOI_MAX) */
   aoiMax?: number;
   /**
@@ -68,6 +78,17 @@ export function isFiniteNum(n: unknown): n is number {
 
 export function sanitizeColor(c: unknown, fallback: number): number {
   return isFiniteNum(c) && c >= 0 && c <= 0xffffff ? Math.floor(c) : fallback;
+}
+
+const STYLE_LISTS = { topStyle: TOP_STYLES, bottomStyle: BOTTOM_STYLES, shoeStyle: SHOE_STYLES, hairStyle: HAIR_STYLES } as const;
+/** estilo de peça permitido ('' = roupa base; o cliente cai na base se o corpo não tiver a peça) */
+export function sanitizeStyle(field: keyof typeof STYLE_LISTS, v: unknown): string {
+  return typeof v === 'string' && (STYLE_LISTS[field] as readonly string[]).includes(v) ? v : '';
+}
+/** design de camisa válido (só alvo 'shirt': cores de futebol, sem escudos) ou 0 */
+export function sanitizeShirtDesign(v: unknown): number {
+  const d = Number.isInteger(v) ? DESIGN_BY_ID.get(v as number) : undefined;
+  return d && d.targets.includes('shirt') ? d.id : 0;
 }
 
 export function sanitizeName(n: unknown): string {

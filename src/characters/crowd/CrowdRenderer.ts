@@ -6,7 +6,8 @@
  *    numa textura (half float) — um quadro por linha-bloco; nenhuma CPU por personagem depois disso
  *  - uma `InstancedMesh` por (corpo, LOD): 8 draw calls no máximo para a multidão inteira, qualquer que seja N
  *  - por instância: matriz (posição, rumo, escala), quadro A/B + mistura (interpola entre quadros assados) e as
- *    cores pele/cabelo/camisa/calça como multiplicadores da cor de vértice (mesma regra das malhas únicas)
+ *    cores pele/cabelo/camisa/calça como multiplicadores da cor de vértice (mesma regra das malhas únicas), mais as
+ *    variantes de peça e o design da camisa (`aLook`, aproximados no shader — human/garmentShader.ts)
  * O vertex shader troca `position` pela leitura da textura por `gl_VertexID` (WebGL2).
  * Normais: as do repouso (a esta distância a diferença de iluminação dos membros não é perceptível).
  */
@@ -19,6 +20,7 @@ import { measureNatural, groundOffsets } from '../human/HumanAnimator';
 import { clipFloor, proceduralClip, withBase } from '../human/proceduralClips';
 import { ACTIONS, ACTION_BY_ID } from '../../social/actions';
 import type { CrowdAgent } from './crowdBudget';
+import { addRestAttributes, patchLookShader, shirtSlot } from '../human/garmentShader';
 
 /** pé mais baixo na pose atual (repouso), no espaço do esqueleto */
 function restFootMin(armature: THREE.Object3D): number {
@@ -61,6 +63,8 @@ interface VatSet {
   aHair: THREE.InstancedBufferAttribute;
   aTop: THREE.InstancedBufferAttribute;
   aBottom: THREE.InstancedBufferAttribute;
+  /** variantes de roupa e camisa por instância (garmentShader): [look empacotado, slot do design] */
+  aLook: THREE.InstancedBufferAttribute;
   tex: THREE.DataTexture;
   count: number;
 }
@@ -120,6 +124,12 @@ export class CrowdRenderer {
     };
     // mesma correção de contato com o chão dos personagens com esqueleto (proporções do corpo ≠ origem da animação)
     const ground = groundOffsets(body, armature, clips, ['idle', 'walk', 'jog']);
+    // (variantes primeiro: as zonas usam a pose de REPOUSO, antes de qualquer clipe ser tocado para assar)
+    // ---- variantes de roupa (garmentShader): zonas do corpo e padrão da camisa na pose de repouso
+    scene.updateMatrixWorld(true);
+    const rest = new Float32Array(sm.geometry.getAttribute('position').count * 3), rv = new THREE.Vector3();
+    for (let i = 0; i < rest.length / 3; i++) sm.getVertexPosition(i, rv).toArray(rest, i * 3);
+    addRestAttributes(sm, rest, LAYER_INDEX.SHIRT);
     // ações: clipes procedurais (camada superior completada com as pernas do idle) ou da biblioteca (dança)
     const idle = clips.get('idle')!;
     armature.updateMatrixWorld(true);
@@ -178,7 +188,7 @@ export class CrowdRenderer {
 
     // geometria estática (sem pesos de osso): posição de repouso só para bounding; a real vem da textura
     const g = new THREE.BufferGeometry();
-    for (const k of ['position', 'normal', 'color', '_layer'] as const) {
+    for (const k of ['position', 'normal', 'color', '_layer', '_rest', '_zone'] as const) {
       const a = sm.geometry.getAttribute(k);
       if (a) g.setAttribute(k, plainCopy(a)); // cópia: o GLB em cache continua sendo usado pelos personagens com esqueleto
     }
@@ -197,6 +207,8 @@ export class CrowdRenderer {
     const mk = (n: number) => { const a = new THREE.InstancedBufferAttribute(new Float32Array(cap * n), n); a.setUsage(THREE.DynamicDrawUsage); return a; };
     const aAnim = mk(3), aSkin = mk(3), aHair = mk(3), aTop = mk(3), aBottom = mk(3);
     g.setAttribute('aAnim', aAnim); g.setAttribute('aSkin', aSkin); g.setAttribute('aHair', aHair); g.setAttribute('aTop', aTop); g.setAttribute('aBottom', aBottom);
+    const aLook = mk(2);
+    g.setAttribute('aLook', aLook);
 
     const src = sm.material as THREE.MeshStandardMaterial;
     const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: src.roughness ?? 0.8, metalness: 0, color: 0xffffff });
@@ -226,6 +238,9 @@ vTint = li == 0 ? aSkin : li == 1 ? aHair : li == 2 ? aTop : li == 3 ? aBottom :
         .replace('#include <common>', '#include <common>\nvarying vec3 vTint;')
         .replace('#include <color_fragment>', '#include <color_fragment>\ndiffuseColor.rgb *= vTint;');
     };
+    // ---- variantes de roupa e camisas de futebol por instância (garmentShader), sobre a tinta por camada
+    const vatPatch = mat.onBeforeCompile, layerAvgU = { value: layerAvg };
+    mat.onBeforeCompile = (sh, r) => { vatPatch.call(mat, sh, r); patchLookShader(sh, { instanced: true, layerAvg: layerAvgU }); };
     mat.customProgramCacheKey = () => 'pv-crowd-vat';
     const mesh = new THREE.InstancedMesh(g, mat, cap);
     mesh.name = `crowd_${body}_lod${lod}`;
@@ -235,7 +250,7 @@ vTint = li == 0 ? aSkin : li == 1 ? aHair : li == 2 ? aTop : li == 3 ? aBottom :
     mesh.receiveShadow = true;
     mesh.count = 0;
     void bi;
-    return { body: bi, lod, mesh, clips: clipRows, acts, natural, layerAvg, aAnim, aSkin, aHair, aTop, aBottom, tex, count: 0 };
+    return { body: bi, lod, mesh, clips: clipRows, acts, natural, layerAvg, aAnim, aSkin, aHair, aTop, aBottom, aLook, tex, count: 0 };
   }
 
   private setFor(a: CrowdAgent): VatSet | null {
@@ -294,6 +309,8 @@ vTint = li == 0 ? aSkin : li == 1 ? aHair : li == 2 ? aTop : li == 3 ? aBottom :
         this.writeTint(s.aHair, i, a.hair, s.layerAvg[LAYER_INDEX.HAIR], 'HAIR');
         this.writeTint(s.aTop, i, a.top, s.layerAvg[LAYER_INDEX.SHIRT], 'SHIRT');
         this.writeTint(s.aBottom, i, a.bottom, s.layerAvg[LAYER_INDEX.PANTS], 'PANTS');
+        const lk = s.aLook.array as Float32Array;
+        lk[i * 2] = a.look; lk[i * 2 + 1] = shirtSlot(a.shirt);
       }
     }
     let calls = 0;
@@ -303,7 +320,7 @@ vTint = li == 0 ? aSkin : li == 1 ? aHair : li == 2 ? aTop : li == 3 ? aBottom :
       s.mesh.visible = s.count > 0;
       if (!s.count) continue;
       calls++;
-      for (const at of [s.mesh.instanceMatrix, s.aAnim, s.aSkin, s.aHair, s.aTop, s.aBottom]) {
+      for (const at of [s.mesh.instanceMatrix, s.aAnim, s.aSkin, s.aHair, s.aTop, s.aBottom, s.aLook]) {
         at.clearUpdateRanges();
         at.addUpdateRange(0, s.count * at.itemSize);
         at.needsUpdate = true;

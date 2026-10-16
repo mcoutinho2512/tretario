@@ -20,6 +20,7 @@
 import WebSocket from 'ws';
 import { Client, Callbacks } from '@colyseus/sdk';
 import { ROOM_NAME, NET_TICK_HZ } from '../../src/net/protocol.ts';
+import { randomAppearance } from '../../src/characters/bodyTypes.ts';
 import { packMove } from '../../src/net/rules.ts';
 import { decodeCrowd } from '../../src/net/crowdCodec.ts';
 import { readFileSync } from 'node:fs';
@@ -93,10 +94,10 @@ async function startBot(i: number) {
   const r = rng(gi * 7919 + 13);
   const client = new Client(ENDPOINT);
   const sp = spawnPoint(gi, r);
+  // aparência sorteada como a dos NPCs num ato (peças variantes, ~20 % de camisas de futebol)
+  const app = randomAppearance(gi * 7919 + 13, (['homem', 'mulher', 'idoso', 'idosa'] as const)[gi % 4], { football: 0.2 });
   const room = await client.joinOrCreate(ROOM_NAME, {
-    name: `bot${gi}`, body: (['homem', 'mulher', 'idoso', 'idosa'] as const)[gi % 4],
-    skin: [0x8d5524, 0xc68642, 0xe0ac69, 0xf1c27d][(gi >> 2) % 4], hair: 0x222222,
-    top: [0xc0392b, 0x2f6f8f, 0xf1c40f, 0x27ae60, 0xffffff, 0x8e44ad][gi % 6], bottom: 0x2c3a52, shoes: 0xeeeeee,
+    ...app, name: `bot${gi}`, accessory: app.accessory ?? 'nenhum',
     ...(sp ? { testSpawn: sp } : {}),
   });
   const b: Bot = {

@@ -55,6 +55,9 @@ export interface Design {
   crowdWeight?: number;
   /** só para designs licenciados (uniforme oficial, arte autorizada): titular e referência da licença */
   licensed?: { holder: string; ref: string };
+  /** camisa licenciada: textura no layout de UV da camiseta base (characters/kits/…); sem ela, camisas usam o padrão
+   * `pattern` + `palette` calculado no shader (human/garmentShader.ts) */
+  texture?: string;
 }
 
 /**

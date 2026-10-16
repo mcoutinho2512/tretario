@@ -2,6 +2,8 @@
  * Tipos de corpo e aparência dos personagens (jogador, NPCs e futuros jogadores remotos).
  * Tudo em dados: fácil de sincronizar pela rede (apenas o `CharacterAppearance` trafega).
  */
+import { DESIGNS } from '../social/designs';
+import type { BottomStyle, HairStyle, ShoeStyle, TopStyle } from './garments';
 
 export type BodyType = 'homem' | 'mulher' | 'idoso' | 'idosa';
 
@@ -38,6 +40,13 @@ export interface CharacterAppearance {
   /** acessório (variante de geometria compartilhada) e sua cor */
   accessory?: Accessory;
   acc?: number;
+  // ---- variantes de peça (garments.ts; ausente = roupa base do corpo — aparências antigas continuam válidas)
+  topStyle?: TopStyle;
+  bottomStyle?: BottomStyle;
+  shoeStyle?: ShoeStyle;
+  hairStyle?: HairStyle;
+  /** camisa com design (social/designs.ts, alvo 'shirt' — cores de futebol); 0/ausente = lisa na cor `top` */
+  shirtDesign?: number;
 }
 
 export type Accessory = 'nenhum' | 'bone' | 'mochila' | 'bolsa' | 'oculos' | 'chapeu';
@@ -51,8 +60,40 @@ export const TOPS = [0x2f6f8f, 0xe8e6e0, 0xd23c3c, 0x2e7d4f, 0xf2c230, 0x1e2a44,
 export const BOTTOMS = [0x2c3a52, 0x1f2430, 0x6b5a45, 0x3d3d3d, 0x8a8f96, 0x24395e, 0xc8bfa8];
 export const SHOES = [0xe8e8e2, 0x222222, 0x5a3a22, 0x3a4a6a, 0xb0b0b0];
 
+type Weights<T> = [T, number][];
+/** peças plausíveis por corpo (pesos): idosos quase nunca de regata; calçado depende da calça (abaixo) */
+const TOP_W: Record<BodyType, Weights<TopStyle>> = {
+  homem: [['camiseta', 45], ['regata', 16], ['polo', 16], ['camisa', 14]],
+  mulher: [['camiseta', 50], ['regata', 26], ['camisa', 24]],
+  idoso: [['polo', 45], ['camiseta', 30], ['camisa', 25]],
+  idosa: [['camiseta', 50], ['camisa', 42], ['regata', 8]],
+};
+const BOTTOM_W: Record<BodyType, Weights<BottomStyle>> = {
+  homem: [['jeans', 44], ['bermuda', 36], ['social', 20]],
+  mulher: [['jeans', 45], ['bermuda', 30], ['social', 25]],
+  idoso: [['social', 55], ['bermuda', 25], ['jeans', 20]],
+  idosa: [['social', 60], ['jeans', 30], ['bermuda', 10]],
+};
+/** calçado pela calça: bermuda com tênis/chinelo, calça social com sapato */
+const SHOE_W: Record<BottomStyle, Weights<ShoeStyle>> = {
+  jeans: [['tenis', 70], ['sapato', 24], ['chinelo', 6]],
+  social: [['sapato', 72], ['tenis', 28]],
+  bermuda: [['tenis', 52], ['chinelo', 44], ['sapato', 4]],
+};
+const HAIR_W: Record<BodyType, Weights<HairStyle>> = {
+  homem: [['curto', 38], ['curto2', 26], ['raspado', 20], ['afro', 16]],
+  mulher: [['rabo', 30], ['chanel', 24], ['longo', 26], ['afro', 20]],
+  idoso: [['curto', 62], ['raspado', 38]],
+  idosa: [['chanel', 60], ['curto', 40]],
+};
+
+export interface AppearanceOptions {
+  /** fração com camisa de futebol (cores/padrões, sem escudos): ~6 % no dia a dia, 15–25 % num ato/evento */
+  football?: number;
+}
+
 /** Aparência determinística a partir de uma semente (NPCs reproduzíveis). */
-export function randomAppearance(seed: number, body?: BodyType): CharacterAppearance {
+export function randomAppearance(seed: number, body?: BodyType, opts: AppearanceOptions = {}): CharacterAppearance {
   let s = seed >>> 0;
   const rnd = () => {
     s = (s + 0x6d2b79f5) >>> 0;
@@ -66,7 +107,12 @@ export function randomAppearance(seed: number, body?: BodyType): CharacterAppear
   const b = body ?? pick(types);
   const old = b === 'idoso' || b === 'idosa';
   const accPool: Accessory[] = old ? ['nenhum', 'chapeu', 'oculos', 'bolsa', 'nenhum'] : ['nenhum', 'bone', 'mochila', 'bolsa', 'oculos', 'nenhum', 'mochila'];
-  return {
+  const weighted = <T,>(w: [T, number][]): T => {
+    let r = rnd() * w.reduce((t, [, n]) => t + n, 0);
+    for (const [v, n] of w) if ((r -= n) < 0) return v;
+    return w[0][0];
+  };
+  const app: CharacterAppearance = {
     accessory: pick(accPool),
     acc: pick([0x1f1f1f, 0x2b4a7a, 0x8a2a2a, 0xd8d0c0, 0x3d6b3d, 0x6b4a2a, 0xe0b030]),
     body: b,
@@ -77,6 +123,27 @@ export function randomAppearance(seed: number, body?: BodyType): CharacterAppear
     shoes: pick(SHOES),
     scale: 0.94 + rnd() * 0.12,
   };
+  // peças (sorteios depois das cores: as cores de uma semente continuam as mesmas de antes)
+  app.topStyle = weighted(TOP_W[b]);
+  app.bottomStyle = weighted(BOTTOM_W[b]);
+  app.shoeStyle = weighted(SHOE_W[app.bottomStyle]);
+  app.hairStyle = weighted(HAIR_W[b]);
+  // camisa de futebol: modelo camiseta, cor de base = fundo do design (a multidão distante sem padrão fica parecida)
+  if (rnd() < (opts.football ?? 0.06) * (old ? 0.5 : 1)) {
+    const d = weighted(footballWeights());
+    app.shirtDesign = d;
+    app.topStyle = 'camiseta';
+    const bg = DESIGNS.find((x) => x.id === d)?.palette.bg;
+    if (bg) app.top = parseInt(bg.slice(1), 16);
+  }
+  return app;
+}
+
+let footballW: [number, number][] | null = null;
+/** camisas de futebol pelo peso na multidão (designs.ts `crowdWeight`) */
+function footballWeights(): [number, number][] {
+  return (footballW ??= DESIGNS.filter((d) => d.family === 'football' && d.targets.includes('shirt') && (d.crowdWeight ?? 0) > 0)
+    .map((d) => [d.id, d.crowdWeight!]));
 }
 
 export const DEFAULT_PLAYER_APPEARANCE: Record<BodyType, CharacterAppearance> = {

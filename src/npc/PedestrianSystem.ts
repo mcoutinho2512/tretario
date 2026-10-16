@@ -15,6 +15,7 @@ import type { CollisionWorld } from '../physics/CollisionWorld';
 import { createCharacter } from '../characters/CharacterMesh';
 import { CharacterAnimator } from '../characters/CharacterAnimator';
 import { BODY_TYPES, randomAppearance, type BodyType, type CharacterAppearance } from '../characters/bodyTypes';
+import { packLook } from '../characters/garments';
 import { HumanCharacter } from '../characters/human/HumanCharacter';
 import type { Lod } from '../characters/human/HumanAssets';
 import { createAgent, type CrowdAgent } from '../characters/crowd/crowdBudget';
@@ -206,7 +207,7 @@ export class PedestrianSystem {
       x: 0, z: 0, y: 0, heading: 0, speed: 0, cruise: 1.3,
       idleTimer: 0, walkTimer: 0, animAcc: 0, frame: i, active: false,
       mode: 'walk', target: null, crossing: null, waitTime: 0, crossCooldown: 0, approach: null, tick: i * 13,
-      agent: createAgent({ body: BODY_INDEX[body], skin: app.skin, hair: app.hair, top: app.top, bottom: app.bottom, scale: app.scale }),
+      agent: createAgent({ body: BODY_INDEX[body], skin: app.skin, hair: app.hair, top: app.top, bottom: app.bottom, scale: app.scale, look: packLook(app), shirt: app.shirtDesign ?? 0 }),
       schedule: new SocialSchedule(i * 7919 + 17, this.social), socialSeed: i * 7919 + 17, rally: null,
     } as Omit<Ped, 'rig' | 'anim'> as Ped;
     const human = new HumanCharacter(app, { lod: 3, castShadow: false, clips: NPC_CLIPS });
@@ -253,20 +254,22 @@ export class PedestrianSystem {
       p.speed = 0;
       p.idleTimer = this.rnd() < 0.2 ? 1 + this.rnd() * 4 : 0;
       p.walkTimer = 6 + this.rnd() * 20;
-      const app = randomAppearance(Math.floor(this.rnd() * 1e9), p.rig.body);
+      // num ato (evento com grupos) ~20 % de camisas de futebol; no dia a dia ~6 %
+      const app = randomAppearance(Math.floor(this.rnd() * 1e9), p.rig.body, { football: this.palettes.length ? 0.2 : 0.06 });
       const roll = this.rnd();
       let cum = 0;
       for (const pal of this.palettes) {
         cum += pal.share;
         if (roll < cum) {
           app.top = pal.colors[0];
+          app.shirtDesign = 0; // cor do grupo: camisa lisa
           if (pal.colors[1] !== undefined) app.acc = pal.colors[1];
           if (pal.colors[1] !== undefined && this.rnd() < 0.4) app.bottom = pal.colors[1];
           break;
         }
       }
       p.rig.setAppearance(app);
-      Object.assign(p.agent, { skin: app.skin, hair: app.hair, top: app.top, bottom: app.bottom, scale: app.scale });
+      Object.assign(p.agent, { skin: app.skin, hair: app.hair, top: app.top, bottom: app.bottom, scale: app.scale, look: packLook(app), shirt: app.shirtDesign ?? 0 });
       p.active = true;
       p.mode = 'walk'; p.target = null; p.crossing = null; p.crossCooldown = 3 + this.rnd() * 10; p.approach = null;
       // vida social: novo perfil (item/design) a cada nascimento, agenda desfasada

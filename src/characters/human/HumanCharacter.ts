@@ -10,12 +10,26 @@
 import * as THREE from 'three';
 import { clone as cloneSkeleton } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { BODY_TYPES, type BodyType, type CharacterAppearance } from '../bodyTypes';
-import { LAYER_INDEX, averageColor, loadClips, loadLod, type Lod } from './HumanAssets';
+import { BODY_GARMENTS, GARMENT_SLOTS, packLook, pieceKind, resolvedStyles, type GarmentSlot } from '../garments';
+import { LAYER_INDEX, averageColor, loadClips, loadLod, loadPiece, type Lod } from './HumanAssets';
 import { HumanAnimator } from './HumanAnimator';
-import { hideCoveredSkin, sleeveCovered, type ClothInput } from './hideCovered';
+import { hideCoveredSkin, indexWithout, sleeveCovered, type HideOptions } from './hideCovered';
+import { addRestAttributes, patchLookShader, patchShirtShader, shirtDesign, shirtSlot } from './garmentShader';
 import { PropAttachment } from '../../social/PropAttachment';
 import { EMPTY_SOCIAL, type SocialState } from '../../social/types';
 import type { CullJob } from './hideCovered.worker';
+
+/** uma malha do personagem e a de origem (GLB em cache, pose de repouso: recorte da pele e atributos de padrão) */
+interface Part {
+  mesh: THREE.SkinnedMesh;
+  src: THREE.SkinnedMesh;
+  /** camada (BODY, SHIRT, …, ACC_bone) */
+  layer: string;
+  /** estilo da peça (garments.ts) nas camadas com variantes; '' nas demais */
+  style: string;
+  /** veio no GLB do corpo (roupa base) */
+  base: boolean;
+}
 
 interface LodInst {
   group: THREE.Group;
@@ -24,8 +38,15 @@ interface LodInst {
   single: boolean;
   tints?: { value: THREE.Color[] };
   layerAvg?: THREE.Color[];
-  /** malhas de origem por camada (para o recorte da pele coberta) */
-  src?: { layer: string; sm: THREE.SkinnedMesh }[];
+  /** malha única: aparência empacotada (variantes aproximadas no shader) e slot do design da camisa */
+  look?: { value: THREE.Vector2 };
+  /** malhas por camada: roupa base + peças avulsas já carregadas */
+  parts: Part[];
+  /** peças avulsas em carregamento */
+  pieceLoads: Map<string, Promise<Part | null>>;
+  /** roupa visível / pedida (estilos por camada) */
+  dressed: string;
+  dressing: string;
 }
 
 const clipsByBody = new Map<string, Promise<Map<string, THREE.AnimationClip>>>();
@@ -124,45 +145,85 @@ function armData(sm: THREE.SkinnedMesh) {
   return { armOf, arms: ['l', 'r'].map((s) => ({ shoulder: at(`upperarm_${s}`), elbow: at(`lowerarm_${s}`) })) };
 }
 
-/** recorte por geometria (compartilhada entre personagens do mesmo corpo/LOD): uma promessa por geometria de corpo */
-const cullJobs = new WeakMap<THREE.BufferGeometry, Promise<void>>();
+/** posições/normais de repouso por geometria (recorte da pele e atributos do padrão da camisa) */
+const restCache = new WeakMap<THREE.BufferGeometry, ReturnType<typeof worldArrays>>();
+function restOf(sm: THREE.SkinnedMesh) {
+  let r = restCache.get(sm.geometry);
+  if (!r) { r = worldArrays(sm); restCache.set(sm.geometry, r); }
+  return r;
+}
+
 let worker: Worker | null | undefined;
 let jobSeq = 0;
-const pending = new Map<number, (out: { index: Uint32Array; hidden: number }[]) => void>();
-function runCull(jobs: CullJob[]): Promise<{ index: ArrayLike<number>; hidden: number }[]> {
+const pending = new Map<number, (out: Uint8Array[]) => void>();
+function runCull(jobs: CullJob[]): Promise<Uint8Array[]> {
   if (worker === undefined) {
     try {
       worker = new Worker(new URL('./hideCovered.worker.ts', import.meta.url), { type: 'module' });
       worker.onmessage = (e) => { pending.get(e.data.id)?.(e.data.out); pending.delete(e.data.id); };
     } catch { worker = null; }
   }
-  if (!worker) return Promise.resolve(jobs.map((j) => hideCoveredSkin(j.pos, j.normal, j.index, j.cloths, j.opts)));
+  if (!worker) return Promise.resolve(jobs.map((j) => hideCoveredSkin(j.pos, j.normal, j.index, j.cloths, j.opts).covered));
   const id = ++jobSeq;
   return new Promise((res) => { pending.set(id, res); worker!.postMessage({ id, jobs }); });
 }
-function cullCovered(src: { layer: string; sm: THREE.SkinnedMesh }[]): Promise<void> {
-  const body = src.find((l) => l.layer === 'BODY')?.sm;
-  const shirt = src.find((l) => l.layer === 'SHIRT')?.sm, pants = src.find((l) => l.layer === 'PANTS')?.sm;
-  const cloths = [shirt, pants].filter(Boolean) as THREE.SkinnedMesh[];
-  if (!body || !cloths.length) return Promise.resolve();
-  let p = cullJobs.get(body.geometry);
-  if (p) return p;
-  const t0 = performance.now();
-  const b = worldArrays(body), sh = shirt ? worldArrays(shirt) : null, pa = pants ? worldArrays(pants) : null;
-  // braço dentro da manga: escondido pelo eixo do braço (com o braço erguido a pele atravessava a manga)
-  const arms = sh ? armData(body) : null;
-  const force = arms && sh ? sleeveCovered(b.pos, arms.armOf, arms.arms, sh) : undefined;
-  const jobs: CullJob[] = [{ ...b, cloths: [sh, pa].filter(Boolean) as ClothInput[], opts: force ? { force } : undefined }];
-  // a calça também atravessava a camisa na cintura (manchas na barra): calça × camisa. O cós e os passadores saem
-  // até ~6 cm para fora da camisa solta; o raio já garante camisa por cima, então sem margem de borda
-  if (pa && sh && pants) jobs.push({ ...pa, cloths: [sh], opts: { inside: 0.06, edgeMargin: 0, radial: true } });
-  const mainMs = performance.now() - t0;
-  p = runCull(jobs).then((out) => {
-    body.geometry.setIndex(Array.from(out[0].index));
-    if (out[1] && pants) pants.geometry.setIndex(Array.from(out[1].index));
-    lastCull = { hidden: out[0].hidden, pantsHidden: out[1]?.hidden ?? 0, mainMs: +mainMs.toFixed(1), totalMs: +(performance.now() - t0).toFixed(1) };
-  });
-  cullJobs.set(body.geometry, p);
+
+/** a calça também atravessava a camisa na cintura (manchas na barra): calça × camisa. O cós e os passadores saem
+ * até ~6 cm para fora da camisa solta; o raio já garante camisa por cima, então sem margem de borda */
+const PANTS_UNDER_SHIRT: HideOptions = { inside: 0.06, edgeMargin: 0, radial: true };
+
+/** vértices de `target` cobertos por `cloth`: UMA tarefa no Worker por par de geometrias (compartilhada por todos) */
+const masks = new Map<string, Promise<Uint8Array>>();
+/** peças de cima (camisetas, polos…): o braço dentro da manga também é escondido pelo eixo do braço */
+const SLEEVED = new WeakSet<THREE.SkinnedMesh>();
+function coveredBy(target: THREE.SkinnedMesh, cloth: THREE.SkinnedMesh, opts?: HideOptions): Promise<Uint8Array> {
+  const sleeve = !opts && SLEEVED.has(cloth);
+  const key = `${target.geometry.uuid}|${cloth.geometry.uuid}|${opts ? 'r' : ''}${sleeve ? 's' : ''}`;
+  let p = masks.get(key);
+  if (!p) {
+    // braço erguido: a pele atravessava a manga em frestas — máscara pelo eixo úmero→cotovelo (rodada 7, emotes)
+    const arms = sleeve ? armData(target) : null;
+    const force = arms ? sleeveCovered(restOf(target).pos, arms.armOf, arms.arms, restOf(cloth)) : undefined;
+    p = runCull([{ ...restOf(target), cloths: [restOf(cloth)], opts: force ? { ...opts, force } : opts }]).then((o) => o[0]);
+    masks.set(key, p);
+  }
+  return p;
+}
+
+/**
+ * Geometria de `target` sem os triângulos cobertos pelas peças VESTIDAS — por combinação (uma regata cobre menos
+ * pele que uma camiseta: nunca esconder pele que a peça vestida não cobre). Cache por combinação, compartilhada entre
+ * personagens; os atributos são os mesmos objetos da original (um upload só na GPU), só o índice muda.
+ */
+const combos = new Map<string, Promise<{ geo: THREE.BufferGeometry; hidden: number }>>();
+function culled(target: THREE.SkinnedMesh, cloths: THREE.SkinnedMesh[], opts?: HideOptions) {
+  const key = [target.geometry.uuid, ...cloths.map((c) => c.geometry.uuid).sort(), opts ? 'r' : ''].join('|');
+  let p = combos.get(key);
+  if (!p) {
+    p = Promise.all(cloths.map((c) => coveredBy(target, c, opts))).then((ms) => {
+      const src = target.geometry;
+      const { index, hidden } = indexWithout(src.index ? (src.index.array as ArrayLike<number>) : null, src.getAttribute('position').count, ms);
+      const geo = new THREE.BufferGeometry();
+      for (const [k, a] of Object.entries(src.attributes)) geo.setAttribute(k, a);
+      geo.setIndex(new THREE.BufferAttribute(index, 1));
+      geo.boundingSphere = src.boundingSphere;
+      geo.boundingBox = src.boundingBox;
+      return { geo, hidden };
+    });
+    combos.set(key, p);
+  }
+  return p;
+}
+
+const WHITE = new THREE.Color(1, 1, 1);
+const kitTextures = new Map<string, Promise<THREE.Texture>>();
+/** textura de uniforme licenciado (design com `texture`), no layout de UV da camiseta base */
+function kitTexture(url: string): Promise<THREE.Texture> {
+  let p = kitTextures.get(url);
+  if (!p) {
+    p = new THREE.TextureLoader().loadAsync(`${import.meta.env.BASE_URL ?? '/'}${url}`).then((t) => { t.flipY = false; t.colorSpace = THREE.SRGBColorSpace; return t; });
+    kitTextures.set(url, p);
+  }
   return p;
 }
 
@@ -255,9 +316,9 @@ export class HumanCharacter {
     if (this.disposed) return;
     if (!this.armature) await this.buildRig(gltf.scene);
     const inst = this.bind(gltf.scene, l);
-    // pele/calça coberta pela roupa some antes de o LOD aparecer (num Worker: não trava o jogo)
-    if (HumanCharacter.skinCull && !inst.single && inst.src) {
-      try { await cullCovered(inst.src); } catch (e) { console.warn('[human] recorte da pele falhou', e); }
+    // peças variantes da aparência + pele/calça coberta pela roupa recortada antes de o LOD aparecer (Worker)
+    if (!inst.single) {
+      await this.dress(inst, l);
       if (this.disposed) return;
     }
     // pré-compila os shaders deste LOD antes de mostrá-lo (evita engasgo de 100+ ms na primeira aparição)
@@ -300,28 +361,45 @@ export class HumanCharacter {
 
   /** recria as malhas do GLB ligadas ao esqueleto deste personagem */
   private bind(src: THREE.Object3D, l: Lod): LodInst {
-    src.updateMatrixWorld(true);
     const group = new THREE.Group();
     group.name = `lod${l}`;
-    const meshes: THREE.SkinnedMesh[] = [];
-    let single = false;
+    const parts = this.bindMeshes(src, l, group, true);
+    group.visible = false;
+    this.armature!.add(group);
+    const single = parts.some((p) => !!p.src.geometry.getAttribute('_layer'));
+    const inst: LodInst = { group, meshes: parts.map((p) => p.mesh), single, parts, pieceLoads: new Map(), dressed: '', dressing: '' };
+    if (single) this.prepTints(inst);
+    return inst;
+  }
+
+  /** malhas com esqueleto de um GLB (corpo ou peça avulsa) → malhas deste personagem dentro de `group` */
+  private bindMeshes(src: THREE.Object3D, l: Lod, group: THREE.Group, base: boolean): Part[] {
+    src.updateMatrixWorld(true);
     const srcArm = (() => { let a: THREE.Object3D | null = null; src.traverse((o) => { if ((o as THREE.Bone).isBone && o.name === 'Root') a = o.parent; }); return a as THREE.Object3D | null; })();
     const armInv = srcArm ? srcArm.matrixWorld.clone().invert() : new THREE.Matrix4();
     const skels = new Map<THREE.Skeleton, THREE.Skeleton>();
-    const layers: { layer: string; sm: THREE.SkinnedMesh }[] = [];
+    const parts: Part[] = [];
     src.traverse((o) => {
       const sm = o as THREE.SkinnedMesh;
       if (!sm.isSkinnedMesh) return;
       const mat = (sm.material as THREE.MeshStandardMaterial).clone();
       const mesh = new THREE.SkinnedMesh(sm.geometry, mat);
       mesh.name = sm.name || sm.parent?.name || '';
-      // as camadas vêm com o nome do objeto do Blender (BODY, SHIRT, ACC_bone…); o glTF às vezes põe no pai
+      // as camadas vêm com o nome do objeto do Blender (BODY, SHIRT, ACC_bone…; peças avulsas: SHIRT_regata);
+      // o glTF às vezes põe no pai
       const layerName = [sm.name, sm.parent?.name].find((n) => n && /^(BODY|HAIR|SHIRT|PANTS|SHOES|EYES|EYEBROWS|EYELASHES|ACC_|LOD)/.test(n)) ?? sm.name;
-      mesh.userData.layer = layerName.replace(/_\d+$/, '');
-      layers.push({ layer: mesh.userData.layer, sm });
+      const full = layerName.replace(/_\d+$/, '');
+      const piece = /^(SHIRT|PANTS|SHOES|HAIR)_([a-z][a-z0-9]*)$/.exec(full);
+      const layer = piece ? piece[1] : full;
+      const slot = (GARMENT_SLOTS as string[]).includes(layer) ? (layer as GarmentSlot) : null;
+      const style = piece ? piece[2] : slot ? BODY_GARMENTS[this.body][slot].base : '';
+      mesh.userData.layer = layer;
+      mesh.userData.style = style;
       new THREE.Matrix4().multiplyMatrices(armInv, sm.matrixWorld).decompose(mesh.position, mesh.quaternion, mesh.scale);
       // UM esqueleto por pele de origem (as camadas compartilham): uma textura de ossos e um update por quadro
-      let skel = skels.get(sm.skeleton);
+      // (peças avulsas reaproveitam o esqueleto de uma camada base com os mesmos ossos e inversas: sem textura de
+      // ossos nem update extra por peça)
+      let skel = skels.get(sm.skeleton) ?? (base ? undefined : this.sameSkeleton(group, sm.skeleton));
       if (!skel) {
         skel = new THREE.Skeleton(sm.skeleton.bones.map((b) => this.bones.get(b.name) ?? b), sm.skeleton.boneInverses);
         skels.set(sm.skeleton, skel);
@@ -330,16 +408,94 @@ export class HumanCharacter {
       mesh.frustumCulled = false; // a caixa de bind não acompanha a animação; quem usa faz culling por distância
       mesh.castShadow = this.castShadow;
       mesh.receiveShadow = true;
-      if (sm.geometry.getAttribute('_layer')) single = true;
+      // padrão da camisa no espaço do corpo em repouso (uma vez por geometria)
+      if (layer === 'SHIRT') addRestAttributes(sm, restOf(sm).pos);
       this.prepMaterial(mesh, mat, l);
-      meshes.push(mesh);
+      // peças avulsas entram ocultas: `dress` decide o que aparece
+      if (!base) mesh.visible = false;
+      parts.push({ mesh, src: sm, layer, style, base });
       group.add(mesh);
     });
-    group.visible = false;
-    this.armature!.add(group);
-    const inst: LodInst = { group, meshes, single, src: layers };
-    if (single) this.prepTints(inst);
-    return inst;
+    return parts;
+  }
+
+  /** esqueleto já ligado neste LOD equivalente ao de origem (mesmos ossos, mesmas inversas de bind) */
+  private sameSkeleton(group: THREE.Group, src: THREE.Skeleton): THREE.Skeleton | undefined {
+    for (const o of group.children) {
+      const k = (o as THREE.SkinnedMesh).skeleton;
+      if (!k || k.bones.length !== src.bones.length) continue;
+      if (k.bones.every((b, i) => b.name === src.bones[i].name) && k.boneInverses.every((m, i) => m.equals(src.boneInverses[i]) || m.elements.every((e, j) => Math.abs(e - src.boneInverses[i].elements[j]) < 1e-4))) return k;
+    }
+    return undefined;
+  }
+
+  /** peça avulsa (uma por estilo e LOD, carregada só quando alguém a veste); null se faltar o arquivo */
+  private piece(inst: LodInst, l: Lod, slot: GarmentSlot, style: string): Promise<Part | null> {
+    const have = inst.parts.find((p) => p.layer === slot && p.style === style);
+    if (have) return Promise.resolve(have);
+    const k = `${slot}:${style}`;
+    let p = inst.pieceLoads.get(k);
+    if (!p) {
+      p = loadPiece(this.body, slot, style, l === 0 ? 0 : 1).then((g) => {
+        if (this.disposed) return null;
+        const parts = this.bindMeshes(g.scene, l, inst.group, false);
+        inst.parts.push(...parts);
+        inst.meshes.push(...parts.map((x) => x.mesh));
+        this.applyAppearance();
+        return parts.find((x) => x.layer === slot) ?? null;
+      }).catch((e) => { console.warn(`[human] peça ${this.body} ${k} indisponível`, e); return null; });
+      inst.pieceLoads.set(k, p);
+    }
+    return p;
+  }
+
+  /**
+   * Veste a roupa da aparência num LOD com camadas: carrega as peças avulsas que faltam, recorta a pele (e a calça)
+   * coberta por ESTA combinação e só então troca o que está visível (até lá, a roupa anterior continua).
+   */
+  private async dress(inst: LodInst, l: Lod) {
+    const want = resolvedStyles(this.app);
+    const key = GARMENT_SLOTS.map((s) => want[s]).join('/');
+    if (inst.dressed === key || inst.dressing === key) return;
+    inst.dressing = key;
+    const baseOf = (slot: GarmentSlot) => inst.parts.find((p) => p.layer === slot && p.base) ?? null;
+    const worn = new Map<GarmentSlot, Part | null>();
+    await Promise.all(GARMENT_SLOTS.map(async (slot) => {
+      const kind = pieceKind(this.body, slot, want[slot]);
+      worn.set(slot, kind === 'bare' ? null : kind === 'base' ? baseOf(slot) : (await this.piece(inst, l, slot, want[slot])) ?? baseOf(slot));
+    }));
+    if (this.disposed || inst.dressing !== key) return;
+    const body = inst.parts.find((p) => p.layer === 'BODY');
+    if (HumanCharacter.skinCull && body) {
+      const sh = worn.get('SHIRT'), pa = worn.get('PANTS'), so = worn.get('SHOES');
+      if (sh) SLEEVED.add(sh.src);
+      const t0 = performance.now();
+      try {
+        const [b, pc] = await Promise.all([
+          culled(body.src, [sh, pa, so].filter((x): x is Part => !!x).map((x) => x.src)),
+          sh && pa ? culled(pa.src, [sh.src], PANTS_UNDER_SHIRT) : Promise.resolve(null),
+        ]);
+        if (this.disposed || inst.dressing !== key) return;
+        body.mesh.geometry = b.geo;
+        if (pa) pa.mesh.geometry = pc ? pc.geo : pa.src.geometry;
+        lastCull = { hidden: b.hidden, pantsHidden: pc?.hidden ?? 0, mainMs: 0, totalMs: +(performance.now() - t0).toFixed(1) };
+      } catch (e) { console.warn('[human] recorte da pele falhou', e); }
+    }
+    for (const p of inst.parts) if ((GARMENT_SLOTS as string[]).includes(p.layer)) p.mesh.visible = worn.get(p.layer as GarmentSlot) === p;
+    // peças avulsas que saíram do corpo são soltas (NPCs reciclados trocam de roupa: não acumular malhas/materiais;
+    // geometria e texturas ficam no cache do GLB, compartilhadas)
+    const wornSet = new Set(worn.values());
+    for (const p of inst.parts.filter((x) => !x.base && !wornSet.has(x))) {
+      p.mesh.removeFromParent();
+      (p.mesh.material as THREE.Material).dispose();
+      if (!inst.group.children.some((o) => (o as THREE.SkinnedMesh).skeleton === p.mesh.skeleton)) p.mesh.skeleton.dispose();
+      inst.parts.splice(inst.parts.indexOf(p), 1);
+      inst.meshes.splice(inst.meshes.indexOf(p.mesh), 1);
+      inst.pieceLoads.delete(`${p.layer}:${p.style}`);
+    }
+    inst.dressed = key;
+    inst.dressing = '';
+    this.applyAppearance();
   }
 
   private prepMaterial(mesh: THREE.SkinnedMesh, mat: THREE.MeshStandardMaterial, l: Lod) {
@@ -360,11 +516,25 @@ export class HumanCharacter {
       // LOD1 tem menos polígonos (folgas maiores); de longe a espessura extra não aparece
       const k = HumanCharacter.shirtInflate * (l >= 1 ? 1.75 : 1);
       const prev = mat.onBeforeCompile;
+      // camisa de futebol: padrão da paleta do design no shader (slot 0 = lisa)
+      const slot = { value: 0 };
+      mat.userData.pvShirt = slot;
+      mat.onBeforeCompile = (sh, r) => {
+        prev?.call(mat, sh, r);
+        sh.vertexShader = sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>\ntransformed += normalize(objectNormal) * ${k.toFixed(4)};`);
+        patchShirtShader(sh, slot);
+      };
+      mat.customProgramCacheKey = () => `shirt${k}`;
+    }
+    // calça/bermuda no LOD1: a decimação deixa a coxa atravessar o tecido ao correr — mesma folga da camiseta
+    if (layer === 'PANTS' && l >= 1) {
+      const k = HumanCharacter.shirtInflate * 1.75;
+      const prev = mat.onBeforeCompile;
       mat.onBeforeCompile = (sh, r) => {
         prev?.call(mat, sh, r);
         sh.vertexShader = sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>\ntransformed += normalize(objectNormal) * ${k.toFixed(4)};`);
       };
-      mat.customProgramCacheKey = () => `shirt${k}`;
+      mat.customProgramCacheKey = () => `pants${k}`;
     }
     // cor média da textura: calculada no build (Blender) e gravada em extras; o cálculo no navegador é só reserva
     const avg = mat.userData.pv_avg as number[] | undefined;
@@ -388,6 +558,12 @@ export class HumanCharacter {
       }
     }
     inst.layerAvg = sum.map((s) => (s[3] ? new THREE.Color(s[0] / s[3], s[1] / s[3], s[2] / s[3]) : new THREE.Color(1, 1, 1)));
+    // variantes de roupa e padrão da camisa aproximados por zona do corpo (garmentShader)
+    const src = inst.parts[0].src;
+    addRestAttributes(src, restOf(src).pos, LAYER_INDEX.SHIRT);
+    const look = { value: new THREE.Vector2() };
+    const layerAvg = { value: inst.layerAvg };
+    inst.look = look;
     for (const m of inst.meshes) {
       const mat = m.material as THREE.MeshStandardMaterial;
       mat.vertexColors = true;
@@ -399,8 +575,9 @@ export class HumanCharacter {
         sh.fragmentShader = sh.fragmentShader
           .replace('#include <common>', '#include <common>\nvarying vec3 vTint;')
           .replace('#include <color_fragment>', '#include <color_fragment>\ndiffuseColor.rgb *= vTint;');
+        patchLookShader(sh, { instanced: false, layerAvg, look });
       };
-      mat.customProgramCacheKey = () => 'pv-human-lod-tint';
+      mat.customProgramCacheKey = () => 'pv-human-lod-look';
       mat.needsUpdate = true;
     }
   }
@@ -419,14 +596,17 @@ export class HumanCharacter {
   setAppearance(app: CharacterAppearance) {
     this.app = { ...app };
     this.applyAppearance();
+    this.lods.forEach((inst, l) => { if (inst && !inst.single) void this.dress(inst, l as Lod); });
   }
 
   private applyAppearance() {
     const a = this.app;
     const want: Record<string, number> = { BODY: a.skin, HAIR: a.hair, SHIRT: a.top, PANTS: a.bottom, SHOES: a.shoes };
     const target = new THREE.Color();
+    const slot = shirtSlot(a.shirtDesign), kit = shirtDesign(a.shirtDesign)?.texture;
     for (const inst of this.lods) {
       if (!inst) continue;
+      inst.look?.value.set(packLook(a), slot);
       if (inst.single && inst.tints && inst.layerAvg) {
         for (const [layer, i] of Object.entries(LAYER_INDEX)) {
           if (want[layer] === undefined) continue;
@@ -444,6 +624,14 @@ export class HumanCharacter {
           continue;
         }
         if (want[layer] === undefined) continue;
+        if (layer === 'SHIRT') {
+          // camisa com design: padrão (slot) ou textura de uniforme licenciado (só na camiseta base) sobre o branco
+          const k = kit && m.userData.style === BODY_GARMENTS[this.body].SHIRT.base ? kit : null;
+          (mat.userData.pvShirt as { value: number }).value = k ? 0 : slot;
+          if (k) void kitTexture(k).then((t) => { mat.userData.pvMap ??= mat.map; mat.map = t; });
+          else if (mat.userData.pvMap) { mat.map = mat.userData.pvMap; mat.userData.pvMap = undefined; }
+          if (slot || k) { mat.color.setRGB(...tint(WHITE, m.userData.baseColor, layer)); continue; }
+        }
         target.setHex(want[layer]);
         mat.color.setRGB(...tint(target, m.userData.baseColor, layer));
       }
