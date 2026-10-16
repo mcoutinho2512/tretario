@@ -100,3 +100,26 @@ Revisão visual e de dados do corredor Central → Pres. Vargas → Candelária 
 
 ## Ainda diferente da Presidente Vargas real
 Ver o relatório da rodada em [STATUS.md](STATUS.md).
+
+---
+
+# Auditoria — rodada 4: vertical slice multiplayer (2026-10-16)
+
+## Encontrado e resolvido
+| # | Problema | Evidência | Ação |
+|---|---|---|---|
+| M1 | Servidor não colidia com prédios: cliente modificado atravessava paredes | ADR-013 previa isso | geometria compartilhada (ADR-016); walkthrough: A atravessando prédio → 42 correções, posição autoritativa fora |
+| M2 | Cada cliente via um trânsito diferente | ADR-003 | servidor simula, cliente extrapola (ADR-017); A e B veem os mesmos 26 veículos, erro mediano 0,00 m |
+| M3 | Semáforos podiam divergir entre clientes | relógio local | relógio do mundo sincronizado; 135/135 iguais |
+| M4 | Movimento enviado antes do spawn do servidor e durante entrar/sair gerava `too_fast` sob latência | 150 ms: dezenas de correções | flag `spawned`, fence de `seq` no servidor e `holdMoves` no cliente → **0 correções** a 150 ms ± 30 ms |
+| M5 | Simulador de jitter derrubava a conexão (4002) | o SDK reutiliza o buffer de envio | buffer copiado antes do envio atrasado |
+| M6 | `/metrics` e o log interno zeravam a janela um do outro | 5 bots: 0 KB/s | janela por consumidor |
+| M7 | Commits vermelhos possíveis (o hook via a árvore de trabalho) | 2 commits na rodada 3 | hook verifica o conteúdo staged (ADR-020) |
+| M8 | Carros estacionáveis gerados em canteiro/grama e contra o trânsito | inspeção visual | gerados da fachada até o meio-fio, no sentido da pista |
+| M9 | Ferramentas de QA deixavam servidores órfãos com código antigo | portas 2610/2630/2567 ocupadas | `detached` + kill do grupo + proteção de porta |
+
+## Ainda não resolvido (riscos)
+- Pedestres NPC locais e diferentes por cliente; o servidor não conhece o trânsito como obstáculo do carro do jogador.
+- O Rapier pesa 1,65 MB gzip (carregado só no multiplayer).
+- GPU no HIGH/ULTRA: 10–13 ms em M5 Pro → provável gargalo em GPU integrada; não medido em hardware fraco nem em celular real.
+- Safari (macOS/iPhone), Firefox e Windows **não testados**.

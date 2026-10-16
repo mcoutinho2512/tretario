@@ -30,17 +30,26 @@ Corredor Central → Candelária com dados reais, landmarks, LOD, colisão, câm
 - Relevo (morros da Providência, São Bento, Conceição) a partir de MDT aberto.
 - Validação humana guiada por [MAP_VALIDATION.md](MAP_VALIDATION.md).
 
-## Fase 3: Multiplayer 🔨 (esqueleto local ✅ — ver MULTIPLAYER.md)
-- Servidor Node.js autoritativo na VPS. Colyseus (MIT) ou `ws`/uWebSockets.js; ver [DECISIONS.md](DECISIONS.md).
-- `RemotePlayer` = `PlayerState` vindo da rede + o mesmo `AvatarVisual`.
-- Interest management por células de 50 m, interpolação, snapshots delta.
-- **Espectador gratuito** (câmera livre, sem avatar) e jogador.
+## Fase 3: Multiplayer 🔨 (vertical slice local ✅ — ver MULTIPLAYER.md, NETCODE.md, SHARED_WORLD.md)
+- ✅ Servidor autoritativo com colisão compartilhada; posse de veículos; empurrão/impacto validados.
+- ✅ Mundo compartilhado: relógio, semáforos e trânsito; AOI com `StateView`; predição, reconciliação e interpolação adaptativa.
+- ✅ Walkthrough com 3 clientes (27 checagens, também sob 150 ms ± 30 ms); teste de carga até 50 bots.
+- ⏳ Pedestres NPC compartilhados (grade de navegação gerada no build + snapshot compacto).
+- ⏳ Trânsito como obstáculo autoritativo do carro do jogador; impacto em NPCs.
+- ⏳ Reconexão automática, salas por distrito, grade espacial na AOI.
+- ⏳ **Espectador gratuito** (câmera livre, sem avatar).
+- ⏳🔒 Servidor na VPS (só com autorização; Fase 7).
 
-## Fase 4: Interações físicas não letais 🔨 (arquitetura de modos ✅; ragdoll ⏳)
-- Empurrão, soco "cartoon", queda e levantar; **ragdoll** (Rapier, Apache-2.0, WASM) só em quem cai e perto da câmera.
-- "Atropelamento" fictício: o veículo derruba o personagem em ragdoll, sem sangue nem dano permanente; respawn imediato.
-- **Modo pacífico** (padrão para novos jogadores): ninguém agride nem é agredido; zonas pacíficas no servidor.
-- Moderação: denúncia, mute, bloqueio, limites anti-spam.
+## Fase 4: Interações físicas não letais 🔨 (empurrão + queda + impacto ✅)
+- ✅ Empurrão validado pelo servidor; queda com ragdoll Rapier; levantar; imunidade pós-queda; anti-spam.
+- ✅ "Atropelamento" fictício pelo carro do jogador: queda por velocidade, sem dano, bloqueado no modo pacífico.
+- ⏳ Soco "cartoon", animações de reação, moderação (denúncia, mute, bloqueio), zonas pacíficas no servidor.
+
+## Próxima rodada recomendada (5)
+1. Teste manual em Safari macOS/iPhone, Firefox e um notebook Windows com GPU integrada (o maior risco hoje).
+2. Pedestres compartilhados + trânsito como obstáculo no servidor (fecha as diferenças entre clientes).
+3. Passada visual dedicada: granito/fachada do Palácio Duque de Caxias, CCBB, Central e Candelária (ver STATUS).
+4. Espectador + reconexão; teste com pessoas reais em rede local.
 
 ## Fase 5: Plataforma de eventos e mundo social 🔨 (modelo genérico de eventos + painéis de LED ✅ — ver EVENTS.md)
 - **Grupos temáticos configuráveis** (política, futebol, outros) em JSON no servidor: nome, cores, bandeira e camisa genéricas.

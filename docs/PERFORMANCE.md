@@ -47,6 +47,56 @@ triângulos. O joystick funcionou e não houve erros. Isso **não** substitui o 
 | MÉDIO | 32 | 48 | 1,9–2,1 ms | 171–379 | 440–526 k |
 | ALTO | 56 | 80 | 4,3–4,7 ms | 394–792 | 1,24–1,38 M |
 
+## Multiplayer (rodada 4, 2026-10-16)
+
+### Cliente por preset com 10 bots (`node tools/qa/bench_presets.mjs`)
+M5 Pro, Chrome headless 1280×720, **com vsync**, média de 12 amostras em 6 s. `central` = spawn em frente à Central
+(10 bots visíveis); `candelaria` = (690, −150), sem bots por perto.
+
+| Preset | Vista | CPU ms | GPU ms | Draw calls | Triângulos | Heap | Texturas | Geometrias | Rede ↓ |
+|---|---|---|---|---|---|---|---|---|---|
+| LOW | central | 1,56 | 3,24 | 341 | 379 k | 148 MB | 52 | 456 | 3,2 KB/s |
+| LOW | candelária | 1,45 | 2,94 | 117 | 243 k | 174 MB | 49 | 345 | 1,7 KB/s |
+| MEDIUM | central | 1,93 | 4,33 | 474 | 755 k | 175 MB | 66 | 535 | 3,2 KB/s |
+| MEDIUM | candelária | 1,74 | 3,32 | 195 | 548 k | 190 MB | 67 | 404 | 1,5 KB/s |
+| HIGH | central | 3,27 | 13,09 | 1029 | 1,89 M | 246 MB | 92 | 567 | 3,2 KB/s |
+| HIGH | candelária | 3,04 | 11,07 | 467 | 1,61 M | 250 MB | 93 | 394 | 1,3 KB/s |
+| ULTRA | central | 4,44 | 11,95 | 1149 | 2,28 M | 241 MB | 110 | 604 | 3,4 KB/s |
+| ULTRA | candelária | 3,09 | 10,34 | 540 | 1,98 M | 254 MB | 123 | 445 | 1,1 KB/s |
+
+Todos a 60 FPS (16,67 ms com vsync). O tempo de GPU do HIGH/ULTRA (10–13 ms) é o maior risco em GPU integrada fraca.
+
+### Download
+| Item | Bruto | gzip | Quando |
+|---|---|---|---|
+| `index` (tela inicial) | 6 KB | 2,8 KB | sempre |
+| `three` | 522 KB | 133 KB | ao explorar |
+| `Game` | 284 KB | 115 KB | ao explorar |
+| `NetworkClient` (SDK Colyseus + netcode) | 182 KB | 58 KB | só com `?mp` |
+| **Rapier (WASM embutido)** | **4,3 MB** | **1,65 MB** | só com `?mp`, pré-carregado em segundo plano |
+| Colisão `collision.<hash>.bin` | 1,55 MB | 0,56 MB | ao explorar |
+| `dist/` completo | 9,9 MB | — | — |
+
+No servidor de desenvolvimento (Vite, sem minificação) o carregamento do trecho mede ~11,1 MB transferidos.
+
+### Rede e servidor (`cd server && npx tsx tools/loadtest.ts 20`)
+Bots do SDK enviando movimento a 15 Hz durante 20 s; o servidor simula 220 veículos.
+
+| Bots | Distribuição | Cliente ↓ | Cliente ↑ | Msgs/s ↓ | Visíveis (méd/mín/máx) | Servidor ↑ total | Tick médio / máx | RSS |
+|---|---|---|---|---|---|---|---|---|
+| 2 | juntos | 1,76 KB/s | 0,67 KB/s | 18,7 | 2 / 2 / 2 | 3,7 KB/s | 0,86 / 2,04 ms | 118 MB |
+| 5 | juntos | 2,28 KB/s | 0,67 KB/s | 19,0 | 5 / 5 / 5 | 12,1 KB/s | 0,85 / 1,62 ms | 126 MB |
+| 10 | juntos | 3,11 KB/s | 0,67 KB/s | 19,5 | 10 / 10 / 10 | 32,2 KB/s | 0,84 / 1,90 ms | 131 MB |
+| 20 | juntos | 4,80 KB/s | 0,67 KB/s | 19,0 | 20 / 20 / 20 | 95,5 KB/s | 0,87 / 1,93 ms | 139 MB |
+| 20 | espalhados (2 km) | 2,42 KB/s | 0,68 KB/s | 18,9 | 4,8 / 2 / 8 | 45,7 KB/s | 0,92 / 2,03 ms | 157 MB |
+| 50 | espalhados (2 km) | 3,62 KB/s | 0,68 KB/s | 19,4 | 12 / 4 / 19 | 159,4 KB/s | 1,10 / 2,52 ms | 160 MB |
+
+- Com todos no mesmo lugar, o custo cresce ~0,16 KB/s por jogador visível; com AOI (espalhados) 50 jogadores custam
+  menos por cliente que 20 juntos.
+- Tick do servidor (trânsito + validação + AOI) fica em ~1 ms a 10 Hz: há folga de ~100× por núcleo.
+- Navegador real no walkthrough (3 clientes): ~2,0–2,1 KB/s ↓ e ~0,53–0,57 KB/s ↑ por cliente; sob 150 ms ± 30 ms,
+  ~1,55 KB/s ↓ e ~0,55 KB/s ↑, interpolação adaptativa entre 157 e 300 ms, **zero correções** indevidas.
+
 ## Presets (`src/core/settings.ts`)
 
 | | BAIXO | MÉDIO | ALTO |

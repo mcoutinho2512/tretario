@@ -1,6 +1,38 @@
 # STATUS — Presidente Vargas 3D
 
-_Atualizado em 2026-10-15 (rodada 3: fidelidade, cidade viva, eventos, multiplayer local)._
+_Atualizado em 2026-10-16 (rodada 4: vertical slice multiplayer jogável — somente local, sem deploy)._
+
+## Rodada 4 — vertical slice multiplayer
+| | |
+|---|---|
+| ![](screenshots/vertical_slice/01_tres_jogadores.jpg) | ![](screenshots/vertical_slice/02_A_dirigindo.jpg) |
+| A, B e C na mesma sala (avatares sincronizados) | A dirigindo o car0; B vê o carro onde ele está |
+| ![](screenshots/vertical_slice/03_B_caida_ragdoll.jpg) | ![](screenshots/vertical_slice/04_impacto_veiculo.jpg) |
+| Empurrão validado pelo servidor → ragdoll (Rapier) | Impacto de veículo (sem dano, sem conteúdo gráfico) |
+| ![](screenshots/vertical_slice/palacio_duque_caxias.jpg) | GIFs: [dirigindo](screenshots/vertical_slice/dirigindo.gif) · [empurrão](screenshots/vertical_slice/empurrao.gif) · [impacto](screenshots/vertical_slice/impacto.gif) |
+| Palácio Duque de Caxias dedicado (bloco + embasamento + torre ~82 m) | |
+
+- **Servidor autoritativo com colisão**: a mesma geometria de paredes (`src/physics/walls.ts`, 64.604 segmentos,
+  `collision.<hash>.bin`) é usada no cliente e no servidor; o caminho proposto é validado contra prédios, muros e limites.
+- **Mundo compartilhado** ([SHARED_WORLD.md](SHARED_WORLD.md)): relógio global (NTP simplificado), semáforos como função
+  do relógio (135/135 iguais), trânsito simulado no servidor (`TrafficSim` puro) e enviado em snapshots de 12 B/veículo.
+- **Carro dirigível** (E entra/sai, W/S acelera/freia/ré): posse validada no servidor; dois jogadores não ocupam o mesmo carro.
+- **Empurrar / impacto de veículo** validados no servidor (distância, ângulo, linha livre, cooldown, limite de taxa, modo,
+  estado, imunidade de 5 s); **pacífico é o padrão**; queda com ragdoll Rapier e levantar.
+- **Netcode** ([NETCODE.md](NETCODE.md)): predição, reconciliação por `seq`, interpolação adaptativa, AOI com `StateView`,
+  movimento compacto, simulador de latência/jitter/perda.
+- **Walkthrough com 3 clientes**: `node tools/qa/walkthrough.mjs` → **27/27** a 0 ms e **27/27** a 150 ms ± 30 ms.
+- **Testes**: 65 automatizados (Vitest); o hook de pre-commit verifica exatamente o conteúdo staged.
+
+### Métricas da rodada 4 (M5 Pro, Chrome headless 1280×720, com vsync, 10 bots, `tools/qa/bench_presets.mjs`)
+| Preset | CPU (ms) | GPU (ms) | Draw calls | Triângulos | Heap JS |
+|---|---|---|---|---|---|
+| LOW | 1,5–1,6 | 2,9–3,2 | 117–341 | 243–379 k | 148–174 MB |
+| MEDIUM | 1,7–1,9 | 3,3–4,3 | 195–474 | 548–755 k | 175–190 MB |
+| HIGH | 3,0–3,3 | 11,1–13,1 | 467–1029 | 1,61–1,89 M | 246–250 MB |
+| ULTRA | 3,1–4,4 | 10,3–12,0 | 540–1149 | 1,98–2,28 M | 241–254 MB |
+
+Rede por jogador (detalhes em [PERFORMANCE.md](PERFORMANCE.md)): ~1,8–4,8 KB/s recebidos e ~0,67 KB/s enviados.
 
 ## Rodada 3 — antes / depois
 | Antes | Depois |

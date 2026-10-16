@@ -69,8 +69,7 @@ Cada decisão: contexto → decisão → alternativas → consequências. As mar
 - **Por que 0.18 e não 0.16:** o `@colyseus/core` 0.16 depende de `nanoid@2` com alertas de segurança e sem correção na faixa.
   A 0.18 (estável desde 2026-05) usa `nanoid ^3` corrigido. Instalados só os pacotes mínimos (`core`, `ws-transport`, `schema`),
   sem o pacote guarda-chuva (que traz OAuth, Redis e uWebSockets). `npm audit`: 0 vulnerabilidades.
-- **Autoridade:** o cliente propõe e o servidor valida (velocidade por modo, limites, ordem) e corrige. A colisão no servidor fica
-  para a próxima etapa.
+- **Autoridade:** o cliente propõe e o servidor valida (velocidade por modo, limites, ordem, **paredes** — ADR-016) e corrige.
 - Servidor só em `127.0.0.1`. **Sem deploy.**
 
 ## ADR-014: Correções manuais de mapa com rastreabilidade
@@ -81,3 +80,33 @@ Cada decisão: contexto → decisão → alternativas → consequências. As mar
 - O ULTRA **não** aumenta a resolução de sombra nem o pixel ratio em relação ao HIGH: investe em alcance (sombra de 260 m,
   LOD FULL até 650 m) e multidão (90 pedestres, 110 veículos). Medido: +0,2 ms em relação ao HIGH.
 - `mobileAdjust()` aplica em qualquer preset no toque: ≤ 12 pedestres, ≤ 20 veículos, sombra ≤ 1024², sem AO/SMAA.
+
+## ADR-016: Geometria de colisão compartilhada (cliente = servidor)
+- As paredes (prédios, muros, gradis, bordas de áreas proibidas e landmarks) são **segmentos 2D com base/topo**, gerados por
+  funções puras (`src/physics/walls.ts`, `src/world/landmarks/colliders.ts`) e gravados no build em `collision.<hash>.bin`
+  (Float32, 6 valores por segmento). O cliente e o servidor carregam **o mesmo arquivo** e usam a mesma `WallGrid` (células de 16 m).
+- O servidor valida o **trajeto** (não só o ponto final), com 3 raios para o carro, e para 0,4 m antes da parede.
+- O raster de superfícies (calçada/asfalto/água) continua só no cliente; o servidor não precisa dele para a autoridade de hoje.
+
+## ADR-017: Mundo compartilhado = relógio comum + trânsito simulado no servidor
+- Semáforos são função pura do relógio sincronizado: custo de rede zero.
+- Trânsito: o servidor roda o `TrafficSim` (o mesmo código do cliente) e envia snapshots binários de 12 B/veículo a 2 Hz por AOI;
+  o cliente extrapola com o mesmo código. Alternativas rejeitadas: determinismo só por semente (diverge em segundos) e
+  posições a 20 Hz (~10–30 KB/s por jogador). Detalhes em SHARED_WORLD.md.
+- Pedestres NPC continuam locais (próximo passo: grade de navegação gerada no build).
+
+## ADR-018: Ragdoll Rapier, visual e sob demanda
+- `@dimforge/rapier3d-compat` 0.21 (Apache-2.0). O WASM embutido pesa 1,65 MB gzip; por isso só é baixado no multiplayer,
+  em segundo plano, e existe queda procedural de reserva se não carregar a tempo.
+- O ragdoll é **apenas visual**: o servidor decide se houve queda, a posição de repouso (limitada por paredes) e o tempo no chão.
+  Assim, nenhum resultado físico do cliente afeta o jogo.
+
+## ADR-019: Área de interesse com `StateView` do Colyseus
+- Raio de 220 m com histerese de 15 %, recalculado a 4 Hz; trânsito com raio de 380 m. Medido: 50 jogadores espalhados
+  custam 3,6 KB/s por cliente. Varredura N×N aceitável até algumas centenas de jogadores; depois, grade espacial e salas por distrito.
+
+## ADR-020: Nenhum commit vermelho — hook versionado que verifica o conteúdo staged
+- `.githooks/pre-commit` (ativado por `npm install` via `prepare`) separa o que não está staged (`git stash --keep-index
+  --include-untracked`), roda `npm run verify` (tsc do cliente, Vitest, build de produção e tsc do servidor) e restaura.
+- Motivo: na rodada 3, dois commits ficaram vermelhos porque a verificação via a árvore de trabalho, e não o que ia para o commit.
+- `--no-verify` continua possível, mas é proibido pela regra do projeto.

@@ -18,31 +18,31 @@ o número de remotos e as correções do servidor. `?mp=ws://outro-host:2567` ap
 ## Arquitetura
 | Parte | Arquivo | Papel |
 |---|---|---|
-| Protocolo compartilhado | `src/net/protocol.ts` | mensagens, limites, `validateMove` (pura, testada) |
-| Servidor | `server/src/index.ts`, `PresidenteVargasRoom.ts`, `state.ts` | Colyseus 0.18 (MIT), Schema v5 |
-| Cliente | `src/net/NetworkClient.ts` | carregado sob demanda; não pesa no bundle sem `?mp` |
+| Regras puras (cliente + servidor) | `src/net/protocol.ts`, `src/net/rules.ts`, `src/net/authority.ts` | validação de movimento, empurrão, impacto, entrar em veículo, empacotamento |
+| Geometria compartilhada | `src/physics/walls.ts`, `src/world/landmarks/colliders.ts` | paredes de prédios, muros e landmarks (mesmos números nos dois lados) |
+| Trânsito compartilhado | `src/traffic/TrafficSim.ts` | simulação pura; o servidor simula e o cliente extrapola entre snapshots |
+| Relógio | `src/net/clock.ts` | tempo do mundo comum (semáforos, trânsito) |
+| Servidor | `server/src/index.ts`, `PresidenteVargasRoom.ts`, `state.ts`, `world.ts`, `metrics.ts` | Colyseus 0.18 (MIT), Schema v5, `StateView` (AOI) |
+| Cliente | `src/net/NetworkClient.ts`, `src/net/netWebSocket.ts` | carregado sob demanda; predição/reconciliação/interpolação; métricas de banda |
 
-**Autoridade (ADR-013)**
-- O cliente envia **propostas** de movimento (15 Hz) e faz predição local. O servidor valida velocidade máxima
-  por modo (a pé, bicicleta, patinete, carro), limites do mundo, valores inválidos, ordem (`seq`) e teleporte. Se rejeitar,
-  responde `correct` e o cliente obedece.
-- Spawn, nome (sanitizado), tipo de corpo e cores (listas e intervalos permitidos): decididos ou validados no servidor.
-- `interaction` (modo pacífico/interação) é campo do **servidor**. Combate, inventário e dinheiro nunca são aceitos do cliente.
-- Estado sincronizado: `players` (posição, rumo, velocidade, locomoção, veículo, aparência), `eventId`, `serverTime`.
+Detalhes: [NETCODE.md](NETCODE.md) (autoridade, latência, AOI) e [SHARED_WORLD.md](SHARED_WORLD.md) (o que é sincronizado e como).
 
-**Jogadores remotos:** reutilizam o mesmo `AvatarVisual` do jogador local (esqueleto de 17 ossos), com
-interpolação num buffer de ~120 ms e pose de bicicleta/patinete quando montados.
+## Ferramentas de QA
+| Comando | O que faz |
+|---|---|
+| `node tools/qa/walkthrough.mjs [url] [lag] [jitter]` | 3 navegadores (A, B, C), servidor de teste próprio (porta 2600), 27 checagens: ver os outros, mesmo trânsito/semáforos, colisão no servidor, carro (entrar, ocupado, dirigir, ré, sair), empurrão negado/aceito, ragdoll, imunidade, impacto. Grava screenshots, quadros para GIF e `report.json` |
+| `cd server && npx tsx tools/loadtest.ts 20` | 2, 5, 10, 20, 20 espalhados e 50 espalhados bots; banda por cliente, jogadores visíveis (AOI), custo de tick do servidor |
+| `node tools/qa/bench_presets.mjs` | desempenho do cliente por preset com 10 bots |
+| `python3 tools/qa/make_gif.py [pasta]` | GIFs a partir dos quadros do walkthrough |
+| `GET http://127.0.0.1:2568/metrics` | métricas do servidor (bytes/s, msgs/s, tick, memória, correções, negativas, quedas) |
 
-## Teste automatizado de ponta a ponta
-`node tools/qa/multiplayer.mjs` (com servidor e cliente rodando) abre 2 navegadores e verifica:
-1. os dois entram na mesma sala e veem um ao outro;
-2. A anda e B vê A na posição final (diferença < 1 cm na medição);
-3. A sai e some para B;
-4. B tenta se teletransportar 300 m e o servidor corrige.
+`PV_TEST=1` (somente em ferramentas de QA) permite ao cliente escolher o ponto de spawn (`?spawn=x,z`). Nunca deve ser
+ligado num servidor real.
 
 ## Limitações atuais
-- O servidor valida velocidade e limites, mas **não colide com prédios** (o mapa de colisão do cliente usa canvas).
-  Próximo passo: gerar no build uma grade de colisão binária compartilhada (Node + navegador).
-- Pedestres e trânsito de ambiente são **locais de cada cliente** (ADR-003): cada jogador vê carros e pessoas diferentes.
-  Os semáforos já são determinísticos pelo relógio e podem ser sincronizados por `serverTime`.
-- Sem reconexão automática, sem salas por distrito, sem interest management. Ver [CROWD_ARCHITECTURE.md](CROWD_ARCHITECTURE.md).
+- **Pedestres NPC continuam locais** de cada cliente (o trânsito e os semáforos já são compartilhados).
+- O servidor não colide jogadores/carros dirigidos contra o **trânsito de ambiente** (só o cliente faz isso);
+  impacto do carro do jogador em **NPCs** de ambiente não existe.
+- Ragdoll é visual e local: cada cliente pode mostrar a queda com pose diferente; a posição de repouso é do servidor.
+- Uma sala única, sem reconexão automática, sem persistência, sem login (adiado por decisão do produto).
+- Servidor apenas em `127.0.0.1`. **Sem deploy.**
