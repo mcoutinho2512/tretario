@@ -1,4 +1,5 @@
 /** Presets gráficos e detecção inicial de qualidade. */
+import { currentDevice, type DeviceProfile } from './device';
 
 export type QualityLevel = 'low' | 'medium' | 'high' | 'ultra';
 export type QualityChoice = 'auto' | QualityLevel;
@@ -27,6 +28,9 @@ export interface QualityPreset {
   billboardDistance: number;
   /** sombras de NPCs até esta distância */
   npcShadowDistance: number;
+  /** FPS alvo (30 em celular: estável e sem aquecer) e resolução dinâmica (definidos pelo aparelho) */
+  targetFps?: 30 | 60;
+  dynamicResolution?: boolean;
 }
 
 export const PRESETS: Record<QualityLevel, QualityPreset> = {
@@ -82,30 +86,27 @@ export function isTouchDevice(): boolean {
   return typeof window !== 'undefined' && ('ontouchstart' in window || navigator.maxTouchPoints > 0) && matchMedia('(pointer: coarse)').matches;
 }
 
-/** Heurística simples: GPU (via WEBGL_debug_renderer_info), memória, toque e tamanho da tela. */
+let cachedDevice: DeviceProfile | null = null;
+/** perfil do aparelho (uma vez por sessão) — ver src/core/device.ts */
+export function deviceProfile(): DeviceProfile {
+  cachedDevice ??= currentDevice();
+  return cachedDevice;
+}
+
+/** preset recomendado para o aparelho (plataforma, GPU, memória) */
 export function detectQuality(): QualityLevel {
-  if (isTouchDevice()) return 'low';
-  try {
-    const c = document.createElement('canvas');
-    const gl = c.getContext('webgl2');
-    if (!gl) return 'low';
-    const ext = gl.getExtension('WEBGL_debug_renderer_info');
-    const gpu = (ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER)) as string;
-    const g = gpu.toLowerCase();
-    const mem = (navigator as any).deviceMemory ?? 8;
-    if (/swiftshader|llvmpipe|software|basic render/.test(g)) return 'low';
-    if (/rtx [34]0[789]0|rx 7[89]00|apple m[3-9] (pro|max|ultra)/.test(g) && mem >= 8) return 'ultra';
-    if (/apple m\d|apple gpu|rtx|radeon rx|geforce gtx 1[0-9]|rx 6|rx 7|arc a/.test(g) && mem >= 8) return 'high';
-    if (/intel.*(uhd|hd)|mali|adreno|powervr/.test(g)) return mem >= 8 ? 'medium' : 'low';
-    return 'medium';
-  } catch {
-    return 'medium';
-  }
+  try { return deviceProfile().recommended; } catch { return 'medium'; }
 }
 
 export function resolveQuality(choice: QualityChoice): QualityPreset {
-  const p = PRESETS[choice === 'auto' ? detectQuality() : choice] ?? PRESETS.medium;
-  return isTouchDevice() ? mobileAdjust(p) : p;
+  const dev = deviceProfile();
+  const base = PRESETS[choice === 'auto' ? dev.recommended : choice] ?? PRESETS.medium;
+  const p = isTouchDevice() || dev.mobile ? mobileAdjust(base) : base;
+  // ?fps=30|60 e ?dynres=0|1 sobrepõem (testes); celular continua a 30 mesmo com preset escolhido à mão
+  const q = typeof location !== 'undefined' ? new URLSearchParams(location.search) : new URLSearchParams();
+  const fps = q.get('fps') === '30' ? 30 : q.get('fps') === '60' ? 60 : dev.targetFps;
+  const dyn = q.get('dynres') === '1' ? true : q.get('dynres') === '0' ? false : dev.dynamicResolution;
+  return { ...p, targetFps: fps, dynamicResolution: dyn };
 }
 
 const STORAGE_KEY = 'pv3d.quality';
