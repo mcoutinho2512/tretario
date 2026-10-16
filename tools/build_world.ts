@@ -458,7 +458,8 @@ const billboards: BillboardSlot[] = [];
   const hubs = F.validation.filter((v) => /INTERSECTION_(RIO_BRANCO|URUGUAIANA|PASSOS|PROCOPIO|DA_REPUBLICA|PRIMEIRO_DE_MARCO|TOME_DE_SOUSA)/.test(v.key) || v.key === 'LANDMARK_CENTRAL');
   const cands: (BillboardSlot & { score: number })[] = [];
   for (const b of F.buildings) {
-    if (b.height < 28 || b.canopy) continue;
+    // edifícios históricos com modelo dedicado (CCBB, Palácio Duque de Caxias) não recebem painéis
+    if (b.height < 28 || b.canopy || b.model) continue;
     const ring = b.poly.outer;
     for (let i = 0; i < ring.length; i++) {
       const a = ring[i], c = ring[(i + 1) % ring.length];
