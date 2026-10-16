@@ -42,6 +42,13 @@ interface VatSet {
 
 const _target = new THREE.Color();
 
+/** cópia desentrelaçada e não normalizada de um atributo (o meshopt entrega atributos entrelaçados/quantizados) */
+function plainCopy(a: THREE.BufferAttribute | THREE.InterleavedBufferAttribute): THREE.BufferAttribute {
+  const n = a.count, k = a.itemSize, out = new Float32Array(n * k);
+  for (let i = 0; i < n; i++) for (let c = 0; c < k; c++) out[i * k + c] = a.getComponent(i, c);
+  return new THREE.BufferAttribute(out, k);
+}
+
 export class CrowdRenderer {
   readonly group = new THREE.Group();
   /** [corpo][0 = LOD2, 1 = LOD3] */
@@ -126,7 +133,7 @@ export class CrowdRenderer {
     const g = new THREE.BufferGeometry();
     for (const k of ['position', 'normal', 'color', '_layer'] as const) {
       const a = sm.geometry.getAttribute(k);
-      if (a) g.setAttribute(k, a.clone()); // cópia: o GLB em cache continua sendo usado pelos personagens com esqueleto
+      if (a) g.setAttribute(k, plainCopy(a)); // cópia: o GLB em cache continua sendo usado pelos personagens com esqueleto
     }
     if (sm.geometry.index) g.setIndex(sm.geometry.index.clone());
     // cor média por camada (multiplicadores iguais aos das malhas únicas de HumanCharacter)
