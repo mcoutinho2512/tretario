@@ -30,6 +30,7 @@ import { buildCentral, type LandmarkInstance } from '../world/landmarks/central'
 import { buildCandelaria } from '../world/landmarks/candelaria';
 import { buildModelBuilding } from '../world/landmarks/models';
 import { PedestrianSystem } from '../npc/PedestrianSystem';
+import { CrowdDirector } from '../characters/crowd/CrowdDirector';
 import { TrafficSystem } from '../traffic/TrafficSystem';
 import { loadVehicleModels } from '../traffic/vehicleModels';
 import { SignalController } from '../traffic/SignalController';
@@ -71,6 +72,8 @@ export class Game {
   /** câmera livre só para automação (capturas de landmarks): posição + alvo */
   private freeCam: { p: [number, number, number]; t: [number, number, number] } | null = null;
   private peds!: PedestrianSystem;
+  /** orçamento único de humanos (remotos + multidão da rede + NPCs) e multidão instanciada — docs/CROWDS.md */
+  private crowd!: CrowdDirector;
   private traffic!: TrafficSystem;
   private signals!: SignalController;
   private monuments!: MonumentSystem;
@@ -192,6 +195,9 @@ export class Game {
     this.peds.shadowDistance = this.preset.npcShadowDistance;
     this.peds.maxDetail = this.preset.level === 'low' ? 2 : this.preset.level === 'medium' ? 1 : 0;
     AvatarVisual.maxRemoteDetail = this.peds.maxDetail;
+    this.crowd = new CrowdDirector(this.preset.level, this.scene);
+    // ?crowd=0 desliga o orçamento (todo humano com esqueleto, como antes) — só para comparação em QA
+    if (new URLSearchParams(location.search).get('crowd') !== '0') this.peds.crowd = this.crowd;
     this.scene.add(this.peds.group);
     let tdata: TrafficData = { lanes: [], junctions: [], crossings: [] };
     if (this.manifest.traffic) {
@@ -454,6 +460,7 @@ export class Game {
       this.rideables.smooth(dt, this.net.sessionId);
     }
     this.peds.update(dt, this.camera, this.player);
+    this.crowd.end(this.camera, dt);
     this.traffic.obstacles = [
       ...this.peds.crossingPositions(),
       ...(this.net ? this.net.remotesForObstacles().map((r) => ({ x: r.x, z: r.z, r: r.vehicle.startsWith('car') ? 1.6 : 0.9 })) : []),
@@ -496,7 +503,7 @@ export class Game {
       quality: this.preset.level.toUpperCase(),
       chunks: `${st.visible} vis (F${st.full}/M${st.medium}/L${st.far}) · ${st.loaded} baixados`,
       props: this.props.instanceCount, heading: this.player.heading, locomotion: this.player.locomotion,
-      npcs: `${this.net ? `MP ${this.net.status} · remotos ${this.net.remoteCount} · correções ${this.net.corrections} · ↓${(this.net.bandwidth.inBps / 1024).toFixed(1)} KB/s ↑${(this.net.bandwidth.outBps / 1024).toFixed(1)} KB/s · RTT ${worldClock.rtt === Infinity ? '—' : worldClock.rtt.toFixed(0)} ms · interp ${this.net.interpDelay.toFixed(0)} ms<br>` : ''}pedestres ${this.peds.stats.visible}/${this.peds.stats.active} (atravessando ${this.peds.stats.crossing}) · veículos ${this.traffic.stats.active} (parados no vermelho ${this.traffic.stats2.stoppedAtRed})`,
+      npcs: `${this.net ? `MP ${this.net.status} · remotos ${this.net.remoteCount} · correções ${this.net.corrections} · ↓${(this.net.bandwidth.inBps / 1024).toFixed(1)} KB/s ↑${(this.net.bandwidth.outBps / 1024).toFixed(1)} KB/s · RTT ${worldClock.rtt === Infinity ? '—' : worldClock.rtt.toFixed(0)} ms · interp ${this.net.interpDelay.toFixed(0)} ms<br>` : ''}pedestres ${this.peds.stats.visible}/${this.peds.stats.active} (atravessando ${this.peds.stats.crossing}) · humanos ${this.crowd.stats.skinned} esqueleto + ${this.crowd.stats.drawnInstanced} instanciados (${this.crowd.stats.instancedCalls} draws) · veículos ${this.traffic.stats.active} (parados no vermelho ${this.traffic.stats2.stoppedAtRed})`,
     });
   }
 
@@ -508,6 +515,7 @@ export class Game {
     const endpoint = mp === '1' ? `ws://${location.hostname}:2567` : mp;
     const { NetworkClient } = await import('../net/NetworkClient');
     this.net = new NetworkClient(endpoint, this.hud);
+    this.net.crowd = this.peds.crowd;
     this.scene.add(this.net.group);
     (window as any).__pvRemotes = () => this.net?.remotesInfo();
     this.net.onSpawn = (sp) => {
@@ -735,7 +743,7 @@ export class Game {
       calls: r.render.calls, triangles: r.render.triangles, textures: r.memory.textures, geometries: r.memory.geometries,
       quality: this.preset.level, chunks: { ...this.chunks.stats }, props: this.props.instanceCount,
       net: this.net ? { status: this.net.status, remotes: this.net.remoteCount, corrections: this.net.corrections, error: this.net.lastError } : null,
-      pedestrians: { ...this.peds.stats }, vehicles: this.traffic.stats.active, stoppedAtRed: this.traffic.stats2.stoppedAtRed,
+      pedestrians: { ...this.peds.stats }, crowd: { ...this.crowd.stats, farNet: this.net?.farCount ?? 0 }, vehicles: this.traffic.stats.active, stoppedAtRed: this.traffic.stats2.stoppedAtRed,
       player: { x: this.player.x, y: this.player.y, z: this.player.z },
     };
   }

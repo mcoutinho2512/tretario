@@ -24,8 +24,8 @@ interface LodInst {
 
 const clipsByBody = new Map<string, Promise<Map<string, THREE.AnimationClip>>>();
 
-/** clipes com a translação da pelve convertida para as proporções deste corpo */
-function clipsFor(body: BodyType, pelvisRest: THREE.Vector3): Promise<Map<string, THREE.AnimationClip>> {
+/** clipes com a translação da pelve convertida para as proporções deste corpo (também usado pela multidão instanciada) */
+export function clipsFor(body: BodyType, pelvisRest: THREE.Vector3): Promise<Map<string, THREE.AnimationClip>> {
   const key = `${body}:${pelvisRest.toArray().map((v) => v.toFixed(3)).join(',')}`;
   let p = clipsByBody.get(key);
   if (!p) {
@@ -93,6 +93,8 @@ export class HumanCharacter {
   }
 
   get lod(): Lod { return this.want; }
+  /** já há algum LOD carregado e visível (antes disso o personagem é invisível) */
+  get showing(): boolean { return this.shown >= 0; }
   /** volta todos os ossos ao repouso (antes do mixer), p.ex. depois do ragdoll */
   resetPose() { for (const [b, r] of this.rest) { b.quaternion.copy(r.q); b.position.copy(r.p); } }
   hasLod(l: Lod) { return !!this.lods[l]; }
@@ -298,7 +300,7 @@ export class HumanCharacter {
  * multiplicador que leva a cor média da textura à cor desejada. Pele e cabelo preservam o detalhe
  * (o multiplicador é limitado); roupas aceitam mudança forte de cor.
  */
-function tint(target: THREE.Color, base: THREE.Color | undefined, layer: string): [number, number, number] {
+export function tint(target: THREE.Color, base: THREE.Color | undefined, layer: string): [number, number, number] {
   const b = base ?? new THREE.Color(1, 1, 1);
   const max = layer === 'BODY' ? 1.5 : 2.4;
   const f = (t: number, s: number) => Math.min(max, t / Math.max(0.04, s));
