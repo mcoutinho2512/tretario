@@ -492,6 +492,11 @@ for (const w of ds.ways.values()) {
 // ---------------------------------------------------------------------------------------------
 // Monumentos (posições reais OSM)
 // ---------------------------------------------------------------------------------------------
+const bikeStations: { p: XZ; name?: string; capacity?: number }[] = [];
+for (const n of ds.nodes.values()) {
+  if (n.tags?.amenity === 'bicycle_rental') bikeStations.push({ p: ds.xz(n.id)!, ...(n.tags.name ? { name: n.tags.name } : {}), ...(n.tags.capacity ? { capacity: parseNum(n.tags.capacity) ?? undefined } : {}) });
+}
+console.log(`[process] estações de bicicleta: ${bikeStations.length}`);
 const monuments: { kind: string; p: XZ; name?: string; r?: number; base?: number }[] = [];
 for (const n of ds.nodes.values()) {
   const t = n.tags;
@@ -610,7 +615,7 @@ const out = {
   generatedAt: new Date().toISOString(),
   origin: WORLD_ORIGIN,
   source: meta,
-  landmarks, roads, pvAxis, crossings, crossingWays, signals, buildings, areas, lines, props, validation, spawn, monuments,
+  landmarks, roads, pvAxis, crossings, crossingWays, signals, buildings, areas, lines, props, validation, spawn, monuments, bikeStations,
 };
 writeFileSync(OUT, JSON.stringify(out));
 console.log(`[process] → ${OUT}`);

@@ -19,7 +19,7 @@ import { CHUNK_SIZE, REGION_BBOX } from '../src/geo/region';
 import { GeoProjection, WORLD_ORIGIN } from '../src/geo/projection';
 import type {
   XZ, Poly, BuildingRec, RoadRec, AreaRec, LineRec, PropRec, SignalRec, ChunkData, WorldManifest, LandmarkRec,
-  ValidationPoint, CrossingRec, SurfaceSet, MarkingSet, MonumentRec, StreetSignRec,
+  ValidationPoint, CrossingRec, SurfaceSet, MarkingSet, MonumentRec, StreetSignRec, BillboardSlot,
 } from '../src/world/types';
 
 const F = JSON.parse(readFileSync('data/processed/features.json', 'utf8')) as {
@@ -38,6 +38,7 @@ const F = JSON.parse(readFileSync('data/processed/features.json', 'utf8')) as {
   validation: ValidationPoint[];
   spawn: { p: XZ; yaw: number };
   monuments: MonumentRec[];
+  bikeStations: { p: XZ; name?: string; capacity?: number }[];
 };
 
 const OUT_DIR = 'public/world';
@@ -445,6 +446,55 @@ const pedCrossings = crossings.map((c) => {
   const roadDir = Math.atan2(c.b[1] - c.a[1], c.b[0] - c.a[0]) + Math.PI / 2;
   return { a: c.a, b: c.b, j: jn ? jn.id : -1, ph: jn ? phaseOf(jn, roadDir) : 0 };
 });
+// ---------------------------------------------------------------------------------------------
+// Locais para painéis de LED: fachadas altas voltadas para a avenida, concentradas perto dos
+// grandes cruzamentos (efeito "mídia urbana" sem cobrir a arquitetura inteira)
+// ---------------------------------------------------------------------------------------------
+const billboards: BillboardSlot[] = [];
+{
+  const ax = F.pvAxis;
+  const hubs = F.validation.filter((v) => /INTERSECTION_(RIO_BRANCO|URUGUAIANA|PASSOS|PROCOPIO|DA_REPUBLICA|PRIMEIRO_DE_MARCO|TOME_DE_SOUSA)/.test(v.key) || v.key === 'LANDMARK_CENTRAL');
+  const cands: (BillboardSlot & { score: number })[] = [];
+  for (const b of F.buildings) {
+    if (b.height < 28 || b.canopy) continue;
+    const ring = b.poly.outer;
+    for (let i = 0; i < ring.length; i++) {
+      const a = ring[i], c = ring[(i + 1) % ring.length];
+      const len = Math.hypot(c[0] - a[0], c[1] - a[1]);
+      if (len < 14) continue;
+      const mid: XZ = [(a[0] + c[0]) / 2, (a[1] + c[1]) / 2];
+      const dMid = distPointPolyline(mid, ax);
+      if (dMid > 95) continue;
+      let nx = (c[1] - a[1]) / len, nz = -(c[0] - a[0]) / len;
+      // normal externa (teste de ponto-no-polígono)
+      const inside = (() => { const q: XZ = [mid[0] + nx * 0.5, mid[1] + nz * 0.5]; let ins = false; for (let k = 0, j = ring.length - 1; k < ring.length; j = k++) { const xi = ring[k][0], zi = ring[k][1], xj = ring[j][0], zj = ring[j][1]; if (zi > q[1] !== zj > q[1] && q[0] < ((xj - xi) * (q[1] - zi)) / (zj - zi) + xi) ins = !ins; } return ins; })();
+      if (inside) { nx = -nx; nz = -nz; }
+      const toAxis = distPointPolyline([mid[0] + nx * 4, mid[1] + nz * 4], ax) < dMid - 2;
+      if (!toAxis) continue;
+      let hub = hubs[0], hd = Infinity;
+      for (const h of hubs) { const d = Math.hypot(h.p[0] - mid[0], h.p[1] - mid[1]); if (d < hd) { hd = d; hub = h; } }
+      if (hd > 220) continue;
+      const w = Math.min(len * 0.62, 18);
+      const h = w * (w > 10 ? 0.5625 : 1.3); // 16:9 ou vertical
+      const y = Math.min(b.height - h / 2 - 3, 12 + h / 2 + (b.id % 3) * 3);
+      if (y - h / 2 < 8) continue;
+      cands.push({
+        id: `bb_${b.id}_${i}`, p: [r2(mid[0] + nx * 0.25), r2(mid[1] + nz * 0.25)], y: r2(y), w: r2(w), h: r2(h),
+        r: r2(Math.atan2(nx, nz)), zone: hub.key, buildingId: b.id, score: hd + dMid * 0.5 - len * 0.2,
+      });
+    }
+  }
+  cands.sort((a, b) => a.score - b.score);
+  for (const c of cands) {
+    if (billboards.length >= 28) break;
+    if (billboards.some((o) => Math.hypot(o.p[0] - c.p[0], o.p[1] - c.p[1]) < 45 || o.buildingId === c.buildingId)) continue;
+    const { score: _s, ...slot } = c;
+    void _s;
+    billboards.push(slot);
+  }
+  log(`painéis de LED: ${billboards.length} locais (${[...new Set(billboards.map((b) => b.zone))].join(', ')})`);
+}
+
 const trafficJson = JSON.stringify({ lanes: lanesOut, junctions: junctionsOut, crossings: pedCrossings });
 const trafficFile = `traffic.${createHash('sha1').update(trafficJson).digest('hex').slice(0, 10)}.json`;
 writeFileSync(`${OUT_DIR}/${trafficFile}`, trafficJson);
@@ -472,6 +522,8 @@ const manifest: WorldManifest = {
   minimapRoads,
   traffic: trafficFile,
   monuments: F.monuments,
+  billboards,
+  bikeStations: F.bikeStations,
   streetSigns,
   attribution: '© OpenStreetMap contributors (ODbL)',
   osmTimestamp: F.source.osmBaseTimestamp,

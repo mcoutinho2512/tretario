@@ -141,3 +141,12 @@ describe('faixas de tráfego', () => {
     expect(mean(eastZ)).toBeGreaterThan(mean(westZ));
   });
 });
+
+describe('elementos do manifesto (regressão)', () => {
+  it('estações de bicicleta, monumentos, placas e painéis presentes', () => {
+    expect(manifest.bikeStations?.length ?? 0).toBeGreaterThanOrEqual(10);
+    expect(manifest.monuments?.length ?? 0).toBeGreaterThanOrEqual(4);
+    expect(manifest.streetSigns?.length ?? 0).toBeGreaterThanOrEqual(20);
+    expect(manifest.billboards?.length ?? 0).toBeGreaterThanOrEqual(10);
+  });
+});
