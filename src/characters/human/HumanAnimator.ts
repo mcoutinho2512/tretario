@@ -345,17 +345,18 @@ export class HumanAnimator {
         const v = tr.it.evaluate(time);
         const w = ew * (1 + (tr.spine - 1) * moving);
         if (tr.pos) {
-          this.adjustedP ??= { o: tr.b, p: tr.b.position.clone() };
+          if (!this.adjustedP) { this.adjustedP = tr.b; this.adjustedPos.copy(tr.b.position); }
           tr.b.position.lerp(this.tmpV.set(v[0], v[1], v[2]), w);
         } else {
-          if (!this.adjusted.some((r) => r.o === tr.b)) this.adjusted.push({ o: tr.b, q: tr.b.quaternion.clone() });
+          this.saveAdjusted(tr.b);
           tr.b.quaternion.slerp(this.tmpQ.set(v[0], v[1], v[2], v[3]), w);
         }
       }
     }
   }
   /** posição da pelve antes da camada de corpo inteiro (restaurada no próximo quadro) */
-  private adjustedP: { o: THREE.Object3D; p: THREE.Vector3 } | null = null;
+  private adjustedP: THREE.Object3D | null = null;
+  private adjustedPos = new THREE.Vector3();
 
   /** QA (folha de contato): congela as camadas no instante `t` com peso cheio */
   seekSocial(t: number) {
@@ -486,12 +487,17 @@ export class HumanAnimator {
     for (const r of this.rest) { if (r.q) r.o.quaternion.copy(r.q); if (r.p) r.o.position.copy(r.p); }
     // desfaz os ajustes aditivos do quadro anterior: o mixer NÃO reescreve todo osso em todo quadro (ex.: trilha
     // com chaves constantes num trecho), e o ajuste se acumulava — o tronco girava até dar "cambalhota" na corrida
-    for (let i = this.adjusted.length - 1; i >= 0; i--) this.adjusted[i].o.quaternion.copy(this.adjusted[i].q);
-    this.adjusted.length = 0;
-    if (this.adjustedP) { this.adjustedP.o.position.copy(this.adjustedP.p); this.adjustedP = null; }
+    for (const [o, q] of this.adjusted) { o.quaternion.copy(q); this.qPool.push(q); }
+    this.adjusted.clear();
+    if (this.adjustedP) { this.adjustedP.position.copy(this.adjustedPos); this.adjustedP = null; }
   }
   /** ossos ajustados neste quadro, com a pose ANTES do ajuste (restaurada no início do próximo quadro) */
-  private adjusted: { o: THREE.Object3D; q: THREE.Quaternion }[] = [];
+  private adjusted = new Map<THREE.Object3D, THREE.Quaternion>();
+  private qPool: THREE.Quaternion[] = [];
+  /** guarda a pose do osso antes do primeiro ajuste deste quadro (quatérnios reaproveitados: sem lixo por quadro) */
+  private saveAdjusted(b: THREE.Object3D) {
+    if (!this.adjusted.has(b)) this.adjusted.set(b, (this.qPool.pop() ?? new THREE.Quaternion()).copy(b.quaternion));
+  }
 
   /** sola acima do osso do pé (bola/tornozelo): o osso fica dentro do calçado */
   private static readonly SOLE = 0.012;
@@ -563,7 +569,7 @@ export class HumanAnimator {
     b.parent.getWorldQuaternion(this.pq);
     this.axis.set(x, y, z).normalize().applyQuaternion(this.aq).applyQuaternion(this.pq.invert());
     this.tmpQ.setFromAxisAngle(this.axis, ang);
-    if (!this.adjusted.some((r) => r.o === b)) this.adjusted.push({ o: b, q: b.quaternion.clone() });
+    this.saveAdjusted(b);
     b.quaternion.premultiply(this.tmpQ);
     b.updateMatrixWorld(false);
   }

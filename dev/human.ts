@@ -49,9 +49,11 @@ if (mode === 'close') { cam.position.set(0.25, 1.62, 1.35); cam.lookAt(0, 1.55, 
 else if (mode === 'lods') { cam.position.set(0, 1.4, 7.5); cam.lookAt(0, 0.9, 0); }
 else if (mode === 'side') { cam.position.set(3.2, 0.9, 0); cam.lookAt(0, 0.85, 0); }
 else if (mode === 'back') { cam.position.set(-1.0, 1.25, -3.6); cam.lookAt(0, 0.95, 0); }
-else if (mode === 'hands') { cam.position.set(0.5, 1.45, 1.6); cam.lookAt(0, 1.2, 0); }
+else if (mode === 'hands') { cam.position.set(-0.6, 1.4, 1.2); cam.lookAt(-0.2, 1.2, 0.25); }
 else if (mode === 'sheet') { cam.position.set(0, 1.2, 4.3); cam.lookAt(0, 1.05, 0); }
 else if (mode === 'upper') { cam.position.set(0.35, 1.5, 2.3); cam.lookAt(0, 1.38, 0); }
+else if (mode === 'torso') { cam.position.set(0.3, 1.5, 1.6); cam.lookAt(0, 1.32, 0); }
+else if (mode === 'shoulder') { cam.position.set(-0.5, 1.55, 0.8); cam.lookAt(-0.17, 1.45, 0); }
 else { cam.position.set(1.4, 1.25, 3.6); cam.lookAt(0, 0.9, 0); }
 
 if (q.get('inflate')) HumanCharacter.shirtInflate = Number(q.get('inflate'));
@@ -100,7 +102,9 @@ function updateProxy() {
     proxy.scale.set(w, h, d);
     proxy.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(across, up, fwd));
     // cartaz: pegada a 25 % da altura a partir de baixo · faixa: pelas pontas da borda de cima (pendurada)
-    proxy.position.copy(pr).lerp(pl, 0.5).addScaledVector(up, def.designSlot === 'banner' ? -h * 0.45 : h * 0.25);
+    // carregando (sem ação): pegada no meio da altura, cartaz junto ao peito
+    const lift = def.designSlot === 'banner' ? -h * 0.45 : chars[0].social.act ? h * 0.25 : 0;
+    proxy.position.copy(pr).lerp(pl, 0.5).addScaledVector(up, lift);
   } else if (def.kind === 'drum') {
     // tambor na altura da cintura, abaixo das baquetas
     proxy.scale.set(w, h, d);

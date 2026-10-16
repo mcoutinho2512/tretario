@@ -12,7 +12,7 @@ const [bodiesArg = 'homem,mulher,idoso,idosa', lod = '0', viewsArg = 'front,back
 const BASE = process.env.BASE ?? 'http://localhost:5173';
 const OUT = process.env.OUT ?? 'screenshots/round7/emotes';
 /** vista: sheet (corpo inteiro), upper (tronco e mãos), side (perfil) */
-const W = 300, H = 420;
+const W = Number(process.env.CELL_W ?? 300), H = Number(process.env.CELL_H ?? 420);
 mkdirSync(`${OUT}/cells`, { recursive: true });
 const b = await puppeteer.launch({ executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', headless: 'new', args: ['--use-angle=metal', '--enable-gpu'], defaultViewport: { width: W, height: H } });
 const errs = [];
@@ -50,7 +50,7 @@ for (const body of bodiesArg.split(',')) {
       await p.evaluate((it) => window.__human.setAct(it.act, it.prop, it.t, 0, it.speed), it);
       await new Promise((r) => setTimeout(r, 180));
       const buf = await p.screenshot({ type: 'jpeg', quality: 82 });
-      writeFileSync(`${OUT}/cells/${body}_${view}_${it.key.replace(/[^a-z0-9_]+/gi, '_')}.jpg`, buf);
+      writeFileSync(`${OUT}/cells/${body}_lod${lod}_${view}_${it.key.replace(/[^a-z0-9_]+/gi, '_')}.jpg`, buf);
       cells.push({ label: it.label, data: `data:image/jpeg;base64,${Buffer.from(buf).toString('base64')}` });
     }
     // folha: grade montada num canvas da própria página

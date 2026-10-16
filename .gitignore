@@ -16,3 +16,6 @@ screenshots/loadtest.json
 screenshots/bg_*/
 screenshots/crowd_bench/
 screenshots/bench_results/
+
+# QA da rodada 7 (folhas de contato, sondas)
+screenshots/round7/

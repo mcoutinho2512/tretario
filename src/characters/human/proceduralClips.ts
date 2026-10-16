@@ -311,6 +311,21 @@ export class Poser {
     }
   }
 
+  /** polegar esticado para o lado radial da mão (sinal positivo): alinha as falanges a essa direção */
+  thumbUp(side: Side, w = 1) {
+    if (w <= 1e-4) return;
+    const s = this.side(side);
+    const radial = this.pos(`index_01_${s}`, new THREE.Vector3()).sub(this.pos(`pinky_01_${s}`, _v3)).normalize();
+    const hand = this.pos(`middle_01_${s}`, new THREE.Vector3()).sub(this.pos(`hand_${s}`, _v3)).normalize();
+    const target = radial.multiplyScalar(0.92).addScaledVector(hand, 0.3).normalize();
+    for (let k = 1; k <= 2; k++) {
+      const b = this.b(`thumb_0${k}_${s}`);
+      if (!b) continue;
+      const cur = this.pos(`thumb_0${k + 1}_${s}`, new THREE.Vector3()).sub(this.pos(b.name, _v3)).normalize();
+      this.rotateArm(b, _q.setFromUnitVectors(cur, cur.clone().lerp(target, w).normalize()));
+    }
+  }
+
   /** respiração e microvida da cabeça (todas as poses) */
   life(amp = 1) {
     const u = this.u, n = Math.max(1, Math.round(this.dur / 3.6));
@@ -332,7 +347,7 @@ const onceDur = (clip: string, fallback: number) => ACTIONS.find((a) => a.clip =
 
 /** braço levantado acima da cabeça (mão aberta ou punho), com envelope e pequeno balanço */
 function armOverhead(c: Poser, side: 'r' | 'l', w: number, sway: number, fist: number, outward = 0.12) {
-  c.limb(side, 'clavicle', 0, 0, 1, -0.22 * w);
+  c.limb(side, 'clavicle', 0, 0, 1, -0.12 * w);
   c.reach(side, 'shoulder', [outward + 0.04 * sway, 0.52, 0.06 + 0.02 * sway], [1, -0.2, -0.3], w);
   c.twist(side, 'lowerarm', 0.5 * w);
   c.limb(side, 'hand', 1, 0, 0, (0.15 + 0.12 * sway) * w);
@@ -470,10 +485,11 @@ export const SPECS: Record<string, ClipSpec> = {
       c.life();
       c.bone('head', 1, 0, 0, 0.1 * nod);
       c.bone('spine_03', 0, 1, 0, -0.05 * e);
-      c.reach('r', 'shoulder', [0.06, -0.18 + 0.03 * nod, 0.36], ELBOW_DOWN, e);
+      c.reach('r', 'shoulder', [0.02, -0.21 + 0.03 * nod, 0.32], ELBOW_DOWN, e);
       c.twist('r', 'lowerarm', 0.1 * e);
       c.limb('r', 'hand', 1, 0, 0, -0.25 * e);
-      c.fingers('r', 1.0, { thumb: -0.45 }, e);
+      c.fingers('r', 1.0, { thumb: 0 }, e);
+      c.thumbUp('r', e);
     },
   },
   emote_talk: {
@@ -508,7 +524,7 @@ export const SPECS: Record<string, ClipSpec> = {
       c.bone('spine_03', 1, 0, 0, -0.012 * br);
       c.bone('head', 0, 0, 1, -0.12 + 0.015 * br);
       c.bone('head', 0, 1, 0, -0.05);
-      c.reach('r', 'head', [0.16, -0.1, 0.18], [1, -0.6, -0.4]);
+      c.reach('r', 'head', [0.21, -0.08, 0.13], [1, -0.6, -0.4]);
       c.twist('r', 'lowerarm', 1.5);
       c.fingers('r', 1.0, { index: 0.03, middle: 0.03, thumb: 0.5 });
       c.reach('l', 'pelvis', [0.2, 0.1, 0.03], [1, 0.1, -0.8]);
@@ -570,9 +586,9 @@ export const SPECS: Record<string, ClipSpec> = {
       c.life(0.6);
       c.bone('spine_03', 0, 1, 0, 0.12 * pan);
       c.bone('head', 0, 1, 0, 0.06 * pan);
-      c.bone('head', 1, 0, 0, 0.04);
-      // celular na altura dos olhos, à frente; a outra mão segura de leve o cotovelo/antebraço
-      c.reach('r', 'head', [0.03, -0.11 + 0.01 * osc(u, 3), 0.38], ELBOW_DOWN);
+      c.bone('head', 1, 0, 0, 0.14);
+      // celular à frente do peito/queixo, tela para o rosto (cabeça olha para baixo); a outra mão relaxada à frente
+      c.reach('r', 'head', [0.04, -0.24 + 0.01 * osc(u, 3), 0.36], ELBOW_DOWN);
       c.twist('r', 'lowerarm', 1.25);
       c.limb('r', 'hand', 1, 0, 0, -0.35);
       c.fingers('r', 0.75, { thumb: 0.1 });
@@ -722,7 +738,7 @@ export const SPECS: Record<string, ClipSpec> = {
       c.life(0.5);
       c.bone('spine_03', 1, 0, 0, 0.03 * blow - 0.02 * e);
       c.bone('head', 1, 0, 0, -0.05 * e + 0.05 * blow);
-      c.reach('r', 'head', [0.02, -0.07, 0.11], ELBOW_DOWN, e);
+      c.reach('r', 'head', [0.03, -0.1, 0.1], ELBOW_DOWN, e);
       c.twist('r', 'lowerarm', 1.1 * e);
       c.fingers('r', 0.85, { index: 0.6, thumb: 0.4 }, e);
     },
@@ -754,7 +770,7 @@ export const SPECS: Record<string, ClipSpec> = {
     pose: (c) => {
       const u = c.u;
       c.life(0.4);
-      signGrip(c, [0, -0.3 + 0.01 * osc(u, 1), 0.27], 0.015 * osc(u, 1, 0.3), 0.23, [0.6, -1, -0.2]);
+      signGrip(c, [0, -0.45 + 0.01 * osc(u, 1), 0.3], 0.015 * osc(u, 1, 0.3), 0.23, [0.6, -1, -0.2]);
     },
   },
   carry_banner: {

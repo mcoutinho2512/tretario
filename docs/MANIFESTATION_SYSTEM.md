@@ -15,3 +15,5 @@ Contratos ÚNICOS (não duplicar):
 | `CrowdAgent.act/actAt/prop/design` | vida social na multidão instanciada |
 
 Rede: `NetPlayer.act/actAt/actVar/prop/design`; mensagens `act {a, v}` e `prop {p, d}` (servidor valida e grava).
+
+Animações das ações e poses de itens (clipes procedurais, camada de ação, multidão instanciada, pegadas): `docs/EMOTES.md`.

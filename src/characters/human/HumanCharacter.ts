@@ -12,7 +12,7 @@ import { clone as cloneSkeleton } from 'three/examples/jsm/utils/SkeletonUtils.j
 import { BODY_TYPES, type BodyType, type CharacterAppearance } from '../bodyTypes';
 import { LAYER_INDEX, averageColor, loadClips, loadLod, type Lod } from './HumanAssets';
 import { HumanAnimator } from './HumanAnimator';
-import { hideCoveredSkin, type ClothInput } from './hideCovered';
+import { hideCoveredSkin, sleeveCovered, type ClothInput } from './hideCovered';
 import { PropAttachment } from '../../social/PropAttachment';
 import { EMPTY_SOCIAL, type SocialState } from '../../social/types';
 import type { CullJob } from './hideCovered.worker';
@@ -100,6 +100,30 @@ function worldArrays(sm: THREE.SkinnedMesh) {
   return { pos, normal: nor, index: idx };
 }
 
+/**
+ * braços do corpo na pose de repouso (mesmo espaço de worldArrays): lado de cada vértice (peso no úmero ≥ 0,5:
+ * 1 = esquerdo, 2 = direito) e ombro/cotovelo de cada lado — entrada de `sleeveCovered`
+ */
+function armData(sm: THREE.SkinnedMesh) {
+  const names = sm.skeleton.bones.map((b) => b.name);
+  const si = sm.geometry.getAttribute('skinIndex'), sw = sm.geometry.getAttribute('skinWeight');
+  const n = sm.geometry.getAttribute('position').count;
+  const upper = ['l', 'r'].map((s) => names.indexOf(`upperarm_${s}`));
+  const armOf = new Uint8Array(n);
+  if (!si || !sw || upper.some((i) => i < 0)) return null;
+  for (let i = 0; i < n; i++) {
+    const w = [0, 0];
+    for (let k = 0; k < 4; k++) {
+      const b = si.getComponent(i, k), x = sw.getComponent(i, k);
+      if (b === upper[0]) w[0] += x; else if (b === upper[1]) w[1] += x;
+    }
+    armOf[i] = w[0] >= 0.5 ? 1 : w[1] >= 0.5 ? 2 : 0;
+  }
+  const inv = sm.bindMatrixInverse, v = new THREE.Vector3();
+  const at = (name: string) => sm.skeleton.bones[names.indexOf(name)].getWorldPosition(v).applyMatrix4(inv).toArray();
+  return { armOf, arms: ['l', 'r'].map((s) => ({ shoulder: at(`upperarm_${s}`), elbow: at(`lowerarm_${s}`) })) };
+}
+
 /** recorte por geometria (compartilhada entre personagens do mesmo corpo/LOD): uma promessa por geometria de corpo */
 const cullJobs = new WeakMap<THREE.BufferGeometry, Promise<void>>();
 let worker: Worker | null | undefined;
@@ -125,7 +149,10 @@ function cullCovered(src: { layer: string; sm: THREE.SkinnedMesh }[]): Promise<v
   if (p) return p;
   const t0 = performance.now();
   const b = worldArrays(body), sh = shirt ? worldArrays(shirt) : null, pa = pants ? worldArrays(pants) : null;
-  const jobs: CullJob[] = [{ ...b, cloths: [sh, pa].filter(Boolean) as ClothInput[] }];
+  // braço dentro da manga: escondido pelo eixo do braço (com o braço erguido a pele atravessava a manga)
+  const arms = sh ? armData(body) : null;
+  const force = arms && sh ? sleeveCovered(b.pos, arms.armOf, arms.arms, sh) : undefined;
+  const jobs: CullJob[] = [{ ...b, cloths: [sh, pa].filter(Boolean) as ClothInput[], opts: force ? { force } : undefined }];
   // a calça também atravessava a camisa na cintura (manchas na barra): calça × camisa. O cós e os passadores saem
   // até ~6 cm para fora da camisa solta; o raio já garante camisa por cima, então sem margem de borda
   if (pa && sh && pants) jobs.push({ ...pa, cloths: [sh], opts: { inside: 0.06, edgeMargin: 0, radial: true } });
