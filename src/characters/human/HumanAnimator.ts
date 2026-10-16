@@ -5,6 +5,7 @@
  * Também: ar (pulo), poses montadas (carro, bicicleta, patinete), ações curtas (empurrão) e poses da tela inicial.
  */
 import * as THREE from 'three';
+import { EMPTY_SOCIAL, type SocialState } from '../../social/types';
 
 const LOCO = ['idle', 'walk', 'jog', 'sprint'] as const;
 type Loco = (typeof LOCO)[number];
@@ -178,6 +179,10 @@ export class HumanAnimator {
     this.w.idle = 1;
     this.act.get('idle')?.setEffectiveWeight(1);
   }
+
+  /** ação social / item (ver src/social): a camada de ação é tocada sobre a locomoção (implementação: animações) */
+  social: SocialState = EMPTY_SOCIAL;
+  setSocial(s: SocialState) { this.social = s; }
 
   get naturalSpeeds() { return { ...this.natural }; }
 

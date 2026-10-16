@@ -63,6 +63,11 @@ export interface CrowdAgent {
   dist: number;
   // ---- estado da representação instanciada
   phase: number;
+  // ---- vida social (src/social): ação, início (s, relógio local), item e design — usados pelos instanciados
+  act: number;
+  actAt: number;
+  prop: number;
+  design: number;
 }
 
 let nextId = 1;
@@ -72,6 +77,7 @@ export function createAgent(init: Partial<CrowdAgent> = {}): CrowdAgent {
     skin: 0xc68b62, hair: 0x222222, top: 0x2f6f8f, bottom: 0x2c3a52,
     maxTier: 2, priority: 1, skinReady: false,
     tier: 1, lod: 3, animEvery: 1, inView: true, dist: 0, phase: Math.random(),
+    act: 0, actAt: 0, prop: 0, design: 0,
     ...init,
   };
 }

@@ -4,6 +4,7 @@
  * O personagem procedural antigo (src/characters/CharacterMesh) fica apenas como reserva: falha de carregamento
  * ou `?avatar=classic` (depuração) — nunca aparece para o usuário normal.
  */
+import { EMPTY_SOCIAL, type SocialState } from '../social/types';
 import * as THREE from 'three';
 import type { PlayerState } from './PlayerState';
 import { createCharacter, type CharacterRig, type BoneName } from '../characters/CharacterMesh';
@@ -65,6 +66,10 @@ export class AvatarVisual {
     this.root.add(rig.mesh);
     this.legacy = { rig, anim: new CharacterAnimator(rig, PLAYER_CONSTANTS.walkSpeed, PLAYER_CONSTANTS.runSpeed) };
   }
+
+  /** ação social / item (ver HumanCharacter.setSocial) */
+  setSocial(s: SocialState) { this.human?.setSocial(s); }
+  get social(): SocialState { return this.human?.social ?? EMPTY_SOCIAL; }
 
   /** fator de velocidade do tipo de corpo (idosos andam mais devagar) */
   get speedFactor() { return BODY_TYPES[this.body].speedFactor; }

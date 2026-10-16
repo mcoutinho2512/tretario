@@ -13,6 +13,8 @@ import { BODY_TYPES, type BodyType, type CharacterAppearance } from '../bodyType
 import { LAYER_INDEX, averageColor, loadClips, loadLod, type Lod } from './HumanAssets';
 import { HumanAnimator } from './HumanAnimator';
 import { hideCoveredSkin, type ClothInput } from './hideCovered';
+import { PropAttachment } from '../../social/PropAttachment';
+import { EMPTY_SOCIAL, type SocialState } from '../../social/types';
 import type { CullJob } from './hideCovered.worker';
 
 interface LodInst {
@@ -176,6 +178,23 @@ export class HumanCharacter {
     this.ready = this.ensure(first).then(() => {
       if (!this.disposed && this.want !== first) void this.ensure(this.want);
     });
+  }
+
+  /** estado social atual (ação/emote + item na mão) */
+  social: SocialState = EMPTY_SOCIAL;
+  /** itens na mão (criado no primeiro uso) */
+  propAttachment: PropAttachment | null = null;
+  /**
+   * PONTO ÚNICO de ações sociais e itens deste personagem (jogador local, remoto ou NPC): o animador toca a ação
+   * (camada com crossfade sobre a locomoção) e os itens vão para a mão.
+   */
+  setSocial(s: SocialState) {
+    this.social = s;
+    this.animator?.setSocial(s);
+    if (s.prop || this.propAttachment) {
+      this.propAttachment ??= new PropAttachment({ root: this.root, bones: this.bones });
+      this.propAttachment.set(s.prop, s.design);
+    }
   }
 
   get lod(): Lod { return this.want; }
