@@ -1,6 +1,40 @@
-# STATUS — MVP Presidente Vargas 3D
+# STATUS — Presidente Vargas 3D
 
-_Atualizado em 2026-10-15._
+_Atualizado em 2026-10-15 (rodada 3: fidelidade, cidade viva, eventos, multiplayer local)._
+
+## Rodada 3 — antes / depois
+| Antes | Depois |
+|---|---|
+| ![](screenshots/antes/ccbb.jpg) | ![](screenshots/depois/ccbb.jpg) |
+| CCBB: sobrado genérico de 9 m | CCBB: bloco eclético de 31 m (override com fonte) |
+| ![](screenshots/antes/central.jpg) | ![](screenshots/depois/central.jpg) |
+| Central vista da avenida | Panteão de Caxias em granito + estátua equestre |
+
+| Novidades | |
+|---|---|
+| ![](screenshots/depois/galeria.jpg) | ![](screenshots/depois/galeria_dentro.jpg) |
+| Galerias reais dos prédios PA | Caminhando sob a colunata |
+| ![](screenshots/depois/travessia.jpg) | ![](screenshots/depois/evento_classico.jpg) |
+| Semáforos funcionais + travessia | Evento "clássico" genérico: banners e painel de LED |
+| ![](screenshots/depois/bicicleta.jpg) | ![](screenshots/depois/multiplayer.jpg) |
+| Bicicleta de estação real | Multiplayer local: B vê o Jogador_A |
+
+### Métricas (Apple M5 Pro, Chrome 155, 1920×1080, 16:30, sem vsync; com vsync todos ficam em 60 FPS)
+| Preset | Frame (ms) | Draw calls | Triângulos | Pedestres | Veículos |
+|---|---|---|---|---|---|
+| LOW | 1,8–2,0 | 152–318 | 171–276 k | 14 | 24 |
+| MEDIUM | 2,0–2,3 | 251–447 | 454–543 k | 32 | 48 |
+| HIGH | 4,4–4,9 | 560–944 | 1,22–1,43 M | 56 | 80 |
+| ULTRA | 4,6–4,8 | 594–1072 | 1,51–1,93 M | 90 | 110 |
+| Mobile (emulação iPhone 14) | 60 FPS | 130 | 144 k | 12 | 20 |
+
+Cidade viva medida em 60 s num cruzamento (HIGH): até **24 pedestres atravessando** ao mesmo tempo e até **32 veículos parados
+no vermelho**. 135 cruzamentos semaforizados, 791 linhas de retenção.
+
+**Testes:** 46 automatizados (Vitest), build de produção OK, `npm audit` 0 vulnerabilidades (cliente e servidor),
+QA e2e multiplayer com 2 navegadores (`tools/qa/multiplayer.mjs`).
+
+## Histórico (rodadas 1–2)
 
 | | |
 |---|---|

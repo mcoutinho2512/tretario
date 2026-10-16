@@ -70,3 +70,33 @@ A base (geografia real, coordenadas em metros, chunks, LOD, colisão leve, estad
 visual) está sólida e preparada para crescer. O próximo passo de maior valor, sem quebrar o que funciona,
 é um **sistema de personagens com esqueleto** (base de avatares, NPCs, multiplayer e ragdoll) e
 **dar vida à avenida** (pedestres e trânsito). Ver [ROADMAP.md](ROADMAP.md).
+
+---
+
+# Revisão de fidelidade — rodada 3 (2026-10-15)
+
+Revisão visual e de dados do corredor Central → Pres. Vargas → Candelária e entorno, com as capturas
+"antes" em `docs/screenshots/antes/`.
+
+## Encontrado
+| # | Problema | Evidência | Ação |
+|---|---|---|---|
+| F1 | **733 sobreposições** de edifícios: o OSM mistura contornos de lote/edifício com os volumes 3D da Prefeitura mapeados por dentro | centróide de um prédio dentro de outro | **corrigido**: 58 duplicatas removidas; 6 contornos com altura *estimada* sobre volumes reais removidos (regras no pipeline) |
+| F2 | **CCBB com 9 m e fachada de sobrado** (altura OSM ausente) | foto Commons: 6 pavimentos + ático | **corrigido**: override documentado (31 m, confiança média) + novo estilo **eclético** |
+| F3 | Prédios históricos (Correios, Paço, Itamaraty, Palácio Duque de Caxias, Associação Comercial) com fachada genérica | — | estilo eclético/art déco via `data/overrides/buildings.json` (com fonte e confiança) |
+| F4 | **Galerias** só pintadas no shader: sem profundidade, não se andava por baixo | — | **galerias geométricas** em 49 prédios PA (59 fachadas): recuo, teto, colunas, lojas; caminhável |
+| F5 | Monumentos ausentes: estátua de Caxias, bustos, Pira da Candelária, relógio de rua | nós OSM `memorial`/`artwork`/`clock` | **adicionados** nas posições reais |
+| F6 | Sem **placas de logradouro** | — | 34 placas azuis cariocas com os nomes reais dos cruzamentos |
+| F7 | 53 paradas de ônibus sem abrigo não apareciam | OSM `bus_stop` sem `shelter` | postes de parada |
+| F8 | Panteão de Caxias com janelas | — | granito liso (override `plain`) |
+| F9 | Semáforos estáticos | — | ciclos funcionais (ver abaixo) |
+| F10 | **Bug**: mapa de superfícies com códigos espúrios nas bordas (antialiasing) | jogador "afundando" ou bloqueado junto a fachadas | **corrigido**: máscaras por canal com limiar |
+| F11 | Gradis e muros do OSM não bloqueavam | bicicleta passava pelo gradil | **corrigido** |
+
+## Medidas da avenida (dados OSM)
+- **Pistas:** centrais com 4 faixas por sentido; laterais com 3–4 faixas (68 trechos, com `lanes` explícito).
+- **Canteiros:** saem do vão entre pistas. As larguras reais ainda não foram conferidas em campo.
+- **Cruzamentos semaforizados:** 135 agrupados de 366 nós de semáforo.
+
+## Ainda diferente da Presidente Vargas real
+Ver o relatório da rodada em [STATUS.md](STATUS.md).

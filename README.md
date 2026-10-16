@@ -3,8 +3,16 @@
 Reconstrução 3D navegável, renderizada **no navegador** (WebGL2 / Three.js), do corredor real
 **Central do Brasil → Avenida Presidente Vargas → Candelária**, no Centro do Rio de Janeiro.
 
-Já tem pedestres e trânsito de ambiente e quatro tipos de avatar (homem, mulher, idoso, idosa). Multiplayer, contas e
-pagamentos estão planejados: veja [docs/ROADMAP.md](docs/ROADMAP.md), [docs/AUDIT.md](docs/AUDIT.md) e [docs/DECISIONS.md](docs/DECISIONS.md).
+Já tem pedestres que usam as faixas, trânsito com semáforos funcionais, quatro tipos de avatar, bicicletas e patinetes nas estações
+reais, painéis de LED, eventos configuráveis (`public/events/`) e um **multiplayer local** (Colyseus) para desenvolvimento.
+Veja [docs/STATUS.md](docs/STATUS.md), [docs/ROADMAP.md](docs/ROADMAP.md), [docs/AUDIT.md](docs/AUDIT.md) e [docs/DECISIONS.md](docs/DECISIONS.md).
+
+### Multiplayer local (opcional)
+```bash
+npm run server:install && npm run server   # terminal 1 (ws://127.0.0.1:2567)
+npm run dev                                # terminal 2
+```
+Abra duas janelas com `http://localhost:5173/?mp=1`. Detalhes em [docs/MULTIPLAYER.md](docs/MULTIPLAYER.md).
 
 ![Presidente Vargas olhando para a Candelária](docs/screenshots/mid.jpg)
 
@@ -41,6 +49,8 @@ Requisitos: Node 20+ e um navegador com WebGL2 (Chrome, Safari 15+, Firefox, Edg
 | **Esc** | soltar o mouse |
 | **M** | minimapa expandido (corredor inteiro) |
 | **F3** | painel DEBUG (FPS, draw calls, posição, lat/lon, chunk, ponto de validação) |
+| **E** | subir/descer de bicicleta ou patinete (perto de uma estação) |
+| **K** | alternar modo pacífico/interação (se o evento permitir) · **F** ação |
 | **H** | mostrar/ocultar ajuda · **P** modo foto (sem HUD) |
 
 **Toque (celular/tablet):** joystick virtual à esquerda, arraste à direita para a câmera,
@@ -60,6 +70,9 @@ Para testes e screenshots dá para forçar o horário: `http://localhost:5173/?t
 - `?autostart=1&quality=low|medium|high|auto`: inicia direto, sem a tela inicial
 - `?shot=central|avenue|mid|candelaria`: posiciona o jogador num ponto de validação
 - `?avatar=homem|mulher|idoso|idosa`: escolhe o avatar
+- `?event=cotidiano|classico-exemplo|encontro-exemplo`: evento ativo
+- `?mp=1&name=Ana`: conecta ao servidor multiplayer local
+- `?quality=ultra`: preset ULTRA
 
 ## Estrutura
 
