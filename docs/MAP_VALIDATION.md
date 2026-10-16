@@ -93,3 +93,17 @@ Detalhes, medidas, fontes e confiança: [`docs/LANDMARKS.md`](LANDMARKS.md). Cap
 Anote o **ponto de validação** ou o **XYZ / lat-lon do F3** e o que está errado
 ("este prédio está alto demais", "falta esta rua", "a torre fica mais ao norte"). Correções de dado
 vão para o OSM (beneficia todos) ou para os parâmetros em `CENTRAL_PARAMS` e `CANDELARIA_PARAMS`.
+
+## Rodada 6 — edifícios de reconhecimento (conferência humana)
+Lista, fontes e confiança: [`docs/RECOGNITION_BUILDINGS.md`](RECOGNITION_BUILDINGS.md). Capturas:
+`screenshots/r6_recognition/before/` × `after/` (`tools/qa/recognition_shots.mjs`).
+
+- [ ] **Banco Central** (Av. PV 730): 129,7 m; caixas de vidro escuro defasadas — conferir a altura dos
+      vazios com colunas (estimada) e o lado do núcleo branco.
+- [ ] **Paulo de Frontin / "Balança Mas Não Cai"**: cores atuais da fachada (ponta vermelha, corpo creme,
+      bloco sul cinza-esverdeado) e se o painel da cobertura ainda existe.
+- [ ] **Blocos PA**: a variante de cada lote (creme / pilares / faixas / tijolo / varandas / coroa) foi
+      atribuída pela ordem nas fotos de 2017 — **conferir lote a lote** (confiança baixa).
+- [ ] **Kennedy** (nº 633): a ponta curva do contorno OSM fica para a Uruguaiana/sul — conferir com a foto.
+- [ ] **Biblioteca Parque**: altura (15 m, estimada) e posição do pórtico vermelho.
+- [ ] Lado **norte** junto à Candelária (Transpetro, blocos de 44–50 m) continua procedural.

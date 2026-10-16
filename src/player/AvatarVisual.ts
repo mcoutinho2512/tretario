@@ -102,6 +102,9 @@ export class AvatarVisual {
     this.pushT = 0;
   }
 
+  /** nível de detalhe fixo (jogador local) */
+  setDetail(lod: Lod) { this.human?.setLod(lod); }
+
   setAppearance(app: CharacterAppearance) {
     this.human?.setAppearance(app);
     this.legacy?.rig.setAppearance(app);

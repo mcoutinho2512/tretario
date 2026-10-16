@@ -88,7 +88,7 @@ export class HumanCharacter {
     // o esqueleto vem do LOD pedido (ou do mais barato, se o pedido for detalhado: aparece logo e melhora depois)
     const first: Lod = this.want <= 1 ? 3 : this.want;
     this.ready = this.ensure(first).then(() => {
-      if (this.want !== first) void this.ensure(this.want);
+      if (!this.disposed && this.want !== first) void this.ensure(this.want);
     });
   }
 
@@ -114,7 +114,7 @@ export class HumanCharacter {
   }
 
   private async ensure(l: Lod) {
-    if (this.lods[l] || this.loading.has(l)) return;
+    if (this.disposed || this.lods[l] || this.loading.has(l)) return;
     this.loading.add(l);
     const gltf = await loadLod(this.body, l);
     if (this.disposed) return;

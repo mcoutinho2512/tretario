@@ -362,6 +362,16 @@ export class ArchBuilder {
     return group;
   }
 
+  /** acrescenta as peças de outro builder (mesmas chaves material|tier) — para mesclar vários edifícios */
+  absorb(other: ArchBuilder): this {
+    for (const [k, list] of other.parts) {
+      let mine = this.parts.get(k);
+      if (!mine) this.parts.set(k, (mine = []));
+      mine.push(...list);
+    }
+    return this;
+  }
+
   triangleCount(): number {
     let n = 0;
     for (const list of this.parts.values()) for (const g of list) n += g.attributes.position.count / 3;

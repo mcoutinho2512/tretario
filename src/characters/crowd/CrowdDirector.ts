@@ -11,6 +11,7 @@
  */
 import * as THREE from 'three';
 import type { QualityLevel } from '../../core/settings';
+import type { Lod } from '../human/HumanAssets';
 import { CROWD_BUDGETS, assignTiers, type CrowdAgent, type CrowdBudget, type TierStats } from './crowdBudget';
 import { CrowdRenderer } from './CrowdRenderer';
 
@@ -27,6 +28,8 @@ export class CrowdDirector {
   private m = new THREE.Matrix4();
   private sphere = new THREE.Sphere(new THREE.Vector3(), 1.3);
   private counts = { net: 0, far: 0, ped: 0 };
+  /** LOD mais detalhado permitido AGORA (o jogo adia o LOD0 nos primeiros segundos); combinado com o do preset */
+  detailFloor: Lod = 0;
   /** contador de quadros (escalonamento da animação) */
   frame = 0;
   /** humanos de OUTRAS fontes (rede) no último quadro — os pedestres NPC cedem lugar a eles */
@@ -64,7 +67,10 @@ export class CrowdDirector {
       this.sphere.center.set(a.x, a.y + 0.9, a.z);
       a.inView = this.frustum.intersectsSphere(this.sphere);
     }
+    const maxDetail = this.budget.maxDetail;
+    this.budget.maxDetail = Math.max(maxDetail, this.detailFloor) as Lod;
     const st = assignTiers(this.list, this.budget, this.order, this.rank);
+    this.budget.maxDetail = maxDetail;
     if (this.rank.length < this.list.length) this.rank = new Float64Array(this.list.length * 2);
     // instanciados visíveis + com esqueleto ainda carregando (o instanciado cobre a troca)
     this.draw.length = 0;

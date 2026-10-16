@@ -1,5 +1,6 @@
 import { defineConfig, type Plugin } from 'vite';
 import { fileURLToPath } from 'node:url';
+import { mkdirSync, writeFileSync } from 'node:fs';
 
 /**
  * ez-tree (gerador de árvores, MIT): usamos o código-fonte do pacote em vez do build publicado, que embute
@@ -23,8 +24,36 @@ function ezTreeNoTextures(): Plugin {
   };
 }
 
+/**
+ * Desenvolvimento apenas: o benchmark (?bench=1) envia o resultado para POST /__bench e ele é gravado em
+ * screenshots/bench_results/ — assim testes em iPhone/notebook na rede local chegam ao repositório sem copiar à mão.
+ */
+function benchCollector(): Plugin {
+  return {
+    name: 'pv-bench-collector',
+    apply: 'serve',
+    configureServer(server) {
+      server.middlewares.use('/__bench', (req, res) => {
+        if (req.method !== 'POST') { res.statusCode = 405; res.end(); return; }
+        let body = '';
+        req.on('data', (c) => { body += c; if (body.length > 200_000) req.destroy(); });
+        req.on('end', () => {
+          try {
+            const data = JSON.parse(body);
+            mkdirSync('screenshots/bench_results', { recursive: true });
+            const tag = String(data.aparelho ?? 'aparelho').replace(/[^a-z0-9]+/gi, '_').slice(0, 40);
+            writeFileSync(`screenshots/bench_results/${Date.now()}_${tag}.json`, JSON.stringify({ ...data, ip: req.socket.remoteAddress }, null, 1));
+            res.statusCode = 204;
+          } catch { res.statusCode = 400; }
+          res.end();
+        });
+      });
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [ezTreeNoTextures()],
+  plugins: [ezTreeNoTextures(), benchCollector()],
   resolve: { alias: [{ find: /^@dgreenheck\/ez-tree$/, replacement: EZ_TREE_SRC }] },
   server: { port: 5173, host: true },
   build: {

@@ -11,6 +11,9 @@ real do OpenStreetMap**. Objetivo: reconhecíveis **sem rótulo**, com aparênci
 | Palácio Duque de Caxias | `src/world/landmarks/palacioDuqueCaxias.ts` | edifício com `model: palacio_duque_caxias` | contorno OSM (paredes do edifício) |
 | Centro Cultural Banco do Brasil | `src/world/landmarks/ccbb.ts` | edifício com `model: ccbb` | contorno OSM (paredes do edifício) |
 
+- **Edifícios de reconhecimento** (rodada 6: Banco Central, blocos do PA, Kennedy, Belacap, Embratel,
+  Biblioteca Parque, Paulo de Frontin…): mesmo mecanismo `model`, selecionados por id OSM (`byId`) —
+  ver [`RECOGNITION_BUILDINGS.md`](RECOGNITION_BUILDINGS.md).
 - Kit compartilhado: `src/world/landmarks/arch.ts` (primitivas, grade de fachada, volumes de polígono,
   materiais PBR). Despacho dos edifícios com `model`: `src/world/landmarks/models.ts`.
 - `data/overrides/buildings.json` → campo `model` → `tools/process_osm.ts` grava no chunk →

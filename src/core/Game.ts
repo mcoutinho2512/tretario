@@ -17,6 +17,8 @@ import { worldProjection, WORLD_ORIGIN } from '../geo/projection';
 import { createPlayerState, type PlayerState } from '../player/PlayerState';
 import { stepPlayer } from '../player/PlayerController';
 import { AvatarVisual } from '../player/AvatarVisual';
+import { FrameGovernor } from './frameGovernor';
+import { deviceProfile } from './settings';
 import { loadClips, loadLod, preloadCrowd } from '../characters/human/HumanAssets';
 import { DEFAULT_PLAYER_APPEARANCE as DEFAULT_APPS, type CharacterAppearance } from '../characters/bodyTypes';
 const DEFAULT_PLAYER_APPEARANCE_LOCAL = DEFAULT_APPS.homem;
@@ -105,7 +107,8 @@ export class Game {
   private photoMode = false;
 
   constructor(private container: HTMLElement, private preset: QualityPreset, appearance?: CharacterAppearance) {
-    this.avatar = new AvatarVisual(appearance);
+    // começa no LOD3 (barato) e sobe para o LOD0 depois de jogável: o detalhado não disputa banda com o mundo
+    this.avatar = new AvatarVisual(appearance, { lod: 3 });
     this.appearance = appearance;
     this.canvas = document.createElement('canvas');
     this.canvas.className = 'game-canvas';
@@ -188,14 +191,18 @@ export class Game {
     // personagens: animações, LOD do próprio avatar e LODs baratos de todos os corpos antes de começar
     progress(0.7, 'Carregando personagens');
     const bodies = ['homem', 'mulher', 'idoso', 'idosa'] as const;
-    await Promise.all([loadClips(), loadLod(this.appearance?.body ?? 'homem', 0), ...bodies.map((b) => loadLod(b, 3))]).catch((e) => console.warn('[personagens]', e));
-    preloadCrowd([...bodies]);
+    // o LOD0 do próprio avatar NÃO bloqueia o início (1,2–1,6 MB): começa no LOD3 e troca sem reiniciar a animação
+    await Promise.all([loadClips(), ...bodies.map((b) => loadLod(b, 3))]).catch((e) => console.warn('[personagens]', e));
     this.peds = new PedestrianSystem(this.collision, this.preset.pedestrians);
     this.peds.radius = this.preset.pedestrianRadius;
     this.peds.shadowDistance = this.preset.npcShadowDistance;
-    this.peds.maxDetail = this.preset.level === 'low' ? 2 : this.preset.level === 'medium' ? 1 : 0;
+    // no início, NPCs/remotos no máximo LOD1: o LOD0 (1,2–1,6 MB por corpo) não disputa banda com o mundo
+    const npcDetail = this.preset.level === 'low' ? 2 : this.preset.level === 'medium' ? 1 : 0;
+    this.peds.maxDetail = Math.max(1, npcDetail) as 1 | 2;
     AvatarVisual.maxRemoteDetail = this.peds.maxDetail;
+    this.deferredDetail = npcDetail as 0 | 1 | 2;
     this.crowd = new CrowdDirector(this.preset.level, this.scene);
+    this.crowd.detailFloor = this.peds.maxDetail; // mesmo adiamento do LOD0 (liberado aos 6 s)
     // ?crowd=0 desliga o orçamento (todo humano com esqueleto, como antes) — só para comparação em QA
     if (new URLSearchParams(location.search).get('crowd') !== '0') this.peds.crowd = this.crowd;
     this.scene.add(this.peds.group);
@@ -402,15 +409,34 @@ export class Game {
     this.gr.resize(w, h);
   }
 
+  /** limite de FPS e resolução dinâmica pelo aparelho (src/core/frameGovernor.ts) */
+  private governor!: FrameGovernor;
+  private deferredDetail: 0 | 1 | 2 = 1;
+  /** intervalos (ms) entre quadros RENDERIZADOS (benchmark) */
+  private frameLog: number[] = [];
+
   start() {
     this.running = true;
     this.clock.start();
+    this.governor = new FrameGovernor(this.preset.targetFps ?? 60, this.preset.dynamicResolution ?? false);
+    let last = performance.now(), first = true;
     const loop = () => {
       if (!this.running) return;
       requestAnimationFrame(loop);
+      const now = performance.now();
+      if (!this.governor.shouldRender(now)) return;
+      const interval = now - last;
+      last = now;
+      if (this.frameLog.length < 4000) this.frameLog.push(interval);
       this.frame();
+      if (first) { first = false; performance.mark('pv:world-visible'); }
+      const sc = this.governor.onFrame(interval, this.gr.gpuMs);
+      if (sc !== null) this.gr.setResolutionScale(sc);
     };
     requestAnimationFrame(loop);
+    performance.mark('pv:playable');
+    setTimeout(() => { this.avatar.setDetail(0); preloadCrowd(['homem', 'mulher', 'idoso', 'idosa']); }, 1500);
+    setTimeout(() => { this.peds.maxDetail = this.deferredDetail; AvatarVisual.maxRemoteDetail = this.deferredDetail; this.crowd.detailFloor = this.deferredDetail; }, 6000);
     (window as any).__pvReady = true;
   }
 
@@ -741,6 +767,7 @@ export class Game {
       heapMB: mem ? +(mem.usedJSHeapSize / 1e6).toFixed(1) : null,
       bandwidth: this.net?.bandwidth ?? null,
       calls: r.render.calls, triangles: r.render.triangles, textures: r.memory.textures, geometries: r.memory.geometries,
+      governor: this.governor?.stats ?? null, targetFps: this.preset.targetFps ?? 60, device: deviceProfile().label,
       quality: this.preset.level, chunks: { ...this.chunks.stats }, props: this.props.instanceCount,
       net: this.net ? { status: this.net.status, remotes: this.net.remoteCount, corrections: this.net.corrections, error: this.net.lastError } : null,
       pedestrians: { ...this.peds.stats }, crowd: { ...this.crowd.stats, farNet: this.net?.farCount ?? 0 }, vehicles: this.traffic.stats.active, stoppedAtRed: this.traffic.stats2.stoppedAtRed,
@@ -752,6 +779,8 @@ export class Game {
   debugApi() {
     return {
       setShot: (n: string) => this.setShot(n),
+      /** QA: intervalos dos quadros renderizados desde a última chamada */
+      takeFrames: () => this.frameLog.splice(0),
       /** QA: número de pedestres (medir o custo dos personagens) */
       peds: (n: number) => this.peds.setMax(n),
       metrics: () => this.metrics(),
