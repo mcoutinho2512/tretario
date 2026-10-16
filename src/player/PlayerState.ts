@@ -33,6 +33,8 @@ export interface MoveIntent {
   dirZ: number;
   run: boolean;
   jump: boolean;
+  /** fator de velocidade do corpo (1 = adulto; idosos < 1) */
+  speedFactor?: number;
 }
 
 export const PLAYER_CONSTANTS = {

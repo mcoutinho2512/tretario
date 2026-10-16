@@ -10,7 +10,7 @@ export function stepPlayer(s: PlayerState, intent: MoveIntent, dt: number, world
   const len = Math.hypot(intent.dirX, intent.dirZ);
   const dx = len > 1e-3 ? intent.dirX / Math.max(1, len) : 0;
   const dz = len > 1e-3 ? intent.dirZ / Math.max(1, len) : 0;
-  const target = intent.run ? C.runSpeed : C.walkSpeed;
+  const target = (intent.run ? C.runSpeed : C.walkSpeed) * (intent.speedFactor ?? 1);
   const tvx = dx * target, tvz = dz * target;
   const control = s.grounded ? 1 : C.airControl;
   const k = 1 - Math.exp(-C.accel * control * dt);
@@ -71,5 +71,5 @@ export function stepPlayer(s: PlayerState, intent: MoveIntent, dt: number, world
     while (d < -Math.PI) d += Math.PI * 2;
     s.heading += d * (1 - Math.exp(-C.turnRate * dt));
   }
-  s.locomotion = !s.grounded ? 'air' : speed < 0.25 ? 'idle' : speed < (C.walkSpeed + C.runSpeed) / 2 ? 'walk' : 'run';
+  s.locomotion = !s.grounded ? 'air' : speed < 0.25 ? 'idle' : speed < ((C.walkSpeed + C.runSpeed) / 2) * (intent.speedFactor ?? 1) ? 'walk' : 'run';
 }

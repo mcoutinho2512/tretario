@@ -17,6 +17,7 @@ import { worldProjection, WORLD_ORIGIN } from '../geo/projection';
 import { createPlayerState, type PlayerState } from '../player/PlayerState';
 import { stepPlayer } from '../player/PlayerController';
 import { AvatarVisual } from '../player/AvatarVisual';
+import type { CharacterAppearance } from '../characters/bodyTypes';
 import { ThirdPersonCamera } from '../camera/ThirdPersonCamera';
 import { InputManager } from '../input/InputManager';
 import { TouchControls } from '../ui/TouchControls';
@@ -25,6 +26,8 @@ import { Minimap } from '../debug/Minimap';
 import { createLandmarkMaterials } from '../world/landmarks/arch';
 import { buildCentral, type LandmarkInstance } from '../world/landmarks/central';
 import { buildCandelaria } from '../world/landmarks/candelaria';
+
+export { DEFAULT_PLAYER_APPEARANCE } from '../characters/bodyTypes';
 
 export type ProgressFn = (fraction: number, label: string) => void;
 
@@ -46,7 +49,7 @@ export class Game {
   private landmarks: LandmarkInstance[] = [];
   private input: InputManager;
   private player!: PlayerState;
-  private avatar = new AvatarVisual();
+  private avatar: AvatarVisual;
   private cam!: ThirdPersonCamera;
   private debug = new DebugPanel();
   private minimap!: Minimap;
@@ -61,7 +64,8 @@ export class Game {
   private running = false;
   private photoMode = false;
 
-  constructor(private container: HTMLElement, private preset: QualityPreset) {
+  constructor(private container: HTMLElement, private preset: QualityPreset, appearance?: CharacterAppearance) {
+    this.avatar = new AvatarVisual(appearance);
     this.canvas = document.createElement('canvas');
     this.canvas.className = 'game-canvas';
     container.appendChild(this.canvas);
@@ -329,6 +333,7 @@ export class Game {
       dirZ: fz * ax.y + Math.sin(this.cam.yaw) * ax.x,
       run: this.input.running(),
       jump: this.input.consumeJump(),
+      speedFactor: this.avatar.speedFactor,
     };
     void rx;
     // passo fixo para estabilidade
@@ -407,6 +412,7 @@ export class Game {
         this.intro.active = false;
       },
       camera: (yaw: number, pitch: number, dist: number) => { this.cam.maxDistance = Math.max(16, dist); this.cam.yaw = yaw; this.cam.pitch = pitch; this.cam.zoom(Math.log(dist / this.cam.distance)); this.intro.active = false; },
+      portrait: (dist = 3) => { this.cam.yaw = this.player.heading + Math.PI; this.cam.pitch = 0.08; this.cam.zoom(Math.log(dist / this.cam.distance)); this.intro.active = false; },
       toggleDebug: () => this.debug.toggle(),
       /** identifica o objeto sob um pixel (coordenadas de tela) */
       pick: (px: number, py: number) => {

@@ -34,8 +34,8 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); o
 }
 .btn-primary:disabled { opacity: 0.5; cursor: wait; }
 .btn-primary:not(:disabled):hover { filter: brightness(1.1); }
-.quality { display: flex; flex-wrap: wrap; gap: 10px 16px; justify-content: center; align-items: center; color: var(--muted); }
-.quality label { color: var(--fg); cursor: pointer; }
+.avatar-pick, .quality { display: flex; flex-wrap: wrap; gap: 10px 16px; justify-content: center; align-items: center; color: var(--muted); }
+.avatar-pick label, .quality label { color: var(--fg); cursor: pointer; }
 .detected, .foot { color: var(--muted); font-size: 13px; margin: 0; }
 
 #loading h2 { letter-spacing: 0.14em; font-size: clamp(18px, 3.4vw, 28px); margin: 0; }

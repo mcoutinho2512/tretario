@@ -13,6 +13,15 @@ const fill = $('bar-fill'), label = $('loading-label');
 const enginePromise = import('./core/Game');
 enginePromise.then(() => { btn.disabled = false; }).catch((e) => showError(e));
 
+type Body = 'homem' | 'mulher' | 'idoso' | 'idosa';
+const avatarRadios = Array.from(document.querySelectorAll<HTMLInputElement>('input[name=av]'));
+let savedAvatar: Body = 'homem';
+try { savedAvatar = (localStorage.getItem('pv3d.avatar') as Body) || 'homem'; } catch { /* sem storage */ }
+const urlAvatar = new URLSearchParams(location.search).get('avatar') as Body | null;
+if (urlAvatar) savedAvatar = urlAvatar;
+avatarRadios.forEach((r) => { r.checked = r.value === savedAvatar; });
+const chosenAvatar = (): Body => (avatarRadios.find((r) => r.checked)?.value as Body) ?? 'homem';
+
 const saved = loadQualityChoice();
 const radios = Array.from(document.querySelectorAll<HTMLInputElement>('input[name=q]'));
 radios.forEach((r) => { r.checked = r.value === saved; });
@@ -31,9 +40,11 @@ async function launch(choice: QualityChoice) {
   start.classList.add('hidden');
   loading.classList.remove('hidden');
   try {
-    const { Game } = await enginePromise;
+    const { Game, DEFAULT_PLAYER_APPEARANCE } = await enginePromise;
     const preset = resolveQualityChoice(choice);
-    const game = new Game($('app'), preset);
+    const body = chosenAvatar();
+    try { localStorage.setItem('pv3d.avatar', body); } catch { /* ignore */ }
+    const game = new Game($('app'), preset, DEFAULT_PLAYER_APPEARANCE[body] ?? DEFAULT_PLAYER_APPEARANCE.homem);
     await game.load((f, l) => {
       fill.style.width = `${Math.round(f * 100)}%`;
       label.textContent = l;
