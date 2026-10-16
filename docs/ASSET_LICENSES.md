@@ -59,6 +59,9 @@ apesar de estarem num pacote rotulado CC0) e `toigo_maga_hat` (conteúdo políti
 | Central do Brasil, Candelária, Palácio Duque de Caxias | `src/world/landmarks/*` (+ footprint OSM) | landmarks |
 | Personagem procedural antigo | `src/characters/CharacterMesh.ts` | **apenas reserva** (falha de carregamento, `?avatar=classic`) |
 | Mostrador do relógio, ícone | canvas/SVG | UI e landmark |
+| Carro de som, trio elétrico, caminhões de campanha, telão de treliça, palco (rodada 7) | `src/vehicles/eventModels.ts` (caixas/cilindros por código, cores por vértice; modelos originais, sem referência copiada) | veículos e cenário de evento |
+| Grade de alto-falante, conteúdo dos telões (equalizador, letreiro, cartão de hora/pessoas) | canvas em `src/vehicles/eventModels.ts` e `src/events/screenFeed.ts` | painéis e telões |
+| Artes de painéis (designs neutros e de campanha) | `src/social/designPainter.ts` a partir de DADOS (`public/designs/campaigns.json`): só nome/número/sigla/cores, marca "SIMULAÇÃO", sem logotipos ou fotos | caminhões, trio, carro de som, palco, telões |
 
 Veículos, vegetação, mobiliário, materiais de prédios/chão e landmarks da rodada 5: ver as seções acrescentadas
 pelas respectivas passadas (`docs/licenses/*.md`).

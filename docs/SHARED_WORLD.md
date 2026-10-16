@@ -16,7 +16,10 @@ Objetivo: dois jogadores olhando o mesmo cruzamento veem **essencialmente a mesm
 | **Semáforos** (135 cruzamentos) | **função pura do relógio** (`lightAt(t + offset)`) | nada é transmitido: cada cliente calcula a fase com o relógio sincronizado | **0** |
 | ~~Trânsito NPC~~ | **removido** na rodada 7 (avenida fechada) | — | 0 |
 | **Veículos utilizáveis** (89: 14 carros, 12 motos, 38 bicicletas, 25 patinetes) | servidor: estado, ocupante, posição validada do motorista | estado da sala filtrado por AOI (`StateView` + grade espacial própria `vgrid`) | delta-encoded |
+| **Veículos de evento** (1 trio elétrico, 2 carros de som) | servidor, como os demais veículos (+ `NetVehicle.design`) | idem (AOI pela `vgrid`) | delta-encoded |
+| **Passageiros em cima do trio** | servidor: posição LOCAL validada contra o polígono do piso | `NetPlayer.platform/plx/plz/plh` (20 Hz, só quando mudam) | ver abaixo |
 | Ônibus estacionados (4), gradis, placas "via interditada" | pipeline (`manifest.parkedBuses`) + cliente (`ClosureDressing`) | estáticos | 0 |
+| Caminhões de campanha, telões, palco | pipeline (`manifest.eventSpots`, carrocerias na colisão) + arte do evento | estáticos; telões desenhados localmente | 0 |
 | **Jogadores** | servidor (posição validada) | estado da sala filtrado por AOI, 20 Hz | delta-encoded |
 | **Evento ativo** | servidor (`state.eventId`) | estado da sala → cliente carrega `public/events/<id>.json` | — |
 | Pedestres NPC de ambiente | **local** (cada cliente) | — | 0 |
@@ -43,6 +46,12 @@ Objetivo: dois jogadores olhando o mesmo cruzamento veem **essencialmente a mesm
 | Moto | W · S freia · A/D · E | 25 / 30 km/h | 8,8 m/s |
 | Bicicleta | W · S freia · A/D · E | 20 / 25 km/h | 7,3 m/s |
 | Patinete | W · S freia · A/D · E | 17 / 20 km/h | 5,9 m/s |
+| Carro de som | W · S freia/ré · A/D · E | 12,6 / 14,4 km/h | 4,2 m/s |
+| Trio elétrico | W · S freia/ré · A/D · E (porta da cabine) | 4,3 / 5,4 km/h | 1,6 m/s |
+
+Carro de som e trio são **sempre pacíficos** (nunca entram em `checkImpacts`; todo pedestre bloqueia — `vehicleBlock`),
+**sólidos** para quem anda (`pushOutOfBox`, cliente com folga 0,35 m, servidor 0,15 m) e para os outros veículos
+(`boxesOverlap`, cliente e servidor: não atravessa, para encostado). O trio testa as pontas (12,6 m), não só o centro.
 
 ### Modo pacífico (padrão): não há atropelamento
 - `impactAllowed(motorista, alvo)` só é verdadeiro se **os dois** estiverem em modo interação.
@@ -55,6 +64,39 @@ Objetivo: dois jogadores olhando o mesmo cruzamento veem **essencialmente a mesm
 ### Medido (`tools/qa/vehicles_mp.mjs`, 2 navegadores reais por tipo: 24/24)
 Para carro, moto, bicicleta e patinete: estacionado e disponível → A entra → B **não** entra no mesmo → A anda →
 B vê o movimento (erro < 2,5 m) → A sai → veículo parado e disponível.
+
+## Trio elétrico: plataforma sincronizada (rodada 7)
+
+Quem sobe no trio **não está em veículo** (`vehicle = ''` — ações sociais continuam valendo) e passa a ter:
+
+| Campo (`NetPlayer`) | Tipo | Significado |
+|---|---|---|
+| `platform` | string | id do trio (`''` = no chão) |
+| `plx`, `plz` | float32 | posição LOCAL no piso (m; +z = frente do trio, +x = lado do motorista) |
+| `plh` | float32 | rumo relativo ao trio (rad) |
+
+Mensagens: `board {id, seq}` → `board_ok {id, lx, lz}` / `board_denied {id, reason}` (`distancia`, `lotado`,
+`ja_em_veiculo`, `ja_em_cima`, `estado`, `inexistente`); `unboard {seq}` → `unboard_ok {x, z}` (pé da escada; se
+houver parede, pelas laterais); `pmove [lx, lz, lh, speed, loco, seq]` (15 Hz, substitui o `move` enquanto está em
+cima) → `pcorrect [lx, lz, seq, reason]` se o servidor prender ao polígono ou limitar a velocidade.
+
+Regras (`src/vehicles/platform.ts`, puras e testadas):
+- **subir**: a pé, de pé, sem estar em veículo/plataforma, a ≤ 2,2 m do pé da escada, até 20 por trio;
+- **andar**: velocidade de pedestre (`MAX_SPEED.foot` + folga) e **dentro do polígono** `TRIO_DECK` (guarda-corpo,
+  recorte da mesa de som); o cliente prende ao MESMO polígono → correção quase nunca acontece;
+- **ir junto**: a cada movimento do trio o servidor recalcula o mundo de cada passageiro (`localToWorld`); o x/z de
+  mundo **sincronizado** só é regravado quando muda > 1 m (serve à grade/AOI e à multidão distante) — quem tem o
+  estado completo desenha o passageiro como **pose interpolada do trio × posição local interpolada**
+  (`NetworkClient.platformPose`), então ele não escorrega nem treme quando o trio anda ou vira;
+- o trio em que o jogador está fica sempre na sua vista (AOI); quem está em cima não bloqueia o próprio trio, não
+  empurra, não é empurrado nem atropelado; `move` antigo em trânsito (seq) é descartado ao subir/descer.
+
+Medido (`tools/qa/trio_mp.mjs`, 3 navegadores reais + 2 para o carro de som: **24/24**): A sobe → B vê A em cima;
+A anda no piso → B vê a posição local (erro 0,002 m); guarda-corpo segura; C dirige o trio 7,3 m em ~7 s → a
+posição de A **relativa ao trio** fica constante para B (erro máx. 0,03 m em 61 amostras, = deslocamento do trio
+entre duas leituras do teste) e para A; o mundo de A no servidor acompanha (≤ 1 m, pela regravação a cada 1 m);
+B não atravessa a carroceria a pé; A desce no pé da escada do trio já deslocado. Carro de som: A entra, B não entra
+no ocupado, A dirige ~9,9 m em 4 s, B vê (erro 0,3 m), A sai pela porta e o carro fica disponível.
 
 ## Pedestres (ainda locais)
 Os pedestres usam o mapa de superfícies rasterizado no navegador (canvas) e o comportamento de travessia. Hoje

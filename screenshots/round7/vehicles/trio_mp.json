@@ -1,0 +1,149 @@
+{
+ "results": [
+  {
+   "name": "trio: estacionado no centro do corredor, disponível",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "trio: A sobe pela escada (E, servidor confirma)",
+   "ok": true,
+   "detail": "{\"id\":\"trio0\",\"lx\":0,\"lz\":-5.6,\"lh\":0,\"speed\":0,\"loco\":0}"
+  },
+  {
+   "name": "trio: A está no piso (altura do deck)",
+   "ok": true,
+   "detail": "y=3.40"
+  },
+  {
+   "name": "trio: B vê A em cima do trio",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "trio: A anda no piso (posição local)",
+   "ok": true,
+   "detail": "lz -3.37"
+  },
+  {
+   "name": "trio: B vê a posição local de A",
+   "ok": true,
+   "detail": "erro 0.003 m"
+  },
+  {
+   "name": "trio: guarda-corpo segura (A não sai do piso andando)",
+   "ok": true,
+   "detail": "lx 0.98"
+  },
+  {
+   "name": "trio: C entra na cabine e dirige",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "trio: A (em cima) não pega a direção",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "trio: anda devagar (C dirigindo) e B vê",
+   "ok": true,
+   "detail": "7.3 m em ~7 s"
+  },
+  {
+   "name": "trio: A fica no mesmo lugar do piso — visto por B (sem escorregar)",
+   "ok": true,
+   "detail": "erro máx 0.036 m em 60 amostras"
+  },
+  {
+   "name": "trio: A fica no mesmo lugar do piso — visto por A",
+   "ok": true,
+   "detail": "erro máx 0.030 m"
+  },
+  {
+   "name": "trio: servidor leva A junto (posição de mundo segue o trio)",
+   "ok": true,
+   "detail": "defasagem máx 1.00 m (pose interpolada × último patch)"
+  },
+  {
+   "name": "trio: C sai da cabine",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "trio: carroceria é sólida para quem anda (B não atravessa)",
+   "ok": true,
+   "detail": "0 amostras dentro"
+  },
+  {
+   "name": "trio: A desce (E) e fica no chão atrás do trio",
+   "ok": true,
+   "detail": "{\"x\":-170.0715229496748,\"y\":0,\"z\":140.84205270647473}"
+  },
+  {
+   "name": "trio: desceu pelo pé da escada",
+   "ok": true,
+   "detail": "local (-0.00, -7.20)"
+  },
+  {
+   "name": "trio: B vê A no chão",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "som: parado e disponível",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "som: A entra (E, servidor confirma)",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "som: B não entra no carro de som ocupado",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "som: A dirige em passo de cortejo",
+   "ok": true,
+   "detail": "9.9 m em 4 s · correções {}"
+  },
+  {
+   "name": "som: B vê o movimento",
+   "ok": true,
+   "detail": "erro 0.29 m"
+  },
+  {
+   "name": "som: A sai pela porta (fora da carroceria); disponível para B",
+   "ok": true,
+   "detail": "ocupante ''"
+  }
+ ],
+ "numbers": {
+  "trio": {
+   "moved": 7.25,
+   "samples": 60,
+   "maxRelErrB": 0.036,
+   "maxRelErrA": 0.03,
+   "maxServerLagM": 1,
+   "bwB_parked": {
+    "inBps": 99,
+    "outBps": 500,
+    "inMps": 9.9,
+    "outMps": 12.8
+   },
+   "bwB_driving": {
+    "inBps": 520,
+    "outBps": 574,
+    "inMps": 18,
+    "outMps": 15
+   }
+  },
+  "soundcar": {
+   "moved": 9.86,
+   "corrections": {}
+  }
+ }
+}

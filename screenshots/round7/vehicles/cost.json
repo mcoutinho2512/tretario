@@ -1,0 +1,167 @@
+{
+ "soundcar_near": {
+  "calls": 6,
+  "tris": -86918
+ },
+ "soundcar_mid": {
+  "calls": 6,
+  "tris": 1384
+ },
+ "soundcar_far": {
+  "calls": 2,
+  "tris": 48
+ },
+ "trio_near": {
+  "calls": 12,
+  "tris": 21036
+ },
+ "trio_mid": {
+  "calls": 8,
+  "tris": 2508
+ },
+ "trio_far": {
+  "calls": 2,
+  "tris": 168
+ },
+ "boarded": {
+  "id": "trio0",
+  "lx": 0,
+  "lz": -5.6,
+  "lh": 0,
+  "speed": 0,
+  "loco": 0
+ },
+ "onDeck": {
+  "p": {
+   "id": "trio0",
+   "lx": 0.98,
+   "lz": -5.66220082513425,
+   "lh": 1.6023511279310971,
+   "speed": 0.0015276947983750744,
+   "loco": 0
+  },
+  "probe": {
+   "ground": 0,
+   "playerY": 3.4,
+   "speed": 0,
+   "grounded": true,
+   "root": 3.4,
+   "armY": 0.0267,
+   "lod": 0,
+   "pelvis": 4.41,
+   "head": 5.0767,
+   "pelvisXZ": [
+    0.009,
+    0.033
+   ],
+   "ballL": 3.4087,
+   "ballR": 3.4047,
+   "footL": 3.4872,
+   "footR": 3.4885,
+   "pelvisLocal": [
+    0.005,
+    0.035,
+    0.982
+   ],
+   "w": {
+    "idle": 0.996,
+    "walk": 0.004
+   },
+   "clipGround": {
+    "idle": 0.021169937009818326,
+    "walk": 0.016070122815967633,
+    "jog": -0.04815392317271994,
+    "sprint": -0.0028724346330857853,
+    "dance": 0.019354443910879413,
+    "talk": 0.020704643464138875
+   }
+  }
+ },
+ "scenery": [
+  {
+   "id": "truck0",
+   "kind": "truck",
+   "x": -241.39,
+   "z": 192.57,
+   "heading": 1.91,
+   "design": 100
+  },
+  {
+   "id": "truck1",
+   "kind": "truck",
+   "x": -228.01,
+   "z": 188.42,
+   "heading": 1.91,
+   "design": 101
+  },
+  {
+   "id": "truck2",
+   "kind": "truck",
+   "x": 322.72,
+   "z": -4.56,
+   "heading": 1.92,
+   "design": 30
+  },
+  {
+   "id": "truck3",
+   "kind": "truck",
+   "x": 728.51,
+   "z": -234.72,
+   "heading": -1.25,
+   "design": 100
+  },
+  {
+   "id": "screen0",
+   "kind": "screen",
+   "x": -261.82,
+   "z": 178.67,
+   "heading": 1.92,
+   "design": 0
+  },
+  {
+   "id": "screen1",
+   "kind": "screen",
+   "x": 28.54,
+   "z": 56.86,
+   "heading": 5.09,
+   "design": 0
+  },
+  {
+   "id": "stage0",
+   "kind": "stage",
+   "x": 593.52,
+   "z": -143.25,
+   "heading": 4.97,
+   "design": 0
+  }
+ ],
+ "truck_near": {
+  "calls": 10,
+  "tris": 7084
+ },
+ "truck_mid": {
+  "calls": 6,
+  "tris": 1784
+ },
+ "truck_far": {
+  "calls": 2,
+  "tris": 24
+ },
+ "screen_near": {
+  "calls": 6,
+  "tris": 5716
+ },
+ "stage_near": {
+  "calls": 10,
+  "tris": 9396
+ },
+ "stage_far": {
+  "calls": 6,
+  "tris": 224
+ },
+ "feed": {
+  "draws": 86,
+  "slide": 2,
+  "slides": 5
+ }
+}

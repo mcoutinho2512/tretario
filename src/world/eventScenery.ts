@@ -13,7 +13,7 @@ import type { CollisionWorld } from '../physics/CollisionWorld';
 import type { EventDef } from '../events/types';
 import { DESIGNS, DESIGN_BY_ID, DESIGN_BY_KEY } from '../social/designs';
 import { rallyPoints, RALLY_DEFAULT_WEIGHTS } from '../social/rally';
-import { applyDesign, buildCampaignTruck, buildScreenStand, buildStage, screenMeshes } from '../vehicles/eventModels';
+import { applyDesign, buildCampaignTruck, buildScreenStand, buildStage, screenMeshes, setEventNight } from '../vehicles/eventModels';
 import { screenFeed, type ScreenSlide } from '../events/screenFeed';
 
 type Spot = NonNullable<WorldManifest['eventSpots']>[number];
@@ -94,7 +94,8 @@ export class EventScenery {
   }
 
   /** telões: perto → canal animado (2 Hz); longe → material liso. O canal só redesenha se algum estiver perto */
-  update(dt: number, cam: THREE.Vector3) {
+  update(dt: number, cam: THREE.Vector3, night = 0) {
+    setEventNight(night);
     const feed = screenFeed();
     let anyNear = false;
     for (const list of [this.screens, this.extraScreens]) for (const s of list) {

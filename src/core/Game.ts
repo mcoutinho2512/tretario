@@ -548,7 +548,7 @@ export class Game {
     this.crowd.end(this.camera, dt);
     mark('multidão');
     this.closure.update(this.camera.position);
-    this.scenery.update(dt, this.camera.position);
+    this.scenery.update(dt, this.camera.position, this.env.night);
     this.props.updateSignals((j, ph) => this.signals.state(j, ph));
 
     // mundo

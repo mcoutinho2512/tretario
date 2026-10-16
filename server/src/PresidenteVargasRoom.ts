@@ -511,17 +511,22 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
   }
 
   // ---------------------------------------------------------------- trio elétrico (plataforma) e veículos de evento
-  /** passageiros acompanham o trio: mundo = pose do trio × posição local (chamado a cada movimento do trio) */
-  private carryRiders(trioId: string) {
+  /**
+   * passageiros acompanham o trio: mundo = pose do trio × posição local (chamado a cada movimento do trio).
+   * Quem recebe o estado completo desenha pelo LOCAL (plx/plz/plh) × pose do trio — o x/z de mundo sincronizado só
+   * serve à grade/AOI e à multidão distante, então só é regravado quando se afasta > 1 m (banda: 20 passageiros num
+   * trio andando não geram 20 × 20 Hz de patches de posição).
+   */
+  private carryRiders(trioId: string, force = false) {
     const v = this.state.vehicles.get(trioId), set = this.riders.get(trioId);
     if (!v || !set) return;
     for (const id of set) {
       const p = this.state.players.get(id), r = this.rt.get(id);
       if (!p || !r) continue;
       const w = localToWorld(v, p.plx, p.plz);
-      p.x = w.x; p.z = w.z; p.y = v.y + TRIO.deckH; p.heading = v.heading + p.plh;
-      r.actor.x = w.x; r.actor.z = w.z; r.actor.heading = p.heading;
-      r.last.x = w.x; r.last.z = w.z; r.last.y = p.y;
+      if (force || Math.hypot(w.x - p.x, w.z - p.z) > 1) { p.x = w.x; p.z = w.z; p.y = v.y + TRIO.deckH; p.heading = v.heading + p.plh; }
+      r.actor.x = w.x; r.actor.z = w.z; r.actor.heading = v.heading + p.plh;
+      r.last.x = w.x; r.last.z = w.z; r.last.y = v.y + TRIO.deckH;
     }
   }
 
@@ -542,7 +547,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     let set = this.riders.get(id);
     if (!set) this.riders.set(id, (set = new Set()));
     set.add(client.sessionId);
-    this.carryRiders(id);
+    this.carryRiders(id, true);
     client.send('board_ok', { id, lx: p.plx, lz: p.plz });
     console.log(`[room] ${client.sessionId} subiu no ${id} (${set.size} em cima)`);
   }

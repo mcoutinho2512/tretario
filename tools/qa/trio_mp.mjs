@@ -89,6 +89,8 @@ await ev(A, () => window.__pv.rawEnter('trio0'));
 await w(800);
 check('trio: A (em cima) não pega a direção', (await ev(A, () => window.__pv.riding())) === null);
 const plFix = await ev(A, () => window.__pv.platform());
+await w(2200);
+const bwParked = await ev(B, () => window.__pv.mp().bandwidth); // trio parado, A parado em cima
 const sB = [], sA = [], sSrv = [];
 await ev(C, () => window.__pv.press('KeyW', 7000));
 const tDrive = Date.now();
@@ -109,7 +111,7 @@ await w(800);
 const t1 = await ev(B, () => window.__pv.vehiclePose('trio0'));
 const moved = Math.hypot(t1.x - t0.x, t1.z - t0.z);
 const max = (a) => (a.length ? Math.max(...a) : NaN);
-numbers.trio = { moved: +moved.toFixed(2), samples: sB.length, maxRelErrB: +max(sB).toFixed(3), maxRelErrA: +max(sA).toFixed(3), maxServerLagM: +max(sSrv).toFixed(2), bwB: bw };
+numbers.trio = { moved: +moved.toFixed(2), samples: sB.length, maxRelErrB: +max(sB).toFixed(3), maxRelErrA: +max(sA).toFixed(3), maxServerLagM: +max(sSrv).toFixed(2), bwB_parked: bwParked, bwB_driving: bw };
 check('trio: anda devagar (C dirigindo) e B vê', moved > 3 && moved < 1.6 * 7.5, `${moved.toFixed(1)} m em ~7 s`);
 check('trio: A fica no mesmo lugar do piso — visto por B (sem escorregar)', max(sB) < 0.1, `erro máx ${max(sB).toFixed(3)} m em ${sB.length} amostras`);
 check('trio: A fica no mesmo lugar do piso — visto por A', max(sA) < 0.1, `erro máx ${max(sA).toFixed(3)} m`);

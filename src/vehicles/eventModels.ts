@@ -83,7 +83,7 @@ class Kit {
 }
 
 // ------------------------------------------------------------------------------- materiais (compartilhados)
-let mats: { body: THREE.MeshStandardMaterial; light: THREE.MeshBasicMaterial; grille: THREE.MeshStandardMaterial } | null = null;
+let mats: { body: THREE.MeshStandardMaterial; light: THREE.MeshBasicMaterial; grille: THREE.MeshStandardMaterial; beam: THREE.MeshBasicMaterial } | null = null;
 function materials() {
   if (mats) return mats;
   const body = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0.3 });
@@ -93,7 +93,11 @@ function materials() {
   light.name = 'event_lights';
   const grille = new THREE.MeshStandardMaterial({ map: grilleTexture(), roughness: 0.85, metalness: 0.1 });
   grille.name = 'speaker_grille';
-  return (mats = { body, light, grille });
+  // fachos de luz (cones aditivos, sem luz real): só aparecem à noite — `setEventNight`
+  const beam = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, toneMapped: false });
+  beam.name = 'event_beams';
+  beam.visible = false;
+  return (mats = { body, light, grille, beam });
 }
 
 /** grade de alto-falante (canvas próprio): 2×2 cones por bloco, repetido pelos painéis */
@@ -127,11 +131,25 @@ export function designMaterial(designId: number, target: DesignTarget = 'truck')
   const key = `${id}:${target}`;
   let m = designMats.get(key);
   if (!m) {
-    m = new THREE.MeshStandardMaterial({ map: designTexture(id, target, 256), roughness: 0.6, metalness: 0.05 });
+    const tex = designTexture(id, target, 256);
+    // lona iluminada por trás (backlight): à noite a arte continua legível — intensidade em `setEventNight`
+    m = new THREE.MeshStandardMaterial({ map: tex, emissiveMap: tex, emissive: 0xffffff, emissiveIntensity: nightGlow(), roughness: 0.6, metalness: 0.05 });
     m.name = `design_panel_${key}`;
     designMats.set(key, m);
   }
   return m;
+}
+
+let night = 0;
+const nightGlow = () => 0.04 + 0.55 * night;
+/** noite (0..1, de Environment.night): acende as lonas e os fachos de luz; de dia, nada a mais é desenhado */
+export function setEventNight(n: number) {
+  if (Math.abs(n - night) < 0.02) return;
+  night = n;
+  for (const m of designMats.values()) m.emissiveIntensity = nightGlow();
+  const b = materials().beam;
+  b.opacity = 0.2 * n;
+  b.visible = n > 0.05;
 }
 
 /** aplica um design (troca só o material dos painéis marcados) */
@@ -152,7 +170,7 @@ function mesh(g: THREE.BufferGeometry, m: THREE.Material, name: string, shadow =
 }
 
 /** monta um nível de detalhe a partir dos kits (pula os vazios) */
-function level(name: string, kits: { body?: Kit; light?: Kit; grille?: Kit; panels?: Kit; panelTarget?: DesignTarget; extraPanels?: Kit; extraTarget?: DesignTarget; screen?: Kit }, design: number) {
+function level(name: string, kits: { body?: Kit; light?: Kit; grille?: Kit; panels?: Kit; panelTarget?: DesignTarget; extraPanels?: Kit; extraTarget?: DesignTarget; screen?: Kit; beam?: Kit }, design: number) {
   const g = new THREE.Group();
   g.name = name;
   const m = materials();
@@ -165,6 +183,12 @@ function level(name: string, kits: { body?: Kit; light?: Kit; grille?: Kit; pane
     const p = mesh(k.merge(), designMaterial(design, t), `${name}_design`, false);
     p.userData.designTarget = t;
     g.add(p);
+  }
+  if (kits.beam && !kits.beam.empty) {
+    const b = mesh(kits.beam.merge(), m.beam, `${name}_beams`, false);
+    b.receiveShadow = false;
+    b.renderOrder = 2;
+    g.add(b);
   }
   if (kits.screen && !kits.screen.empty) {
     const s = mesh(kits.screen.merge(), screenFeed().material, `${name}_screen`, false);
@@ -187,6 +211,18 @@ const C = {
   head: 0xfff1cf, tail: 0xc0141c, concrete: 0x9b9a96,
 };
 const LIGHT_COLORS = [0xff2bd6, 0x22d3ff, 0xffb000, 0xffffff, 0x7c4dff, 0x3cff6a];
+
+/** facho de luz: cone aberto de `len` m a partir de (x,y,z), apontando para baixo e inclinado (rx, rz) */
+function beam(k: Kit, x: number, y: number, z: number, len: number, rx: number, rz: number, color: number) {
+  const g = new THREE.CylinderGeometry(0.08, len * 0.24, len, 10, 4, true);
+  g.translate(0, -len / 2, 0);
+  k.add(g, color, [0, 0, 0]);
+  // aditivo: cor mais escura = mais transparente → o facho some suavemente na ponta (sem "tampa" dura)
+  const pos = g.getAttribute('position'), col = g.getAttribute('color');
+  for (let i = 0; i < pos.count; i++) { const f = Math.pow(1 + pos.getY(i) / len, 1.6); col.setXYZ(i, col.getX(i) * f, col.getY(i) * f, col.getZ(i) * f); }
+  g.applyMatrix4(new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(rx, 0, rz)));
+  g.translate(x, y, z);
+}
 
 function wheels(k: Kit, zs: number[], x: number, r: number, w: number, seg = 16) {
   for (const z of zs) for (const s of [-1, 1]) {
@@ -261,7 +297,7 @@ export function buildSoundcar(design = 0): THREE.Group {
 export function buildTrio(design = 0): THREE.Group {
   const { len, width, deckH, cabZ0 } = TRIO;
   const z0 = -len / 2, z1 = len / 2, bodyLen = cabZ0 - 0.1 - z0, bodyZ = (z0 + cabZ0 - 0.1) / 2;
-  const near = { body: new Kit(), light: new Kit(), grille: new Kit(true), panels: new Kit(true), screen: new Kit(true) };
+  const near = { body: new Kit(), light: new Kit(), grille: new Kit(true), panels: new Kit(true), screen: new Kit(true), beam: new Kit() };
   const b = near.body, L = near.light, G = near.grille;
   b.box(2.3, 0.35, len - 0.2, 0, 0.95, 0, C.chassis);
   wheels(b, [4.6, -3.0, -4.25], 1.1, 0.52, 0.42, 16);
@@ -307,7 +343,10 @@ export function buildTrio(design = 0): THREE.Group {
   for (const x of [-tx, tx]) for (let k = 0; k < 5; k++) {
     const z = tz0 + 0.8 + (k * (tz1 - tz0 - 1.6)) / 4;
     b.cyl(0.13, 0.13, 0.26, 8, x, ty - 0.33, z, C.black);
-    L.cyl(0.1, 0.1, 0.04, 8, x, ty - 0.48, z, LIGHT_COLORS[li++ % LIGHT_COLORS.length]);
+    const col = LIGHT_COLORS[li++ % LIGHT_COLORS.length];
+    L.cyl(0.1, 0.1, 0.04, 8, x, ty - 0.48, z, col);
+    beam(near.beam, x, ty - 0.5, z, 6, (k - 2) * 0.12, -Math.sign(x) * 0.45, col); // abre para fora, sobre o público
+
   }
   for (const x of [-tx - 0.16, tx + 0.16]) L.box(0.05, 0.06, tz1 - tz0 - 0.4, x, ty - 0.12, (tz0 + tz1) / 2, LIGHT_COLORS[(li++) % LIGHT_COLORS.length]);
   // line arrays pendurados nos quatro cantos (curvatura crescente)
@@ -415,7 +454,7 @@ export function buildScreenStand(): THREE.Group {
  * faixa de design acima do telão (alvo 'stage'), line arrays nas laterais, subwoofers no chão, rig de luz.
  */
 export function buildStage(design = 0): THREE.Group {
-  const near = { body: new Kit(), light: new Kit(), grille: new Kit(true), panels: new Kit(true), panelTarget: 'stage' as DesignTarget, screen: new Kit(true) };
+  const near = { body: new Kit(), light: new Kit(), grille: new Kit(true), panels: new Kit(true), panelTarget: 'stage' as DesignTarget, screen: new Kit(true), beam: new Kit() };
   const b = near.body, W = 10, D = 7, H = 1.4, top = 8.4;
   b.box(W, H, D, 0, H / 2, 0, C.dark).box(W + 0.2, 0.08, D + 0.2, 0, H + 0.04, 0, C.deck);
   for (const x of [-W / 2 + 0.2, W / 2 - 0.2]) for (const z of [-D / 2 + 0.2, D / 2 - 0.2]) b.truss([x, H, z], [x, top, z], 0.4, C.truss, 0.8);
@@ -434,7 +473,7 @@ export function buildStage(design = 0): THREE.Group {
   }
   near.grille.panel(W - 0.4, H - 0.3, [0, H / 2, D / 2 + 0.01], 0, 8, 1);
   let li = 0;
-  for (let k = 0; k < 8; k++) { const x = -W / 2 + 1.2 + k * ((W - 2.4) / 7); b.cyl(0.15, 0.15, 0.3, 8, x, top - 0.4, D / 2 - 0.2, C.black); near.light.cyl(0.12, 0.12, 0.04, 8, x, top - 0.57, D / 2 - 0.2, LIGHT_COLORS[li++ % LIGHT_COLORS.length]); }
+  for (let k = 0; k < 8; k++) { const x = -W / 2 + 1.2 + k * ((W - 2.4) / 7); b.cyl(0.15, 0.15, 0.3, 8, x, top - 0.4, D / 2 - 0.2, C.black); const col = LIGHT_COLORS[li++ % LIGHT_COLORS.length]; near.light.cyl(0.12, 0.12, 0.04, 8, x, top - 0.57, D / 2 - 0.2, col); beam(near.beam, x, top - 0.6, D / 2 - 0.2, 7, -0.35, (k - 3.5) * 0.08, col); }
   near.light.box(W - 1, 0.06, 0.06, 0, top - 0.25, D / 2 + 0.05, LIGHT_COLORS[2]);
   const mid = { body: new Kit(), panels: new Kit(true), panelTarget: 'stage' as DesignTarget, screen: new Kit(true) };
   mid.body.box(W, H, D, 0, H / 2, 0, C.dark).box(W + 0.6, 0.3, D + 0.6, 0, top + 0.2, 0, C.black).box(5.8, 3.3, 0.2, 0, 5.0, -D / 2 + 0.35, C.black);
