@@ -6,6 +6,7 @@ import { GTAOPass } from 'three/examples/jsm/postprocessing/GTAOPass.js';
 import { SMAAPass } from 'three/examples/jsm/postprocessing/SMAAPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import type { QualityPreset } from '../core/settings';
+import { renderQuality } from './quality';
 
 export class GameRenderer {
   readonly renderer: THREE.WebGLRenderer;
@@ -19,6 +20,7 @@ export class GameRenderer {
 
   constructor(canvas: HTMLCanvasElement, preset: QualityPreset) {
     this.preset = preset;
+    renderQuality.level = preset.level;
     this.renderer = new THREE.WebGLRenderer({
       canvas,
       antialias: preset.antialias,
