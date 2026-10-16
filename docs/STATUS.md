@@ -1,6 +1,43 @@
 # STATUS — Presidente Vargas 3D
 
-_Atualizado em 2026-10-16 (alteração de jogabilidade antes da rodada 7: avenida fechada ao trânsito convencional)._
+_Atualizado em 2026-10-16 (rodada 7: vida da manifestação)._
+
+## Rodada 7 — vida da manifestação (detalhes em [MANIFESTATION_SYSTEM.md](MANIFESTATION_SYSTEM.md), [EMOTES.md](EMOTES.md), [GRAFFITI.md](GRAFFITI.md))
+
+| Critério | Resultado |
+|---|---|
+| Ações/emotes | 29 ações (13 gestos, 11 de manifestação, 5 danças) — registro único `src/social/actions.ts`; 39 clipes procedurais próprios; camada superior com máscara por osso (andar com bandeira/cartaz), crossfade 0,32 s |
+| Roda de ações | G (desktop) / botão AÇÕES (toque): GESTOS · MANIFESTAÇÃO · DANÇA · ITENS (pegar/trocar design) |
+| Multiplayer das ações | ids + início no relógio do servidor (mesma fase em todos); servidor valida; multidão distante: +5 B só de quem age — `social_mp` **12/12** |
+| Itens | bandeira pequena/grande (tecido em shader, sem física, LOD), cartaz pequeno/grande/placa dupla (com espessura), faixa, megafone, apito, guarda-chuva, surdo, taco (só visual) — instanciados na multidão |
+| CampaignDesign | designs neutros + campanhas como DADOS (`public/designs/campaigns.json`: exemplos 13 e 22, só nome/número/sigla/cores, marca "SIMULAÇÃO"); mesma geometria em bandeiras, cartazes, faixas, caminhões, telões, palco |
+| Carro de som / trio elétrico | dirigíveis, autoritativos, pacíficos; trio com palco: jogadores sobem (até 20) e ficam presos à plataforma quando ele anda — `trio_mp` **24/24** |
+| Caminhões, telões, palco | 4 caminhões de campanha (skins por design), 2 telões + telões do trio/palco (conteúdo próprio, sem vídeo remoto), palco junto à Candelária; LOD |
+| Avatares | 31 peças variantes (regata, polo, camisa, bermuda, social, chinelo, sapato, 6 cabelos), 360 combinações de roupa; 100 aparências sorteadas → 100 distintas |
+| Futebol carioca | 8 padrões (listras/aros/faixa/tricolor…) só com cores — sem escudos/marcas |
+| Pichação/grafite | superfícies autorizadas (76), editor (traço, símbolos, texto filtrado), decalques em atlas, servidor autoritativo, denúncia/ocultar/admin, TTL, persistência local — `graffiti_mp` **26/26** |
+| Concentração | RallyPoints (trio, carros de som, palco, caminhões): NPCs vão a pé; multidão de concentração instanciada (360 no ALTO) |
+| Testes | **287** automatizados; walkthrough **36/36**; veículos 24/24; build OK |
+
+**Desempenho** (M5 Pro; 60 % dos bots dançando/com bandeira/cartaz/gesticulando; evento padrão com NPCs sociais e multidão de concentração)
+
+| | antes (avenida fechada) | rodada 7 |
+|---|---|---|
+| Servidor 500 densos: tick médio/máx | 7,7 / 12,6 ms | 8,5 / 10,5 ms |
+| Servidor 500 densos: CPU · banda por cliente | 32 % · 17,3 KB/s | 31 % · 20,3 KB/s |
+| Cliente 500 bots LOW / MEDIUM / HIGH (FPS sem vsync) | 466 / 262 / 100 | 438 / 210 / 80 (Rodada 6: 82) |
+| Cliente 500 HIGH: CPU · GPU · draw calls · triângulos | 9,5 · 7,9 ms · 1431 · 4,78 M | 11,9 · 7,6 ms · 1552 · 4,57 M |
+| Cliente 50 bots LOW / MEDIUM / HIGH | 474 / 315 / 125 | 472 / 239 / 97 |
+| Memória ALTO (5 min de teleportes, heap pós-GC) | +0,02 MB/min | +0,49 MB/min (72 → 76 MB); GPU estável após o cache de peças |
+
+**Pendências / limitações honestas**
+- Sem barba (nenhum asset com licença compatível) e sem novos formatos de corpo (orçamento de download).
+- A multidão instanciada não combina ação de braços com caminhada; LOD2/3 aproxima as roupas variantes por cor.
+- Tecido de bandeira não colide com o corpo; o cós da calça ainda aparece levemente pela camisa de alguns corpos em
+  certos ângulos; frestas mínimas na axila com o braço todo erguido no LOD1.
+- Sem áudio (carro de som/trio mudos — nada de música comercial).
+- Pichação: identidade anônima por aparelho até haver login; filtro de texto básico; sem painel de administração.
+- Pedestres NPC continuam locais por cliente (a multidão real vem dos jogadores).
 
 ## Antes da rodada 7 — avenida fechada (detalhes em [SHARED_WORLD.md](SHARED_WORLD.md))
 A Presidente Vargas está **fechada ao trânsito convencional**: não existe mais trânsito NPC. Os veículos são dos
