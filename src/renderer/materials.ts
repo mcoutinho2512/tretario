@@ -61,7 +61,7 @@ export async function createMaterialLibrary(onStep?: (label: string) => void): P
   await yieldFrame();
   // tile de 11 m (≈1 cm/px); normal suave; variação macro maior quebra a repetição
   const asphalt = pbr(asphaltTexture(1024), 11, { color: 0xffffff, normalScale: new THREE.Vector2(0.7, 0.7) });
-  addMacroVariation(asphalt, noise, 0.42, 60);
+  addMacroVariation(asphalt, noise, 0.3, 60);
   onStep?.('pedra portuguesa');
   await yieldFrame();
   const sidewalk = pbr(portugueseStoneTexture(1024, 'plain', 110), 5.5, { color: 0xf2efe8, normalScale: new THREE.Vector2(0.8, 0.8) });

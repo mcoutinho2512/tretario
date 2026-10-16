@@ -49,8 +49,8 @@ const SKY_FRAG = /* glsl */ `
     if (uStars > 0.01 && h > 0.08) {
       vec3 g = floor(d * 380.0);
       float s = hs(g);
-      float star = step(0.9965, s) * (0.4 + 0.6 * hs(g + 7.0));
-      col += vec3(star) * uStars * smoothstep(0.08, 0.35, h) * 0.6;
+      float star = step(0.998, s) * (0.4 + 0.6 * hs(g + 7.0));
+      col += vec3(star) * uStars * smoothstep(0.12, 0.45, h) * 0.4; // poucas estrelas: poluição luminosa do Centro
     }
     // abaixo do horizonte: tom de "chão" difuso (raramente visível)
     col = mix(col, uHorizon * 0.55, smoothstep(0.0, -0.25, h));

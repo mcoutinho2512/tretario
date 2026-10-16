@@ -259,6 +259,7 @@ export const FACADE_FRAGMENT_MAIN = /* glsl */ `
     float bay = floor(m.x / bayW);
     float lx = (fract(m.x / bayW) - 0.5) * bayW;
     float upper = step(fGroundH, yRel) * step(yRel - ly + sill + winH, fTop - topBand);
+    if (curtain) upper = step(fGroundH, yRel) * step(yRel, fTop - topBand); // pele de vidro vai até a platibanda
     vec2 wlo = vec2(-winW * 0.5, sill), whi = vec2(winW * 0.5, sill + winH);
     float rW = pvH(vec2(bay, level) + fSeed * 91.0);
     float rW2 = pvH(vec2(level * 1.7, bay) + fSeed * 17.0);
@@ -310,7 +311,7 @@ export const FACADE_FRAGMENT_MAIN = /* glsl */ `
       vec2 tid = floor(m / 0.05);
       float tv = pvH(tid + fSeed);
       vec3 tmix = wallC * (tv < 0.33 ? 0.88 : tv < 0.66 ? 1.0 : 1.1);
-      float tFade = 1.0 - smoothstep(0.012, 0.03, max(aa.x, aa.y));
+      float tFade = 1.0 - smoothstep(0.005, 0.014, max(aa.x, aa.y));
       wallC = mix(wallC, tmix, tFade);
       vec2 gd = abs(fract(m / 0.05 + 0.5) - 0.5) * 0.05;
       float grout = 1.0 - smoothstep(0.003, 0.006, min(gd.x, gd.y));
@@ -407,6 +408,8 @@ export const FACADE_FRAGMENT_MAIN = /* glsl */ `
     if (office) bars = max(bars, pvLines(gm.x + bayW * 0.5, bayW, 0.03, aa.x));
     if (curtain) bars = max(bars, pvLines(gm.y, wsz.y * 0.5, 0.02, aa.y) * 0.0);
     float caix = max(frame, bars);
+    // anti-serrilhado dos caixilhos finos: converge para a cobertura média quando o pixel > ~2 cm
+    caix = mix(caix, 0.16, smoothstep(0.015, 0.05, max(aa.x, aa.y)));
     // interior: escuro com variação; cortinas/persianas por janela
     float curtainK = step(0.45, rW2) * step(rW2, 0.8);
     float blindK = step(0.8, rW2);
