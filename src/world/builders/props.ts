@@ -254,6 +254,20 @@ function busStopModel(mats: PropMaterials): PropModel {
   return { parts: [{ geo: merge(parts), mat: mats.painted, castShadow: true }, { geo: merge(glass.map((g) => { g.deleteAttribute('uv'); return g; })), mat: mats.glass, castShadow: false }] };
 }
 
+function busPoleModel(mats: PropMaterials): PropModel {
+  // poste de parada de ônibus (sem abrigo): haste + placa
+  return {
+    parts: [{
+      geo: merge([
+        colorize(at(new THREE.CylinderGeometry(0.045, 0.05, 2.8, 8), 0, 1.4, 0), 0x4a4f54),
+        colorize(at(new THREE.BoxGeometry(0.5, 0.62, 0.04), 0, 2.55, 0), 0x1f4fa8),
+        colorize(at(new THREE.BoxGeometry(0.42, 0.18, 0.045), 0, 2.62, 0), 0xf4f4f0),
+      ]),
+      mat: mats.painted, castShadow: true,
+    }],
+  };
+}
+
 function bollardModel(mats: PropMaterials): PropModel {
   return { parts: [{ geo: merge([colorize(at(new THREE.CylinderGeometry(0.1, 0.12, 0.85, 8), 0, 0.42, 0), 0x2f3336)]), mat: mats.metal, castShadow: true }] };
 }
@@ -284,7 +298,7 @@ function kioskModel(mats: PropMaterials): PropModel {
 // ------------------------------------------------------------------------------------------
 // Gerenciador de instâncias
 // ------------------------------------------------------------------------------------------
-type ModelKey = 'tree0' | 'tree1' | 'tree2' | 'treeFar0' | 'treeFar1' | 'treeFar2' | 'palm' | 'lamp' | 'signal' | 'bench' | 'bus_stop' | 'bollard' | 'waste' | 'kiosk';
+type ModelKey = 'tree0' | 'tree1' | 'tree2' | 'treeFar0' | 'treeFar1' | 'treeFar2' | 'palm' | 'lamp' | 'signal' | 'bench' | 'bus_stop' | 'bus_pole' | 'bollard' | 'waste' | 'kiosk';
 
 interface Inst { p: [number, number]; r: number; s: number; y: number }
 
@@ -311,6 +325,7 @@ export class PropSystem {
     this.models.set('bench', benchModel(this.mats));
     this.models.set('bus_stop', busStopModel(this.mats));
     this.models.set('bollard', bollardModel(this.mats));
+    this.models.set('bus_pole', busPoleModel(this.mats));
     this.models.set('waste', wasteModel(this.mats));
     this.models.set('kiosk', kioskModel(this.mats));
     // pool fixo de luzes pontuais (sempre presentes → sem recompilar shaders ao anoitecer)

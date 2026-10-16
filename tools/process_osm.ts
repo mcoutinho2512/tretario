@@ -353,7 +353,7 @@ for (const r of ds.rels.values()) {
 }
 // correções documentadas (data/overrides/buildings.json)
 {
-  const ov = JSON.parse(readFileSync('data/overrides/buildings.json', 'utf8')) as { byName: Record<string, { height?: number; style?: string; tint?: number }> };
+  const ov = JSON.parse(readFileSync('data/overrides/buildings.json', 'utf8')) as { byName: Record<string, { height?: number; style?: string; tint?: number; plain?: boolean }> };
   const styleMap: Record<string, FacadeStyle> = { eclectic: FacadeStyle.Eclectic, institutional: FacadeStyle.Institutional, artdeco: FacadeStyle.ArtDecoPiers, office: FacadeStyle.ModernOffice, classic: FacadeStyle.ClassicPunched };
   let applied = 0;
   for (const b of buildings) {
@@ -362,6 +362,7 @@ for (const r of ds.rels.values()) {
     if (o.height) { b.height = o.height; b.heightSource = 'estimate'; b.levels = Math.round(o.height / 3.8); (b as any).override = true; }
     if (o.style) b.style = styleMap[o.style] ?? b.style;
     if (o.tint !== undefined) b.tint = o.tint;
+    if (o.plain) b.plain = true;
     if (b.cls === 'C' || b.cls === 'D') b.cls = 'B';
     b.arcade = undefined;
     applied++;
@@ -436,6 +437,7 @@ for (const n of ds.nodes.values()) {
   } else if (t.highway === 'street_lamp') props.push({ k: 'lamp', p, r });
   else if (t.amenity === 'bench') props.push({ k: 'bench', p, r });
   else if (t.highway === 'bus_stop' && t.shelter === 'yes') props.push({ k: 'bus_stop', p, r });
+  else if (t.highway === 'bus_stop') props.push({ k: 'bus_pole', p, r });
   else if (t.barrier === 'bollard') props.push({ k: 'bollard', p });
   else if (t.amenity === 'waste_basket') props.push({ k: 'waste', p });
   else if (t.shop === 'kiosk' || t.amenity === 'kiosk') props.push({ k: 'kiosk', p, r });
@@ -467,6 +469,29 @@ for (const w of ds.ways.values()) {
   }
   console.log(`[process] postes procedurais na Presidente Vargas: ${added}`);
 }
+
+// ---------------------------------------------------------------------------------------------
+// Monumentos (posições reais OSM)
+// ---------------------------------------------------------------------------------------------
+const monuments: { kind: string; p: XZ; name?: string; r?: number; base?: number }[] = [];
+for (const n of ds.nodes.values()) {
+  const t = n.tags;
+  if (!t) continue;
+  const p = ds.xz(n.id)!;
+  const name = t.name;
+  let kind: string | null = null;
+  if (/Kintetic|Kinetic|Pira/i.test(name ?? '')) kind = 'kinetic';
+  else if (t.memorial === 'statue' && /Caxias/.test(name ?? '')) kind = 'equestrian'; // estátua equestre de Caxias (Praça Duque de Caxias)
+  else if (t.memorial === 'bust' || t.artwork_type === 'bust') kind = 'bust';
+  else if (t.memorial === 'statue' || t.artwork_type === 'statue') kind = 'statue';
+  else if (t.amenity === 'clock') kind = 'clock';
+  if (!kind) continue;
+  if (distPointPolyline(p, pvAxis) > 170) continue;
+  // base: altura do edifício/pedestal mapeado sob o monumento (ex.: Panteão de Caxias)
+  const under = buildings.find((b) => !b.canopy && pointInPolygon(p, b.poly.outer));
+  monuments.push({ kind, p, ...(name ? { name } : {}), ...(under ? { base: under.height } : {}) });
+}
+console.log(`[process] monumentos: ${monuments.map((m) => m.kind + (m.name ? ':' + m.name : '')).join(', ')}`);
 
 // ---------------------------------------------------------------------------------------------
 // Pontos de validação
@@ -566,7 +591,7 @@ const out = {
   generatedAt: new Date().toISOString(),
   origin: WORLD_ORIGIN,
   source: meta,
-  landmarks, roads, pvAxis, crossings, crossingWays, signals, buildings, areas, lines, props, validation, spawn,
+  landmarks, roads, pvAxis, crossings, crossingWays, signals, buildings, areas, lines, props, validation, spawn, monuments,
 };
 writeFileSync(OUT, JSON.stringify(out));
 console.log(`[process] → ${OUT}`);

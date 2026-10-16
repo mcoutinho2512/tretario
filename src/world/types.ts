@@ -38,6 +38,8 @@ export interface BuildingRec {
   seed: number;
   /** térreo com galeria/arcada (frente para a Presidente Vargas) */
   arcade?: boolean;
+  /** parede lisa sem janelas (monumentos, mausoléus, muros altos) */
+  plain?: boolean;
   /** marquise/cobertura (building=roof): sem colisão, laje fina */
   canopy?: boolean;
   name?: string;
@@ -74,7 +76,7 @@ export interface SignalRec {
   width: number;
 }
 
-export type PropKind = 'tree' | 'palm' | 'lamp' | 'bench' | 'bus_stop' | 'bollard' | 'waste' | 'kiosk' | 'signal';
+export type PropKind = 'tree' | 'palm' | 'lamp' | 'bench' | 'bus_stop' | 'bus_pole' | 'bollard' | 'waste' | 'kiosk' | 'signal';
 
 export interface PropRec {
   k: PropKind;
@@ -168,6 +170,8 @@ export interface WorldManifest {
   pvAxis: XZ[];
   /** polilinhas simplificadas das ruas para o minimapa */
   minimapRoads: { pts: XZ[]; w: number; pv?: boolean; name?: string }[];
+  monuments?: MonumentRec[];
+  streetSigns?: StreetSignRec[];
   /** arquivo das faixas de tráfego (veículos NPC) */
   traffic?: string;
   attribution: string;
@@ -185,4 +189,23 @@ export interface TrafficLane {
   next: number[];
   /** velocidade de cruzeiro (m/s) */
   speed: number;
+}
+
+/** Monumentos e mobiliário notável com posição real (OSM). */
+export interface MonumentRec {
+  kind: 'equestrian' | 'statue' | 'bust' | 'kinetic' | 'clock';
+  p: XZ;
+  name?: string;
+  /** direção (rad) para onde a figura "olha" (padrão: eixo da avenida) */
+  r?: number;
+  /** altura da base (pedestal/edifício mapeado sob o monumento) */
+  base?: number;
+}
+
+/** Placa de logradouro (padrão carioca: azul, letras brancas, faixa amarela) */
+export interface StreetSignRec {
+  p: XZ;
+  /** direção (rad) da face principal */
+  r: number;
+  names: string[];
 }

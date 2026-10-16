@@ -19,7 +19,7 @@ import { CHUNK_SIZE, REGION_BBOX } from '../src/geo/region';
 import { GeoProjection, WORLD_ORIGIN } from '../src/geo/projection';
 import type {
   XZ, Poly, BuildingRec, RoadRec, AreaRec, LineRec, PropRec, SignalRec, ChunkData, WorldManifest, LandmarkRec,
-  ValidationPoint, CrossingRec, SurfaceSet, MarkingSet,
+  ValidationPoint, CrossingRec, SurfaceSet, MarkingSet, MonumentRec, StreetSignRec,
 } from '../src/world/types';
 
 const F = JSON.parse(readFileSync('data/processed/features.json', 'utf8')) as {
@@ -37,6 +37,7 @@ const F = JSON.parse(readFileSync('data/processed/features.json', 'utf8')) as {
   props: PropRec[];
   validation: ValidationPoint[];
   spawn: { p: XZ; yaw: number };
+  monuments: MonumentRec[];
 };
 
 const OUT_DIR = 'public/world';
@@ -318,6 +319,48 @@ const lanesOut: LaneOut[] = [];
     l.next = cands.sort((a, b) => a.score - b.score).slice(0, 3).map((c) => c.id);
   }
 }
+// ---------------------------------------------------------------------------------------------
+// Placas de logradouro nos cruzamentos da Pres. Vargas: posicionadas na calçada mais próxima
+// (fora do asfalto), dos dois lados da avenida
+// ---------------------------------------------------------------------------------------------
+const streetSigns: StreetSignRec[] = [];
+{
+  const ax = F.pvAxis;
+  for (const v of F.validation) {
+    if (!v.key.startsWith('INTERSECTION_')) continue;
+    const cross = v.label.replace(/^Cruzamento: /, '').replace(/ × Pres\. Vargas$/, '');
+    // direção local do eixo
+    let bi = 0, bd = Infinity;
+    for (let i = 0; i < ax.length - 1; i++) {
+      const d = distPointPolyline(v.p, [ax[i], ax[i + 1]]);
+      if (d < bd) { bd = d; bi = i; }
+    }
+    const a = ax[bi], b = ax[bi + 1];
+    const dir = Math.atan2(b[1] - a[1], b[0] - a[0]);
+    const nx = -Math.sin(dir), nz = Math.cos(dir);
+    for (const side of [1, -1]) {
+      for (const along of [12, -12]) {
+        // varre a partir do cruzamento até depois da ÚLTIMA pista (pula canteiros) e para na calçada externa
+        let found: XZ | null = null;
+        let lastRoad = -1, free = 0;
+        for (let t = 0; t < 90; t += 1) {
+          const q: XZ = [v.p[0] + nx * t * side + Math.cos(dir) * along, v.p[1] + nz * t * side + Math.sin(dir) * along];
+          if (pointInPaths(q, roadPaths) || pointInPaths(q, platformPaths)) { lastRoad = t; free = 0; } else if (lastRoad >= 0 && ++free >= 16) break;
+        }
+        if (lastRoad >= 0) {
+          const t = lastRoad + 1.6;
+          found = [v.p[0] + nx * t * side + Math.cos(dir) * along, v.p[1] + nz * t * side + Math.sin(dir) * along];
+        }
+        if (found && !pointInPaths(found, roadPaths)) {
+          streetSigns.push({ p: [r2(found[0]), r2(found[1])], r: r2(dir), names: ['Avenida Presidente Vargas', cross] });
+          break;
+        }
+      }
+    }
+  }
+  log(`placas de logradouro: ${streetSigns.length}`);
+}
+
 const trafficJson = JSON.stringify({ lanes: lanesOut });
 const trafficFile = `traffic.${createHash('sha1').update(trafficJson).digest('hex').slice(0, 10)}.json`;
 writeFileSync(`${OUT_DIR}/${trafficFile}`, trafficJson);
@@ -344,6 +387,8 @@ const manifest: WorldManifest = {
   pvAxis: F.pvAxis,
   minimapRoads,
   traffic: trafficFile,
+  monuments: F.monuments,
+  streetSigns,
   attribution: '© OpenStreetMap contributors (ODbL)',
   osmTimestamp: F.source.osmBaseTimestamp,
 };

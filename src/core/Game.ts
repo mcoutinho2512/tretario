@@ -28,6 +28,7 @@ import { buildCentral, type LandmarkInstance } from '../world/landmarks/central'
 import { buildCandelaria } from '../world/landmarks/candelaria';
 import { PedestrianSystem } from '../npc/PedestrianSystem';
 import { TrafficSystem } from '../traffic/TrafficSystem';
+import { MonumentSystem } from '../world/Monuments';
 import type { TrafficLane } from '../world/types';
 
 export { DEFAULT_PLAYER_APPEARANCE } from '../characters/bodyTypes';
@@ -52,6 +53,7 @@ export class Game {
   private landmarks: LandmarkInstance[] = [];
   private peds!: PedestrianSystem;
   private traffic!: TrafficSystem;
+  private monuments!: MonumentSystem;
   private input: InputManager;
   private player!: PlayerState;
   private avatar: AvatarVisual;
@@ -150,6 +152,12 @@ export class Game {
     }
     this.traffic = new TrafficSystem(lanes, this.preset.vehicles);
     this.scene.add(this.traffic.group);
+    {
+      const ax = this.manifest.pvAxis;
+      const pvDir = Math.atan2(ax[ax.length - 1][1] - ax[0][1], ax[ax.length - 1][0] - ax[0][0]);
+      this.monuments = new MonumentSystem(this.manifest.monuments ?? [], this.manifest.streetSigns ?? [], (x, z) => this.collision.groundHeight(x, z), pvDir);
+      this.scene.add(this.monuments.group);
+    }
     this.cam = new ThirdPersonCamera(this.camera, this.collision);
     // intro: começa olhando a Central, depois gira para a avenida (direção da Candelária)
     const central = this.manifest.landmarks.find((l) => l.key === 'LANDMARK_CENTRAL')!;
@@ -369,6 +377,7 @@ export class Game {
     this.props.updateNightLights(this.camera.position, this.env.night);
     const sim = this.simTime;
     for (const lm of this.landmarks) lm.update(sim, this.camera.position);
+    this.monuments.update(dt, sim);
     if (this.time - this.lastSunUpdate > 30) {
       this.lastSunUpdate = this.time;
       this.env.setTime(sim, WORLD_ORIGIN.lat, WORLD_ORIGIN.lon);

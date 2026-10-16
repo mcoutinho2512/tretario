@@ -26,6 +26,7 @@ function signedArea(pts: XZ[]) {
 }
 
 function floorHeightFor(b: BuildingRec): number {
+  if (b.plain) return 99; // shader: parede lisa
   if (b.style === FacadeStyle.Sobrado) return Math.max(3.4, Math.min(4.6, b.height / Math.max(1, b.levels)));
   if (b.heightSource === 'osm:height' || b.heightSource === 'osm:levels') {
     const lv = Math.max(1, Math.round(b.height / 3.15));
