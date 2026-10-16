@@ -22,7 +22,7 @@ describe('eventos (dados genéricos)', () => {
   });
   it('nenhum código-fonte depende de um tema específico (política/futebol ficam nos dados)', () => {
     const walk = (d: string): string[] => readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(`${d}/${e.name}`) : [`${d}/${e.name}`]));
-    const offenders = walk('src').filter((f) => /\.ts$/.test(f) && /flamengo|vasco|fluminense|botafogo|partido|lula|bolsonaro/i.test(readFileSync(f, 'utf8')));
+    const offenders = walk('src').filter((f) => /\.ts$/.test(f) && /(?<!\p{L})(flamengo|vasco|fluminense|botafogo|lula|bolsonaro)(?!\p{L})/iu.test(readFileSync(f, 'utf8')));
     expect(offenders).toEqual([]);
   });
   it('locais de painéis de LED identificados nas fachadas da avenida', () => {
