@@ -79,6 +79,29 @@ export class AvatarVisual {
     this.human.setShadow(d < 45);
   }
 
+  /** LOD decidido pelo orçamento da multidão (CrowdDirector); sombra só de perto */
+  applyLod(l: Lod, dist: number) {
+    if (!this.human) return;
+    this.human.setLod(l);
+    this.human.setShadow(dist < 45);
+  }
+
+  /** já há malha visível (o personagem humano carrega de forma assíncrona) */
+  get ready(): boolean { return !!this.legacy || !!this.human?.showing; }
+
+  /** devolve ao estado inicial para ser reaproveitado por outro jogador do mesmo corpo (pool) */
+  resetForReuse() {
+    this.ragdoll?.dispose();
+    this.ragdoll = null;
+    this.fall = { phase: 'none', t: 0, down: 0, getup: 0, captured: [], hipsFrom: new THREE.Vector3() };
+    const pivot = this.human?.armature ?? this.legacy?.rig.mesh;
+    if (pivot) pivot.rotation.x = 0;
+    this.human?.resetPose();
+    this.initialized = false;
+    this.animAcc = 0;
+    this.pushT = 0;
+  }
+
   /** nível de detalhe fixo (jogador local) */
   setDetail(lod: Lod) { this.human?.setLod(lod); }
 
@@ -206,7 +229,11 @@ export class AvatarVisual {
     this.root.position.set(x, y + lift, z);
   }
 
-  update(s: PlayerState, dt: number) {
+  /**
+   * `animate` (opcional): decisão externa de atualizar a animação neste quadro (orçamento da multidão, escalonado);
+   * sem ela, a frequência sai do LOD (perto: todo quadro; LOD2: 1/2; LOD3: 1/4). O tempo acumulado nunca se perde.
+   */
+  update(s: PlayerState, dt: number, animate?: boolean) {
     if (this.updateFall(s.x, s.y, s.z, s.heading, dt)) { this.smoothY = s.y; return; }
     if (!this.initialized) { this.smoothY = s.y; this.initialized = true; }
     this.smoothY += (s.y - this.smoothY) * (1 - Math.exp(-18 * dt));
@@ -217,7 +244,8 @@ export class AvatarVisual {
     const lod = this.human?.lod ?? 0;
     const every = lod <= 1 ? 1 : lod === 2 ? 2 : 4;
     this.animAcc += dt;
-    if ((++this.frame) % every !== 0) return;
+    ++this.frame;
+    if (animate === false || (animate === undefined && this.frame % every !== 0)) return;
     this.animate(s.speed, s.grounded, this.animAcc);
     this.animAcc = 0;
     if (this.legacy && this.pushT > 0) {

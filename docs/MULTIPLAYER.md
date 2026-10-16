@@ -30,8 +30,10 @@ Detalhes: [NETCODE.md](NETCODE.md) (autoridade, latência, AOI) e [SHARED_WORLD.
 ## Ferramentas de QA
 | Comando | O que faz |
 |---|---|
-| `node tools/qa/walkthrough.mjs [url] [lag] [jitter]` | 3 navegadores (A, B, C), servidor de teste próprio (porta 2600), 27 checagens: ver os outros, mesmo trânsito/semáforos, colisão no servidor, carro (entrar, ocupado, dirigir, ré, sair), empurrão negado/aceito, ragdoll, imunidade, impacto. Grava screenshots, quadros para GIF e `report.json` |
-| `cd server && npx tsx tools/loadtest.ts 20` | 2, 5, 10, 20, 20 espalhados e 50 espalhados bots; banda por cliente, jogadores visíveis (AOI), custo de tick do servidor |
+| `node tools/qa/walkthrough.mjs [url] [lag] [jitter]` | 3 navegadores (A, B, C), servidor de teste próprio (porta 2600 ou `PV_WALKTHROUGH_PORT`), 27 checagens: ver os outros, mesmo trânsito/semáforos, colisão no servidor, carro (entrar, ocupado, dirigir, ré, sair), empurrão negado/aceito, ragdoll, imunidade, impacto. Grava screenshots, quadros para GIF e `report.json` |
+| `cd server && npx tsx tools/loadtest.ts 20 [50d,100d,250d,500d,50s,…]` | carga progressiva 50→500 bots, densa (manifestação) e espalhada: tick/patch/AOI, CPU, event loop, memória, banda e visíveis (ver [CROWDS.md](CROWDS.md)) |
+| `cd server && npx tsx tools/aoibench.ts 500 denso` | custo de um recálculo de AOI (grade × referência × todos-contra-todos) |
+| `node tools/qa/crowd_bench.mjs [url] [50,100,250,500] [low,medium,high]` | cliente no meio de N bots por preset: FPS, CPU/GPU, draw calls, triângulos, heap |
 | `node tools/qa/bench_presets.mjs` | desempenho do cliente por preset com 10 bots |
 | `python3 tools/qa/make_gif.py [pasta]` | GIFs a partir dos quadros do walkthrough |
 | `GET http://127.0.0.1:2568/metrics` | métricas do servidor (bytes/s, msgs/s, tick, memória, correções, negativas, quedas) |

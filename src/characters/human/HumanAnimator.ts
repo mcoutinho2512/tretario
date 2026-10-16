@@ -14,7 +14,7 @@ export type ShowPose = 'parado' | 'andando' | 'acenando' | 'dancando';
 const naturalCache = new Map<string, number>();
 
 /** velocidade do pé em apoio (m/s) ao tocar o clipe no lugar: velocidade de deslocamento que não patina */
-function measureNatural(key: string, root: THREE.Object3D, clip: THREE.AnimationClip, fallback: number): number {
+export function measureNatural(key: string, root: THREE.Object3D, clip: THREE.AnimationClip, fallback: number): number {
   const hit = naturalCache.get(key);
   if (hit) return hit;
   // bola do pé: fica apoiada também na corrida (o tornozelo sobe no rolamento)

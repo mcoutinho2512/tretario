@@ -3,17 +3,23 @@
  * custo do tick, memória. Impressas a cada 5 s com PV_METRICS=1 e expostas em GET /metrics (JSON).
  */
 import WebSocket from 'ws';
+import { performance, type EventLoopUtilization } from 'node:perf_hooks';
 
 let bytesOut = 0, bytesIn = 0, msgsOut = 0, msgsIn = 0;
 let players = 0;
 let corrections = 0, denials = 0, knocks = 0, impacts = 0;
 let snapshot: Record<string, number> = {};
+setInterval(() => metrics.rssPeak(), 1000).unref();
 /** cada consumidor (log interno, GET /metrics) tem a SUA janela — um não zera a do outro */
-interface Win { t: number; bytesOut: number; bytesIn: number; msgsOut: number; msgsIn: number; tickMs: number; ticks: number; maxTick: number }
+interface Win {
+  t: number; bytesOut: number; bytesIn: number; msgsOut: number; msgsIn: number; tickMs: number; ticks: number; maxTick: number;
+  patchMs: number; patches: number; maxPatch: number; aoiMs: number; aois: number; maxAoi: number; crowdMs: number; crowds: number;
+  cpu: NodeJS.CpuUsage; elu: EventLoopUtilization; maxRss: number;
+}
 const windows = new Map<string, Win>();
 const win = (k: string): Win => {
   let w = windows.get(k);
-  if (!w) windows.set(k, (w = { t: Date.now(), bytesOut, bytesIn, msgsOut, msgsIn, tickMs: 0, ticks: 0, maxTick: 0 }));
+  if (!w) windows.set(k, (w = { t: Date.now(), bytesOut, bytesIn, msgsOut, msgsIn, tickMs: 0, ticks: 0, maxTick: 0, patchMs: 0, patches: 0, maxPatch: 0, aoiMs: 0, aois: 0, maxAoi: 0, crowdMs: 0, crowds: 0, cpu: process.cpuUsage(), elu: performance.eventLoopUtilization(), maxRss: 0 }));
   return w;
 };
 
@@ -39,6 +45,14 @@ export const metrics = {
   rawIn(n: number) { bytesIn += n; },
   msgIn(_id: string) { msgsIn++; },
   tick(ms: number, p: number) { for (const w of windows.values()) { w.tickMs += ms; w.ticks++; w.maxTick = Math.max(w.maxTick, ms); } players = p; },
+  /** codificação + envio dos patches de estado (StateView por cliente) — fora do tick de simulação */
+  patch(ms: number) { for (const w of windows.values()) { w.patchMs += ms; w.patches++; w.maxPatch = Math.max(w.maxPatch, ms); } },
+  /** recálculo da área de interesse (já incluído no tick) */
+  aoi(ms: number) { for (const w of windows.values()) { w.aoiMs += ms; w.aois++; w.maxAoi = Math.max(w.maxAoi, ms); } },
+  /** montagem e envio da multidão distante (já incluído no tick) */
+  crowd(ms: number) { for (const w of windows.values()) { w.crowdMs += ms; w.crowds++; } },
+  /** pico de memória residente (amostrado a cada tick de métricas) */
+  rssPeak() { const r = process.memoryUsage.rss(); for (const w of windows.values()) w.maxRss = Math.max(w.maxRss, r); },
   join(_id: string) {},
   leave(_id: string) {},
   correction() { corrections++; },
@@ -51,6 +65,8 @@ export const metrics = {
     const dt = (now - w.t) / 1000 || 1;
     const mem = process.memoryUsage();
     const dOut = bytesOut - w.bytesOut, dIn = bytesIn - w.bytesIn;
+    const cpu = process.cpuUsage(w.cpu);
+    const elu = performance.eventLoopUtilization(w.elu);
     snapshot = {
       players,
       bytesOutPerSec: Math.round(dOut / dt),
@@ -61,11 +77,20 @@ export const metrics = {
       bytesInPerPlayerPerSec: players ? Math.round(dIn / dt / players) : 0,
       tickAvgMs: w.ticks ? +(w.tickMs / w.ticks).toFixed(3) : 0,
       tickMaxMs: +w.maxTick.toFixed(3),
+      patchAvgMs: w.patches ? +(w.patchMs / w.patches).toFixed(3) : 0,
+      patchMaxMs: +w.maxPatch.toFixed(3),
+      aoiAvgMs: w.aois ? +(w.aoiMs / w.aois).toFixed(3) : 0,
+      aoiMaxMs: +w.maxAoi.toFixed(3),
+      crowdAvgMs: w.crowds ? +(w.crowdMs / w.crowds).toFixed(3) : 0,
+      /** CPU do processo (user+system) em % de UM núcleo, e utilização do event loop (0–1) */
+      cpuPct: +(((cpu.user + cpu.system) / 1000 / (dt * 1000)) * 100).toFixed(1),
+      elu: +elu.utilization.toFixed(3),
       heapMB: +(mem.heapUsed / 1e6).toFixed(1),
+      rssPeakMB: +(Math.max(w.maxRss, mem.rss) / 1e6).toFixed(1),
       rssMB: +(mem.rss / 1e6).toFixed(1),
       corrections, denials, knocks, impacts,
     };
-    Object.assign(w, { t: now, bytesOut, bytesIn, msgsOut, msgsIn, tickMs: 0, ticks: 0, maxTick: 0 });
+    Object.assign(w, { t: now, bytesOut, bytesIn, msgsOut, msgsIn, tickMs: 0, ticks: 0, maxTick: 0, patchMs: 0, patches: 0, maxPatch: 0, aoiMs: 0, aois: 0, maxAoi: 0, crowdMs: 0, crowds: 0, cpu: process.cpuUsage(), elu: performance.eventLoopUtilization(), maxRss: 0 });
     return snapshot;
   },
   get last() { return snapshot; },

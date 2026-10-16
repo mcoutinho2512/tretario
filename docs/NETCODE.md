@@ -20,7 +20,7 @@ Regras puras e testadas: `src/net/rules.ts`, `src/net/authority.ts` (tests/rules
 | Interpolação | remotos renderizados no passado, com buffer **adaptativo**: 70 ms + 2,5 × jitter medido (100–300 ms) |
 | Jitter | estimado pelo desvio dos intervalos de chegada dos patches em relação aos 50 ms |
 | Relógio | NTP simplificado; semáforos e trânsito usam o relógio do servidor |
-| Limites de taxa | cliente 15 Hz; servidor: patches de estado a 20 Hz, trânsito a 2 Hz, AOI a 4 Hz, `maxMessagesPerSecond = 60` (desconecta flood) |
+| Limites de taxa | cliente 15 Hz; servidor: patches de estado a 20 Hz (≤ 48 detalhados), multidão distante a 2 Hz, trânsito a 2 Hz, AOI a 5 Hz (fatiada), `maxMessagesPerSecond = 60` (desconecta flood) |
 | Compactação | movimento como array numérico (msgpack); trânsito binário de 12 B/veículo; estado com Schema delta + `StateView` |
 
 ### Simular rede ruim (desenvolvimento)
@@ -34,10 +34,20 @@ Sobre perda: WebSocket é TCP (confiável e ordenado). Perda real vira **atraso 
 que o jitter simula. `PV_LOSS` descarta apenas mensagens que o jogo tolera perder (movimento e snapshot de trânsito),
 para testar a robustez. Patches de estado nunca são descartados, porque isso corromperia o decoder.
 
-## Área de interesse (AOI)
-- O servidor mantém um `StateView` por cliente. A cada 250 ms recalcula quem está a ≤ **220 m** (configurável em
-  `PV_AOI`), com **histerese** (sai só a > 253 m), e adiciona/remove jogadores e veículos. O cliente só recebe patches do que vê.
+## Área de interesse (AOI) — rodada 6: grade espacial + limite + multidão distante
+- **Grade espacial** (`src/net/spatialGrid.ts`, pura e testada): células de AOI/2 = 110 m, reconstruída a cada tick
+  (O(N)). Toda consulta "quem está perto" usa a grade: AOI, candidatos de impacto de veículo. Nada mais varre N×N.
+- **Mesma regra de antes**: entra a ≤ **220 m** (`PV_AOI`), sai só além de **253 m** (histerese × 1,15). Os testes
+  comparam a versão rápida (`selectInterestSlots`) com a referência e com o algoritmo antigo, passo a passo.
+- **Limite de detalhados**: no máximo **48** jogadores (`PV_AOI_MAX`; o cliente pode pedir menos no join pelo
+  preset: BAIXO 16, MÉDIO 32) com estado completo na `StateView` (patches a 20 Hz), **os mais próximos primeiro**;
+  quem já está na vista tem vantagem (distância × 0,85) para não trocar a cada passo na borda do limite.
+- **Multidão distante** (mensagem binária `crowd`, `src/net/crowdCodec.ts`): os demais jogadores da área vão a
+  **2 Hz** (`PV_CROWD_HZ`) em 11 B cada (posição em dm, rumo 8 bits, velocidade, corpo/status), aparência (+12 B) só
+  na primeira vez. Cada jogador é codificado uma vez por rodada (tabela por slot); a mensagem de cada cliente é só
+  cópia de bytes. O cliente interpola (650 ms de atraso) e desenha instanciado. `NetPlayer.nid` (u16) casa as duas vias.
+- **Fatiamento**: AOI e multidão são distribuídas entre os ticks (cada cliente no seu tick: AOI a 5 Hz, multidão a
+  2 Hz) — sem picos. Entrada de um jogador recalcula só a vista dele.
 - Trânsito: cada cliente recebe só os veículos a ≤ 380 m.
-- Com bots espalhados por 2 km de avenida, cada um vê em média **uma fração** dos demais (ver PERFORMANCE.md).
-- Próximo passo (escala): grade espacial de células para não varrer N×N jogadores, e salas por "distrito" quando
-  passar de algumas centenas de jogadores.
+- Medições (50 → 1000 bots, denso e espalhado) e limites: [CROWDS.md](CROWDS.md).
+- Próximo passo (escala): salas por "distrito"/sharding quando passar de ~750 jogadores na mesma concentração.

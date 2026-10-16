@@ -6,6 +6,9 @@
  *  interpolação  remotos com buffer adaptativo ao jitter medido (100–300 ms)
  *  relógio       ping/pong estilo NTP → worldClock (semáforos e trânsito iguais para todos)
  *  mundo         trânsito por snapshots binários (área de interesse); veículos e jogadores via StateView
+ *  multidão      os remotos detalhados (StateView, os mais próximos) e a multidão distante (mensagem "crowd", 2 Hz)
+ *                entram no orçamento do CrowdDirector: só os mais próximos ganham esqueleto (pool por corpo); o resto
+ *                é desenhado instanciado. Ver docs/CROWDS.md
  */
 import './netWebSocket'; // precisa vir ANTES do SDK (instrumenta globalThis.WebSocket)
 import * as THREE from 'three';
@@ -16,7 +19,18 @@ import { netStats, SIM } from './netWebSocket';
 import { worldClock } from './clock';
 import { AvatarVisual } from '../player/AvatarVisual';
 import { createPlayerState, type PlayerState } from '../player/PlayerState';
-import type { Accessory, CharacterAppearance } from '../characters/bodyTypes';
+import type { Accessory, BodyType, CharacterAppearance } from '../characters/bodyTypes';
+import { decodeCrowd } from './crowdCodec';
+import { createAgent, type CrowdAgent } from '../characters/crowd/crowdBudget';
+import type { CrowdDirector } from '../characters/crowd/CrowdDirector';
+
+const BODY_LIST = ['homem', 'mulher', 'idoso', 'idosa'] as const;
+const bodyIndex = (b: string) => Math.max(0, BODY_LIST.indexOf(b as (typeof BODY_LIST)[number]));
+/** atraso de interpolação da multidão distante: um intervalo de mensagem (500 ms a 2 Hz) + folga */
+const FAR_DELAY_MS = 650;
+
+interface FarSnap { t: number; x: number; y: number; z: number; heading: number; speed: number }
+interface FarRemote { nid: number; agent: CrowdAgent; a: FarSnap; b: FarSnap; seen: number }
 
 interface Snapshot { t: number; x: number; y: number; z: number; heading: number; speed: number; loco: number; vehicle: string }
 
@@ -27,7 +41,11 @@ export interface RemoteInfo {
 
 interface Remote {
   id: string;
-  visual: AvatarVisual;
+  nid: number;
+  /** esqueleto próprio — só enquanto o orçamento da multidão o concede (pool por corpo) */
+  visual: AvatarVisual | null;
+  app: CharacterAppearance;
+  agent: CrowdAgent;
   state: PlayerState;
   buf: Snapshot[];
   label: HTMLDivElement;
@@ -88,12 +106,24 @@ export class NetworkClient {
   }
 
   get remoteCount() { return this.remotes.size; }
+  /** jogadores da multidão distante (sem estado completo) */
+  get farCount() { return this.far.size; }
+
+  /** orçamento de personagens (definido pelo jogo); sem ele, todo remoto tem esqueleto (comportamento antigo) */
+  crowd: CrowdDirector | null = null;
+  private pool = new Map<string, AvatarVisual[]>();
+  private far = new Map<number, FarRemote>();
+  private farApp = new Map<number, { skin: number; hair: number; top: number; bottom: number }>();
+  private remoteNids = new Set<number>();
+  private farSeen = 0;
+  /** mensagens "crowd" recebidas (QA) */
+  crowdMsgs = 0;
 
   async connect(app: CharacterAppearance, name: string, testSpawn?: { x: number; z: number }): Promise<void> {
     this.status = 'connecting';
     try {
       const client = new Client(this.endpoint);
-      const opts: JoinOptions = { name, body: app.body, skin: app.skin, hair: app.hair, top: app.top, bottom: app.bottom, shoes: app.shoes, accessory: app.accessory ?? 'nenhum', acc: app.acc ?? 0x222222, ...(testSpawn ? { testSpawn } : {}) };
+      const opts: JoinOptions = { name, body: app.body, skin: app.skin, hair: app.hair, top: app.top, bottom: app.bottom, shoes: app.shoes, accessory: app.accessory ?? 'nenhum', acc: app.acc ?? 0x222222, ...(testSpawn ? { testSpawn } : {}), ...(this.crowd ? { aoiMax: Math.max(16, Math.min(64, this.crowd.budget.skinned * 2)) } : {}) };
       const room = await client.joinOrCreate(ROOM_NAME, opts);
       this.room = room;
       this.sessionId = room.sessionId;
@@ -117,8 +147,9 @@ export class NetworkClient {
       room.onMessage('mode_ok', (m: string) => { this.self.interaction = m; this.onNotice?.(m === 'interacao' ? 'Modo INTERAÇÃO (validado pelo servidor)' : 'Modo PACÍFICO'); });
       room.onMessage('mode_denied', (r: string) => this.onNotice?.(r === 'evento_pacifico' ? 'Este evento é pacífico' : `Modo negado: ${r}`));
       room.onMessage('push_denied', (r: string) => { this.lastDenial = `push:${r}`; this.onNotice?.(DENIAL_TEXT[r] ?? `Empurrão negado (${r})`); });
-      room.onMessage('action', (a: { by: string; type: string }) => { const r = this.remotes.get(a.by); if (r) r.visual.playPush(); });
+      room.onMessage('action', (a: { by: string; type: string }) => { const r = this.remotes.get(a.by); r?.visual?.playPush(); });
       room.onMessage('knock', (k: KnockMsg) => this.handleKnock(k));
+      room.onMessage('crowd', (b: Uint8Array | ArrayBuffer) => this.onCrowd(b instanceof Uint8Array ? b : new Uint8Array(b)));
       room.onLeave(() => { this.status = 'offline'; });
       const cb = Callbacks.get(room as any) as any;
       cb.listen('eventId', (id: string) => { if (id) this.onEvent?.(id); });
@@ -180,19 +211,71 @@ export class NetworkClient {
 
   // ---------------------------------------------------------------- remotos
   private addRemote(id: string, p: any) {
-    const app: CharacterAppearance = { body: p.body || 'homem', skin: p.skin, hair: p.hair, top: p.top, bottom: p.bottom, shoes: p.shoes, scale: 1, accessory: (p.accessory || 'nenhum') as Accessory, acc: p.acc };
-    const visual = new AvatarVisual(app, { lod: 2, castShadow: false });
-    this.group.add(visual.root);
+    const app: CharacterAppearance = { body: (p.body || 'homem') as BodyType, skin: p.skin, hair: p.hair, top: p.top, bottom: p.bottom, shoes: p.shoes, scale: 1, accessory: (p.accessory || 'nenhum') as Accessory, acc: p.acc };
+    const nid = Number(p.nid) || 0;
+    if (nid) { this.remoteNids.add(nid); this.far.delete(nid); }
+    const agent = createAgent({ x: p.x, y: p.y, z: p.z, heading: p.heading, body: bodyIndex(app.body), skin: app.skin, hair: app.hair, top: app.top, bottom: app.bottom });
     const label = document.createElement('div');
     label.className = 'name-label';
     label.textContent = p.name || 'Visitante';
     this.labels.appendChild(label);
+    label.style.display = 'none';
     const r: Remote = {
-      id, visual, state: createPlayerState(id, p.x, p.y, p.z, p.heading), buf: [], label, name: p.name, body: p.body, accessory: p.accessory || 'nenhum',
+      id, nid, visual: null, app, agent, state: createPlayerState(id, p.x, p.y, p.z, p.heading), buf: [], label, name: p.name, body: p.body, accessory: p.accessory || 'nenhum',
       interaction: p.interaction, status: p.status, vehicle: p.vehicle, lastArrival: performance.now(),
     };
     this.remotes.set(id, r);
+    if (!this.crowd) this.acquire(r);
     this.pushSnapshot(id, p);
+  }
+
+  /** esqueleto do pool (mesmo corpo) ou novo */
+  private acquire(r: Remote): AvatarVisual {
+    const list = this.pool.get(r.app.body);
+    let v = list?.pop();
+    if (v) { v.resetForReuse(); v.setAppearance(r.app); }
+    else v = new AvatarVisual(r.app, { lod: 2, castShadow: false });
+    this.group.add(v.root);
+    r.visual = v;
+    return v;
+  }
+
+  private release(r: Remote) {
+    const v = r.visual;
+    if (!v) return;
+    r.visual = null;
+    r.agent.skinReady = false;
+    this.group.remove(v.root);
+    let list = this.pool.get(r.app.body);
+    if (!list) this.pool.set(r.app.body, (list = []));
+    // pool pequeno por corpo: o suficiente para trocas na borda do orçamento sem recriar personagens
+    const keep = Math.ceil((this.crowd?.budget.skinned ?? 8) / 3) + 2;
+    if (list.length < keep) list.push(v); else v.dispose();
+  }
+
+  /** multidão distante: posições compactas (2 Hz) → agentes instanciados interpolados */
+  private onCrowd(buf: Uint8Array) {
+    this.crowdMsgs++;
+    if (!this.crowd) return;
+    const now = performance.now();
+    const stamp = ++this.farSeen;
+    for (const e of decodeCrowd(buf)) {
+      if (this.remoteNids.has(e.nid)) continue; // já está detalhado (StateView)
+      if (e.app) this.farApp.set(e.nid, e.app);
+      const snap: FarSnap = { t: now, x: e.x, y: e.y, z: e.z, heading: e.heading, speed: e.speed };
+      let f = this.far.get(e.nid);
+      if (!f) {
+        const app = this.farApp.get(e.nid);
+        f = { nid: e.nid, agent: createAgent({ maxTier: 1, body: e.body, x: e.x, y: e.y, z: e.z, heading: e.heading, ...(app ?? {}) }), a: snap, b: snap, seen: stamp };
+        this.far.set(e.nid, f);
+      } else {
+        f.a = f.b; f.b = snap; f.seen = stamp;
+        if (e.app) Object.assign(f.agent, e.app);
+      }
+      f.agent.body = e.body;
+    }
+    for (const [nid, f] of this.far) if (f.seen !== stamp) this.far.delete(nid);
+    if (this.farApp.size > 4096) this.farApp.clear();
   }
 
   private pushSnapshot(id: string, p: any) {
@@ -213,9 +296,9 @@ export class NetworkClient {
   private removeRemote(id: string) {
     const r = this.remotes.get(id);
     if (!r) return;
-    this.group.remove(r.visual.root);
-    r.visual.dispose();
+    this.release(r);
     r.label.remove();
+    if (r.nid) this.remoteNids.delete(r.nid);
     this.remotes.delete(id);
   }
 
@@ -223,7 +306,9 @@ export class NetworkClient {
     if (k.target === this.sessionId) { this.onKnock?.(k, true); return; }
     const r = this.remotes.get(k.target);
     if (r) {
-      void r.visual.knockdown({ dirX: k.dx, dirZ: k.dz, strength: k.strength, groundY: r.state.y, walls: [], downMs: k.downMs, getupMs: k.getupMs });
+      // queda é rara e importante: ganha esqueleto na hora (o orçamento o mantém enquanto estiver caído)
+      if (!r.visual && Math.hypot(r.state.x - this.lastCam.x, r.state.z - this.lastCam.z) < (this.crowd?.budget.skinnedMaxDist ?? 1e9)) this.acquire(r);
+      if (r.visual) void r.visual.knockdown({ dirX: k.dx, dirZ: k.dz, strength: k.strength, groundY: r.state.y, walls: [], downMs: k.downMs, getupMs: k.getupMs });
       // posição de repouso autoritativa: o buffer passa a apontar para ela
       r.buf.length = 0;
       r.buf.push({ t: performance.now(), x: k.rx, y: r.state.y, z: k.rz, heading: r.state.heading, speed: 0, loco: 0, vehicle: '' });
@@ -260,6 +345,9 @@ export class NetworkClient {
     this.interpDelay = THREE.MathUtils.clamp(70 + this.jitterMs * 2.5 + SIM.jitter * 0.5, 100, 300);
     const renderT = nowP - this.interpDelay;
     const v = new THREE.Vector3();
+    const cam = camera.position;
+    this.lastCam.copy(cam);
+    const crowd = this.crowd;
     for (const r of this.remotes.values()) {
       const b = r.buf;
       if (!b.length) continue;
@@ -277,19 +365,45 @@ export class NetworkClient {
       s.heading = a.heading + dh * k;
       s.speed = a.speed + (c.speed - a.speed) * k;
       s.grounded = c.loco !== 3;
-      r.visual.setDistance(Math.hypot(s.x - camera.position.x, s.y - camera.position.y, s.z - camera.position.z));
-      if (c.vehicle && !r.visual.isDown) {
+      const d = Math.hypot(s.x - cam.x, s.y - cam.y, s.z - cam.z);
+      const ag = r.agent;
+      ag.x = s.x; ag.y = s.y; ag.z = s.z; ag.heading = s.heading; ag.speed = c.vehicle ? 0 : s.speed;
+      ag.priority = r.status !== 0 || r.vehicle ? 0.5 : 1;
+      crowd?.submit(ag, 'net');
+      // representação decidida pelo orçamento no quadro anterior: esqueleto (tier 2) ou instanciado
+      const skinned = !crowd || ag.tier === 2 || !!r.visual?.isDown;
+      if (!skinned) { if (r.visual) this.release(r); r.label.style.display = 'none'; continue; }
+      const visual = r.visual ?? this.acquire(r);
+      ag.skinReady = visual.ready;
+      if (crowd) { visual.applyLod(ag.lod, d); visual.root.visible = ag.inView || d < 6 || visual.isDown; }
+      else visual.setDistance(d);
+      if (c.vehicle && !visual.isDown) {
         const kind = c.vehicle.startsWith('car') ? 'car' : c.vehicle.endsWith('_2') ? 'scooter' : 'bicycle';
         const pose = kind === 'bicycle' ? 'sit-pedal' : kind === 'scooter' ? 'stand' : 'drive';
-        r.visual.updateRiding(s.x, s.y, s.z, s.heading, pose, s.speed, kind === 'bicycle' ? 0.92 : kind === 'scooter' ? 0.18 : 0.42, dt);
-        r.visual.root.visible = kind !== 'car' || true;
-      } else r.visual.update(s, dt);
+        visual.updateRiding(s.x, s.y, s.z, s.heading, pose, s.speed, kind === 'bicycle' ? 0.92 : kind === 'scooter' ? 0.18 : 0.42, dt);
+      } else visual.update(s, dt, crowd ? visual.root.visible && crowd.shouldAnimate(ag) : undefined);
       v.set(s.x, s.y + 2.1, s.z).project(camera);
-      const vis = v.z < 1 && Math.hypot(s.x - camera.position.x, s.z - camera.position.z) < 70;
+      const vis = visual.root.visible && v.z < 1 && Math.hypot(s.x - cam.x, s.z - cam.z) < 70;
       r.label.style.display = vis ? '' : 'none';
       if (vis) r.label.style.transform = `translate(${((v.x + 1) / 2) * viewport.w}px, ${((1 - v.y) / 2) * viewport.h}px) translate(-50%, -100%)`;
     }
+    // multidão distante: interpolação simples entre as duas últimas posições (2 Hz), só instanciada
+    if (crowd) {
+      const rt = nowP - FAR_DELAY_MS;
+      for (const f of this.far.values()) {
+        const { a, b } = f, ag = f.agent;
+        const k = b.t > a.t ? THREE.MathUtils.clamp((rt - a.t) / (b.t - a.t), 0, 1) : 1;
+        ag.x = a.x + (b.x - a.x) * k; ag.y = a.y + (b.y - a.y) * k; ag.z = a.z + (b.z - a.z) * k;
+        let dh = b.heading - a.heading;
+        while (dh > Math.PI) dh -= Math.PI * 2;
+        while (dh < -Math.PI) dh += Math.PI * 2;
+        ag.heading = a.heading + dh * k;
+        ag.speed = b.speed;
+        crowd.submit(ag, 'far');
+      }
+    }
   }
+  private lastCam = new THREE.Vector3();
 
   /** para QA */
   remotesInfo(): RemoteInfo[] {
@@ -298,6 +412,8 @@ export class NetworkClient {
 
   disconnect() {
     void this.room?.leave();
+    for (const list of this.pool.values()) list.forEach((v) => v.dispose());
+    this.pool.clear();
   }
 }
 

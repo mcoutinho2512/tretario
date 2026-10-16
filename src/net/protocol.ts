@@ -34,6 +34,8 @@ export interface JoinOptions {
   shoes: number;
   accessory?: string;
   acc?: number;
+  /** máximo de jogadores com estado completo que ESTE cliente quer receber (preset; o servidor limita a PV_AOI_MAX) */
+  aoiMax?: number;
   /** SOMENTE servidor em modo de teste (PV_TEST=1): ponto de spawn para cenas reproduzíveis */
   testSpawn?: { x: number; z: number };
 }

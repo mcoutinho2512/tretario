@@ -5,6 +5,9 @@
  * - Andam só onde é calçada (mapa de superfícies), desviam de prédios (raycast), uns dos outros e do jogador.
  * - Param às vezes (olham vitrines/esperam), velocidade conforme o corpo (idosos mais lentos).
  * - LOD: animação a cada N quadros conforme a distância, sombra só perto, culling manual por frustum.
+ * - Com o CrowdDirector (orçamento único de humanos): cada pedestre é um agente que disputa o esqueleto com os
+ *   jogadores remotos; fora do orçamento vira multidão instanciada, e a população cede lugar à multidão da rede
+ *   (total de humanos limitado pelo preset).
  * Os mesmos personagens esqueletais do jogador → base pronta para NPCs autoritativos no servidor (fase 3/4).
  */
 import * as THREE from 'three';
@@ -14,6 +17,12 @@ import { CharacterAnimator } from '../characters/CharacterAnimator';
 import { BODY_TYPES, randomAppearance, type BodyType, type CharacterAppearance } from '../characters/bodyTypes';
 import { HumanCharacter } from '../characters/human/HumanCharacter';
 import type { Lod } from '../characters/human/HumanAssets';
+import { createAgent, type CrowdAgent } from '../characters/crowd/crowdBudget';
+import type { CrowdDirector } from '../characters/crowd/CrowdDirector';
+
+const BODY_INDEX: Record<BodyType, number> = { homem: 0, mulher: 1, idoso: 2, idosa: 3 };
+/** pedestres mínimos mesmo com multidão grande da rede (vida na calçada fora da manifestação) */
+const MIN_PEDS = 4;
 
 /** visual de um pedestre: personagem humano (LOD por distância) ou, se falhar, o procedural antigo */
 interface PedVisual {
@@ -22,13 +31,17 @@ interface PedVisual {
   setAppearance(a: CharacterAppearance): void;
   setShadow(on: boolean): void;
   setLod(d: number): void;
+  /** LOD decidido pelo orçamento da multidão */
+  setLodDirect(l: Lod): void;
+  /** já há malha visível */
+  ready(): boolean;
 }
 interface PedAnim { update(speed: number, grounded: boolean, dt: number): void }
 
 function legacyVisual(app: CharacterAppearance): { rig: PedVisual; anim: PedAnim } {
   const r = createCharacter(app);
   const anim = new CharacterAnimator(r);
-  return { rig: { mesh: r.mesh, body: r.body, setAppearance: (a) => r.setAppearance(a), setShadow: (on) => { r.mesh.castShadow = on; }, setLod() {} }, anim };
+  return { rig: { mesh: r.mesh, body: r.body, setAppearance: (a) => r.setAppearance(a), setShadow: (on) => { r.mesh.castShadow = on; }, setLod() {}, setLodDirect() {}, ready: () => true }, anim };
 }
 import type { PedCrossing } from '../world/types';
 import type { SignalController } from '../traffic/SignalController';
@@ -54,6 +67,8 @@ interface Ped {
   approach: [number, number] | null;
   /** contador de atualizações de comportamento (independe da animação/visibilidade) */
   tick: number;
+  /** agente no orçamento de humanos (CrowdDirector) */
+  agent: CrowdAgent;
 }
 
 const BODY_MIX: BodyType[] = ['homem', 'mulher', 'homem', 'mulher', 'idoso', 'idosa', 'homem', 'mulher'];
@@ -69,7 +84,9 @@ export class PedestrianSystem {
   shadowDistance = 35;
   /** LOD mais detalhado permitido para NPCs (preset): 0 no HIGH/ULTRA, 1 no MEDIUM, 2 no LOW */
   maxDetail: Lod = 1;
-  stats = { active: 0, visible: 0, crossing: 0, waiting: 0 };
+  /** orçamento único de humanos (opcional: sem ele, todos os pedestres têm esqueleto, como antes) */
+  crowd: CrowdDirector | null = null;
+  stats = { active: 0, visible: 0, crossing: 0, waiting: 0, skinned: 0, limit: 0 };
   private crossings: PedCrossing[] = [];
   private crossGrid = new Map<string, number[]>();
   private signals: SignalController | null = null;
@@ -158,6 +175,7 @@ export class PedestrianSystem {
       x: 0, z: 0, y: 0, heading: 0, speed: 0, cruise: 1.3,
       idleTimer: 0, walkTimer: 0, animAcc: 0, frame: i, active: false,
       mode: 'walk', target: null, crossing: null, waitTime: 0, crossCooldown: 0, approach: null, tick: i * 13,
+      agent: createAgent({ body: BODY_INDEX[body], skin: app.skin, hair: app.hair, top: app.top, bottom: app.bottom, scale: app.scale }),
     } as Omit<Ped, 'rig' | 'anim'> as Ped;
     const human = new HumanCharacter(app, { lod: 3, castShadow: false, clips: ['idle', 'walk', 'jog'] });
     let lastLod = -1;
@@ -169,6 +187,8 @@ export class PedestrianSystem {
         const l = Math.max(this.maxDetail, d < 9 ? 0 : d < 24 ? 1 : d < 60 ? 2 : 3) as Lod;
         if (l !== lastLod) { human.setLod(l); lastLod = l; }
       },
+      setLodDirect: (l) => { if (l !== lastLod) { human.setLod(l); lastLod = l; } },
+      ready: () => human.showing,
     };
     ped.anim = { update: (sp, g, dt) => human.animator?.update(sp, g, dt) };
     this.group.add(human.root);
@@ -213,6 +233,7 @@ export class PedestrianSystem {
         }
       }
       p.rig.setAppearance(app);
+      Object.assign(p.agent, { skin: app.skin, hair: app.hair, top: app.top, bottom: app.bottom, scale: app.scale });
       p.active = true;
       p.mode = 'walk'; p.target = null; p.crossing = null; p.crossCooldown = 3 + this.rnd() * 10; p.approach = null;
       return true;
@@ -236,10 +257,17 @@ export class PedestrianSystem {
     this.projScreen.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
     this.frustum.setFromProjectionMatrix(this.projScreen);
     const cx = player.x, cz = player.z;
-    let active = 0, visible = 0, crossing = 0, waiting = 0;
+    let active = 0, visible = 0, crossing = 0, waiting = 0, skinned = 0;
+    const crowd = this.crowd;
+    // total de humanos limitado pelo preset: com muita gente da rede, os NPCs cedem lugar
+    const limit = crowd ? Math.min(this.max, Math.max(MIN_PEDS, crowd.budget.total - crowd.othersCount)) : this.max;
 
     for (let i = 0; i < this.max; i++) {
       const p = this.peds[i];
+      if (i >= limit) {
+        if (p.active) { p.active = false; p.rig.mesh.visible = false; }
+        continue;
+      }
       if (!p.active) {
         const initial = this.time < 1;
         if (!this.spawn(p, cx, cz, camFwd, initial)) { p.rig.mesh.visible = false; continue; }
@@ -363,6 +391,23 @@ export class PedestrianSystem {
       const mesh = p.rig.mesh;
       mesh.position.set(p.x, p.y, p.z);
       mesh.rotation.y = p.heading;
+      if (crowd) {
+        // orçamento único: esqueleto só se o diretor concedeu (quadro anterior); senão a multidão instanciada desenha
+        const ag = p.agent;
+        ag.x = p.x; ag.y = p.y; ag.z = p.z; ag.heading = p.heading; ag.speed = p.speed;
+        crowd.submit(ag, 'ped');
+        const sk = ag.tier === 2 && (ag.inView || d < 3);
+        mesh.visible = sk;
+        ag.skinReady = sk && p.rig.ready();
+        p.animAcc += dt;
+        if (ag.inView) visible++;
+        if (!sk) continue;
+        skinned++;
+        p.rig.setShadow(d < this.shadowDistance);
+        p.rig.setLodDirect(ag.lod);
+        if (crowd.shouldAnimate(ag)) { p.anim.update(p.speed, true, p.animAcc); p.animAcc = 0; }
+        continue;
+      }
       const inView = this.frustum.containsPoint(this.tmp.set(p.x, p.y + 1, p.z)) || d < 3;
       mesh.visible = inView;
       if (!inView) continue;
@@ -381,6 +426,8 @@ export class PedestrianSystem {
     this.stats.visible = visible;
     this.stats.crossing = crossing;
     this.stats.waiting = waiting;
+    this.stats.skinned = crowd ? skinned : visible;
+    this.stats.limit = limit;
   }
 
   private time = 0;

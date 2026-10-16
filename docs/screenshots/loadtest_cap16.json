@@ -1,0 +1,29 @@
+[
+  {
+    "bots": 500,
+    "cenario": "denso",
+    "entrada_s": 2.6,
+    "srv_tick_ms": 8.847,
+    "srv_tick_max_ms": 19.085,
+    "srv_aoi_ms": 3.39,
+    "srv_aoi_max_ms": 5.389,
+    "srv_crowd_ms": 3.564,
+    "srv_patch_ms": 5.357,
+    "srv_patch_max_ms": 12.083,
+    "srv_cpu_pct": 30.3,
+    "srv_elu": 0.282,
+    "srv_heap_MB": 125.7,
+    "srv_rss_pico_MB": 318.8,
+    "srv_out_KBps": 7168.8,
+    "srv_in_KBps": 326.6,
+    "srv_msgs_out_s": 11848,
+    "srv_msgs_in_s": 7497,
+    "cli_in_KBps": 14.34,
+    "cli_out_KBps": 0.65,
+    "cli_msgs_in_s": 23.7,
+    "visiveis_medio": 500,
+    "detalhados_medio": 17,
+    "visiveis_max": 500,
+    "correcoes": 0
+  }
+]

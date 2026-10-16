@@ -1,7 +1,8 @@
 # Estratégia futura para multidões (centenas a milhares de pessoas na Pres. Vargas)
 
-Ainda **não está implementado**. Este documento registra decisões já tomadas na arquitetura para
-que multidões continuem possíveis, e o plano de implementação.
+Documento de visão (rodada 1). **A primeira implementação real está em [CROWDS.md](CROWDS.md)** (rodada 6):
+grade espacial e limite de detalhados no servidor, multidão distante compacta, orçamento único de humanos e
+multidão instanciada com animação assada em textura (VAT). O restante deste documento continua como plano.
 
 ## Decisões atuais que preparam o terreno
 - `PlayerState` é dado puro e serializável; `stepPlayer` é determinístico; `AvatarVisual` só lê o estado.

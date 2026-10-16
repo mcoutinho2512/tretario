@@ -5,7 +5,8 @@
  *  veículos     registro no servidor; entrar/sair validados; 1 ocupante por veículo; posição vem do ocupante validado
  *  interação    modo por jogador (política do evento); empurrão e impacto de veículo validados aqui
  *  mundo        relógio global, semente, semáforos (função do relógio) e trânsito GLOBAL simulado aqui
- *  interesse    StateView por cliente (jogadores/veículos a ≤ AOI_RADIUS); trânsito só da área do cliente
+ *  interesse    grade espacial (SpatialGrid) + StateView por cliente: os AOI_MAX jogadores mais próximos a ≤ AOI_RADIUS
+ *               com estado completo (20 Hz); o resto da área vai como multidão compacta ("crowd", 2 Hz). Trânsito só da área
  *  rede adversa PV_JITTER / PV_LOSS (ms / 0–1) além de COLYSEUS_LATENCY (RTT nativo)
  */
 import { Room, type Client } from '@colyseus/core';
@@ -18,8 +19,28 @@ import { RULES, STATUS, canPush, canEnter, knockdownOutcome, vehicleImpact, unpa
 import { TrafficSim } from '../../src/traffic/TrafficSim.ts';
 import { SignalController } from '../../src/traffic/SignalController.ts';
 import { metrics } from './metrics.ts';
+import { SpatialGrid, selectInterest, selectInterestSlots, InterestScratch, makeSlotView, type SlotView } from '../../src/net/spatialGrid.ts';
+import { CrowdTable } from '../../src/net/crowdCodec.ts';
 
 const AOI_RADIUS = Number(process.env.PV_AOI ?? 220); // m — jogadores/veículos visíveis
+/** histerese da AOI: entra a ≤ R, sai só além de R × AOI_HYST */
+const AOI_HYST = 1.15;
+/** máximo de jogadores com estado completo (StateView) por cliente — os mais próximos. 0 = sem limite */
+const AOI_MAX = Number(process.env.PV_AOI_MAX ?? 48);
+/** multidão distante: frequência (Hz) e máximo de entradas por mensagem */
+const CROWD_HZ = Number(process.env.PV_CROWD_HZ ?? 2);
+const TICK_MS = 100; // simulação a 10 Hz
+/** AOI e multidão são FATIADAS entre ticks (cada cliente no seu tick: slot % fatias): sem picos de custo */
+const AOI_SLICES = 2; // cada cliente a cada 2 ticks = 5 Hz (antes: todos juntos a 4 Hz)
+const CROWD_SLICES = Math.max(1, Math.round(1000 / TICK_MS / Math.max(0.1, CROWD_HZ)));
+const CROWD_MAX = Number(process.env.PV_CROWD_MAX ?? 600);
+/** limite pedido pelo cliente (aparelho fraco pede menos), entre 8 e AOI_MAX; 0 = sem limite */
+const clientCap = (req: unknown) => {
+  const n = typeof req === 'number' && Number.isFinite(req) ? Math.round(req) : 0;
+  if (AOI_MAX <= 0) return n > 0 ? Math.max(8, n) : 0;
+  return n > 0 ? Math.max(8, Math.min(AOI_MAX, n)) : AOI_MAX;
+};
+const BODY_INDEX: Record<string, number> = Object.fromEntries(BODIES.map((b, i) => [b, i]));
 const TRAFFIC_RADIUS = 380; // m — trânsito enviado a cada cliente
 const TRAFFIC_HZ = 2;
 const TRAFFIC_POP = Number(process.env.PV_TRAFFIC ?? 220);
@@ -33,14 +54,25 @@ interface PlayerRT {
   actor: Actor;
   last: { x: number; y: number; z: number; t: number; seq: number };
   view: StateView;
-  inView: Set<string>;
+  /** jogadores na vista (por slot) */
+  inView: SlotView;
   vehInView: Set<string>;
   rest: { x: number; z: number } | null;
   pendingIn: number; // processamento ordenado com jitter simulado
+  /** id numérico curto (mensagem "crowd") */
+  nid: number;
+  /** jogadores na área mas fora do limite AOI_MAX (do último cálculo de AOI), mais próximos primeiro */
+  overflow: number[];
+  /** slot na grade espacial (inteiro pequeno, reaproveitado) */
+  slot: number;
+  /** limite de detalhados deste cliente (pedido no join, ≤ AOI_MAX) */
+  aoiCap: number;
+  /** nids cuja aparência este cliente já recebeu pela mensagem "crowd" */
+  crowdKnown: Set<number>;
 }
 
 export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
-  maxClients = 200;
+  maxClients = Number(process.env.PV_MAX_CLIENTS ?? 600);
   maxMessagesPerSecond = 60;
   state = new WorldState();
   private rt = new Map<string, PlayerRT>();
@@ -50,7 +82,21 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
   private interactionPolicy: 'pacifico' | 'opcional' = 'opcional';
   private spawn = { x: -580, z: 280, heading: 1.75 };
   private trafficAcc = 0;
-  private aoiAcc = 0;
+  private tickN = 0;
+  private crowdTable = new CrowdTable();
+  private crowdSlots = new Int32Array(1024);
+  /** grade espacial dos jogadores (reconstruída a cada tick): AOI, candidatos de impacto */
+  private grid = new SpatialGrid(AOI_RADIUS / 2);
+  private scratch = new InterestScratch();
+  private aoiAdd: number[] = [];
+  private aoiRem: number[] = [];
+  /** slot → sessionId (slots livres = '') */
+  private slotIds: string[] = [];
+  /** slot → nid (mensagem "crowd") */
+  private slotNid: number[] = [];
+  private freeSlots: number[] = [];
+  private nextNid = 1;
+  private nids = new Set<number>();
 
   messages = {
     move: (client: Client, raw: unknown) => this.withNet(client, true, () => this.onMove(client, raw)),
@@ -91,6 +137,14 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     console.log(`[room] ${this.roomId} evento=${ev} (interação: ${this.interactionPolicy}) trânsito=${this.traffic.vehicles.length} veículos AOI=${AOI_RADIUS} m`);
   }
 
+  /** mede a codificação/envio dos patches (StateView por cliente): é o custo que cresce com a multidão */
+  broadcastPatch() {
+    const t0 = performance.now();
+    const r = super.broadcastPatch();
+    metrics.patch(performance.now() - t0);
+    return r;
+  }
+
   // ---------------------------------------------------------------- rede adversa (dev)
   private withNet(client: Client, droppable: boolean, fn: () => void) {
     metrics.msgIn(client.sessionId);
@@ -125,9 +179,12 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
         if (r.rest) { r.last = { x: r.rest.x, y: 0, z: r.rest.z, t: now, seq: r.last.seq }; r.rest = null; }
       }
     }
-    // área de interesse (4 Hz)
-    this.aoiAcc += dtMs;
-    if (this.aoiAcc >= 250) { this.aoiAcc = 0; this.updateInterest(); }
+    // grade espacial (O(N)) — base de todas as consultas de vizinhança
+    this.rebuildGrid();
+    // área de interesse (fatiada: cada cliente a 5 Hz) e multidão distante (fatiada: cada cliente a CROWD_HZ)
+    this.tickN++;
+    this.updateInterest(this.tickN % AOI_SLICES, AOI_SLICES);
+    if (CROWD_HZ > 0) { const tc = performance.now(); this.sendCrowd(this.tickN % CROWD_SLICES, CROWD_SLICES); metrics.crowd(performance.now() - tc); }
     // trânsito por área de interesse (2 Hz)
     this.trafficAcc += dtMs;
     if (this.trafficAcc >= 1000 / TRAFFIC_HZ) {
@@ -143,23 +200,87 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     metrics.tick(performance.now() - t0, this.state.players.size);
   }
 
-  private updateInterest() {
+  private rebuildGrid() {
+    this.grid.clear();
+    for (const r of this.rt.values()) { const p = this.state.players.get(r.actor.id); if (p) this.grid.insert(r.slot, p.x, p.z); }
+  }
+
+  /**
+   * Área de interesse por cliente via grade espacial: só visita as células a ≤ R × histerese (não N×N).
+   * Mesma regra de antes (entra a ≤ R, sai além de R × 1,15) + limite AOI_MAX dos mais próximos;
+   * quem fica de fora do limite vai para a multidão distante.
+   */
+  private updateInterest(phase = 0, slices = 1, only?: string) {
+    const t0 = performance.now();
+    const vehs: { id: string; v: NetVehicle }[] = [];
+    this.state.vehicles.forEach((v, id) => vehs.push({ id, v }));
     for (const [id, r] of this.rt) {
+      if (only ? id !== only : r.slot % slices !== phase) continue;
       const me = this.state.players.get(id);
       if (!me) continue;
-      this.state.players.forEach((p, pid) => {
-        const near = pid === id || Math.hypot(p.x - me.x, p.z - me.z) <= AOI_RADIUS;
-        const has = r.inView.has(pid);
-        if (near && !has) { r.view.add(p); r.inView.add(pid); }
-        else if (!near && has && Math.hypot(p.x - me.x, p.z - me.z) > AOI_RADIUS * 1.15) { r.view.remove(p); r.inView.delete(pid); } // histerese
-      });
-      this.state.vehicles.forEach((v, vid) => {
-        const near = Math.hypot(v.x - me.x, v.z - me.z) <= AOI_RADIUS || v.occupant === id;
-        const has = r.vehInView.has(vid);
-        if (near && !has) { r.view.add(v); r.vehInView.add(vid); }
-        else if (!near && has && Math.hypot(v.x - me.x, v.z - me.z) > AOI_RADIUS * 1.15) { r.view.remove(v); r.vehInView.delete(vid); }
-      });
+      selectInterestSlots(this.grid, r.slot, me.x, me.z, r.inView, { radius: AOI_RADIUS, hysteresis: AOI_HYST, cap: r.aoiCap }, this.scratch, this.aoiAdd, this.aoiRem, r.overflow);
+      for (const sl of this.aoiAdd) { const p = this.state.players.get(this.slotIds[sl]); if (p) r.view.add(p); }
+      for (const sl of this.aoiRem) { const p = this.state.players.get(this.slotIds[sl]); if (p) r.view.remove(p); }
+      // veículos utilizáveis: poucos (dezenas) — lista direta; o do próprio jogador fica sempre
+      const vc: { item: string; d: number }[] = [];
+      for (const { id: vid, v } of vehs) { const d = Math.hypot(v.x - me.x, v.z - me.z); if (d <= AOI_RADIUS * AOI_HYST) vc.push({ item: vid, d }); }
+      const vr = selectInterest({ candidates: vc, inView: r.vehInView, radius: AOI_RADIUS, hysteresis: AOI_HYST, always: me.vehicle ? new Set([me.vehicle]) : undefined });
+      for (const vid of vr.add) { const v = this.state.vehicles.get(vid); if (v) { r.view.add(v); r.vehInView.add(vid); } }
+      for (const vid of vr.remove) { const v = this.state.vehicles.get(vid); if (v) r.view.remove(v); r.vehInView.delete(vid); }
     }
+    metrics.aoi(performance.now() - t0);
+  }
+
+  /**
+   * multidão distante: posições compactas (binário) dos jogadores na área mas fora do limite detalhado.
+   * Cada jogador é codificado uma vez (tabela por slot); cada mensagem é só cópia de bytes.
+   */
+  private sendCrowd(phase: number, slices: number) {
+    let any = false;
+    for (const r of this.rt.values()) if (r.slot % slices === phase && (r.overflow.length || r.crowdKnown.size)) { any = true; break; }
+    if (!any) return;
+    for (const r of this.rt.values()) {
+      const p = this.state.players.get(r.actor.id);
+      if (p) this.crowdTable.set(r.slot, { nid: r.nid, x: p.x, y: p.y, z: p.z, heading: p.heading, speed: p.speed, body: BODY_INDEX[p.body] ?? 0, status: p.status, vehicle: !!p.vehicle, app: { skin: p.skin, hair: p.hair, top: p.top, bottom: p.bottom } });
+    }
+    for (const [id, r] of this.rt) {
+      if (r.slot % slices !== phase) continue;
+      const c = this.clients2.get(id);
+      if (!c || (!r.overflow.length && !r.crowdKnown.size)) continue;
+      if (this.crowdSlots.length < r.overflow.length) this.crowdSlots = new Int32Array(r.overflow.length * 2);
+      let n = 0;
+      for (const sl of r.overflow) {
+        if (n >= CROWD_MAX) break;
+        if (!this.slotIds[sl] || r.inView.has[sl]) continue;
+        this.crowdSlots[n++] = sl;
+      }
+      if (SIM_LOSS && Math.random() < SIM_LOSS) continue;
+      const known = r.crowdKnown;
+      const slotNid = this.slotNid;
+      const buf = this.crowdTable.build(this.crowdSlots, n, (sl) => {
+        const nid = slotNid[sl];
+        if (known.has(nid)) return false;
+        known.add(nid);
+        return true;
+      });
+      c.send('crowd', buf); // lista vazia também vai: o cliente remove quem saiu
+      if (!n) known.clear();
+    }
+  }
+
+  private allocSlot(id: string): number {
+    const sl = this.freeSlots.length ? this.freeSlots.pop()! : this.slotIds.length;
+    this.slotIds[sl] = id;
+    return sl;
+  }
+
+  private allocNid(): number {
+    for (let i = 0; i < 65535; i++) {
+      const n = this.nextNid;
+      this.nextNid = this.nextNid >= 65535 ? 1 : this.nextNid + 1;
+      if (!this.nids.has(n)) { this.nids.add(n); return n; }
+    }
+    return 0;
   }
 
   // ---------------------------------------------------------------- jogadores
@@ -189,17 +310,22 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     const ts = options?.testSpawn;
     if (process.env.PV_TEST === '1' && ts && Number.isFinite(ts.x) && Number.isFinite(ts.z)) { p.x = ts.x; p.z = ts.z; }
     p.y = 0; p.heading = this.spawn.heading; p.loco = 0; p.vehicle = ''; p.interaction = 'pacifico'; p.status = STATUS.OK;
+    p.nid = this.allocNid();
     this.state.players.set(client.sessionId, p);
     const view = new StateView();
     client.view = view;
     const r: PlayerRT = {
       actor: { id: client.sessionId, x: p.x, z: p.z, heading: p.heading, mode: 'pacifico', status: 0, vehicle: '', immuneUntil: 0, lastActionAt: -1e12, actionTimes: [], lastDown: 0 },
       last: { x: p.x, y: p.y, z: p.z, t: Date.now(), seq: -1 },
-      view, inView: new Set(), vehInView: new Set(), rest: null, pendingIn: 0,
+      view, inView: makeSlotView(), vehInView: new Set(), rest: null, pendingIn: 0,
+      nid: p.nid, overflow: [], crowdKnown: new Set(), slot: this.allocSlot(client.sessionId),
+      aoiCap: clientCap(options?.aoiMax),
     };
+    this.slotNid[r.slot] = p.nid;
     this.rt.set(client.sessionId, r);
     this.clients2.set(client.sessionId, client);
-    this.updateInterest();
+    this.grid.insert(r.slot, p.x, p.z);
+    this.updateInterest(0, 1, client.sessionId); // só o novo cliente; os demais o encontram na sua fatia
     client.send('spawn', { x: p.x, y: p.y, z: p.z, heading: p.heading, sessionId: client.sessionId, policy: this.interactionPolicy, seed: this.state.seed });
     metrics.join(client.sessionId);
     console.log(`[room] entrou ${client.sessionId} (${p.name}, ${p.body}) — total ${this.state.players.size}`);
@@ -211,10 +337,22 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
       const v = this.state.vehicles.get(p.vehicle);
       if (v) { v.occupant = ''; v.speed = 0; }
     }
+    const leaving = this.rt.get(client.sessionId);
+    if (leaving) {
+      const { nid, slot } = leaving;
+      if (nid) this.nids.delete(nid);
+      // slot e nid podem ser reaproveitados: ninguém pode continuar "vendo" o antigo dono
+      for (const r of this.rt.values()) {
+        r.crowdKnown.delete(nid);
+        if (r.inView.has[slot]) { r.inView.has[slot] = 0; r.inView.list = r.inView.list.filter((x) => x !== slot); }
+      }
+      this.grid.remove(slot);
+      this.slotIds[slot] = '';
+      this.freeSlots.push(slot);
+    }
     this.state.players.delete(client.sessionId);
     this.rt.delete(client.sessionId);
     this.clients2.delete(client.sessionId);
-    for (const r of this.rt.values()) r.inView.delete(client.sessionId);
     metrics.leave(client.sessionId);
     console.log(`[room] saiu ${client.sessionId} — total ${this.state.players.size}`);
   }
@@ -332,8 +470,14 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     const d = this.rt.get(driverId);
     if (!d || d.actor.mode !== 'interacao') return; // motorista também precisa estar em modo interação
     const now = Date.now();
-    for (const [id, r] of this.rt) {
-      if (id === driverId) continue;
+    // candidatos pela grade: círculo que cobre o trajeto do tick (anti-tunelamento) + caixa do carro + folga
+    const mx = (car.x + car.px) / 2, mz = (car.z + car.pz) / 2;
+    const reach = Math.hypot(car.x - car.px, car.z - car.pz) / 2 + 6;
+    const cands: string[] = [];
+    this.grid.forEachInRadius(mx, mz, reach, (sl) => cands.push(this.slotIds[sl]));
+    for (const id of cands) {
+      const r = this.rt.get(id);
+      if (!r || id === driverId) continue;
       const a = r.actor;
       if (a.mode !== 'interacao' || a.status !== STATUS.OK || a.vehicle || now < a.immuneUntil) continue;
       const hit = vehicleImpact(car, { x: a.x, z: a.z });
