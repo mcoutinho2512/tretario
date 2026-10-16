@@ -32,10 +32,12 @@ const ground = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), new THREE.MeshSta
 ground.rotation.x = -Math.PI / 2;
 ground.receiveShadow = true;
 scene.add(ground);
+const grid = new THREE.GridHelper(10, 20, 0x333333, 0x666666); grid.position.y = 0.001; scene.add(grid);
 const cam = new THREE.PerspectiveCamera(q.get('cam') === 'close' ? 22 : 35, innerWidth / innerHeight, 0.05, 100);
 const mode = q.get('cam') ?? 'full';
 if (mode === 'close') { cam.position.set(0.25, 1.62, 1.35); cam.lookAt(0, 1.55, 0); }
 else if (mode === 'lods') { cam.position.set(0, 1.4, 7.5); cam.lookAt(0, 0.9, 0); }
+else if (mode === 'side') { cam.position.set(3.2, 0.9, 0); cam.lookAt(0, 0.85, 0); }
 else { cam.position.set(1.4, 1.25, 3.6); cam.lookAt(0, 0.9, 0); }
 
 const body = (q.get('body') ?? 'homem') as BodyType;
@@ -64,7 +66,7 @@ function frame() {
   t0 = now;
   for (const c of chars) {
     if (pose && !c.userData) { c.animator?.setShow(pose as never); (c as any).userData = 1; }
-    if (freeze !== null) { c.animator?.update(speed, true, 0); c.animator!.mixer.setTime(freeze); }
+    if (freeze !== null) { for (let k = 0; k < 120; k++) c.animator?.update(speed, true, 1 / 60); c.animator!.mixer.setTime(freeze); c.animator?.update(speed, true, 0); }
     else c.animator?.update(speed, true, dt);
   }
   renderer.render(scene, cam);

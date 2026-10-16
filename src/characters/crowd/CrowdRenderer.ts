@@ -15,7 +15,7 @@ import { clone as cloneSkeleton } from 'three/examples/jsm/utils/SkeletonUtils.j
 import { BODY_TYPES, type BodyType } from '../bodyTypes';
 import { loadLod, LAYER_INDEX } from '../human/HumanAssets';
 import { clipsFor, tint } from '../human/HumanCharacter';
-import { measureNatural } from '../human/HumanAnimator';
+import { measureNatural, groundOffsets } from '../human/HumanAnimator';
 import type { CrowdAgent } from './crowdBudget';
 
 export const CROWD_BODIES: BodyType[] = ['homem', 'mulher', 'idoso', 'idosa'];
@@ -93,6 +93,8 @@ export class CrowdRenderer {
       walk: clips.get('walk') ? measureNatural(`${body}:walk`, armature, clips.get('walk')!, 1.2 * speedF) : 1.2 * speedF,
       jog: clips.get('jog') ? measureNatural(`${body}:jog`, armature, clips.get('jog')!, 3.2 * speedF) : 3.2 * speedF,
     };
+    // mesma correção de contato com o chão dos personagens com esqueleto (proporções do corpo ≠ origem da animação)
+    const ground = groundOffsets(body, armature, clips, ['idle', 'walk', 'jog']);
     const V = sm.geometry.getAttribute('position').count;
     const rowsPerFrame = Math.ceil(V / TEX_W);
     const names = ['idle', 'walk', 'jog'] as const;
@@ -116,7 +118,7 @@ export class CrowdRenderer {
           v.applyMatrix4(sm.matrixWorld);
           const o = ((frame * rowsPerFrame + Math.floor(i / TEX_W)) * TEX_W + (i % TEX_W)) * 4;
           data[o] = THREE.DataUtils.toHalfFloat(v.x);
-          data[o + 1] = THREE.DataUtils.toHalfFloat(v.y);
+          data[o + 1] = THREE.DataUtils.toHalfFloat(v.y + (ground[name] ?? 0));
           data[o + 2] = THREE.DataUtils.toHalfFloat(v.z);
           data[o + 3] = THREE.DataUtils.toHalfFloat(1);
         }
