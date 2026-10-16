@@ -2,6 +2,8 @@
 import { schema, t, type SchemaType } from '@colyseus/schema';
 
 export const NetPlayer = schema({
+  /** id numérico curto (u16) — o mesmo usado na mensagem binária "crowd" (multidão distante) */
+  nid: t.uint16(),
   name: t.string(),
   body: t.string(),
   skin: t.uint32(),
