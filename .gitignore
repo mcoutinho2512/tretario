@@ -12,3 +12,4 @@ screenshots/*.json
 server/node_modules/
 screenshots/walkthrough*/
 screenshots/loadtest.json
+.claude/

@@ -72,7 +72,7 @@ Footprint: OSM way 30839484 (real). Modelo procedural dedicado (`src/world/landm
 
 ## Rodada 5 — passada de fidelidade dos landmarks (conferência humana)
 Detalhes, medidas, fontes e confiança: [`docs/LANDMARKS.md`](LANDMARKS.md). Capturas comparáveis:
-`screenshots/lm_before/` × `screenshots/lm_after/` (mesmas poses; `tools/qa/landmark_shots.mjs`).
+`screenshots/r5_landmarks/before/` × `screenshots/r5_landmarks/after/` (mesmas poses; `tools/qa/landmark_shots.mjs`).
 
 - [ ] **Central — torre**: 110 m de cobertura, antenas até 135 m, relógio Ø 10 m centrado a 86 m
       (Diário do Rio, confiança média). Torre no **centro da aresta longa da fachada leste**, face frontal
