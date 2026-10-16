@@ -46,8 +46,8 @@ export function categoryOf(o: THREE.Object3D | null): string {
   return 'other';
 }
 
-interface Bucket { textures: number; texGpuMB: number; texCpuMB: number; geometries: number; geoMB: number; materials: number; skeletons: number; boneTexMB: number; objects: number }
-const bucket = (): Bucket => ({ textures: 0, texGpuMB: 0, texCpuMB: 0, geometries: 0, geoMB: 0, materials: 0, skeletons: 0, boneTexMB: 0, objects: 0 });
+interface Bucket { geoCpuFreedMB: number; textures: number; texGpuMB: number; texCpuMB: number; geometries: number; geoMB: number; materials: number; skeletons: number; boneTexMB: number; objects: number }
+const bucket = (): Bucket => ({ geoCpuFreedMB: 0, textures: 0, texGpuMB: 0, texCpuMB: 0, geometries: 0, geoMB: 0, materials: 0, skeletons: 0, boneTexMB: 0, objects: 0 });
 
 function bppOf(t: THREE.Texture): number {
   const type = t.type;
@@ -199,7 +199,9 @@ export function memoryReport(renderer: THREE.WebGLRenderer, scene: THREE.Scene, 
   const addGeo = (g: THREE.BufferGeometry, cat: string) => {
     if (seenGeo.has(g)) return;
     seenGeo.add(g);
-    const bytes = geoBytes(g, seenArr) + geoGpuOnly(g);
+    const released = !g.attributes.position?.array;
+    const bytes = released ? geoGpuOnly(g) : geoBytes(g, seenArr);
+    if (released) B(cat).geoCpuFreedMB += bytes * MB;
     const b = B(cat); b.geometries++; b.geoMB += bytes * MB;
     geoList.push({ g, cat, bytes });
   };
@@ -233,11 +235,11 @@ export function memoryReport(renderer: THREE.WebGLRenderer, scene: THREE.Scene, 
       b.boneTexMB += ((sk.boneTexture ? texGpuBytes(sk.boneTexture, renderer) : 0) + (sk.boneMatrices?.byteLength ?? 0)) * MB;
     }
   };
-  scene.traverse((o) => visit(o));
+  // sombra/ambiente primeiro (chegam a todos os materiais por uniforms internos do renderer)
+  scene.traverse((o) => { const l = o as THREE.DirectionalLight; if (l.isLight && l.shadow?.map) addTex(l.shadow.map.texture, 'shadows'); });
   if (scene.environment) addTex(scene.environment, 'environment');
   if (scene.background && (scene.background as THREE.Texture).isTexture) addTex(scene.background as THREE.Texture, 'environment');
-  // mapas de sombra
-  scene.traverse((o) => { const l = o as THREE.DirectionalLight; if (l.isLight && l.shadow?.map) addTex(l.shadow.map.texture, 'shadows'); });
+  scene.traverse((o) => visit(o));
   for (const e of opts.extra ?? []) e.object.traverse((o) => visit(o, e.category));
   // caches do AssetManager fora da cena (GLTFs de personagem/veículo, texturas e geometrias registradas)
   for (const e of assetManager.reportEntries()) {
@@ -295,9 +297,9 @@ export function memoryReport(renderer: THREE.WebGLRenderer, scene: THREE.Scene, 
 
   const categories: Record<string, Record<string, number>> = {};
   for (const [k, b] of [...cats].sort((a, b2) => (b2[1].texGpuMB + b2[1].geoMB) - (a[1].texGpuMB + a[1].geoMB))) {
-    categories[k] = { textures: b.textures, texGpuMB: r1(b.texGpuMB), texCpuMB: r1(b.texCpuMB), geometries: b.geometries, geoMB: r1(b.geoMB), materials: b.materials, skeletons: b.skeletons, boneTexMB: r1(b.boneTexMB), objects: b.objects };
+    categories[k] = { textures: b.textures, texGpuMB: r1(b.texGpuMB), texCpuMB: r1(b.texCpuMB), geometries: b.geometries, geoMB: r1(b.geoMB), geoCpuMB: r1(b.geoMB - b.geoCpuFreedMB), materials: b.materials, skeletons: b.skeletons, boneTexMB: r1(b.boneTexMB), objects: b.objects };
   }
-  const tot = [...cats.values()].reduce((s, b) => ({ texGpu: s.texGpu + b.texGpuMB, texCpu: s.texCpu + b.texCpuMB, geo: s.geo + b.geoMB, bone: s.bone + b.boneTexMB }), { texGpu: 0, texCpu: 0, geo: 0, bone: 0 });
+  const tot = [...cats.values()].reduce((s, b) => ({ texGpu: s.texGpu + b.texGpuMB, texCpu: s.texCpu + b.texCpuMB, geo: s.geo + b.geoMB, geoCpu: s.geoCpu + b.geoMB - b.geoCpuFreedMB, bone: s.bone + b.boneTexMB }), { texGpu: 0, texCpu: 0, geo: 0, geoCpu: 0, bone: 0 });
   const mem = (performance as unknown as { memory?: { usedJSHeapSize: number; totalJSHeapSize: number } }).memory;
   const wasm = wasmMemories.map((w) => ({ label: w.label, MB: r1(w.memory.buffer.byteLength * MB) }));
   const topTextures = texList.slice().sort((a, b) => b.gpu - a.gpu).slice(0, 25).map((x) => {
@@ -310,7 +312,7 @@ export function memoryReport(renderer: THREE.WebGLRenderer, scene: THREE.Scene, 
     heap: mem ? { usedMB: r1(mem.usedJSHeapSize * MB), totalMB: r1(mem.totalJSHeapSize * MB) } : null,
     renderer: { textures: renderer.info.memory.textures, geometries: renderer.info.memory.geometries, programs: renderer.info.programs?.length ?? 0 },
     totals: {
-      textures: texList.length, texGpuMB: r1(tot.texGpu), texCpuMB: r1(tot.texCpu), geometries: geoList.length, geoMB: r1(tot.geo), materials: matList.length, skeletons: seenSkel.size, boneTexMB: r1(tot.bone),
+      textures: texList.length, texGpuMB: r1(tot.texGpu), texCpuMB: r1(tot.texCpu), geometries: geoList.length, geoMB: r1(tot.geo), geoCpuMB: r1(tot.geoCpu), materials: matList.length, skeletons: seenSkel.size, boneTexMB: r1(tot.bone),
       /** estimativa GPU = texturas + buffers de geometria (+ bone textures) */
       gpuEstMB: r1(tot.texGpu + tot.geo + tot.bone),
     },

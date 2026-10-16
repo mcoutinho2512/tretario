@@ -158,14 +158,14 @@ for (const preset of PRESETS) {
 const md = [];
 for (const s of summary) {
   md.push(`## ${s.preset.toUpperCase()} (carga ${s.loadS}s)\n`);
-  md.push('| ponto | heap bruto MB | heap pós-GC MB | ArrayBuffers MB | GPU est. MB | GPU real (livro) MB | texturas | geometrias | materiais |');
-  md.push('|---|---|---|---|---|---|---|---|---|');
-  for (const p of s.points) md.push(`| ${p.name} | ${p.heapRaw.usedMB} | ${p.heapGC.usedMB} | ${p.heapGC.backingStoreMB} | ${p.report.totals.gpuEstMB} | ${p.report.ledger?.totalMB ?? '—'} | ${p.report.totals.textures} | ${p.report.totals.geometries} | ${p.report.totals.materials} |`);
+  md.push('| ponto | heap bruto MB | heap V8 pós-GC MB | ArrayBuffers MB | performance.memory pós-GC MB | GPU est. MB | GPU real (livro) MB | texturas | geometrias | materiais |');
+  md.push('|---|---|---|---|---|---|---|---|---|---|');
+  for (const p of s.points) md.push(`| ${p.name} | ${p.heapRaw.usedMB} | ${p.heapGC.usedMB} | ${p.heapGC.backingStoreMB} | ${p.heapGC.perfMemMB} | ${p.report.totals.gpuEstMB} | ${p.report.ledger?.totalMB ?? '—'} | ${p.report.totals.textures} | ${p.report.totals.geometries} | ${p.report.totals.materials} |`);
   const last = s.points.find((p) => p.name === 'candelaria') ?? s.points.at(-1);
   md.push(`\nCategorias (ponto: ${last.name})\n`);
-  md.push('| categoria | texturas | tex GPU MB | tex CPU MB | geometrias | geo MB | materiais | esqueletos | bones MB |');
-  md.push('|---|---|---|---|---|---|---|---|---|');
-  for (const [k, c] of Object.entries(last.report.categories)) md.push(`| ${k} | ${c.textures} | ${c.texGpuMB} | ${c.texCpuMB} | ${c.geometries} | ${c.geoMB} | ${c.materials} | ${c.skeletons} | ${c.boneTexMB} |`);
+  md.push('| categoria | texturas | tex GPU MB | tex CPU MB | geometrias | geo GPU MB | geo CPU MB | materiais | esqueletos | bones MB |');
+  md.push('|---|---|---|---|---|---|---|---|---|---|');
+  for (const [k, c] of Object.entries(last.report.categories)) md.push(`| ${k} | ${c.textures} | ${c.texGpuMB} | ${c.texCpuMB} | ${c.geometries} | ${c.geoMB} | ${c.geoCpuMB ?? c.geoMB} | ${c.materials} | ${c.skeletons} | ${c.boneTexMB} |`);
   const d = last.report.duplicates;
   if (d) md.push(`\nDuplicatas: texturas ${d.counts.textures} grupos (${d.counts.texWastedMB} MB desperdiçados), materiais ${d.counts.materials} cópias, geometrias ${d.counts.geometries} cópias (${d.counts.geoWastedMB} MB)\n`);
   if (last.report.ledger) md.push(`GPU (livro-razão): texturas ${last.report.ledger.texturesMB} MB (${last.report.ledger.textureCount}), buffers ${last.report.ledger.buffersMB} MB, renderbuffers ${last.report.ledger.renderbuffersMB} MB, texturas sem dono na cena ${last.report.ledger.unattributedTexMB} MB\n`);
