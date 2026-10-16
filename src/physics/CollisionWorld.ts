@@ -6,89 +6,43 @@
  * manter o jogador no chão e impedir a câmera de atravessar prédios.
  */
 import type { ChunkData, Poly, XZ } from '../world/types';
-import { arcadeSpans } from '../world/builders/buildings';
+import { arcadeSpans } from '../world/arcades';
+import { WallGrid, buildingWalls, barrierWalls, type Seg } from './walls';
 import { CURB_HEIGHT, PLATFORM_HEIGHT } from '../world/types';
 
-interface Seg { ax: number; az: number; bx: number; bz: number; bottom: number; top: number }
 
 export const enum Surface { Void = 0, Road = 1, Walk = 2, Platform = 3, Water = 4, Building = 5 }
 const SURFACE_HEIGHT = [0, 0, CURB_HEIGHT, PLATFORM_HEIGHT, -0.4, CURB_HEIGHT];
 
-const CELL = 16;
 const HF_RES = 0.5;
 
 interface HeightTile { minX: number; minZ: number; size: number; n: number; data: Uint8Array }
 
 export class CollisionWorld {
-  private grid = new Map<number, Seg[]>();
+  readonly walls = new WallGrid();
   private tiles = new Map<string, HeightTile>();
   private chunkSize: number;
-  segmentCount = 0;
+  get segmentCount() { return this.walls.segmentCount; }
 
   constructor(chunkSize: number, private worldBounds: [number, number, number, number]) {
     this.chunkSize = chunkSize;
   }
 
-  private key(ix: number, iz: number) {
-    return (ix + 4096) * 8192 + (iz + 4096);
-  }
-
   addPolygon(ring: XZ[], bottom: number, top: number) {
-    for (let i = 0; i < ring.length; i++) {
-      const a = ring[i], b = ring[(i + 1) % ring.length];
-      this.addSegment({ ax: a[0], az: a[1], bx: b[0], bz: b[1], bottom, top });
-    }
+    this.walls.addPolygon(ring, bottom, top);
   }
 
-  addSegment(s: Seg) {
-    const x0 = Math.floor(Math.min(s.ax, s.bx) / CELL), x1 = Math.floor(Math.max(s.ax, s.bx) / CELL);
-    const z0 = Math.floor(Math.min(s.az, s.bz) / CELL), z1 = Math.floor(Math.max(s.az, s.bz) / CELL);
-    for (let ix = x0; ix <= x1; ix++) for (let iz = z0; iz <= z1; iz++) {
-      const k = this.key(ix, iz);
-      const arr = this.grid.get(k);
-      if (arr) arr.push(s); else this.grid.set(k, [s]);
-    }
-    this.segmentCount++;
+  addSegment(seg: Seg) {
+    this.walls.addSegment(seg);
   }
 
   addChunkBuildings(chunk: ChunkData) {
-    for (const b of chunk.buildings) {
-      if (b.canopy || b.minHeight > 2.2) continue; // marquises: passa por baixo
-      const spans = arcadeSpans(b);
-      if (!spans.length) {
-        this.addPolygon(b.poly.outer, b.minHeight, b.height);
-      } else {
-        // galerias: fachada só acima do teto; parede interna, fechamentos e colunas bloqueiam
-        const ring = b.poly.outer;
-        const key = (a: XZ, c: XZ) => spans.find((sp) => (sp.a === a && sp.c === c) || (sp.a === c && sp.c === a));
-        for (let i = 0; i < ring.length; i++) {
-          const a = ring[i], c = ring[(i + 1) % ring.length];
-          const sp = key(a, c);
-          this.addSegment({ ax: a[0], az: a[1], bx: c[0], bz: c[1], bottom: sp ? sp.height : b.minHeight, top: b.height });
-        }
-        for (const sp of spans) {
-          this.addSegment({ ax: sp.ai[0], az: sp.ai[1], bx: sp.ci[0], bz: sp.ci[1], bottom: 0, top: sp.height });
-          this.addSegment({ ax: sp.a[0], az: sp.a[1], bx: sp.ai[0], bz: sp.ai[1], bottom: 0, top: sp.height });
-          this.addSegment({ ax: sp.c[0], az: sp.c[1], bx: sp.ci[0], bz: sp.ci[1], bottom: 0, top: sp.height });
-          for (const col of sp.columns) {
-            const w = 0.3;
-            this.addPolygon([[col[0] - w, col[1] - w], [col[0] + w, col[1] - w], [col[0] + w, col[1] + w], [col[0] - w, col[1] + w]], 0, sp.height);
-          }
-        }
-      }
-      for (const h of b.poly.holes ?? []) this.addPolygon(h, b.minHeight, b.height);
-    }
+    for (const b of chunk.buildings) this.walls.addAll(buildingWalls(b));
   }
 
   /** gradis e muros (linhas OSM barrier=fence/wall) bloqueiam a passagem */
   addChunkBarriers(chunk: ChunkData) {
-    for (const l of chunk.lines) {
-      if (l.kind !== 'fence' && l.kind !== 'wall') continue;
-      for (let i = 0; i < l.pts.length - 1; i++) {
-        const a = l.pts[i], b = l.pts[i + 1];
-        this.addSegment({ ax: a[0], az: a[1], bx: b[0], bz: b[1], bottom: 0, top: l.kind === 'fence' ? 2.2 : 2.4 });
-      }
-    }
+    this.walls.addAll(barrierWalls(chunk.lines));
   }
 
   /**
@@ -193,57 +147,11 @@ export class CollisionWorld {
 
   /** Empurra um círculo (jogador) para fora das paredes cuja faixa de altura intersecta [y, y+h]. */
   resolveCircle(pos: { x: number; y: number; z: number }, radius: number, height: number): boolean {
-    let hit = false;
-    for (let iter = 0; iter < 3; iter++) {
-      let moved = false;
-      const ix0 = Math.floor((pos.x - radius) / CELL), ix1 = Math.floor((pos.x + radius) / CELL);
-      const iz0 = Math.floor((pos.z - radius) / CELL), iz1 = Math.floor((pos.z + radius) / CELL);
-      for (let ix = ix0; ix <= ix1; ix++) for (let iz = iz0; iz <= iz1; iz++) {
-        const arr = this.grid.get(this.key(ix, iz));
-        if (!arr) continue;
-        for (const s of arr) {
-          if (s.top < pos.y + 0.3 || s.bottom > pos.y + height) continue;
-          const dx = s.bx - s.ax, dz = s.bz - s.az;
-          const l2 = dx * dx + dz * dz;
-          let t = l2 > 0 ? ((pos.x - s.ax) * dx + (pos.z - s.az) * dz) / l2 : 0;
-          t = Math.max(0, Math.min(1, t));
-          const cx = s.ax + dx * t, cz = s.az + dz * t;
-          const ox = pos.x - cx, oz = pos.z - cz;
-          const d = Math.hypot(ox, oz);
-          if (d < radius && d > 1e-6) {
-            const push = radius - d;
-            pos.x += (ox / d) * push;
-            pos.z += (oz / d) * push;
-            moved = hit = true;
-          }
-        }
-      }
-      if (!moved) break;
-    }
-    return hit;
+    return this.walls.resolveCircle(pos, radius, height);
   }
 
   /** Primeira interseção do segmento 3D a→b com paredes (fração 0–1), ou 1 se livre. */
   raycast(ax: number, ay: number, az: number, bx: number, by: number, bz: number): number {
-    let best = 1;
-    const ix0 = Math.floor(Math.min(ax, bx) / CELL), ix1 = Math.floor(Math.max(ax, bx) / CELL);
-    const iz0 = Math.floor(Math.min(az, bz) / CELL), iz1 = Math.floor(Math.max(az, bz) / CELL);
-    const rx = bx - ax, rz = bz - az;
-    for (let ix = ix0; ix <= ix1; ix++) for (let iz = iz0; iz <= iz1; iz++) {
-      const arr = this.grid.get(this.key(ix, iz));
-      if (!arr) continue;
-      for (const s of arr) {
-        const sx = s.bx - s.ax, sz = s.bz - s.az;
-        const den = rx * sz - rz * sx;
-        if (Math.abs(den) < 1e-9) continue;
-        const qx = s.ax - ax, qz = s.az - az;
-        const t = (qx * sz - qz * sx) / den;
-        const u = (qx * rz - qz * rx) / den;
-        if (t < 0 || t > best || u < 0 || u > 1) continue;
-        const y = ay + (by - ay) * t;
-        if (y >= s.bottom - 0.2 && y <= s.top + 0.3) best = t;
-      }
-    }
-    return best;
+    return this.walls.raycast(ax, ay, az, bx, by, bz);
   }
 }

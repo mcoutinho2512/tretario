@@ -11,29 +11,17 @@
  * Alturas das torres, naves e escadaria são ESTIMATIVAS proporcionais a fotos — validar.
  */
 import * as THREE from 'three';
-import type { LandmarkRec, XZ } from '../types';
+import type { LandmarkRec } from '../types';
 import { ArchBuilder, type ArchMat } from './arch';
 import type { LandmarkInstance } from './central';
+import { CANDELARIA_PARAMS, candelariaColliders } from './colliders';
+export { CANDELARIA_PARAMS } from './colliders';
 
 const WALL = 0xe4ddcd; // caiado/levemente envelhecido
 const GRANITE = 0x7c766c; // cantaria
 const LIOZ = 0xc9c2b2; // cúpula de lioz
 const DARK = 0x2c2a28; // vãos/portas
 const BRONZE = 0x3b3226;
-
-export const CANDELARIA_PARAMS = {
-  plinth: 0.9,
-  facadeDepth: 12,
-  facadeHalfW: 18,
-  facadeCornice: 22,
-  frontispieceTop: 27,
-  pedimentH: 5,
-  tower: { half: 4.4, body: 31, belfry: 38, bulbTop: 44, lantern: 47, cross: 50 },
-  nave: { halfW: 15, centralHalfW: 7.5, centralH: 24, aisleH: 17 },
-  transept: { halfW: 19.5, h: 24, s0: -15, s1: 2 },
-  apse: { halfW: 13, h: 21 },
-  dome: { s: -6.5, drumR: 8.4, drumBase: 24, drumTop: 35.5, domeTop: 51.5, lanternTop: 57.5, crossTop: 62.3 },
-};
 
 export function buildCandelaria(lm: LandmarkRec, archMats: Record<ArchMat, THREE.Material>): LandmarkInstance {
   const P = CANDELARIA_PARAMS;
@@ -257,17 +245,6 @@ export function buildCandelaria(lm: LandmarkRec, archMats: Record<ArchMat, THREE
 
   const group = ab.build(archMats, 'LANDMARK_CANDELARIA');
 
-  // colisores: retângulos alinhados ao eixo
-  const toW = (s: number, z: number): XZ => {
-    const p = new THREE.Vector3(s, 0, z).applyMatrix4(ab.frame);
-    return [p.x, p.z];
-  };
-  const rect = (s0: number, s1: number, hw: number): XZ[] => [toW(s0, -hw), toW(s1, -hw), toW(s1, hw), toW(s0, hw)];
-  const colliders: LandmarkInstance['colliders'] = [
-    { poly: rect(sA0, T.s0, P.apse.halfW), height: P.apse.h + y0 },
-    { poly: rect(T.s0, T.s1, T.halfW), height: D.domeTop },
-    { poly: rect(T.s1, sF0, N.halfW), height: N.centralH + y0 },
-    { poly: rect(sF0, sF1, P.facadeHalfW), height: TW.cross },
-  ];
+  const colliders: LandmarkInstance['colliders'] = candelariaColliders(lm);
   return { group, colliders, update() { /* estático */ } };
 }

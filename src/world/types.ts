@@ -180,6 +180,8 @@ export interface WorldManifest {
   /** estações reais de bicicleta compartilhada (OSM amenity=bicycle_rental) */
   bikeStations?: { p: XZ; name?: string; capacity?: number }[];
   streetSigns?: StreetSignRec[];
+  /** colisão do servidor (segmentos Float32) */
+  collision?: string;
   /** arquivo das faixas de tráfego (veículos NPC) */
   traffic?: string;
   attribution: string;

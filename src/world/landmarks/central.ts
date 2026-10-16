@@ -13,6 +13,8 @@ import type { BuildingRec, LandmarkRec, XZ } from '../types';
 import { FacadeStyle } from '../types';
 import { buildBuildingsGeometry } from '../builders/buildings';
 import { ArchBuilder, clipPolygonHalfPlane, type ArchMat } from './arch';
+import { CENTRAL_PARAMS, frameFromFootprint, centralColliders } from './colliders';
+export { CENTRAL_PARAMS } from './colliders';
 
 export interface LandmarkInstance {
   group: THREE.Group;
@@ -23,51 +25,6 @@ export interface LandmarkInstance {
 
 const CREAM = 0xeee8da;
 const CREAM_DARK = 0xd8d0be;
-
-// parâmetros (metros) — ESTIMATIVAS a validar
-export const CENTRAL_PARAMS = {
-  mainBlockHeight: 29, // 7 andares + térreo alto
-  mainBlockDepth: 34, // profundidade do bloco principal a partir da fachada leste
-  concourseHeight: 16, // gare/hall atrás do bloco principal
-  towerU: 27, // posição da torre ao longo da fachada (a partir do canto sul)
-  towerV: 15, // recuo da torre em relação à fachada
-  towerSize: 21,
-  shaftTop: 80,
-  clockStageTop: 97,
-  clockCenter: 88.5,
-  clockRadius: 4.7,
-  crown: [[97, 103, 17], [103, 108, 12.5], [108, 111.5, 8.5]] as [number, number, number][],
-  mastTop: 125,
-};
-
-function pointInRing(p: XZ, ring: XZ[]) {
-  let inside = false;
-  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-    const xi = ring[i][0], zi = ring[i][1], xj = ring[j][0], zj = ring[j][1];
-    if (zi > p[1] !== zj > p[1] && p[0] < ((xj - xi) * (p[1] - zi)) / (zj - zi) + xi) inside = !inside;
-  }
-  return inside;
-}
-
-function frameFromFootprint(fp: XZ[]) {
-  // fachada leste = maior aresta cuja normal EXTERNA aponta para leste (testada por ponto-no-polígono)
-  let best = { len: 0, a: fp[0], b: fp[1], nx: 1, nz: 0 };
-  for (let i = 0; i < fp.length; i++) {
-    const a = fp[i], b = fp[(i + 1) % fp.length];
-    const dx = b[0] - a[0], dz = b[1] - a[1];
-    const len = Math.hypot(dx, dz);
-    if (len < 1) continue;
-    let nx = dz / len, nz = -dx / len;
-    const mid: XZ = [(a[0] + b[0]) / 2 + nx * 0.5, (a[1] + b[1]) / 2 + nz * 0.5];
-    if (pointInRing(mid, fp)) { nx = -nx; nz = -nz; }
-    if (nx > 0.7 && len > best.len) best = { len, a, b, nx, nz };
-  }
-  // origem: extremidade SUL da aresta (maior z)
-  const south = best.a[1] > best.b[1] ? best.a : best.b;
-  const north = south === best.a ? best.b : best.a;
-  const ux = (north[0] - south[0]) / best.len, uz = (north[1] - south[1]) / best.len;
-  return { origin: south, u: [ux, uz] as XZ, v: [-best.nx, -best.nz] as XZ, facadeLen: best.len };
-}
 
 function makeClockDial(): THREE.CanvasTexture {
   const c = document.createElement('canvas');
@@ -130,8 +87,7 @@ export function buildCentral(lm: LandmarkRec, buildingMat: THREE.Material, archM
     m.name = 'central_volumes';
     group.add(m);
   }
-  colliders.push({ poly: fp, height: P.mainBlockHeight });
-  colliders.push({ poly: rect(P.towerU, P.towerV, T, T), height: P.crown[2][1] });
+  colliders.push(...centralColliders(lm));
 
   // ---------- detalhes arquitetônicos ----------
   const ab = new ArchBuilder();

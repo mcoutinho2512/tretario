@@ -16,6 +16,8 @@ import {
 } from './lib/clip';
 import { centroid, samplePolyline, simplify, polylineLength, distPointPolyline } from './lib/geom';
 import { CHUNK_SIZE, REGION_BBOX } from '../src/geo/region';
+import { buildingWalls, barrierWalls, areaEdgeWalls, encodeSegments, type Seg } from '../src/physics/walls';
+import { landmarkColliders } from '../src/world/landmarks/colliders';
 import { GeoProjection, WORLD_ORIGIN } from '../src/geo/projection';
 import type {
   XZ, Poly, BuildingRec, RoadRec, AreaRec, LineRec, PropRec, SignalRec, ChunkData, WorldManifest, LandmarkRec,
@@ -495,6 +497,30 @@ const billboards: BillboardSlot[] = [];
   log(`painéis de LED: ${billboards.length} locais (${[...new Set(billboards.map((b) => b.zone))].join(', ')})`);
 }
 
+// ---------------------------------------------------------------------------------------------
+// Colisão autoritativa do servidor: só segmentos 2D com faixa de altura (nenhuma malha 3D).
+// Mesmas funções usadas pelo cliente (src/physics/walls.ts) → mesma geometria nos dois lados.
+// ---------------------------------------------------------------------------------------------
+let collisionFile = '';
+{
+  const segs: Seg[] = [];
+  for (const b of F.buildings) buildingWalls(b, segs);
+  barrierWalls(F.lines, segs);
+  areaEdgeWalls(pathsToPolys(waterPaths), 5, segs);
+  areaEdgeWalls(pathsToPolys(platformPaths), 0.9, segs);
+  for (const lm of F.landmarks) for (const c of landmarkColliders(lm)) {
+    const r = c.poly;
+    for (let i = 0; i < r.length; i++) {
+      const a = r[i], b2 = r[(i + 1) % r.length];
+      segs.push({ ax: a[0], az: a[1], bx: b2[0], bz: b2[1], bottom: c.minHeight ?? 0, top: c.height });
+    }
+  }
+  const buf = Buffer.from(encodeSegments(segs).buffer);
+  collisionFile = `collision.${createHash('sha1').update(buf).digest('hex').slice(0, 10)}.bin`;
+  writeFileSync(`${OUT_DIR}/${collisionFile}`, buf);
+  log(`colisão do servidor: ${segs.length} segmentos, ${(buf.length / 1e6).toFixed(2)} MB (${collisionFile})`);
+}
+
 const trafficJson = JSON.stringify({ lanes: lanesOut, junctions: junctionsOut, crossings: pedCrossings });
 const trafficFile = `traffic.${createHash('sha1').update(trafficJson).digest('hex').slice(0, 10)}.json`;
 writeFileSync(`${OUT_DIR}/${trafficFile}`, trafficJson);
@@ -521,6 +547,7 @@ const manifest: WorldManifest = {
   pvAxis: F.pvAxis,
   minimapRoads,
   traffic: trafficFile,
+  collision: collisionFile,
   monuments: F.monuments,
   billboards,
   bikeStations: F.bikeStations,
