@@ -30,7 +30,7 @@ const POSES = {
   p6_oeste: [[690, -170], [690, 1.7, -170], [-660, 60, 105]],
   // fechadas nos edifícios de reconhecimento (enquadramentos parecidos com as fotos de referência)
   c1_banco_central: [[170, 25], [170, 1.7, 25], [520, 45, -120]], // como AvPresVargas1 (2017)
-  c2_embratel: [[-150, 72], [-150, 1.7, 72], [-20, 24, 38]],
+  c2_embratel: [[-135, 112], [-135, 1.7, 112], [-30, 24, 40]],
   c3_kennedy: [[400, -60], [400, 1.7, -60], [365, 40, 5]],
   c4_biblioteca: [[-250, 175], [-250, 1.7, 175], [-205, 8, 215]],
   c5_rio_branco: [[612, -140], [612, 1.7, -140], [380, 40, -40]], // como AvPresVargas2 (2017), olhando para oeste

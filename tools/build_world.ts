@@ -458,8 +458,9 @@ const billboards: BillboardSlot[] = [];
   const hubs = F.validation.filter((v) => /INTERSECTION_(RIO_BRANCO|URUGUAIANA|PASSOS|PROCOPIO|DA_REPUBLICA|PRIMEIRO_DE_MARCO|TOME_DE_SOUSA)/.test(v.key) || v.key === 'LANDMARK_CENTRAL');
   const cands: (BillboardSlot & { score: number })[] = [];
   for (const b of F.buildings) {
-    // edifícios históricos com modelo dedicado (CCBB, Palácio Duque de Caxias) não recebem painéis
-    if (b.height < 28 || b.canopy || b.model) continue;
+    // edifícios históricos/de reconhecimento com modelo dedicado não recebem painéis — exceto os
+    // blocos genéricos do PA (pa:*), cuja fachada continua sendo "fundo" para a mídia urbana
+    if (b.height < 28 || b.canopy || (b.model && !b.model.startsWith('pa:'))) continue;
     const ring = b.poly.outer;
     for (let i = 0; i < ring.length; i++) {
       const a = ring[i], c = ring[(i + 1) % ring.length];
@@ -481,8 +482,10 @@ const billboards: BillboardSlot[] = [];
       const h = w * (w > 10 ? 0.5625 : 1.3); // 16:9 ou vertical
       const y = Math.min(b.height - h / 2 - 3, 12 + h / 2 + (b.id % 3) * 3);
       if (y - h / 2 < 8) continue;
+      // blocos PA modelados têm pilastras/aparelhos de ar-condicionado salientes: painel mais afastado
+      const off = b.model ? 0.75 : 0.25;
       cands.push({
-        id: `bb_${b.id}_${i}`, p: [r2(mid[0] + nx * 0.25), r2(mid[1] + nz * 0.25)], y: r2(y), w: r2(w), h: r2(h),
+        id: `bb_${b.id}_${i}`, p: [r2(mid[0] + nx * off), r2(mid[1] + nz * off)], y: r2(y), w: r2(w), h: r2(h),
         r: r2(Math.atan2(nx, nz)), zone: hub.key, buildingId: b.id, score: hd + dMid * 0.5 - len * 0.2,
       });
     }
