@@ -3,10 +3,10 @@
   "time": "10:30",
   "shots": {
     "central1": {
-      "cpuMs": 2.81,
-      "gpuMs": 3.59,
-      "calls": 500,
-      "triangles": 1230642
+      "cpuMs": 2.78,
+      "gpuMs": 14.2,
+      "calls": 520,
+      "triangles": 1023936
     },
     "central2": {
       "cpuMs": 3.47,
@@ -45,10 +45,10 @@
       "triangles": 1612738
     },
     "palacio1": {
-      "cpuMs": 2.94,
-      "gpuMs": 8.23,
-      "calls": 550,
-      "triangles": 1404302
+      "cpuMs": 3.28,
+      "gpuMs": 7.56,
+      "calls": 710,
+      "triangles": 1575690
     },
     "palacio2": {
       "cpuMs": 2.84,
@@ -57,16 +57,16 @@
       "triangles": 1301082
     },
     "ccbb1": {
-      "cpuMs": 2.6,
-      "gpuMs": 8.49,
-      "calls": 342,
-      "triangles": 1523210
+      "cpuMs": 2.57,
+      "gpuMs": 6.34,
+      "calls": 400,
+      "triangles": 1328365
     },
     "ccbb2": {
-      "cpuMs": 2.51,
-      "gpuMs": 10.79,
-      "calls": 368,
-      "triangles": 1345480
+      "cpuMs": 2.43,
+      "gpuMs": 10.03,
+      "calls": 464,
+      "triangles": 1325162
     }
   },
   "errors": []

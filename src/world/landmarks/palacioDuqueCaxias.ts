@@ -31,8 +31,8 @@ export const PALACIO_PARAMS = {
   crown: [[74, 77, 17], [77, 79.6, 13], [79.6, 82, 9]] as [number, number, number][], // até ~82 m (SKYDB)
 };
 
-const CREAM = 0xe6dfcb; // pastilha creme
-const CREAM_SHADE = 0xd6cdb7;
+const CREAM = 0xe4d8bf; // pastilha creme
+const CREAM_SHADE = 0xd9cdb3;
 const GRANITE = 0x9a7468; // granito rosado/castanho (fotos 2022) — mais claro que o anterior
 const GRANITE_DARK = 0x7d5a50;
 const GLASS = 0x2b3238;

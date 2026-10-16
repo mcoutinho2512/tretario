@@ -24,7 +24,7 @@ export const CCBB_PARAMS = {
   nobileTop: 19.4, // janelas altas de 2 pavimentos
   fifthTop: 24.4,
   atticTop: 29.8,
-  bay: 4.3,
+  bay: 5.0,
   pavilion: 9.5, // largura dos pavilhões de canto (salientes 0,6 m)
   entranceW: 24, // frontispício central em granito escuro (fachada oeste)
 };
@@ -71,7 +71,7 @@ export function buildCCBB(b: BuildingRec, archMats: Record<ArchMat, THREE.Materi
         const isEntrance = main && x0 === pv;
         // embasamento: térreo alto + mezanino (óculos)
         if (!isEntrance) {
-          ab.facadeGrid({ x0, x1, y0: 0.5, floors: 1, floorH: 6.0, bay: P.bay, winW: 1.9, winH: 4.1, sill: 0.6, frameD: 0.45, pierW: 0.5, wall: STONE, wallMat: 'granite', glass: 0x262b2f, mullions: true });
+          ab.facadeGrid({ x0, x1, y0: 0.5, floors: 1, floorH: 6.0, bay: P.bay, winW: 2.2, winH: 4.1, sill: 0.6, frameD: 0.45, pierW: 0.5, wall: STONE, wallMat: 'granite', glass: 0x262b2f, mullions: true });
           const nb = Math.max(1, Math.round((x1 - x0) / P.bay));
           for (let k = 0; k < nb; k++) {
             const x = x0 + ((k + 0.5) * (x1 - x0)) / nb;
@@ -82,18 +82,18 @@ export function buildCCBB(b: BuildingRec, archMats: Record<ArchMat, THREE.Materi
           ab.box(x1 - x0, 0.6, 0.9, (x0 + x1) / 2, P.baseTop - 0.6, 0.45, WHITE, 'stone');
         }
         // piano nobile: janelas altas com molduras e balcões
-        ab.facadeGrid({ x0, x1, y0: P.baseTop, floors: 1, floorH: P.nobileTop - P.baseTop, bay: P.bay, winW: 1.9, winH: 6.6, sill: 1.2, frameD: 0.35, pierW: 0.7, pierD: 0.06, wall: WALL, wallMat: 'stone', glass: GLASS, mullions: true });
+        ab.facadeGrid({ x0, x1, y0: P.baseTop, floors: 1, floorH: P.nobileTop - P.baseTop, bay: P.bay, winW: 2.4, winH: 6.6, sill: 1.2, frameD: 0.35, pierW: 0.7, pierD: 0.06, wall: WALL, wallMat: 'stone', glass: GLASS, mullions: true });
         const nb = Math.max(1, Math.round((x1 - x0) / P.bay));
         for (let k = 0; k < nb; k++) {
           const x = x0 + ((k + 0.5) * (x1 - x0)) / nb;
-          ab.box(2.5, 0.3, 0.3, x, P.baseTop + 1.2 + 6.6, 0.5, WHITE, 'stone'); // verga
-          for (const s of [-1, 1]) ab.box(0.22, 6.6, 0.12, x + s * 1.06, P.baseTop + 1.2, 0.42, WHITE, 'stone'); // moldura
-          ab.box(2.6, 0.18, 0.9, x, P.baseTop + 1.1, 0.75, WHITE, 'stone'); // balcão
-          ab.detail(() => ab.balustrade(x - 1.2, 1.05, x + 1.2, 1.05, P.baseTop + 1.25, WHITE, 0.3));
+          ab.box(3.0, 0.3, 0.3, x, P.baseTop + 1.2 + 6.6, 0.5, WHITE, 'stone'); // verga
+          for (const s of [-1, 1]) ab.box(0.22, 6.6, 0.12, x + s * 1.31, P.baseTop + 1.2, 0.42, WHITE, 'stone'); // moldura
+          ab.box(3.1, 0.18, 0.9, x, P.baseTop + 1.1, 0.75, WHITE, 'stone'); // balcão
+          ab.detail(() => ab.balustrade(x - 1.45, 1.05, x + 1.45, 1.05, P.baseTop + 1.25, WHITE, 0.3));
         }
         ab.box(x1 - x0, 0.9, 1.0, (x0 + x1) / 2, P.nobileTop - 0.2, 0.5, WHITE, 'stone'); // cornija intermediária
         // 5º pavimento
-        ab.facadeGrid({ x0, x1, y0: P.nobileTop + 0.7, floors: 1, floorH: P.fifthTop - P.nobileTop - 0.7, bay: P.bay, winW: 1.6, winH: 2.4, sill: 1.0, frameD: 0.3, pierW: 0.7, wall: WALL, wallMat: 'stone', glass: GLASS, mullions: true });
+        ab.facadeGrid({ x0, x1, y0: P.nobileTop + 0.7, floors: 1, floorH: P.fifthTop - P.nobileTop - 0.7, bay: P.bay, winW: 2.0, winH: 2.4, sill: 1.0, frameD: 0.3, pierW: 0.7, wall: WALL, wallMat: 'stone', glass: GLASS, mullions: true });
         ab.box(x1 - x0, 0.8, 1.3, (x0 + x1) / 2, P.fifthTop, 0.6, WHITE, 'stone'); // cornija principal (branca)
         // ático recuado com janelas pequenas
         ab.withFrame(new THREE.Matrix4().makeTranslation(0, 0, -0.5), () => {

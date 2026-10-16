@@ -21,13 +21,13 @@ import type { LandmarkInstance } from './central';
 import { CANDELARIA_PARAMS, candelariaColliders, candelariaFrame } from './colliders';
 export { CANDELARIA_PARAMS } from './colliders';
 
-const WALL = 0xebe5d8; // panos caiados
-const CANT = 0x8e8376; // cantaria (granito cinza-acastanhado)
-const CANT_DARK = 0x766c61;
+const WALL = 0xf0e7d6; // panos caiados
+const CANT = 0x8d7f70; // cantaria (granito cinza-acastanhado)
+const CANT_DARK = 0x75695c;
 const LIOZ = 0xc4beb2; // cúpula em lioz
 const BULB = 0xe4e1da; // coruchéus
 const DARK = 0x24221f;
-const BRONZE = 0x4a3b28;
+const BRONZE = 0x56422c;
 const GLASS = 0x3a4045;
 
 export function buildCandelaria(lm: LandmarkRec, archMats: Record<ArchMat, THREE.Material>): LandmarkInstance {
@@ -166,14 +166,23 @@ export function buildCandelaria(lm: LandmarkRec, archMats: Record<ArchMat, THREE
     };
     const segPed = (x: number, y: number, w: number) => ab.segmentalPediment(w, w * 0.22, 0.35, 0.5, x, y, 0.35, 0, CANT_DARK, 'granite');
     // 1ª ordem
-    frameArch(0, 1.2, 4.0, 7.8, BRONZE, 'metal', 0.6); // portal central (portas de bronze)
+    frameArch(0, 1.2, 4.0, 7.8, BRONZE, 'dark', 0.6); // portal central (portas de bronze)
     ab.box(1.8, 1.2, 0.5, 0, 9.0, 0.3, CANT_DARK, 'granite'); // cartela sobre o portal
+    ab.detail(() => {
+      // folhas das portas de bronze com almofadas em relevo
+      for (const [cx, w, h] of [[0, 4.0, 5.8], [-4.3, 2.1, 4.8], [4.3, 2.1, 4.8], [-13.6, 2.6, 4.4], [13.6, 2.6, 4.4]] as const) {
+        ab.box(0.08, h, 0.1, cx, 1.2, 0.12, 0x2e2418, 'dark');
+        for (const s of [-1, 1]) for (let k = 0; k < 3; k++) {
+          ab.box(w / 2 - 0.5, h / 3 - 0.5, 0.08, cx + s * w / 4, 1.2 + 0.25 + (k * h) / 3, 0.12, 0x66503a, 'dark');
+        }
+      }
+    });
     for (const sgn of [-1, 1]) {
-      rectOpen(sgn * 4.3, 1.2, 2.1, 4.8, BRONZE, 'metal'); // portas laterais
+      rectOpen(sgn * 4.3, 1.2, 2.1, 4.8, BRONZE, 'dark'); // portas laterais
       segPed(sgn * 4.3, 6.6, 3.2);
       rectOpen(sgn * 7.6, 3.2, 1.3, 2.2, GLASS, 'glass'); // nichos/janelas pequenas
       ab.box(1.9, 1.6, 0.25, sgn * 7.6, 6.4, 0.12, CANT, 'granite'); // painel
-      frameArch(sgn * 13.6, 1.2, 2.6, 6.2, BRONZE, 'metal', 0.5); // portas das torres
+      frameArch(sgn * 13.6, 1.2, 2.6, 6.2, BRONZE, 'dark', 0.5); // portas das torres
       ab.add(new THREE.TorusGeometry(0.6, 0.14, 8, 20).translate(sgn * 13.6, 8.6, 0.3), CANT, 'granite');
       ab.add(new THREE.CircleGeometry(0.58, 20).translate(sgn * 13.6, 8.6, 0.2), GLASS, 'glass');
     }

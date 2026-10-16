@@ -15,12 +15,15 @@ mkdirSync(OUT, { recursive: true });
 
 // [jogador x,z] [câmera x,h,z] [alvo x,h,z]
 const POSES = {
-  central1: [[-600, -10], [-598, 2, -22], [-636, 50, 92]], // Praça Cristiano Ottoni (vindo do norte), nível do pedestre
+  central1: [[-605, 30], [-603, 1.7, 22], [-636, 46, 92]], // Praça Cristiano Ottoni (vindo do norte), nível do pedestre
   central2: [[-560, 250], [-520, 9, 300], [-650, 55, 120]], // da Pres. Vargas
   central3: [[-560, 150], [-430, 150, 260], [-650, 30, 100]], // aérea
   central4: [[-600, 100], [-575, 70, 120], [-639, 92, 92]], // relógio de perto
+  central6: [[-612, 75], [-614, 1.7, 72], [-622, 5, 78]], // material do revestimento a ~8 m
   cand1: [[820, -200], [845, 6, -225], [745, 26, -186]], // fachada leste (Rua 1º de Março)
-  cand2: [[640, -150], [630, 6, -140], [735, 28, -182]], // abside, da avenida
+  central5: [[-600, 70], [-603, 1.7, 62], [-625, 14, 84]], // close-up da base da torre (materiais)
+  cand2: [[650, -150], [650, 26, -150], [735, 30, -182]], // abside, da avenida
+  cand4: [[790, -190], [796, 1.7, -196], [776, 9, -189]], // close-up do portal (materiais)
   cand3: [[740, -180], [860, 120, -300], [740, 20, -182]], // aérea
   palacio1: [[-500, 150], [-505, 2, 152], [-462, 42, 95]], // Praça Duque de Caxias (junto ao Panteão)
   palacio2: [[-430, 230], [-300, 120, 300], [-480, 30, 60]], // aérea

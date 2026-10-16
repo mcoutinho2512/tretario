@@ -449,9 +449,9 @@ function detailStone(noise: THREE.Texture, tex: THREE.Texture | null, tile: numb
 /** Materiais dos landmarks (PBR com detalhe triplanar quando as texturas estão disponíveis). */
 export function createLandmarkMaterials(noise: THREE.Texture, tex?: LandmarkTextures): Record<ArchMat, THREE.Material> {
   return {
-    stone: detailStone(noise, tex?.plaster ?? null, 2.2, { roughness: 0.86, normal: 0.55, lum: 0.55, key: 'stone' }),
-    concrete: detailStone(noise, tex?.concrete ?? null, 3.4, { roughness: 0.8, normal: 0.45, lum: 0.45, grime: 0.13, key: 'concrete' }),
-    granite: detailStone(noise, tex?.granite ?? null, 1.6, { roughness: 0.42, normal: 0.3, lum: 0.9, grime: 0.04, key: 'granite' }),
+    stone: detailStone(noise, tex?.plaster ?? null, 2.2, { roughness: 0.86, normal: 1.2, lum: 1.3, grime: 0.12, key: 'stone' }),
+    concrete: detailStone(noise, tex?.concrete ?? null, 3.4, { roughness: 0.8, normal: 1.6, lum: 1.8, grime: 0.15, key: 'concrete' }),
+    granite: detailStone(noise, tex?.granite ?? null, 1.6, { roughness: 0.42, normal: 0.7, lum: 1.3, grime: 0.04, key: 'granite' }),
     dark: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0.1 }),
     metal: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.4, metalness: 0.85 }),
     glass: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.18, metalness: 0.1, envMapIntensity: 0.7 }),

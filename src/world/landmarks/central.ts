@@ -24,8 +24,8 @@ export interface LandmarkInstance {
   update(simTime: Date, cameraPos: THREE.Vector3): void;
 }
 
-const CREAM = 0xe8e1d0; // revestimento claro (concreto/pó de pedra)
-const CREAM_SHADE = 0xd9d1bf; // pilastras / cornijas
+const CREAM = 0xe3d9c3; // revestimento claro (concreto/pó de pedra)
+const CREAM_SHADE = 0xd6cbb3; // pilastras / cornijas
 const BASE_GRANITE = 0xa49c92; // embasamento em granito cinza
 const GLASS = 0x2d353c;
 const STEEL = 0x8c8f92;
@@ -76,14 +76,16 @@ export function buildCentral(lm: LandmarkRec, archMats: Record<ArchMat, THREE.Ma
   const floorH = 3.55;
   const floors = Math.floor((H - groundH - 1.2) / floorH);
   const facades = (poly: XZ[], isMid: boolean) => {
-    ArchBuilder.edgeFrames(poly, 2.2, (m, len, _i, a, b) => {
+    ArchBuilder.edgeFrames(poly, 1.0, (m, len, _i, a, b) => {
       const va = C.vOf(a), vb = C.vOf(b), ua = C.uOf(a), ub = C.uOf(b);
       // arestas internas (encontro com outra peça) não recebem fachada
       if (!isMid && ((near(ua, C.uA) && near(ub, C.uA)) || (near(ua, C.uB) && near(ub, C.uB))) && Math.min(va, vb) >= C.notchDepth - 0.5) return;
       if (isMid && ((near(ua, C.uA) && near(ub, C.uA)) || (near(ua, C.uB) && near(ub, C.uB)) || (near(va, C.notchDepth) && near(vb, C.notchDepth)))) return;
       const onRear = near(va, P.mainBlockDepth, 1) && near(vb, P.mainBlockDepth, 1);
       const y0 = onRear ? P.concourseHeight : 0;
-      const streamline = len < 9; // trechos curvos do contorno (cantos arredondados)
+      // trechos curvos do contorno e alas junto à torre: janelas em fita (streamline), como nas fotos
+      const um = (ua + ub) / 2;
+      const streamline = len < 9 || (Math.abs(um - P.towerU) < P.towerSize / 2 + 16 && Math.min(va, vb) < P.towerV);
       ab.withFrame(m, () => {
         if (y0 === 0) {
           // embasamento de granito + térreo alto com vãos amplos
