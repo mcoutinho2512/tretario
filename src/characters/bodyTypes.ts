@@ -35,7 +35,13 @@ export interface CharacterAppearance {
   shoes: number;
   /** variação de altura (multiplicador ~0.94–1.06) */
   scale: number;
+  /** acessório (variante de geometria compartilhada) e sua cor */
+  accessory?: Accessory;
+  acc?: number;
 }
+
+export type Accessory = 'nenhum' | 'bone' | 'mochila' | 'bolsa' | 'oculos' | 'chapeu';
+export const ACCESSORIES: Accessory[] = ['nenhum', 'bone', 'mochila', 'bolsa', 'oculos', 'chapeu'];
 
 // paleta de tons de pele (diversidade brasileira)
 export const SKIN_TONES = [0xf1c8a5, 0xe0ac85, 0xc68b62, 0xa86e4a, 0x8a5636, 0x6b3f26, 0x4f2d1b];
@@ -59,7 +65,10 @@ export function randomAppearance(seed: number, body?: BodyType): CharacterAppear
   const types: BodyType[] = ['homem', 'homem', 'mulher', 'mulher', 'idoso', 'idosa'];
   const b = body ?? pick(types);
   const old = b === 'idoso' || b === 'idosa';
+  const accPool: Accessory[] = old ? ['nenhum', 'chapeu', 'oculos', 'bolsa', 'nenhum'] : ['nenhum', 'bone', 'mochila', 'bolsa', 'oculos', 'nenhum', 'mochila'];
   return {
+    accessory: pick(accPool),
+    acc: pick([0x1f1f1f, 0x2b4a7a, 0x8a2a2a, 0xd8d0c0, 0x3d6b3d, 0x6b4a2a, 0xe0b030]),
     body: b,
     skin: pick(SKIN_TONES),
     hair: old ? pick(HAIR_OLD) : pick(HAIR_YOUNG),

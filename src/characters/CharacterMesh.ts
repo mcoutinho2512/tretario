@@ -6,7 +6,7 @@
  */
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { BODY_TYPES, type BodyType, type CharacterAppearance } from './bodyTypes';
+import { BODY_TYPES, type BodyType, type CharacterAppearance, type Accessory } from './bodyTypes';
 
 export const BONE_NAMES = [
   'Hips', 'Spine', 'Chest', 'Neck', 'Head',
@@ -17,7 +17,7 @@ export type BoneName = (typeof BONE_NAMES)[number];
 const B = Object.fromEntries(BONE_NAMES.map((n, i) => [n, i])) as Record<BoneName, number>;
 
 // regiões de cor
-const R_SKIN = 0, R_HAIR = 1, R_TOP = 2, R_BOTTOM = 3, R_SHOES = 4, R_DARK = 5;
+const R_SKIN = 0, R_HAIR = 1, R_TOP = 2, R_BOTTOM = 3, R_SHOES = 4, R_DARK = 5, R_ACC = 6;
 
 interface Rig {
   /** posição do osso em espaço de bind (mundo do personagem) */
@@ -73,10 +73,11 @@ function capsuleY(r: number, y0: number, y1: number, x = 0, z = 0, sx = 1, sz = 
   return g;
 }
 
-const geometryCache = new Map<BodyType, THREE.BufferGeometry>();
+const geometryCache = new Map<string, THREE.BufferGeometry>();
 
-function buildGeometry(body: BodyType): THREE.BufferGeometry {
-  const cached = geometryCache.get(body);
+function buildGeometry(body: BodyType, accessory: Accessory = 'nenhum'): THREE.BufferGeometry {
+  const cacheKey = `${body}:${accessory}`;
+  const cached = geometryCache.get(cacheKey);
   if (cached) return cached;
   const p = BODY_TYPES[body];
   const { joints: J } = buildRig(body);
@@ -180,15 +181,51 @@ function buildGeometry(body: BodyType): THREE.BufferGeometry {
     g.translate(0, J.Hips.y - 0.2 * k, 0);
     add(g, 'Hips', R_BOTTOM);
   }
+  // acessórios (variantes compartilhadas por tipo de corpo — não aumentam draw calls)
+  const hy = J.Head.y + 0.1 * k;
+  if (accessory === 'bone') {
+    const crown = new THREE.SphereGeometry(0.12 * k, 14, 8, 0, Math.PI * 2, 0, Math.PI * 0.45);
+    crown.scale(0.98, 0.9, 1.04);
+    crown.translate(0, hy + 0.02 * k, 0);
+    add(crown, 'Head', R_ACC);
+    const brim = new THREE.CylinderGeometry(0.09 * k, 0.09 * k, 0.012 * k, 12, 1, false, -Math.PI / 2, Math.PI);
+    brim.scale(1, 1, 1.3);
+    brim.translate(0, hy + 0.03 * k, 0.09 * k);
+    add(brim, 'Head', R_ACC);
+  } else if (accessory === 'chapeu') {
+    const crown = new THREE.CylinderGeometry(0.085 * k, 0.1 * k, 0.1 * k, 14);
+    crown.translate(0, hy + 0.1 * k, 0);
+    add(crown, 'Head', R_ACC);
+    const brim = new THREE.CylinderGeometry(0.17 * k, 0.17 * k, 0.012 * k, 16);
+    brim.translate(0, hy + 0.055 * k, 0);
+    add(brim, 'Head', R_ACC);
+  } else if (accessory === 'mochila') {
+    const bag = new THREE.BoxGeometry(0.26 * k, 0.34 * k, 0.13 * k);
+    bag.translate(0, J.Chest.y + 0.12 * k, -0.17 * k);
+    add(bag, 'Chest', R_ACC);
+  } else if (accessory === 'bolsa') {
+    const bag = new THREE.BoxGeometry(0.07 * k, 0.2 * k, 0.24 * k);
+    bag.translate(0.19 * k * (p.hip / 0.1), J.Hips.y + 0.02 * k, 0);
+    add(bag, 'Hips', R_ACC);
+    const strap = new THREE.TorusGeometry(0.22 * k, 0.008 * k, 4, 20);
+    strap.rotateY(Math.PI / 2);
+    strap.rotateX(0.5);
+    strap.translate(0.02 * k, J.Chest.y + 0.08 * k, 0);
+    add(strap, 'Chest', R_ACC);
+  } else if (accessory === 'oculos') {
+    const glasses = new THREE.BoxGeometry(0.11 * k, 0.025 * k, 0.012 * k);
+    glasses.translate(0, J.Head.y + 0.125 * k, 0.103 * k);
+    add(glasses, 'Head', R_DARK);
+  }
   const merged = mergeGeometries(parts, false)!;
   merged.computeBoundingSphere();
-  geometryCache.set(body, merged);
+  geometryCache.set(cacheKey, merged);
   return merged;
 }
 
 /** material com cores por região (uniforms) — compartilha o programa entre personagens */
 function makeMaterial(app: CharacterAppearance): THREE.MeshStandardMaterial {
-  const colors = [app.skin, app.hair, app.top, app.bottom, app.shoes, 0x111111].map((c) => new THREE.Color(c));
+  const colors = [app.skin, app.hair, app.top, app.bottom, app.shoes, 0x111111, app.acc ?? 0x222222].map((c) => new THREE.Color(c));
   const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.78, metalness: 0 });
   mat.userData.regionColors = { value: colors };
   mat.onBeforeCompile = (shader) => {
@@ -197,14 +234,14 @@ function makeMaterial(app: CharacterAppearance): THREE.MeshStandardMaterial {
       .replace('#include <common>', '#include <common>\nattribute float aRegion;\nvarying float vRegion;')
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvRegion = aRegion;');
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', '#include <common>\nuniform vec3 uRegionColors[6];\nvarying float vRegion;')
+      .replace('#include <common>', '#include <common>\nuniform vec3 uRegionColors[7];\nvarying float vRegion;')
       .replace('#include <color_fragment>', `#include <color_fragment>
         int ri = int(vRegion + 0.5);
         vec3 rc = uRegionColors[0];
-        for (int i = 1; i < 6; i++) if (i == ri) rc = uRegionColors[i];
+        for (int i = 1; i < 7; i++) if (i == ri) rc = uRegionColors[i];
         diffuseColor.rgb *= rc;`);
   };
-  mat.customProgramCacheKey = () => 'pv-character-regions';
+  mat.customProgramCacheKey = () => 'pv-character-regions-v2';
   return mat;
 }
 
@@ -234,7 +271,7 @@ export function createCharacter(app: CharacterAppearance): CharacterRig {
     bones[name].position.copy(pos);
   }
   const skeleton = new THREE.Skeleton(BONE_NAMES.map((n) => bones[n]));
-  const geo = buildGeometry(app.body);
+  const geo = buildGeometry(app.body, app.accessory);
   const mat = makeMaterial(app);
   const mesh = new THREE.SkinnedMesh(geo, mat);
   mesh.add(bones.Hips);
@@ -249,6 +286,7 @@ export function createCharacter(app: CharacterAppearance): CharacterRig {
     setAppearance(a) {
       const cols = mat.userData.regionColors.value as THREE.Color[];
       [a.skin, a.hair, a.top, a.bottom, a.shoes].forEach((c, i) => cols[i].setHex(c));
+      cols[6].setHex(a.acc ?? 0x222222);
       mesh.scale.setScalar(a.scale);
     },
     dispose() {
