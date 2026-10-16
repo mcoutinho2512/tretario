@@ -122,7 +122,7 @@ export function groundOffsets(bodyKey: string, root: THREE.Object3D, clips: Map<
 
 export class HumanAnimator {
   /** fração do sprint na corrida do jogo (0 = só trote) */
-  static sprintShare = 0;
+  static sprintShare = 0.35;
   readonly mixer: THREE.AnimationMixer;
   private act = new Map<string, THREE.AnimationAction>();
   private w: Record<string, number> = {};
@@ -243,12 +243,20 @@ export class HumanAnimator {
     }
     this.blend(targets, dt, 12);
     // velocidade de reprodução casada com o deslocamento + fase comum entre walk/jog/sprint
-    let master: THREE.AnimationAction | null = null, mw = 0;
+    // cadência ÚNICA: média ponderada da frequência de passo que cada clipe teria nesta velocidade; cada clipe toca
+    // nessa frequência (as fases ficam alinhadas). Misturar o sprint alonga a passada sem acelerar demais o trote.
+    let master: THREE.AnimationAction | null = null, mw = 0, fsum = 0, wsum = 0;
     for (const l of ['walk', 'jog', 'sprint'] as Loco[]) {
       const a = this.act.get(l);
       if (!a) continue;
-      a.timeScale = THREE.MathUtils.clamp(speed / Math.max(0.1, this.natural[l]), 0.35, 2.0);
+      const ts = THREE.MathUtils.clamp(speed / Math.max(0.1, this.natural[l]), 0.35, 2.0);
+      a.timeScale = ts;
+      if (this.w[l] > 0) { fsum += this.w[l] * ts / a.getClip().duration; wsum += this.w[l]; }
       if (this.w[l] > mw) { mw = this.w[l]; master = a; }
+    }
+    if (wsum > 0.01) {
+      const f = fsum / wsum;
+      for (const l of ['walk', 'jog', 'sprint'] as Loco[]) { const a = this.act.get(l); if (a) a.timeScale = f * a.getClip().duration; }
     }
     this.restorePose();
     this.mixer.update(dt);
@@ -285,7 +293,13 @@ export class HumanAnimator {
 
   private restorePose() {
     for (const r of this.rest) { if (r.q) r.o.quaternion.copy(r.q); if (r.p) r.o.position.copy(r.p); }
+    // desfaz os ajustes aditivos do quadro anterior: o mixer NÃO reescreve todo osso em todo quadro (ex.: trilha
+    // com chaves constantes num trecho), e o ajuste se acumulava — o tronco girava até dar "cambalhota" na corrida
+    for (let i = this.adjusted.length - 1; i >= 0; i--) this.adjusted[i].o.quaternion.copy(this.adjusted[i].q);
+    this.adjusted.length = 0;
   }
+  /** ossos ajustados neste quadro, com a pose ANTES do ajuste (restaurada no início do próximo quadro) */
+  private adjusted: { o: THREE.Object3D; q: THREE.Quaternion }[] = [];
 
   /** sola acima do osso do pé (bola/tornozelo): o osso fica dentro do calçado */
   private static readonly SOLE = 0.012;
@@ -349,6 +363,7 @@ export class HumanAnimator {
     b.parent.getWorldQuaternion(this.pq);
     this.axis.set(x, y, z).normalize().applyQuaternion(this.aq).applyQuaternion(this.pq.invert());
     this.tmpQ.setFromAxisAngle(this.axis, ang);
+    if (!this.adjusted.some((r) => r.o === b)) this.adjusted.push({ o: b, q: b.quaternion.clone() });
     b.quaternion.premultiply(this.tmpQ);
     b.updateMatrixWorld(false);
   }

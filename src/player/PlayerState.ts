@@ -39,8 +39,8 @@ export interface MoveIntent {
 
 export const PLAYER_CONSTANTS = {
   walkSpeed: 1.8,
-  // 4,4 m/s: corrida plausível (≈190 passos/min com o ciclo de trote); 5,2 deixava a cadência frenética
-  runSpeed: 4.4,
+  // 5,2 m/s (~19 km/h): trote + parte do sprint (passada mais longa), cadência única ponderada entre os clipes
+  runSpeed: 5.2,
   accel: 14,
   airControl: 0.25,
   gravity: 15.5,
