@@ -140,10 +140,13 @@ export class Ragdoll {
     // quadril: posição + rotação relativas ao mesh
     const hb = this.bodies.get('Hips')!;
     const t = hb.translation(), r = hb.rotation();
-    this.tmpM.copy(mesh.matrixWorld).invert();
+    // referencial do PAI do quadril (no rig antigo é a malha; no humano é o osso "Root")
+    const hipsParent = b.Hips.parent ?? mesh;
+    hipsParent.updateMatrixWorld(true);
+    this.tmpM.copy(hipsParent.matrixWorld).invert();
     this.tmpV.set(t.x, t.y, t.z).applyMatrix4(this.tmpM);
     b.Hips.position.copy(this.tmpV);
-    mesh.getWorldQuaternion(this.tmpQ2);
+    hipsParent.getWorldQuaternion(this.tmpQ2);
     b.Hips.quaternion.copy(this.tmpQ2.invert().multiply(this.tmpQ.set(r.x, r.y, r.z, r.w)));
     b.Hips.updateMatrixWorld(true);
     for (const [name] of BODIES) {

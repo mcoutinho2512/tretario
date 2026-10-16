@@ -1,0 +1,15 @@
+Presidente Vargas 3D — créditos de terceiros
+============================================
+
+Mapa: © OpenStreetMap contributors (ODbL 1.0) — https://www.openstreetmap.org/copyright
+
+Personagens: gerados com MakeHuman / MPFB2 (MakeHuman Community, https://www.makehumancommunity.org).
+Assets CC0: corpo, rig, olhos, sobrancelhas, cílios, peles, cabelos (MakeHuman; bogdan666; dariush086),
+  camisetas (Elvaerwyn; Joel Palmius), camisa polo (namuhekam), sapatilha (MargaretToigo), óculos (spamrakuen).
+Assets CC BY (https://creativecommons.org/licenses/by/4.0/):
+  punkduck — jeans masculino clássico, jeans feminino justo, tênis de corrida, tênis confortável, sacola de compras
+  Mindfront — calça feminina, sapato oxford masculino, boné
+  Elvaerwyn — calça masculina, bolsa a tiracolo
+Animações: Universal Animation Library — Quaternius (CC0), https://quaternius.com
+
+Outros créditos de veículos, vegetação, texturas e landmarks: ver docs/ASSET_LICENSES.md no repositório.

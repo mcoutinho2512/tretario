@@ -1,0 +1,35 @@
+{
+  "id": "homem",
+  "anim_out": "/Users/magnun/pv3d-assets-src/out/anims.glb",
+  "phenotype": {
+    "gender": 1.0,
+    "age": 0.52,
+    "muscle": 0.56,
+    "weight": 0.52,
+    "proportions": 0.62,
+    "height": 0.55,
+    "cupsize": 0.5,
+    "firmness": 0.5,
+    "race": {
+      "african": 0.42,
+      "caucasian": 0.48,
+      "asian": 0.1
+    }
+  },
+  "skin": "young_caucasian_male.mhmat",
+  "hair": "short02.mhclo",
+  "texture_override": {
+    "HAIR": "short02_diffuse_mat_04.png"
+  },
+  "clothes": {
+    "elvs_crude_t-shirt_male.mhclo": "SHIRT",
+    "punkduck_male_classic_jeans.mhclo": "PANTS",
+    "punkduck_running_shoes_01.mhclo": "SHOES",
+    "mindfront_patrol_cap.mhclo": "ACC_bone",
+    "fedora01.mhclo": "ACC_chapeu",
+    "spamrakuen_sagerfrogs_glasses_01.mhclo": "ACC_oculos",
+    "elvs_sling_purse1.mhclo": "ACC_bolsa",
+    "punkduck_shopping_bag01.mhclo": "ACC_mochila"
+  },
+  "eyes": "low-poly.mhclo"
+}

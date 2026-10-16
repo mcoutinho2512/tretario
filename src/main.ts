@@ -25,7 +25,7 @@ enginePromise.then(() => { btn.disabled = false; btn.querySelector('span')!.text
 // ------------------------------------------------------------------ aparência (salva no navegador)
 const BODIES: BodyType[] = ['homem', 'mulher', 'idoso', 'idosa'];
 const ACC_COLORS = [0x1f1f1f, 0x2b4a7a, 0x8a2a2a, 0xd8d0c0, 0x3d6b3d, 0x6b4a2a, 0xe0b030];
-const ACC_LABEL: Record<Accessory, string> = { nenhum: 'Nenhum', bone: 'Boné', chapeu: 'Chapéu', oculos: 'Óculos', mochila: 'Mochila', bolsa: 'Bolsa' };
+const ACC_LABEL: Record<Accessory, string> = { nenhum: 'Nenhum', bone: 'Boné', chapeu: 'Chapéu', oculos: 'Óculos', mochila: 'Sacola', bolsa: 'Bolsa' };
 const PALETTES = { skin: SKIN_TONES, hair: [...HAIR_YOUNG, ...HAIR_OLD], top: TOPS, bottom: BOTTOMS, shoes: SHOES, acc: ACC_COLORS };
 type ColorKey = keyof typeof PALETTES;
 const isOld = (b: BodyType) => b === 'idoso' || b === 'idosa';
@@ -127,8 +127,9 @@ function schedulePortraits() {
   clearTimeout(portraitTimer);
   portraitTimer = window.setTimeout(() => {
     if (!preview) return;
-    const urls = preview.portraits(BODIES.map(lookFor));
-    BODIES.forEach((b, i) => { const img = document.querySelector<HTMLImageElement>(`img[data-portrait=${b}]`); if (img) img.src = urls[i]; });
+    void preview.portraits(BODIES.map(lookFor)).then((urls) => {
+      BODIES.forEach((b, i) => { const img = document.querySelector<HTMLImageElement>(`img[data-portrait=${b}]`); if (img && urls[i]) img.src = urls[i]; });
+    });
   }, 220);
 }
 
@@ -166,7 +167,7 @@ if (!autostart) {
   import('./ui/AvatarPreview')
     .then(({ AvatarPreview }) => {
       preview = new AvatarPreview($<HTMLCanvasElement>('avatar-canvas'), look);
-      $('preview-loading').classList.add('hidden');
+      void preview.ready.then(() => $('preview-loading').classList.add('hidden'));
       schedulePortraits();
       (window as any).__pvStart = { preview, look: () => look };
     })

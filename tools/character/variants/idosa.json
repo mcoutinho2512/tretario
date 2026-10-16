@@ -1,0 +1,31 @@
+{
+  "id": "idosa",
+  "phenotype": {
+    "gender": 0.0,
+    "age": 0.86,
+    "muscle": 0.4,
+    "weight": 0.62,
+    "proportions": 0.5,
+    "height": 0.42,
+    "cupsize": 0.55,
+    "firmness": 0.35,
+    "race": {
+      "african": 0.4,
+      "caucasian": 0.5,
+      "asian": 0.1
+    }
+  },
+  "skin": "old_caucasian_female.mhmat",
+  "hair": "bob02.mhclo",
+  "clothes": {
+    "joepal_crude_t-shirt_female.mhclo": "SHIRT",
+    "mindfront_female_trousers_1.mhclo": "PANTS",
+    "toigo_flats.mhclo": "SHOES",
+    "mindfront_patrol_cap.mhclo": "ACC_bone",
+    "fedora01.mhclo": "ACC_chapeu",
+    "spamrakuen_sagerfrogs_glasses_01.mhclo": "ACC_oculos",
+    "elvs_sling_purse1.mhclo": "ACC_bolsa",
+    "punkduck_shopping_bag01.mhclo": "ACC_mochila"
+  },
+  "eyes": "low-poly.mhclo"
+}

@@ -1,0 +1,38 @@
+/** Página de desenvolvimento: queda (ragdoll Rapier) do personagem humano via AvatarVisual. /dev/knock.html?t=1.2 */
+import * as THREE from 'three';
+import { AvatarVisual } from '../src/player/AvatarVisual';
+import { createPlayerState } from '../src/player/PlayerState';
+import { preloadRagdoll } from '../src/physics/Ragdoll';
+
+const q = new URLSearchParams(location.search);
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.shadowMap.enabled = true;
+document.body.appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x8796a4);
+const sun = new THREE.DirectionalLight(0xfff1dc, 2.6);
+sun.position.set(3, 6, 4);
+sun.castShadow = true;
+scene.add(sun, new THREE.HemisphereLight(0xcfe0ff, 0x4a4036, 1.0));
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), new THREE.MeshStandardMaterial({ color: 0x9a9a96 }));
+ground.rotation.x = -Math.PI / 2;
+ground.receiveShadow = true;
+scene.add(ground);
+const cam = new THREE.PerspectiveCamera(40, innerWidth / innerHeight, 0.05, 100);
+cam.position.set(2.6, 1.6, 2.6);
+cam.lookAt(0, 0.5, -0.6);
+const av = new AvatarVisual(undefined, { lod: 0 });
+scene.add(av.root);
+const st = createPlayerState('t', 0, 0, 0, 0);
+await preloadRagdoll();
+await new Promise((r) => setTimeout(r, 2500));
+for (let i = 0; i < 30; i++) av.update(st, 1 / 60);
+void av.knockdown({ dirX: 0, dirZ: -1, strength: 1.4, groundY: 0, walls: [], downMs: 2600, getupMs: 1400 });
+await new Promise((r) => setTimeout(r, 100));
+const until = Number(q.get('t') ?? 1.2);
+for (let t = 0; t < until; t += 1 / 60) av.update(st, 1 / 60);
+renderer.render(scene, cam);
+(window as any).__humanReady = true;
+(window as any).__human = { info: () => { const h = (av as any).human; const a = h.animator; return { isDown: av.isDown, w: a.w, pelvis: h.bones.get('pelvis').quaternion.toArray().map((v: number) => +v.toFixed(2)), ua: h.bones.get('upperarm_l').quaternion.toArray().map((v: number) => +v.toFixed(2)), sp1: h.bones.get('spine_01').quaternion.toArray().map((v: number) => +v.toFixed(2)), pelvisPos: h.bones.get('pelvis').position.toArray().map((v: number) => +v.toFixed(2)), armRot: h.armature.rotation.x, rootRot: h.bones.get('Root').quaternion.toArray() }; } };

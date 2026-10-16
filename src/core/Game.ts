@@ -17,6 +17,7 @@ import { worldProjection, WORLD_ORIGIN } from '../geo/projection';
 import { createPlayerState, type PlayerState } from '../player/PlayerState';
 import { stepPlayer } from '../player/PlayerController';
 import { AvatarVisual } from '../player/AvatarVisual';
+import { loadClips, loadLod, preloadCrowd } from '../characters/human/HumanAssets';
 import { DEFAULT_PLAYER_APPEARANCE as DEFAULT_APPS, type CharacterAppearance } from '../characters/bodyTypes';
 const DEFAULT_PLAYER_APPEARANCE_LOCAL = DEFAULT_APPS.homem;
 import { ThirdPersonCamera } from '../camera/ThirdPersonCamera';
@@ -178,9 +179,15 @@ export class Game {
     const heading = Math.atan2(Math.cos(spawn.yaw), Math.sin(spawn.yaw));
     this.player = createPlayerState('local', spawn.p[0], this.collision.groundHeight(spawn.p[0], spawn.p[1]), spawn.p[1], heading);
     this.scene.add(this.avatar.root);
+    // personagens: animações, LOD do próprio avatar e LODs baratos de todos os corpos antes de começar
+    progress(0.7, 'Carregando personagens');
+    const bodies = ['homem', 'mulher', 'idoso', 'idosa'] as const;
+    await Promise.all([loadClips(), loadLod(this.appearance?.body ?? 'homem', 0), ...bodies.map((b) => loadLod(b, 3))]).catch((e) => console.warn('[personagens]', e));
+    preloadCrowd([...bodies]);
     this.peds = new PedestrianSystem(this.collision, this.preset.pedestrians);
     this.peds.radius = this.preset.pedestrianRadius;
     this.peds.shadowDistance = this.preset.npcShadowDistance;
+    this.peds.maxDetail = this.preset.level === 'low' ? 2 : this.preset.level === 'medium' ? 1 : 0;
     this.scene.add(this.peds.group);
     let tdata: TrafficData = { lanes: [], junctions: [], crossings: [] };
     if (this.manifest.traffic) {
@@ -731,6 +738,8 @@ export class Game {
   debugApi() {
     return {
       setShot: (n: string) => this.setShot(n),
+      /** QA: número de pedestres (medir o custo dos personagens) */
+      peds: (n: number) => this.peds.setMax(n),
       metrics: () => this.metrics(),
       teleport: (x: number, z: number, yaw?: number) => {
         this.player.x = x; this.player.z = z; this.player.y = this.collision.groundHeight(x, z);

@@ -192,3 +192,4 @@
 @media (prefers-reduced-motion: reduce) {
   .start * { transition: none !important; }
 }
+.start .page-foot a { color: inherit; }

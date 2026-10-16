@@ -9,15 +9,33 @@
  */
 import * as THREE from 'three';
 import type { CollisionWorld } from '../physics/CollisionWorld';
-import { createCharacter, type CharacterRig } from '../characters/CharacterMesh';
+import { createCharacter } from '../characters/CharacterMesh';
 import { CharacterAnimator } from '../characters/CharacterAnimator';
-import { BODY_TYPES, randomAppearance, type BodyType } from '../characters/bodyTypes';
+import { BODY_TYPES, randomAppearance, type BodyType, type CharacterAppearance } from '../characters/bodyTypes';
+import { HumanCharacter } from '../characters/human/HumanCharacter';
+import type { Lod } from '../characters/human/HumanAssets';
+
+/** visual de um pedestre: personagem humano (LOD por distância) ou, se falhar, o procedural antigo */
+interface PedVisual {
+  mesh: THREE.Object3D;
+  body: BodyType;
+  setAppearance(a: CharacterAppearance): void;
+  setShadow(on: boolean): void;
+  setLod(d: number): void;
+}
+interface PedAnim { update(speed: number, grounded: boolean, dt: number): void }
+
+function legacyVisual(app: CharacterAppearance): { rig: PedVisual; anim: PedAnim } {
+  const r = createCharacter(app);
+  const anim = new CharacterAnimator(r);
+  return { rig: { mesh: r.mesh, body: r.body, setAppearance: (a) => r.setAppearance(a), setShadow: (on) => { r.mesh.castShadow = on; }, setLod() {} }, anim };
+}
 import type { PedCrossing } from '../world/types';
 import type { SignalController } from '../traffic/SignalController';
 
 interface Ped {
-  rig: CharacterRig;
-  anim: CharacterAnimator;
+  rig: PedVisual;
+  anim: PedAnim;
   x: number; z: number; y: number;
   heading: number;
   speed: number;
@@ -49,6 +67,8 @@ export class PedestrianSystem {
   private tmp = new THREE.Vector3();
   radius = 95;
   shadowDistance = 35;
+  /** LOD mais detalhado permitido para NPCs (preset): 0 no HIGH/ULTRA, 1 no MEDIUM, 2 no LOW */
+  maxDetail: Lod = 1;
   stats = { active: 0, visible: 0, crossing: 0, waiting: 0 };
   private crossings: PedCrossing[] = [];
   private crossGrid = new Map<string, number[]>();
@@ -133,13 +153,34 @@ export class PedestrianSystem {
 
   private create(i: number): Ped {
     const body = BODY_MIX[i % BODY_MIX.length];
-    const rig = createCharacter(randomAppearance(1000 + i * 7919, body));
-    this.group.add(rig.mesh);
-    return {
-      rig, anim: new CharacterAnimator(rig), x: 0, z: 0, y: 0, heading: 0, speed: 0, cruise: 1.3,
+    const app = randomAppearance(1000 + i * 7919, body);
+    const ped = {
+      x: 0, z: 0, y: 0, heading: 0, speed: 0, cruise: 1.3,
       idleTimer: 0, walkTimer: 0, animAcc: 0, frame: i, active: false,
       mode: 'walk', target: null, crossing: null, waitTime: 0, crossCooldown: 0, approach: null, tick: i * 13,
+    } as Omit<Ped, 'rig' | 'anim'> as Ped;
+    const human = new HumanCharacter(app, { lod: 3, castShadow: false, clips: ['idle', 'walk', 'jog'] });
+    let lastLod = -1;
+    ped.rig = {
+      mesh: human.root, body,
+      setAppearance: (a) => human.setAppearance(a),
+      setShadow: (on) => human.setShadow(on),
+      setLod: (d) => {
+        const l = Math.max(this.maxDetail, d < 9 ? 0 : d < 24 ? 1 : d < 60 ? 2 : 3) as Lod;
+        if (l !== lastLod) { human.setLod(l); lastLod = l; }
+      },
     };
+    ped.anim = { update: (sp, g, dt) => human.animator?.update(sp, g, dt) };
+    this.group.add(human.root);
+    human.ready.catch(() => {
+      human.dispose();
+      const lv = legacyVisual(app);
+      this.group.add(lv.rig.mesh);
+      lv.rig.mesh.visible = ped.active;
+      ped.rig = lv.rig;
+      ped.anim = lv.anim;
+    });
+    return ped;
   }
 
   private spawn(p: Ped, cx: number, cz: number, camFwd: THREE.Vector3, initial: boolean): boolean {
@@ -326,7 +367,8 @@ export class PedestrianSystem {
       mesh.visible = inView;
       if (!inView) continue;
       visible++;
-      mesh.castShadow = d < this.shadowDistance;
+      p.rig.setShadow(d < this.shadowDistance);
+      p.rig.setLod(d);
       const every = d < 25 ? 1 : d < 50 ? 2 : 4;
       p.animAcc += dt;
       if ((++p.frame) % every === 0) {

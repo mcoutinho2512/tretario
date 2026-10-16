@@ -181,7 +181,7 @@ export class NetworkClient {
   // ---------------------------------------------------------------- remotos
   private addRemote(id: string, p: any) {
     const app: CharacterAppearance = { body: p.body || 'homem', skin: p.skin, hair: p.hair, top: p.top, bottom: p.bottom, shoes: p.shoes, scale: 1, accessory: (p.accessory || 'nenhum') as Accessory, acc: p.acc };
-    const visual = new AvatarVisual(app);
+    const visual = new AvatarVisual(app, { lod: 2, castShadow: false });
     this.group.add(visual.root);
     const label = document.createElement('div');
     label.className = 'name-label';
@@ -214,7 +214,7 @@ export class NetworkClient {
     const r = this.remotes.get(id);
     if (!r) return;
     this.group.remove(r.visual.root);
-    r.visual.rig.dispose();
+    r.visual.dispose();
     r.label.remove();
     this.remotes.delete(id);
   }
@@ -277,6 +277,7 @@ export class NetworkClient {
       s.heading = a.heading + dh * k;
       s.speed = a.speed + (c.speed - a.speed) * k;
       s.grounded = c.loco !== 3;
+      r.visual.setDistance(Math.hypot(s.x - camera.position.x, s.y - camera.position.y, s.z - camera.position.z));
       if (c.vehicle && !r.visual.isDown) {
         const kind = c.vehicle.startsWith('car') ? 'car' : c.vehicle.endsWith('_2') ? 'scooter' : 'bicycle';
         const pose = kind === 'bicycle' ? 'sit-pedal' : kind === 'scooter' ? 'stand' : 'drive';

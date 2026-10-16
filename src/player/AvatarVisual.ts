@@ -1,54 +1,123 @@
 /**
- * Visual de um personagem controlado por PlayerState (jogador local hoje; RemotePlayer no futuro).
- * Usa o personagem esqueletal procedural (src/characters) — 1 draw call, 4 tipos de corpo.
- * Placeholder de arte: substituível por GLB rigado com o mesmo esqueleto (ver docs/DECISIONS.md, ADR-002).
+ * Visual de um personagem controlado por PlayerState (jogador local e jogadores remotos).
+ * Usa o personagem humano modular (src/characters/human: MakeHuman/MPFB + animações retargetadas, LOD0–3).
+ * O personagem procedural antigo (src/characters/CharacterMesh) fica apenas como reserva: falha de carregamento
+ * ou `?avatar=classic` (depuração) — nunca aparece para o usuário normal.
  */
 import * as THREE from 'three';
 import type { PlayerState } from './PlayerState';
-import { createCharacter, type CharacterRig } from '../characters/CharacterMesh';
+import { createCharacter, type CharacterRig, type BoneName } from '../characters/CharacterMesh';
 import { CharacterAnimator } from '../characters/CharacterAnimator';
 import { BODY_TYPES, DEFAULT_PLAYER_APPEARANCE, type CharacterAppearance } from '../characters/bodyTypes';
+import { HumanCharacter } from '../characters/human/HumanCharacter';
+import type { Lod } from '../characters/human/HumanAssets';
 import { PLAYER_CONSTANTS } from './PlayerState';
 import { Ragdoll, type RagdollParams } from '../physics/Ragdoll';
-import { BONE_NAMES } from '../characters/CharacterMesh';
+
+/** ossos do ragdoll (nomes do rig antigo) → rig "game_engine" do personagem humano */
+const HUMAN_BONES: Record<BoneName, string> = {
+  Hips: 'pelvis', Spine: 'spine_01', Chest: 'spine_03', Neck: 'neck_01', Head: 'head',
+  LeftUpperArm: 'upperarm_l', LeftLowerArm: 'lowerarm_l', LeftHand: 'hand_l',
+  RightUpperArm: 'upperarm_r', RightLowerArm: 'lowerarm_r', RightHand: 'hand_r',
+  LeftUpperLeg: 'thigh_l', LeftLowerLeg: 'calf_l', LeftFoot: 'foot_l',
+  RightUpperLeg: 'thigh_r', RightLowerLeg: 'calf_r', RightFoot: 'foot_r',
+};
+
+const useClassic = typeof location !== 'undefined' && new URLSearchParams(location.search).get('avatar') === 'classic';
+
+export interface AvatarOptions { lod?: Lod; castShadow?: boolean }
 
 export class AvatarVisual {
   readonly root = new THREE.Group();
-  readonly rig: CharacterRig;
-  private anim: CharacterAnimator;
+  private human: HumanCharacter | null = null;
+  private legacy: { rig: CharacterRig; anim: CharacterAnimator } | null = null;
   private smoothY = 0;
   private initialized = false;
+  private body: CharacterAppearance['body'];
   // queda: ragdoll (Rapier) → levantar (blend da pose do chão para a pose animada)
   private ragdoll: Ragdoll | null = null;
   private fall: { phase: 'down' | 'getup' | 'none'; t: number; down: number; getup: number; captured: THREE.Quaternion[]; hipsFrom: THREE.Vector3 } =
     { phase: 'none', t: 0, down: 0, getup: 0, captured: [], hipsFrom: new THREE.Vector3() };
-  private fallback = { tilt: 0, dirX: 0, dirZ: 0 };
+  private fallback = { tilt: 0 };
+  private animAcc = 0;
+  private frame = 0;
 
-  constructor(appearance: CharacterAppearance = DEFAULT_PLAYER_APPEARANCE.homem) {
+  constructor(appearance: CharacterAppearance = DEFAULT_PLAYER_APPEARANCE.homem, opts: AvatarOptions = {}) {
     this.root.name = 'avatar';
-    this.rig = createCharacter(appearance);
-    this.root.add(this.rig.mesh);
-    this.anim = new CharacterAnimator(this.rig, PLAYER_CONSTANTS.walkSpeed, PLAYER_CONSTANTS.runSpeed);
+    this.body = appearance.body;
+    if (useClassic) this.useLegacy(appearance);
+    else {
+      this.human = new HumanCharacter(appearance, { lod: opts.lod ?? 0, castShadow: opts.castShadow ?? true });
+      this.root.add(this.human.root);
+      this.human.ready.catch((e) => {
+        console.warn('[avatar] personagem humano indisponível, usando reserva', e);
+        this.human?.dispose();
+        this.human = null;
+        this.useLegacy(appearance);
+      });
+    }
+  }
+
+  private useLegacy(app: CharacterAppearance) {
+    const rig = createCharacter(app);
+    this.root.add(rig.mesh);
+    this.legacy = { rig, anim: new CharacterAnimator(rig, PLAYER_CONSTANTS.walkSpeed, PLAYER_CONSTANTS.runSpeed) };
   }
 
   /** fator de velocidade do tipo de corpo (idosos andam mais devagar) */
-  get speedFactor() {
-    return BODY_TYPES[this.rig.body].speedFactor;
-  }
+  get speedFactor() { return BODY_TYPES[this.body].speedFactor; }
 
   get isDown() { return this.fall.phase !== 'none'; }
 
+  /** nível de detalhe pela distância à câmera (remotos); o jogador local fica no LOD0 */
+  setDistance(d: number) {
+    if (!this.human) return;
+    const lod: Lod = d < 14 ? 0 : d < 38 ? 1 : d < 90 ? 2 : 3;
+    this.human.setLod(lod);
+    this.human.setShadow(d < 45);
+  }
+
+  setAppearance(app: CharacterAppearance) {
+    this.human?.setAppearance(app);
+    this.legacy?.rig.setAppearance(app);
+  }
+
+  // ------------------------------------------------------------------ ossos (para o ragdoll)
+  private rigForRagdoll(): CharacterRig | null {
+    if (this.legacy) return this.legacy.rig;
+    const h = this.human;
+    if (!h?.armature || !h.bones.size) return null;
+    const bones = {} as Record<BoneName, THREE.Bone>;
+    for (const [k, v] of Object.entries(HUMAN_BONES)) bones[k as BoneName] = h.bones.get(v)!;
+    return { mesh: h.armature as unknown as THREE.SkinnedMesh, bones, body: h.body, setAppearance() {}, dispose() {} };
+  }
+  private allBones(): THREE.Object3D[] {
+    if (this.legacy) return Object.values(this.legacy.rig.bones);
+    return this.human ? [...this.human.bones.values()] : [];
+  }
+  private hips(): THREE.Object3D | null {
+    if (this.legacy) return this.legacy.rig.bones.Hips;
+    return this.human?.bones.get('pelvis') ?? null;
+  }
+  private animate(speed: number, grounded: boolean, dt: number) {
+    if (this.legacy) this.legacy.anim.update(speed, grounded, dt);
+    else this.human?.animator?.update(speed, grounded, dt);
+  }
+
   /**
-   * Queda (empurrão/impacto). `restX/restZ` = posição de repouso decidida pelo servidor.
+   * Queda (empurrão/impacto). A posição de repouso vem do servidor; aqui só o visual.
    * Usa ragdoll Rapier quando disponível; senão uma queda procedural simples (mesmo tempo no chão).
    */
   async knockdown(p: RagdollParams & { downMs: number; getupMs: number }) {
     this.ragdoll?.dispose();
     this.ragdoll = null;
     this.fall = { phase: 'down', t: 0, down: p.downMs / 1000, getup: p.getupMs / 1000, captured: [], hipsFrom: new THREE.Vector3() };
-    this.fallback = { tilt: 0, dirX: p.dirX, dirZ: p.dirZ };
+    this.fallback = { tilt: 0 };
+    const rig = this.rigForRagdoll();
+    if (!rig) return;
     try {
-      this.ragdoll = await Ragdoll.create(this.rig, p);
+      this.root.updateMatrixWorld(true);
+      this.ragdoll = await Ragdoll.create(rig, p);
     } catch (e) {
       console.warn('[ragdoll] indisponível, usando queda procedural', e);
     }
@@ -59,6 +128,7 @@ export class AvatarVisual {
     const f = this.fall;
     if (f.phase === 'none') return false;
     f.t += dt;
+    const hips = this.hips();
     if (f.phase === 'down') {
       this.root.position.set(x, y, z);
       this.root.rotation.y = heading;
@@ -66,19 +136,20 @@ export class AvatarVisual {
       else {
         // queda procedural: tomba para trás em 0,4 s
         this.fallback.tilt = Math.min(1, this.fallback.tilt + dt * 2.5);
-        this.anim.update(0, true, dt);
-        this.rig.bones.Hips.rotation.x = -this.fallback.tilt * 1.45;
-        this.rig.bones.Hips.position.y *= 1 - this.fallback.tilt * 0.82;
+        this.animate(0, true, dt);
+        const pivot = this.human?.armature ?? this.legacy?.rig.mesh;
+        if (pivot) pivot.rotation.x = -this.fallback.tilt * 1.35;
       }
-      if (f.t >= f.down) {
+      if (f.t >= f.down && hips) {
         // início do levantar: captura a pose do chão, já re-expressa no novo referencial (posição do servidor)
+        const pivot = this.human?.armature ?? this.legacy?.rig.mesh;
         this.root.updateMatrixWorld(true);
-        const hipsWorld = this.rig.bones.Hips.getWorldPosition(new THREE.Vector3());
+        const hipsWorld = hips.getWorldPosition(new THREE.Vector3());
+        if (pivot) pivot.rotation.x = 0;
         this.root.position.set(x, y, z);
         this.root.updateMatrixWorld(true);
-        this.rig.mesh.updateMatrixWorld(true);
-        f.hipsFrom = hipsWorld.applyMatrix4(this.rig.mesh.matrixWorld.clone().invert());
-        f.captured = BONE_NAMES.map((n) => this.rig.bones[n].quaternion.clone());
+        f.hipsFrom = hipsWorld.applyMatrix4(hips.parent!.matrixWorld.clone().invert());
+        f.captured = this.allBones().map((b) => b.quaternion.clone());
         this.ragdoll?.dispose();
         this.ragdoll = null;
         f.phase = 'getup';
@@ -86,28 +157,48 @@ export class AvatarVisual {
       }
       return true;
     }
-    // levantar: anima idle e mistura a partir da pose capturada
+    // levantar: anima idle (a partir do repouso: ossos sem trilha não podem herdar a pose do ragdoll)
+    // e mistura a partir da pose capturada
     this.root.position.set(x, y, z);
     this.root.rotation.y = heading;
-    this.anim.update(0, true, dt);
+    this.human?.resetPose();
+    this.animate(0, true, dt);
     const k = Math.min(1, f.t / f.getup);
     const e = k * k * (3 - 2 * k);
-    BONE_NAMES.forEach((n, i) => { const bone = this.rig.bones[n]; bone.quaternion.copy(f.captured[i].clone().slerp(bone.quaternion, e)); });
-    this.rig.bones.Hips.position.lerpVectors(f.hipsFrom, this.rig.bones.Hips.position.clone(), e);
+    this.allBones().forEach((bone, i) => { if (f.captured[i]) bone.quaternion.copy(f.captured[i].clone().slerp(bone.quaternion, e)); });
+    if (hips) hips.position.lerpVectors(f.hipsFrom, hips.position.clone(), e);
     if (f.t >= f.getup) f.phase = 'none';
     return true;
   }
 
-  /** montado num veículo: posiciona sobre ele e aplica a pose */
-  /** animação curta do empurrão (braços à frente) — sobreposta à animação normal */
+  /** animação curta do empurrão — sobreposta à animação normal */
   private pushT = 0;
-  playPush() { this.pushT = 0.45; }
+  playPush() {
+    if (this.human?.animator) this.human.animator.playOnce('push', 0.55);
+    else this.pushT = 0.45;
+  }
 
+  /** montado num veículo: posiciona sobre ele e aplica a pose */
   updateRiding(x: number, y: number, z: number, heading: number, pose: 'sit-pedal' | 'stand' | 'drive', speed: number, seatHeight: number, dt: number) {
     this.smoothY = y;
-    this.root.position.set(x, y, z);
     this.root.rotation.y = heading;
-    this.anim.updateRiding(pose, speed, seatHeight, dt);
+    if (this.legacy) {
+      this.root.position.set(x, y, z);
+      this.legacy.anim.updateRiding(pose, speed, seatHeight, dt);
+      return;
+    }
+    const a = this.human?.animator;
+    if (!a) { this.root.position.set(x, y, z); return; }
+    a.updateRiding(pose, speed, dt);
+    // sentado: a pelve do clipe vai para a altura do assento; em pé (patinete): pés sobre a plataforma
+    const hips = this.hips();
+    let lift = seatHeight;
+    if (pose !== 'stand' && hips && this.human?.armature) {
+      this.human.armature.updateMatrixWorld(true);
+      const local = hips.getWorldPosition(new THREE.Vector3()).sub(this.root.getWorldPosition(new THREE.Vector3())).y;
+      lift = seatHeight + (pose === 'drive' ? 0.1 : 0.06) - local;
+    }
+    this.root.position.set(x, y + lift, z);
   }
 
   update(s: PlayerState, dt: number) {
@@ -117,14 +208,27 @@ export class AvatarVisual {
     if (Math.abs(s.y - this.smoothY) > 0.6) this.smoothY = s.y;
     this.root.position.set(s.x, this.smoothY, s.z);
     this.root.rotation.y = s.heading;
-    this.anim.update(s.speed, s.grounded, dt);
-    if (this.pushT > 0) {
+    // LOD de atualização: personagens distantes animam com menos frequência
+    const lod = this.human?.lod ?? 0;
+    const every = lod <= 1 ? 1 : lod === 2 ? 2 : 4;
+    this.animAcc += dt;
+    if ((++this.frame) % every !== 0) return;
+    this.animate(s.speed, s.grounded, this.animAcc);
+    this.animAcc = 0;
+    if (this.legacy && this.pushT > 0) {
       this.pushT -= dt;
       const k = Math.sin(Math.min(1, (0.45 - this.pushT) / 0.45) * Math.PI);
-      const b = this.rig.bones;
+      const b = this.legacy.rig.bones;
       b.LeftUpperArm.rotation.x = -1.5 * k; b.RightUpperArm.rotation.x = -1.5 * k;
       b.LeftLowerArm.rotation.x = -0.2 * k; b.RightLowerArm.rotation.x = -0.2 * k;
       b.Spine.rotation.x += 0.25 * k;
     }
+  }
+
+  dispose() {
+    this.ragdoll?.dispose();
+    this.human?.dispose();
+    this.legacy?.rig.dispose();
+    this.root.removeFromParent();
   }
 }
