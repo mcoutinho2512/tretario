@@ -12,9 +12,12 @@
     "map:fetch": "tsx tools/fetch_map_data.ts",
     "map:process": "tsx tools/process_osm.ts",
     "map:build": "tsx tools/build_world.ts",
-    "map": "npm run map:process && npm run map:build"
+    "map": "npm run map:process && npm run map:build",
+    "server": "npm --prefix server run dev",
+    "server:install": "npm --prefix server install"
   },
   "dependencies": {
+    "@colyseus/sdk": "^0.18.4",
     "three": "^0.170.0"
   },
   "devDependencies": {

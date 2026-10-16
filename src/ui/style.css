@@ -107,3 +107,5 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); o
 .use-prompt.show { opacity: 1; }
 .mode-badge { position: absolute; left: 14px; top: 46px; background: rgba(10,12,14,0.55); color: #cfe; padding: 4px 9px; border-radius: 6px; font-size: 12px; }
 .mode-badge.combat { color: #ffb3a8; }
+.name-labels { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.name-label { position: absolute; left: 0; top: 0; background: rgba(10,12,14,0.6); color: #fff; font-size: 12px; padding: 2px 7px; border-radius: 10px; white-space: nowrap; }

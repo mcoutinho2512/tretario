@@ -9,3 +9,4 @@ data/processed/*.json
 screenshots/tmp/
 screenshots/*.png
 screenshots/*.json
+server/node_modules/

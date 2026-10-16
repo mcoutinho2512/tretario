@@ -17,7 +17,8 @@ import { worldProjection, WORLD_ORIGIN } from '../geo/projection';
 import { createPlayerState, type PlayerState } from '../player/PlayerState';
 import { stepPlayer } from '../player/PlayerController';
 import { AvatarVisual } from '../player/AvatarVisual';
-import type { CharacterAppearance } from '../characters/bodyTypes';
+import { DEFAULT_PLAYER_APPEARANCE as DEFAULT_APPS, type CharacterAppearance } from '../characters/bodyTypes';
+const DEFAULT_PLAYER_APPEARANCE_LOCAL = DEFAULT_APPS.homem;
 import { ThirdPersonCamera } from '../camera/ThirdPersonCamera';
 import { InputManager } from '../input/InputManager';
 import { TouchControls } from '../ui/TouchControls';
@@ -34,6 +35,7 @@ import { BillboardSystem } from '../events/Billboards';
 import { EventManager } from '../events/EventManager';
 import { RideableSystem, stepRideable, type RideableInstance } from '../vehicles/Rideable';
 import { InteractionController } from '../interaction/InteractionMode';
+import type { NetworkClient } from '../net/NetworkClient';
 import type { PropRec } from '../world/types';
 import { distToPolyline } from '../geo/polyline';
 import type { TrafficData } from '../world/types';
@@ -67,6 +69,8 @@ export class Game {
   private rideables!: RideableSystem;
   private riding: RideableInstance | null = null;
   readonly interaction = new InteractionController();
+  private net: NetworkClient | null = null;
+  private appearance: CharacterAppearance | undefined;
   private prompt!: HTMLDivElement;
   private modeBadge!: HTMLDivElement;
   private messageTimer = 0;
@@ -89,6 +93,7 @@ export class Game {
 
   constructor(private container: HTMLElement, private preset: QualityPreset, appearance?: CharacterAppearance) {
     this.avatar = new AvatarVisual(appearance);
+    this.appearance = appearance;
     this.canvas = document.createElement('canvas');
     this.canvas.className = 'game-canvas';
     container.appendChild(this.canvas);
@@ -236,6 +241,7 @@ export class Game {
     } catch { /* compileAsync opcional */ }
     progress(1, 'Pronto');
     this.mountHud();
+    await this.connectMultiplayer();
     this.applyShotFromUrl();
   }
 
@@ -470,6 +476,10 @@ export class Game {
     const ppos = this.avatar.root.position;
     this.cam.update(ppos, dt);
     this.signals.update(dt);
+    if (this.net) {
+      const mode = this.riding ? (this.riding.def.kind as 'bicycle' | 'scooter' | 'car') : 'foot';
+      this.net.update(dt, this.player, mode, this.camera, { w: this.canvas.clientWidth, h: this.canvas.clientHeight });
+    }
     this.peds.update(dt, this.camera, this.player);
     this.traffic.obstacles = this.peds.crossingPositions();
     this.traffic.update(dt, this.camera, this.player);
@@ -507,8 +517,34 @@ export class Game {
       quality: this.preset.level.toUpperCase(),
       chunks: `${st.visible} vis (F${st.full}/M${st.medium}/L${st.far}) · ${st.loaded} baixados`,
       props: this.props.instanceCount, heading: this.player.heading, locomotion: this.player.locomotion,
-      npcs: `pedestres ${this.peds.stats.visible}/${this.peds.stats.active} (atravessando ${this.peds.stats.crossing}) · veículos ${this.traffic.stats.active} (parados no vermelho ${this.traffic.stats2.stoppedAtRed})`,
+      npcs: `${this.net ? `MP ${this.net.status} · remotos ${this.net.remoteCount} · correções ${this.net.corrections} · ` : ''}pedestres ${this.peds.stats.visible}/${this.peds.stats.active} (atravessando ${this.peds.stats.crossing}) · veículos ${this.traffic.stats.active} (parados no vermelho ${this.traffic.stats2.stoppedAtRed})`,
     });
+  }
+
+  /** Multiplayer opcional (desenvolvimento): ?mp=1 conecta em ws://<host>:2567; ?mp=ws://… usa outro servidor. */
+  private async connectMultiplayer() {
+    const q = new URLSearchParams(location.search);
+    const mp = q.get('mp');
+    if (!mp) return;
+    const endpoint = mp === '1' ? `ws://${location.hostname}:2567` : mp;
+    const { NetworkClient } = await import('../net/NetworkClient');
+    this.net = new NetworkClient(endpoint, this.hud);
+    this.scene.add(this.net.group);
+    (window as any).__pvRemotes = () => this.net?.remotesInfo();
+    this.net.onSpawn = (sp) => {
+      this.player.x = sp.x; this.player.z = sp.z; this.player.y = this.collision.groundHeight(sp.x, sp.z);
+    };
+    this.net.onCorrect = (c) => {
+      // servidor é a autoridade sobre a posição definitiva
+      this.player.x = c.x; this.player.z = c.z; this.player.y = Math.max(c.y, this.collision.groundHeight(c.x, c.z));
+    };
+    try {
+      await this.net.connect(this.appearance ?? DEFAULT_PLAYER_APPEARANCE_LOCAL, q.get('name') ?? `Visitante ${Math.floor(Math.random() * 900 + 100)}`);
+      this.flash(`Multiplayer conectado (${endpoint})`);
+    } catch (e) {
+      this.flash(`Multiplayer indisponível: ${(e as Error).message ?? e}`);
+      console.warn('[mp] falha ao conectar', e);
+    }
   }
 
   /** mensagem curta no selo de modo */
@@ -539,6 +575,7 @@ export class Game {
       fps: this.debug.fps, frameMs: this.debug.frameMs, worstMs: this.debug.worstMs,
       calls: r.render.calls, triangles: r.render.triangles, textures: r.memory.textures, geometries: r.memory.geometries,
       quality: this.preset.level, chunks: { ...this.chunks.stats }, props: this.props.instanceCount,
+      net: this.net ? { status: this.net.status, remotes: this.net.remoteCount, corrections: this.net.corrections, error: this.net.lastError } : null,
       pedestrians: { ...this.peds.stats }, vehicles: this.traffic.stats.active, stoppedAtRed: this.traffic.stats2.stoppedAtRed,
       player: { x: this.player.x, y: this.player.y, z: this.player.z },
     };
