@@ -16,12 +16,12 @@ import { netStats, SIM } from './netWebSocket';
 import { worldClock } from './clock';
 import { AvatarVisual } from '../player/AvatarVisual';
 import { createPlayerState, type PlayerState } from '../player/PlayerState';
-import type { CharacterAppearance } from '../characters/bodyTypes';
+import type { Accessory, CharacterAppearance } from '../characters/bodyTypes';
 
 interface Snapshot { t: number; x: number; y: number; z: number; heading: number; speed: number; loco: number; vehicle: string }
 
 export interface RemoteInfo {
-  id: string; name: string; body: string;
+  id: string; name: string; body: string; accessory: string;
   x: number; z: number; speed: number; interaction: string; status: number; vehicle: string;
 }
 
@@ -33,6 +33,7 @@ interface Remote {
   label: HTMLDivElement;
   name: string;
   body: string;
+  accessory: string;
   interaction: string;
   status: number;
   vehicle: string;
@@ -92,7 +93,7 @@ export class NetworkClient {
     this.status = 'connecting';
     try {
       const client = new Client(this.endpoint);
-      const opts: JoinOptions = { name, body: app.body, skin: app.skin, hair: app.hair, top: app.top, bottom: app.bottom, shoes: app.shoes, ...(testSpawn ? { testSpawn } : {}) };
+      const opts: JoinOptions = { name, body: app.body, skin: app.skin, hair: app.hair, top: app.top, bottom: app.bottom, shoes: app.shoes, accessory: app.accessory ?? 'nenhum', acc: app.acc ?? 0x222222, ...(testSpawn ? { testSpawn } : {}) };
       const room = await client.joinOrCreate(ROOM_NAME, opts);
       this.room = room;
       this.sessionId = room.sessionId;
@@ -179,7 +180,7 @@ export class NetworkClient {
 
   // ---------------------------------------------------------------- remotos
   private addRemote(id: string, p: any) {
-    const app: CharacterAppearance = { body: p.body || 'homem', skin: p.skin, hair: p.hair, top: p.top, bottom: p.bottom, shoes: p.shoes, scale: 1 };
+    const app: CharacterAppearance = { body: p.body || 'homem', skin: p.skin, hair: p.hair, top: p.top, bottom: p.bottom, shoes: p.shoes, scale: 1, accessory: (p.accessory || 'nenhum') as Accessory, acc: p.acc };
     const visual = new AvatarVisual(app);
     this.group.add(visual.root);
     const label = document.createElement('div');
@@ -187,7 +188,7 @@ export class NetworkClient {
     label.textContent = p.name || 'Visitante';
     this.labels.appendChild(label);
     const r: Remote = {
-      id, visual, state: createPlayerState(id, p.x, p.y, p.z, p.heading), buf: [], label, name: p.name, body: p.body,
+      id, visual, state: createPlayerState(id, p.x, p.y, p.z, p.heading), buf: [], label, name: p.name, body: p.body, accessory: p.accessory || 'nenhum',
       interaction: p.interaction, status: p.status, vehicle: p.vehicle, lastArrival: performance.now(),
     };
     this.remotes.set(id, r);
@@ -291,7 +292,7 @@ export class NetworkClient {
 
   /** para QA */
   remotesInfo(): RemoteInfo[] {
-    return [...this.remotes.values()].map((r) => ({ id: r.id, name: r.name, body: r.body, x: +r.state.x.toFixed(2), z: +r.state.z.toFixed(2), speed: +r.state.speed.toFixed(2), interaction: r.interaction, status: r.status, vehicle: r.vehicle }));
+    return [...this.remotes.values()].map((r) => ({ id: r.id, name: r.name, body: r.body, accessory: r.accessory, x: +r.state.x.toFixed(2), z: +r.state.z.toFixed(2), speed: +r.state.speed.toFixed(2), interaction: r.interaction, status: r.status, vehicle: r.vehicle }));
   }
 
   disconnect() {

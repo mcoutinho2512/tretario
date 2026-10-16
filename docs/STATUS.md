@@ -2,6 +2,20 @@
 
 _Atualizado em 2026-10-16 (rodada 4: vertical slice multiplayer jogável — somente local, sem deploy)._
 
+## Tela inicial — montagem do personagem
+| | |
+|---|---|
+| ![](screenshots/tela_inicial.jpg) | ![](screenshots/tela_inicial_mobile.jpg) |
+| Prévia 3D (o mesmo personagem do jogo), poses e painel de visual | Celular: empilhado, botão de entrar sempre visível |
+
+- Prévia 3D com arrastar para girar, botões ↶ ↷ e poses **Parado / Andando / Acenando / Dançando** (`src/ui/AvatarPreview.ts`).
+- Cartões com **retratos renderizados** dos 4 personagens, atualizados com as cores escolhidas.
+- Nome, tom de pele, cabelo, camisa, calça/saia, calçado, acessório e cor do acessório; botão "Aleatório".
+  Tudo salvo no navegador e enviado ao servidor (o **acessório agora também é sincronizado** no multiplayer).
+- Qualidade gráfica e controles em menus no topo. Fundo: render da própria avenida (`public/ui/start-bg.jpg`, 187 KB).
+- Custo: JS inicial 5,1 KB gzip (antes 2,8 KB); a prévia usa o three.js já pré-buscado para o jogo e é descartada ao entrar.
+- Sem login, sem times políticos e sem itens pagos (decisões do produto e ADR-008).
+
 ## Rodada 4 — vertical slice multiplayer
 | | |
 |---|---|

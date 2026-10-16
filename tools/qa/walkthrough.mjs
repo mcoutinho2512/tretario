@@ -50,7 +50,7 @@ const R = [-L[0], -L[1]]; // direita = prédio
 const at = (f, r) => [car.x + F[0] * f + R[0] * r, car.z + F[1] * f + R[1] * r];
 const SP = { A: at(-3.3, 0), B: at(-5.5, 0.3), C: at(-22, 0.6) };
 
-async function open(avatar, name, sp) {
+async function open(avatar, name, sp, look = null) {
   const b = await puppeteer.launch({ executablePath: chrome, headless: 'new', args: ['--use-angle=metal', '--enable-gpu'], defaultViewport: { width: 960, height: 600 } });
   const p = await b.newPage();
   p.on('pageerror', (e) => console.log(`[${name}] ERR`, e.message));
@@ -60,6 +60,8 @@ async function open(avatar, name, sp) {
   cdp.on('Network.webSocketFrameReceived', (e) => { net.wsIn += e.response.payloadData.length * (e.response.opcode === 2 ? 0.75 : 1); net.wsMsgsIn++; });
   cdp.on('Network.webSocketFrameSent', (e) => { net.wsOut += e.response.payloadData.length * (e.response.opcode === 2 ? 0.75 : 1); net.wsMsgsOut++; });
   cdp.on('Network.loadingFinished', (e) => { net.http += e.encodedDataLength; });
+  // visual salvo pela tela inicial (localStorage) — testa a sincronização do acessório
+  if (look) await p.evaluateOnNewDocument((l) => localStorage.setItem('pv3d.look', l), JSON.stringify(look));
   await p.goto(`${base}/?autostart=1&quality=low&time=16:30&mp=ws://127.0.0.1:${PORT}&avatar=${avatar}&name=${name}&spawn=${sp[0].toFixed(2)},${sp[1].toFixed(2)}${lag ? `&jitter=${jitter}` : ''}`);
   await p.waitForFunction('window.__pvReady === true && window.__pv.mp()?.session', { timeout: 120000 });
   return { b, p, name, net };
@@ -81,7 +83,7 @@ const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
 // ------------------------------------------------------------------ 1. entram
 const A = await open('homem', 'Jogador_A', SP.A);
 const B = await open('mulher', 'Jogadora_B', SP.B);
-const C = await open('idoso', 'Jogador_C', SP.C);
+const C = await open('idoso', 'Jogador_C', SP.C, { body: 'idoso', skin: 0xe0ac85, hair: 0xd6d2cc, top: 0xe8e6e0, bottom: 0x6b5a45, shoes: 0x5a3a22, scale: 1, accessory: 'chapeu', acc: 0x2b4a7a });
 await w(2500);
 {
   const [a, b, c] = await Promise.all([mp(A), mp(B), mp(C)]);
@@ -89,6 +91,8 @@ await w(2500);
   check('cada um vê os outros 2', a.remotes.length === 2 && b.remotes.length === 2 && c.remotes.length === 2, `A:${a.remotes.length} B:${b.remotes.length} C:${c.remotes.length}`);
   const bodies = Object.fromEntries(a.remotes.map((r) => [r.name, r.body]));
   check('avatares sincronizados (B=mulher, C=idoso vistos por A)', bodies.Jogadora_B === 'mulher' && bodies.Jogador_C === 'idoso', JSON.stringify(bodies));
+  const accs = Object.fromEntries(a.remotes.map((r) => [r.name, r.accessory]));
+  check('visual da tela inicial sincronizado (C de chapéu visto por A)', accs.Jogador_C === 'chapeu' && accs.Jogadora_B === 'nenhum', JSON.stringify(accs));
 }
 
 // ------------------------------------------------------------------ 2. A e B andam juntos pela calçada

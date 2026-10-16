@@ -14,6 +14,7 @@ export const NET_TICK_HZ = 15; // envio de movimento pelo cliente
 export const SERVER_PATCH_MS = 50; // 20 Hz de patches de estado
 
 export const BODIES = ['homem', 'mulher', 'idoso', 'idosa'] as const;
+export const NET_ACCESSORIES = ['nenhum', 'bone', 'mochila', 'bolsa', 'oculos', 'chapeu'] as const;
 export type NetBody = (typeof BODIES)[number];
 
 /** limites do mundo (m) — mesmo bbox do manifesto, com folga */
@@ -31,6 +32,8 @@ export interface JoinOptions {
   top: number;
   bottom: number;
   shoes: number;
+  accessory?: string;
+  acc?: number;
   /** SOMENTE servidor em modo de teste (PV_TEST=1): ponto de spawn para cenas reproduzíveis */
   testSpawn?: { x: number; z: number };
 }

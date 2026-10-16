@@ -54,6 +54,8 @@ export const SHOTS: Record<string, { key: string; along: number; side: number; y
 };
 
 export class Game {
+  /** nome escolhido na tela inicial (multiplayer); `?name=` tem prioridade */
+  playerName = '';
   readonly canvas: HTMLCanvasElement;
   readonly scene = new THREE.Scene();
   readonly camera: THREE.PerspectiveCamera;
@@ -523,7 +525,7 @@ export class Game {
     void preloadRagdoll().catch(() => { /* fallback procedural */ });
     try {
       const sp = q.get('spawn')?.split(',').map(Number);
-      await this.net.connect(this.appearance ?? DEFAULT_PLAYER_APPEARANCE_LOCAL, q.get('name') ?? `Visitante ${Math.floor(Math.random() * 900 + 100)}`, sp && sp.length === 2 && sp.every(Number.isFinite) ? { x: sp[0], z: sp[1] } : undefined);
+      await this.net.connect(this.appearance ?? DEFAULT_PLAYER_APPEARANCE_LOCAL, q.get('name') ?? (this.playerName || `Visitante ${Math.floor(Math.random() * 900 + 100)}`), sp && sp.length === 2 && sp.every(Number.isFinite) ? { x: sp[0], z: sp[1] } : undefined);
       this.flash(`Multiplayer conectado (${endpoint})`);
     } catch (e) {
       this.flash(`Multiplayer indisponível: ${(e as Error).message ?? e}`);
