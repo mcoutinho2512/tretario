@@ -23,6 +23,8 @@ interface LodInst {
 }
 
 const clipsByBody = new Map<string, Promise<Map<string, THREE.AnimationClip>>>();
+/** fator sobre a oscilação da pelve nos ciclos de corrida (1 = original) */
+const RUN_BOUNCE: Record<string, number> = { jog: 0.4, sprint: 0.45 };
 
 /** clipes com a translação da pelve convertida para as proporções deste corpo (também usado pela multidão instanciada) */
 export function clipsFor(body: BodyType, pelvisRest: THREE.Vector3): Promise<Map<string, THREE.AnimationClip>> {
@@ -31,7 +33,9 @@ export function clipsFor(body: BodyType, pelvisRest: THREE.Vector3): Promise<Map
   if (!p) {
     p = loadClips().then(({ clips, pelvisRest: src }) => {
       const out = new Map<string, THREE.AnimationClip>();
-      const k = pelvisRest.y / Math.max(0.01, src.y);
+      // escala pelo tamanho do vetor (altura da pelve): a pelve é filha do osso "Root", que é girado −90° em X —
+      // no espaço dele o componente .y NÃO é a altura (é ~0) e a razão .y/.y explodia (até 20× nos corpos femininos)
+      const k = pelvisRest.length() / Math.max(0.01, src.length());
       for (const [name, c] of clips) {
         const tracks = c.tracks.map((t) => {
           if (t.name !== 'pelvis.position') return t;
@@ -40,6 +44,13 @@ export function clipsFor(body: BodyType, pelvisRest: THREE.Vector3): Promise<Map
             v[i] = pelvisRest.x + (v[i] - src.x) * k;
             v[i + 1] = pelvisRest.y + (v[i + 1] - src.y) * k;
             v[i + 2] = pelvisRest.z + (v[i + 2] - src.z) * k;
+          }
+          // trote/sprint da biblioteca são estilizados: a pelve oscila ~25 cm (corrida real: 8–10 cm) → parece quicar
+          const damp = RUN_BOUNCE[name];
+          if (damp !== undefined && v.length >= 6) {
+            const n = v.length / 3, mean = [0, 0, 0];
+            for (let i = 0; i < v.length; i += 3) for (let a = 0; a < 3; a++) mean[a] += v[i + a] / n;
+            for (let i = 0; i < v.length; i += 3) for (let a = 0; a < 3; a++) v[i + a] = mean[a] + (v[i + a] - mean[a]) * damp;
           }
           return new THREE.VectorKeyframeTrack(t.name, Array.from(t.times), Array.from(v));
         });

@@ -105,6 +105,18 @@ export class AvatarVisual {
   /** nível de detalhe fixo (jogador local) */
   setDetail(lod: Lod) { this.human?.setLod(lod); }
 
+  /** QA: alturas de mundo do personagem (raiz, esqueleto, pelve, pés) */
+  probe() {
+    const h = this.human;
+    if (!h?.armature) return null;
+    const v = new THREE.Vector3();
+    const y = (n: string) => { const b = h.bones.get(n); return b ? +b.getWorldPosition(v).y.toFixed(4) : null; };
+    return {
+      root: +this.root.position.y.toFixed(4), armY: +h.armature.position.y.toFixed(4), lod: h.lod,
+      pelvis: y('pelvis'), ballL: y('ball_l'), ballR: y('ball_r'), footL: y('foot_l'), footR: y('foot_r'),
+    };
+  }
+
   setAppearance(app: CharacterAppearance) {
     this.human?.setAppearance(app);
     this.legacy?.rig.setAppearance(app);

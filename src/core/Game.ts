@@ -784,6 +784,8 @@ export class Game {
       setShot: (n: string) => this.setShot(n),
       /** QA: intervalos dos quadros renderizados desde a última chamada */
       takeFrames: () => this.frameLog.splice(0),
+      /** QA: altura do chão sob o jogador e alturas do personagem (contato com o chão) */
+      avatarProbe: () => ({ ground: +this.collision.groundHeight(this.player.x, this.player.z).toFixed(4), playerY: +this.player.y.toFixed(4), speed: +this.player.speed.toFixed(2), grounded: this.player.grounded, ...this.avatar.probe() }),
       /** QA: número de pedestres (medir o custo dos personagens) */
       peds: (n: number) => this.peds.setMax(n),
       metrics: () => this.metrics(),
