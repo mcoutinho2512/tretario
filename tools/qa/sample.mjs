@@ -12,8 +12,8 @@ for (let t = 0; t < Number(secs); t += 3) {
   await new Promise((r) => setTimeout(r, 3000));
   const m = await page.evaluate(() => window.__pv.metrics());
   rows.push(m);
-  console.log(`t=${t + 3}s fps=${m.fps.toFixed(0)} peds=${m.pedestrians.active} crossing=${m.pedestrians.crossing} waiting=${m.pedestrians.waiting} veh=${m.vehicles} stoppedRed=${m.stoppedAtRed}`);
+  console.log(`t=${t + 3}s fps=${m.fps.toFixed(0)} peds=${m.pedestrians.active} crossing=${m.pedestrians.crossing} waiting=${m.pedestrians.waiting} npcVeh=${m.npcVehicles} playerVeh=${m.playerVehicles}`);
 }
 const maxCross = Math.max(...rows.map((r) => r.pedestrians.crossing));
-console.log('max atravessando:', maxCross, '| max parados no vermelho:', Math.max(...rows.map((r) => r.stoppedAtRed)));
+console.log('max atravessando:', maxCross);
 await browser.close();

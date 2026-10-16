@@ -17,6 +17,7 @@ import { worldProjection, WORLD_ORIGIN } from '../geo/projection';
 import { createPlayerState, type PlayerState } from '../player/PlayerState';
 import { stepPlayer } from '../player/PlayerController';
 import { AvatarVisual } from '../player/AvatarVisual';
+import { VEHICLE_BOX, impactAllowed, vehicleBlock, type Mode, type VehicleKind } from '../net/rules';
 import { HumanCharacter } from '../characters/human/HumanCharacter';
 import { FrameGovernor } from './frameGovernor';
 import { deviceProfile } from './settings';
@@ -34,7 +35,7 @@ import { buildCandelaria } from '../world/landmarks/candelaria';
 import { buildModelBuilding } from '../world/landmarks/models';
 import { PedestrianSystem } from '../npc/PedestrianSystem';
 import { CrowdDirector } from '../characters/crowd/CrowdDirector';
-import { TrafficSystem } from '../traffic/TrafficSystem';
+import { ClosureDressing } from '../world/closure';
 import { loadVehicleModels } from '../traffic/vehicleModels';
 import { SignalController } from '../traffic/SignalController';
 import { worldClock } from '../net/clock';
@@ -60,6 +61,14 @@ export const SHOTS: Record<string, { key: string; along: number; side: number; y
   central: { key: 'LANDMARK_CENTRAL', along: 0, side: 0, pitch: 0.12, dist: 6 },
 };
 
+/** controles exibidos enquanto se usa cada veículo */
+const RIDE_HELP: Record<string, string> = {
+  car: 'E — sair · W acelerar · S frear/ré · A/D volante · Shift mais rápido (limite urbano 30 km/h)',
+  moto: 'E — sair · W acelerar · S frear · A/D guidão · Shift mais rápido (limite 30 km/h)',
+  bicycle: 'E — descer · W pedalar · S frear · A/D guidão · Shift pedalar forte',
+  scooter: 'E — descer · W acelerar · S frear · A/D guidão · Shift mais rápido (limite 20 km/h)',
+};
+
 export class Game {
   /** nome escolhido na tela inicial (multiplayer); `?name=` tem prioridade */
   playerName = '';
@@ -78,7 +87,7 @@ export class Game {
   private peds!: PedestrianSystem;
   /** orçamento único de humanos (remotos + multidão da rede + NPCs) e multidão instanciada — docs/CROWDS.md */
   private crowd!: CrowdDirector;
-  private traffic!: TrafficSystem;
+  private closure!: ClosureDressing;
   private signals!: SignalController;
   private monuments!: MonumentSystem;
   private billboards!: BillboardSystem;
@@ -216,14 +225,16 @@ export class Game {
           const d = (await tr.json()) as Partial<TrafficData>;
           tdata = { lanes: d.lanes ?? [], junctions: d.junctions ?? [], crossings: d.crossings ?? [] };
         }
-      } catch { /* trânsito é opcional */ }
+      } catch { /* dados de cruzamentos são opcionais */ }
     }
+    // SEM trânsito NPC (rodada 7): a avenida está fechada para o evento. Os semáforos continuam no cenário e
+    // ainda orientam a travessia dos pedestres NPC; os veículos são só os dos jogadores (estacionados até alguém usar).
     this.signals = new SignalController(tdata.junctions);
     await loadVehicleModels(); // modelos GLB dos veículos (reserva procedural se falhar)
-    this.traffic = new TrafficSystem(tdata.lanes, this.preset.vehicles);
-    this.traffic.signals = this.signals;
     this.peds.setCrossings(tdata.crossings, this.signals);
-    this.scene.add(this.traffic.group);
+    // cenário de avenida fechada: gradis nas pontas/cruzamentos e ônibus estacionados (não utilizáveis)
+    this.closure = new ClosureDressing(this.manifest, (x: number, z: number) => this.collision.groundHeight(x, z), this.collision);
+    this.scene.add(this.closure.group);
     {
       const ax = this.manifest.pvAxis;
       const pvDir = Math.atan2(ax[ax.length - 1][1] - ax[0][1], ax[ax.length - 1][0] - ax[0][0]);
@@ -252,7 +263,7 @@ export class Game {
     } catch (e) { console.warn('evento não carregado', e); }
     this.interaction.setPolicy(this.events.current?.interaction);
     // veículos utilizáveis nas estações reais de bicicleta compartilhada
-    const kinds = (this.events.current?.vehicles ?? [{ kind: 'bicycle' }, { kind: 'scooter' }, { kind: 'car' }]).map((v) => v.kind);
+    const kinds = (this.events.current?.vehicles ?? [{ kind: 'bicycle' }, { kind: 'scooter' }, { kind: 'car' }, { kind: 'moto' }]).map((v) => v.kind);
     this.rideables = new RideableSystem(this.manifest.vehicleSpawns ?? [], (x, z) => this.collision.groundHeight(x, z), kinds);
     this.scene.add(this.rideables.group);
     this.cam = new ThirdPersonCamera(this.camera, this.collision);
@@ -490,13 +501,7 @@ export class Game {
     }
     this.peds.update(dt, this.camera, this.player);
     this.crowd.end(this.camera, dt);
-    this.traffic.obstacles = [
-      ...this.peds.crossingPositions(),
-      ...(this.net ? this.net.remotesForObstacles().map((r) => ({ x: r.x, z: r.z, r: r.vehicle.startsWith('car') ? 1.6 : 0.9 })) : []),
-      ...this.rideables.items.filter((it) => it.def.kind === 'car' && it !== this.riding).map((it) => ({ x: it.state.x, z: it.state.z, r: 1.6 })),
-      ...(this.riding?.def.kind === 'car' ? [{ x: this.player.x, z: this.player.z, r: 1.6 }] : []),
-    ];
-    this.traffic.update(dt, this.camera, this.player);
+    this.closure.update(this.camera.position);
     this.props.updateSignals((j, ph) => this.signals.state(j, ph));
 
     // mundo
@@ -532,7 +537,7 @@ export class Game {
       quality: this.preset.level.toUpperCase(),
       chunks: `${st.visible} vis (F${st.full}/M${st.medium}/L${st.far}) · ${st.loaded} baixados`,
       props: this.props.instanceCount, heading: this.player.heading, locomotion: this.player.locomotion,
-      npcs: `${this.net ? `MP ${this.net.status} · remotos ${this.net.remoteCount} · correções ${this.net.corrections} · ↓${(this.net.bandwidth.inBps / 1024).toFixed(1)} KB/s ↑${(this.net.bandwidth.outBps / 1024).toFixed(1)} KB/s · RTT ${worldClock.rtt === Infinity ? '—' : worldClock.rtt.toFixed(0)} ms · interp ${this.net.interpDelay.toFixed(0)} ms<br>` : ''}pedestres ${this.peds.stats.visible}/${this.peds.stats.active} (atravessando ${this.peds.stats.crossing}) · humanos ${this.crowd.stats.skinned} esqueleto + ${this.crowd.stats.drawnInstanced} instanciados (${this.crowd.stats.instancedCalls} draws) · veículos ${this.traffic.stats.active} (parados no vermelho ${this.traffic.stats2.stoppedAtRed})`,
+      npcs: `${this.net ? `MP ${this.net.status} · remotos ${this.net.remoteCount} · correções ${this.net.corrections} · ↓${(this.net.bandwidth.inBps / 1024).toFixed(1)} KB/s ↑${(this.net.bandwidth.outBps / 1024).toFixed(1)} KB/s · RTT ${worldClock.rtt === Infinity ? '—' : worldClock.rtt.toFixed(0)} ms · interp ${this.net.interpDelay.toFixed(0)} ms<br>` : ''}pedestres ${this.peds.stats.visible}/${this.peds.stats.active} (atravessando ${this.peds.stats.crossing}) · humanos ${this.crowd.stats.skinned} esqueleto + ${this.crowd.stats.drawnInstanced} instanciados (${this.crowd.stats.instancedCalls} draws) · veículos de jogadores ${this.rideables.items.length} (${this.rideables.items.filter((it) => it.state.occupant).length} em uso) · sem trânsito NPC`,
     });
   }
 
@@ -558,11 +563,10 @@ export class Game {
       if (this.riding) { this.riding.state.x = this.player.x; this.riding.state.z = this.player.z; if (reason === 'collision') this.riding.state.speed = 0; }
       this.player.y = Math.max(abs.y, this.collision.groundHeight(this.player.x, this.player.z));
     };
-    this.net.onTraffic = (buf) => this.traffic.applySnapshot(buf);
-    this.net.onVehicle = (id, v) => this.rideables.applyServer(id, v.x, v.y, v.z, v.heading, v.occupant, this.net!.sessionId);
+    this.net.onVehicle = (id, v) => this.rideables.applyServer(id, v.x, v.y, v.z, v.heading, v.occupant, this.net!.sessionId, v.state);
     this.net.onEnter = (ok, d) => {
       const it = this.rideables.byId.get(d.id);
-      if (ok && it) { it.state.x = d.x ?? it.state.x; it.state.z = d.z ?? it.state.z; it.state.heading = d.heading ?? it.state.heading; this.mountLocal(it); this.flash(it.def.kind === 'car' ? 'Você está dirigindo (servidor confirmou)' : 'Montado'); }
+      if (ok && it) { it.state.x = d.x ?? it.state.x; it.state.z = d.z ?? it.state.z; it.state.heading = d.heading ?? it.state.heading; this.mountLocal(it); this.flash(it.def.kind === 'car' ? 'Você está dirigindo (servidor confirmou)' : `${it.def.label}: em uso (servidor confirmou)`); }
       else this.flash(d.reason === 'ocupado' ? 'Esse veículo já está sendo usado por outro jogador' : `Não foi possível entrar (${d.reason})`);
       this.pendingEnter = null;
     };
@@ -629,7 +633,7 @@ export class Game {
     v.state.occupant = null;
     v.state.speed = 0;
     if (pos) { this.player.x = pos.x; this.player.z = pos.z; }
-    else { this.player.x = v.state.x + Math.cos(v.state.heading) * (v.def.kind === 'car' ? -1.6 : 0.9); this.player.z = v.state.z - Math.sin(v.state.heading) * (v.def.kind === 'car' ? -1.6 : 0.9); }
+    else { const side = v.def.kind === 'car' ? -1.6 : v.def.kind === 'moto' ? 1.0 : 0.9; this.player.x = v.state.x + Math.cos(v.state.heading) * side; this.player.z = v.state.z - Math.sin(v.state.heading) * side; }
     this.player.y = this.collision.groundHeight(this.player.x, this.player.z);
     this.player.heading = v.state.heading;
     this.riding = null;
@@ -675,19 +679,17 @@ export class Game {
       const v = this.riding;
       const prev = { x: v.state.x, z: v.state.z };
       stepRideable(v.state, v.def, { throttle: ax.y, steer: -ax.x, boost: this.input.running() }, dt, this.collision);
-      if (v.def.kind === 'car') {
-        // colisão simples com o trânsito
-        const p = { x: v.state.x, z: v.state.z };
-        this.traffic.pushOut(p, 1.25);
-        if (Math.hypot(p.x - v.state.x, p.z - v.state.z) > 1e-3) { v.state.x = p.x; v.state.z = p.z; v.state.speed *= 0.3; }
-        // jogadores pacíficos (ou eu pacífico) bloqueiam o carro; impacto só entre jogadores em modo interação (servidor decide)
-        for (const r of this.net?.remotesForObstacles() ?? []) {
-          if (r.vehicle) continue;
-          const eligible = r.interaction === 'interacao' && this.interaction.mode === 'interacao' && r.status === 0;
-          if (eligible) continue;
-          const fx2 = Math.sin(v.state.heading), fz2 = Math.cos(v.state.heading);
-          const dx = r.x - v.state.x, dz = r.z - v.state.z;
-          if (Math.abs(dx * fx2 + dz * fz2) < 2.6 && Math.abs(dx * fz2 - dz * fx2) < 1.3) { v.state.x = prev.x; v.state.z = prev.z; v.state.speed = 0; }
+      {
+        // MODO PACÍFICO (padrão): o veículo para antes de encostar em qualquer pessoa — mesma regra do servidor
+        // (vehicleBlock). Atropelamento só existe entre jogadores em modo interação, com carro/moto (servidor decide).
+        const kind = v.def.kind as VehicleKind;
+        const blockers = [
+          ...(this.net?.remotesForObstacles() ?? []).filter((r) => !r.vehicle && !((kind === 'car' || kind === 'moto') && impactAllowed(this.interaction.mode, r.interaction as Mode) && r.status === 0)),
+          ...this.peds.nearby(v.state.x, v.state.z, 8),
+        ];
+        if (blockers.length) {
+          const b = vehicleBlock(kind, prev, { x: v.state.x, z: v.state.z }, v.state.heading, blockers);
+          if (b.blocked) { v.state.x = b.x; v.state.z = b.z; v.state.speed = 0; }
         }
       }
       this.input.consumeJump();
@@ -699,9 +701,7 @@ export class Game {
       while (dyaw > Math.PI) dyaw -= Math.PI * 2;
       while (dyaw < -Math.PI) dyaw += Math.PI * 2;
       if (Math.abs(v.state.speed) > 1) this.cam.yaw += dyaw * Math.min(1, dt * (v.def.kind === 'car' ? 2.2 : 1.5));
-      this.prompt.textContent = v.def.kind === 'car'
-        ? 'E — sair do carro · W acelerar · S frear/ré · A/D volante · Shift turbo'
-        : `E — descer da ${v.def.label.toLowerCase()} · W/S acelerar/frear · A/D virar · Shift mais rápido`;
+      this.prompt.textContent = RIDE_HELP[v.def.kind];
     } else {
       const intent = {
         dirX: fx * ax.y + -Math.cos(this.cam.yaw) * ax.x,
@@ -712,13 +712,13 @@ export class Game {
       };
       const steps = Math.max(1, Math.ceil(dt / (1 / 120)));
       for (let i = 0; i < steps; i++) stepPlayer(this.player, intent, dt / steps, this.collision);
-      this.traffic.pushOut(this.player);
-      for (const it of this.rideables.items) if (it.def.kind === 'car' && it !== this.riding) {
-        // carros estacionados são sólidos
+      for (const it of this.rideables.items) if ((it.def.kind === 'car' || it.def.kind === 'moto') && it !== this.riding) {
+        // carros e motos estacionados são sólidos
+        const box = VEHICLE_BOX[it.def.kind as VehicleKind];
         const fx2 = Math.sin(it.state.heading), fz2 = Math.cos(it.state.heading);
         const dx = this.player.x - it.state.x, dz = this.player.z - it.state.z;
         const lz = dx * fx2 + dz * fz2, lx = dx * fz2 - dz * fx2;
-        const hx = 0.9 + 0.35, hz = 2.2 + 0.35;
+        const hx = box.width / 2 + 0.35, hz = box.len / 2 + 0.35;
         if (Math.abs(lx) < hx && Math.abs(lz) < hz) {
           if (hx - Math.abs(lx) < hz - Math.abs(lz)) { const nlx = Math.sign(lx || 1) * hx; this.player.x = it.state.x + lz * fx2 + nlx * fz2; this.player.z = it.state.z + lz * fz2 - nlx * fx2; }
           else { const nlz = Math.sign(lz || 1) * hz; this.player.x = it.state.x + nlz * fx2 + lx * fz2; this.player.z = it.state.z + nlz * fz2 - lx * fx2; }
@@ -726,7 +726,7 @@ export class Game {
       }
       this.avatar.update(this.player, dt);
       const near = this.rideables.nearest(this.player.x, this.player.z);
-      this.prompt.textContent = this.pendingEnter ? 'Aguardando o servidor…' : near ? (near.def.kind === 'car' ? 'E — entrar no carro' : `E — usar ${near.def.label.toLowerCase()}`) : '';
+      this.prompt.textContent = this.pendingEnter ? 'Aguardando o servidor…' : near ? `E — USAR ${near.def.label.toUpperCase()}` : '';
     }
     this.rideables.sync(this.camera.position);
     this.prompt.classList.toggle('show', !!this.prompt.textContent);
@@ -773,7 +773,7 @@ export class Game {
       governor: this.governor?.stats ?? null, targetFps: this.preset.targetFps ?? 60, device: deviceProfile().label,
       quality: this.preset.level, chunks: { ...this.chunks.stats }, props: this.props.instanceCount,
       net: this.net ? { status: this.net.status, remotes: this.net.remoteCount, corrections: this.net.corrections, error: this.net.lastError } : null,
-      pedestrians: { ...this.peds.stats }, crowd: { ...this.crowd.stats, farNet: this.net?.farCount ?? 0 }, vehicles: this.traffic.stats.active, stoppedAtRed: this.traffic.stats2.stoppedAtRed,
+      pedestrians: { ...this.peds.stats }, crowd: { ...this.crowd.stats, farNet: this.net?.farCount ?? 0 }, npcVehicles: 0, playerVehicles: this.rideables.items.length,
       player: { x: this.player.x, y: this.player.y, z: this.player.z },
     };
   }
@@ -823,10 +823,12 @@ export class Game {
       /** TESTE: cliente modificado pede empurrão em um alvo arbitrário */
       rawPush: (target: string) => this.net?.requestPush(target),
       lastDenial: () => this.net?.lastDenial ?? '',
-      mp: () => (this.net ? { session: this.net.sessionId, self: { ...this.net.self }, remotes: this.net.remotesInfo(), bandwidth: this.net.bandwidth, interpDelay: this.net.interpDelay, rtt: worldClock.rtt, clockOffset: worldClock.offsetMs, corrections: this.net.corrections, correctionReasons: this.net.correctionReasons, policy: this.net.policy } : null),
-      vehicles: () => this.rideables.items.filter((i) => i.def.kind === 'car').map((i) => ({ id: i.state.id, x: +i.state.x.toFixed(2), z: +i.state.z.toFixed(2), heading: +i.state.heading.toFixed(3), occupant: i.state.occupant })),
+      mp: () => (this.net ? { session: this.net.sessionId, self: { ...this.net.self }, remotes: this.net.remotesInfo(), bandwidth: this.net.bandwidth, interpDelay: this.net.interpDelay, rtt: worldClock.rtt, clockOffset: worldClock.offsetMs, corrections: this.net.corrections, correctionReasons: this.net.correctionReasons, policy: this.net.policy, vehiclesInView: this.net.vehiclesInView() } : null),
+      /** veículos dos jogadores (todos os tipos); `kind` opcional filtra */
+      vehicles: (kind = 'car') => this.rideables.items.filter((i) => kind === 'all' || i.def.kind === kind).map((i) => ({ id: i.state.id, kind: i.def.kind, x: +i.state.x.toFixed(2), z: +i.state.z.toFixed(2), heading: +i.state.heading.toFixed(3), occupant: i.state.occupant, state: i.netState })),
       signalState: (j: number, ph: number) => this.signals.state(j, ph),
-      trafficIds: (x: number, z: number, r: number) => this.traffic.vehicles.filter((v) => Math.hypot(v.x - x, v.z - z) < r).map((v) => ({ id: v.id, x: +v.x.toFixed(1), z: +v.z.toFixed(1) })),
+      /** QA: não existe trânsito NPC (nenhum grupo de trânsito na cena, nenhuma mensagem "traffic" recebida) */
+      npcTraffic: () => ({ group: !!this.scene.getObjectByName('traffic'), messages: this.net?.trafficMessages ?? 0 }),
       key: (code: string) => { window.dispatchEvent(new KeyboardEvent('keydown', { code })); setTimeout(() => window.dispatchEvent(new KeyboardEvent('keyup', { code })), 60); },
       isDown: () => this.avatar.isDown,
       groundAt: (x: number, z: number) => this.collision.groundHeight(x, z),

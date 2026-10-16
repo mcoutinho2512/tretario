@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import { bake, carModelFor, VEHICLE_MATS } from '../src/traffic/vehicleModels';
-import { legacyGeometry } from '../src/traffic/TrafficSystem';
+import { legacyGeometry } from '../src/traffic/legacyModels';
 
 describe('modelos de veículos', () => {
   it('escolha do modelo de passeio é determinística e variada', () => {

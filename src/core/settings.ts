@@ -20,8 +20,6 @@ export interface QualityPreset {
   cameraFar: number;
   /** pedestres NPC simultâneos ao redor da câmera */
   pedestrians: number;
-  /** veículos NPC simultâneos */
-  vehicles: number;
   /** raio (m) da simulação de pedestres ao redor do jogador */
   pedestrianRadius: number;
   /** alcance de desenho dos painéis de LED */
@@ -38,19 +36,19 @@ export const PRESETS: Record<QualityLevel, QualityPreset> = {
     level: 'low', pixelRatio: 1, shadowMapSize: 0, shadowDistance: 0,
     lodDistances: [220, 520, 1400], vegetationDensity: 0.5, propsDistance: 140,
     ambientOcclusion: false, antialias: false, postAA: false, fogFar: 1500, cameraFar: 1800,
-    pedestrians: 14, vehicles: 24, pedestrianRadius: 70, billboardDistance: 500, npcShadowDistance: 0,
+    pedestrians: 14, pedestrianRadius: 70, billboardDistance: 500, npcShadowDistance: 0,
   },
   medium: {
     level: 'medium', pixelRatio: 1.5, shadowMapSize: 2048, shadowDistance: 110,
     lodDistances: [330, 750, 2200], vegetationDensity: 0.85, propsDistance: 230,
     ambientOcclusion: false, antialias: true, postAA: false, fogFar: 2200, cameraFar: 2600,
-    pedestrians: 32, vehicles: 48, pedestrianRadius: 90, billboardDistance: 750, npcShadowDistance: 25,
+    pedestrians: 32, pedestrianRadius: 90, billboardDistance: 750, npcShadowDistance: 25,
   },
   high: {
     level: 'high', pixelRatio: 2, shadowMapSize: 4096, shadowDistance: 170,
     lodDistances: [450, 1000, 3000], vegetationDensity: 1, propsDistance: 340,
     ambientOcclusion: true, antialias: false, postAA: true, fogFar: 3000, cameraFar: 3400,
-    pedestrians: 56, vehicles: 80, pedestrianRadius: 95, billboardDistance: 900, npcShadowDistance: 35,
+    pedestrians: 56, pedestrianRadius: 95, billboardDistance: 900, npcShadowDistance: 35,
   },
   // ULTRA: não "aumenta tudo" — investe onde a diferença aparece na Pres. Vargas:
   // sombra mais longa (fachadas projetando sombra na avenida inteira), LOD FULL mais distante
@@ -60,7 +58,7 @@ export const PRESETS: Record<QualityLevel, QualityPreset> = {
     level: 'ultra', pixelRatio: 2, shadowMapSize: 4096, shadowDistance: 260,
     lodDistances: [650, 1300, 3400], vegetationDensity: 1, propsDistance: 450,
     ambientOcclusion: true, antialias: false, postAA: true, fogFar: 3400, cameraFar: 3800,
-    pedestrians: 90, vehicles: 110, pedestrianRadius: 120, billboardDistance: 1200, npcShadowDistance: 50,
+    pedestrians: 90, pedestrianRadius: 120, billboardDistance: 1200, npcShadowDistance: 50,
   },
 };
 
@@ -73,7 +71,6 @@ export function mobileAdjust(p: QualityPreset): QualityPreset {
     shadowDistance: Math.min(p.shadowDistance, 70),
     lodDistances: [Math.min(p.lodDistances[0], 220), Math.min(p.lodDistances[1], 520), Math.min(p.lodDistances[2], 1400)],
     pedestrians: Math.min(p.pedestrians, 12),
-    vehicles: Math.min(p.vehicles, 20),
     pedestrianRadius: Math.min(p.pedestrianRadius, 60),
     ambientOcclusion: false,
     postAA: false,

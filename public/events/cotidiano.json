@@ -53,6 +53,12 @@
       "kind": "car",
       "name": "Automóvel",
       "spawn": "none"
+    },
+    {
+      "id": "moto",
+      "kind": "moto",
+      "spawn": "none",
+      "name": "Moto"
     }
   ]
 }

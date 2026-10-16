@@ -15,3 +15,4 @@ screenshots/loadtest.json
 .claude/
 screenshots/bg_*/
 screenshots/crowd_bench/
+screenshots/bench_results/

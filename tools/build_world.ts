@@ -506,8 +506,10 @@ const billboards: BillboardSlot[] = [];
 // Mesmas funções usadas pelo cliente (src/physics/walls.ts) → mesma geometria nos dois lados.
 // ---------------------------------------------------------------------------------------------
 let collisionFile = '';
+/** segmentos de colisão (o arquivo é gravado depois dos veículos: ônibus estacionados também colidem) */
+const collisionSegs: Seg[] = [];
 {
-  const segs: Seg[] = [];
+  const segs = collisionSegs;
   for (const b of F.buildings) buildingWalls(b, segs);
   barrierWalls(F.lines, segs);
   areaEdgeWalls(pathsToPolys(waterPaths), 5, segs);
@@ -519,17 +521,15 @@ let collisionFile = '';
       segs.push({ ax: a[0], az: a[1], bx: b2[0], bz: b2[1], bottom: c.minHeight ?? 0, top: c.height });
     }
   }
-  const buf = Buffer.from(encodeSegments(segs).buffer);
-  collisionFile = `collision.${createHash('sha1').update(buf).digest('hex').slice(0, 10)}.bin`;
-  writeFileSync(`${OUT_DIR}/${collisionFile}`, buf);
-  log(`colisão do servidor: ${segs.length} segmentos, ${(buf.length / 1e6).toFixed(2)} MB (${collisionFile})`);
 }
 
 // ---------------------------------------------------------------------------------------------
-// Veículos utilizáveis: bicicletas/patinetes nas estações reais + carros estacionados junto ao
-// meio-fio da Pres. Vargas (fora das faixas de rolamento; ids estáveis compartilhados com o servidor)
+// Veículos utilizáveis (rodada 7: SEM trânsito NPC — avenida fechada para o evento): bicicletas/patinetes nas
+// estações reais; carros, motos e patinetes ESTACIONADOS junto ao meio-fio ao longo do corredor (nunca no meio da
+// avenida); ônibus estacionados encostados no meio-fio como CENÁRIO (não utilizáveis, sólidos). Ids estáveis.
 // ---------------------------------------------------------------------------------------------
-const vehicleSpawns: { id: string; kind: 'bicycle' | 'scooter' | 'car'; x: number; z: number; heading: number }[] = [];
+const vehicleSpawns: { id: string; kind: 'bicycle' | 'scooter' | 'car' | 'moto'; x: number; z: number; heading: number }[] = [];
+const parkedBuses: { x: number; z: number; heading: number }[] = [];
 {
   F.bikeStations.forEach((st, si) => {
     for (let i = 0; i < 3; i++) {
@@ -550,6 +550,8 @@ const vehicleSpawns: { id: string; kind: 'bicycle' | 'scooter' | 'car'; x: numbe
   // vagas: a partir de fachadas de prédio voltadas para a avenida, anda para fora até o meio-fio;
   // o carro fica na calçada EXTERNA, paralelo ao meio-fio (nunca em canteiro, grama ou praça)
   const spots: { p: XZ; heading: number }[] = [];
+  /** mesma vaga, mas na pista junto ao meio-fio (ônibus de cenário) */
+  const spotsRoad: { p: XZ; heading: number }[] = [];
   for (const b of F.buildings) {
     if (b.height < 8 || b.canopy) continue;
     const ring = b.poly.outer;
@@ -557,7 +559,9 @@ const vehicleSpawns: { id: string; kind: 'bicycle' | 'scooter' | 'car'; x: numbe
       const a = ring[i], c = ring[(i + 1) % ring.length];
       const len = Math.hypot(c[0] - a[0], c[1] - a[1]);
       if (len < 10) continue;
-      const mid: XZ = [(a[0] + c[0]) / 2, (a[1] + c[1]) / 2];
+      // várias vagas ao longo de fachadas longas (a cada 7 m), não só no meio
+      for (let t = len < 14 ? len / 2 : 4; t <= len - 4 + 1e-6; t += len < 14 ? len : 7) {
+      const mid: XZ = [a[0] + ((c[0] - a[0]) * t) / len, a[1] + ((c[1] - a[1]) * t) / len];
       if (distPointPolyline(mid, F.pvAxis) > 75) continue;
       let nx = (c[1] - a[1]) / len, nz = -(c[0] - a[0]) / len;
       const inR = (q: XZ) => { let ins = false; for (let k = 0, j = ring.length - 1; k < ring.length; j = k++) { const xi = ring[k][0], zi = ring[k][1], xj = ring[j][0], zj = ring[j][1]; if (zi > q[1] !== zj > q[1] && q[0] < ((xj - xi) * (q[1] - zi)) / (zj - zi) + xi) ins = !ins; } return ins; };
@@ -577,20 +581,81 @@ const vehicleSpawns: { id: string; kind: 'bicycle' | 'scooter' | 'car'; x: numbe
       let h = Math.atan2((c[0] - a[0]) / len, (c[1] - a[1]) / len);
       if (Math.cos(h) * nx - Math.sin(h) * nz < 0) h = Math.atan2(-(c[0] - a[0]) / len, -(c[1] - a[1]) / len);
       spots.push({ p: [r2(cp[0]), r2(cp[1])], heading: r2(h) });
+      const rp: XZ = [mid[0] + nx * (curb + 1.6), mid[1] + nz * (curb + 1.6)];
+      spotsRoad.push({ p: [r2(rp[0]), r2(rp[1])], heading: r2(h) });
+      }
     }
   }
-  const sp = F.spawn.p;
-  const targets: XZ[] = [[sp[0] + 30, sp[1] - 10], [sp[0] + 60, sp[1] - 20], [sp[0] + 90, sp[1] - 30], [0, 60], [350, -40], [600, -120]];
-  let ci = 0;
-  const used: XZ[] = [];
-  for (const t of targets) {
-    const best = spots.filter((s2) => !used.some((u) => Math.hypot(u[0] - s2.p[0], u[1] - s2.p[1]) < 8))
-      .sort((x, y) => Math.hypot(x.p[0] - t[0], x.p[1] - t[1]) - Math.hypot(y.p[0] - t[0], y.p[1] - t[1]))[0];
+  // alvos espalhados ao longo do eixo da avenida (Central → Candelária), dos dois lados
+  const axisLen = polylineLength(F.pvAxis);
+  const along = (t: number): XZ => {
+    let acc = 0;
+    for (let i = 0; i < F.pvAxis.length - 1; i++) {
+      const a = F.pvAxis[i], b = F.pvAxis[i + 1], l = Math.hypot(b[0] - a[0], b[1] - a[1]);
+      if (acc + l >= t * axisLen) { const k = (t * axisLen - acc) / l; return [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k]; }
+      acc += l;
+    }
+    return F.pvAxis[F.pvAxis.length - 1];
+  };
+  const used: { p: XZ; r: number }[] = F.bikeStations.map((st) => ({ p: st.p as XZ, r: 6 }));
+  const free = (p: XZ, r: number) => !used.some((u) => Math.hypot(u.p[0] - p[0], u.p[1] - p[1]) < Math.max(r, u.r));
+  const pick = (t: XZ, r: number) => spots.filter((s2) => free(s2.p, r)).sort((x, y) => Math.hypot(x.p[0] - t[0], x.p[1] - t[1]) - Math.hypot(y.p[0] - t[0], y.p[1] - t[1]))[0];
+  // ônibus de CENÁRIO: na pista junto ao meio-fio (12 × 2,6 m inteiro sobre asfalto, longe de prédios e vagas)
+  const busSpots = spotsRoad.filter((b) => {
+    const fx = Math.sin(b.heading), fz = Math.cos(b.heading);
+    for (let k = -6.5; k <= 6.5; k += 1.3) for (const l of [-1.4, 1.4]) {
+      const q: XZ = [b.p[0] + fx * k + fz * l, b.p[1] + fz * k - fx * l];
+      if (!pointInPaths(q, roadPaths)) return false;
+    }
+    return true;
+  });
+  for (const t of [along(0.22), along(0.42), along(0.62), along(0.82)]) {
+    const best = busSpots.filter((b) => free(b.p, 16)).sort((x, y) => Math.hypot(x.p[0] - t[0], x.p[1] - t[1]) - Math.hypot(y.p[0] - t[0], y.p[1] - t[1]))[0];
     if (!best) continue;
-    used.push(best.p);
+    used.push({ p: best.p, r: 16 });
+    parkedBuses.push({ x: best.p[0], z: best.p[1], heading: best.heading });
+    // carroceria do ônibus entra na colisão autoritativa (servidor e cliente)
+    const fx = Math.sin(best.heading), fz = Math.cos(best.heading), hl = 6.1, hw = 1.3;
+    const c = [[hl, hw], [hl, -hw], [-hl, -hw], [-hl, hw]].map(([a, l]) => [best.p[0] + fx * a + fz * l, best.p[1] + fz * a - fx * l]);
+    for (let i = 0; i < 4; i++) collisionSegs.push({ ax: c[i][0], az: c[i][1], bx: c[(i + 1) % 4][0], bz: c[(i + 1) % 4][1], bottom: 0, top: 3.2 });
+  }
+  // perto do spawn primeiro (o jogador encontra logo um carro, uma moto e um patinete), depois o corredor inteiro
+  const sp = F.spawn.p;
+  const near: XZ[] = [[sp[0] + 30, sp[1] - 10], [sp[0] + 60, sp[1] - 20], [sp[0] + 90, sp[1] - 30]];
+  let ci = 0, mi = 0, si = 0;
+  const carTargets: XZ[] = [...near, ...Array.from({ length: 11 }, (_, i) => along(0.08 + i * 0.085))];
+  for (const t of carTargets) {
+    const best = pick(t, 8);
+    if (!best) continue;
+    used.push({ p: best.p, r: 8 });
     vehicleSpawns.push({ id: `car${ci++}`, kind: 'car', x: best.p[0], z: best.p[1], heading: best.heading });
   }
-  log(`veículos utilizáveis: ${vehicleSpawns.filter((v) => v.kind !== 'car').length} bicicletas/patinetes, ${ci} carros`);
+  // motos em duplas na mesma vaga (lado a lado, como estacionam no Centro)
+  const motoTargets: XZ[] = [[sp[0] + 45, sp[1] - 15], ...Array.from({ length: 5 }, (_, i) => along(0.15 + i * 0.17))];
+  for (const t of motoTargets) {
+    const best = pick(t, 6);
+    if (!best) continue;
+    used.push({ p: best.p, r: 6 });
+    const fx = Math.sin(best.heading), fz = Math.cos(best.heading);
+    for (const k of [-0.6, 0.6]) vehicleSpawns.push({ id: `moto${mi++}`, kind: 'moto', x: r2(best.p[0] + fx * k * 1.8), z: r2(best.p[1] + fz * k * 1.8), heading: best.heading });
+  }
+  // patinetes elétricos avulsos (além dos das estações)
+  for (const t of [[sp[0] + 20, sp[1] - 5] as XZ, ...Array.from({ length: 5 }, (_, i) => along(0.12 + i * 0.19))]) {
+    const best = pick(t, 4);
+    if (!best) continue;
+    used.push({ p: best.p, r: 4 });
+    vehicleSpawns.push({ id: `sc${si++}`, kind: 'scooter', x: best.p[0], z: best.p[1], heading: best.heading });
+  }
+  log(`vagas junto ao meio-fio: ${spots.length} (pista: ${spotsRoad.length}, cabem ônibus: ${busSpots.length})`);
+  log(`veículos utilizáveis: ${vehicleSpawns.filter((v) => v.kind === 'bicycle').length} bicicletas, ${vehicleSpawns.filter((v) => v.kind === 'scooter').length} patinetes, ${ci} carros, ${mi} motos · ${parkedBuses.length} ônibus de cenário`);
+}
+
+// colisão (inclui ônibus estacionados)
+{
+  const buf = Buffer.from(encodeSegments(collisionSegs).buffer);
+  collisionFile = `collision.${createHash('sha1').update(buf).digest('hex').slice(0, 10)}.bin`;
+  writeFileSync(`${OUT_DIR}/${collisionFile}`, buf);
+  log(`colisão do servidor: ${collisionSegs.length} segmentos, ${(buf.length / 1e6).toFixed(2)} MB (${collisionFile})`);
 }
 
 const trafficJson = JSON.stringify({ lanes: lanesOut, junctions: junctionsOut, crossings: pedCrossings });
@@ -621,6 +686,7 @@ const manifest: WorldManifest = {
   traffic: trafficFile,
   collision: collisionFile,
   vehicleSpawns,
+  parkedBuses,
   monuments: F.monuments,
   billboards,
   bikeStations: F.bikeStations,

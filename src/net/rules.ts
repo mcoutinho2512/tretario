@@ -18,7 +18,23 @@ export const RULES = {
   enterRange: 3.5, // distância máxima (ao centro) para montar em bicicleta/patinete
   enterRangeCar: 2.2, // distância máxima à CARROCERIA para entrar num carro
   impactMinSpeed: 2.5, // m/s
+  /** veículo abandonado longe da vaga volta para ela depois de N ms sem ninguém por perto */
+  vehicleResetMs: 300_000,
+  vehicleResetAwayM: 15,
+  vehicleResetClearM: 25,
+  /** folga entre a carroceria e um jogador quando o veículo é bloqueado (modo pacífico) */
+  vehicleBlockMargin: 0.45,
 } as const;
+
+/** tipos de veículo utilizáveis (servidor e cliente) */
+export const VEHICLE_KINDS = ['car', 'moto', 'bicycle', 'scooter'] as const;
+export type VehicleKind = (typeof VEHICLE_KINDS)[number];
+/** carroceria (comprimento × largura, m) por tipo — colisão, entrada, impacto, bloqueio */
+export const VEHICLE_BOX: Record<VehicleKind, { len: number; width: number }> = {
+  car: { len: 4.4, width: 1.8 }, moto: { len: 2.1, width: 0.8 }, bicycle: { len: 1.8, width: 0.6 }, scooter: { len: 1.2, width: 0.5 },
+};
+/** estado do veículo no servidor */
+export const VEHICLE_STATE = { AVAILABLE: 0, OCCUPIED: 1, RESETTING: 2 } as const;
 
 export type Mode = 'pacifico' | 'interacao';
 export const STATUS = { OK: 0, DOWN: 1, GETUP: 2 } as const;
@@ -96,11 +112,58 @@ export function vehicleImpact(
 
 /** distância de um ponto à carroceria (caixa orientada) — carros; bicicletas/patinetes: ao centro */
 export function distToVehicle(px: number, pz: number, v: { x: number; z: number; heading?: number; kind?: string }): number {
-  if (v.kind !== 'car') return Math.hypot(px - v.x, pz - v.z);
+  if (v.kind !== 'car' && v.kind !== 'moto') return Math.hypot(px - v.x, pz - v.z);
+  const b = VEHICLE_BOX[v.kind];
   const h = v.heading ?? 0, fx = Math.sin(h), fz = Math.cos(h);
   const dx = px - v.x, dz = pz - v.z;
-  const along = Math.max(0, Math.abs(dx * fx + dz * fz) - 2.2), lat = Math.max(0, Math.abs(dx * fz - dz * fx) - 0.9);
+  const along = Math.max(0, Math.abs(dx * fx + dz * fz) - b.len / 2), lat = Math.max(0, Math.abs(dx * fz - dz * fx) - b.width / 2);
   return Math.hypot(along, lat);
+}
+
+/** atropelamento só é possível quando motorista E alvo estão em modo interação (o padrão é pacífico) */
+export function impactAllowed(driverMode: Mode, targetMode: Mode) {
+  return driverMode === 'interacao' && targetMode === 'interacao';
+}
+
+/**
+ * Bloqueio por jogadores (modo pacífico): o veículo NÃO atravessa nem derruba ninguém — para antes de encostar.
+ * Amostra o trajeto prev→next com a carroceria do tipo; devolve a última posição livre.
+ * `others` = jogadores a pé que bloqueiam (o servidor passa só os que não permitem impacto).
+ */
+export function vehicleBlock(
+  kind: VehicleKind, prev: { x: number; z: number }, next: { x: number; z: number }, heading: number,
+  others: { x: number; z: number }[],
+): { x: number; z: number; blocked: boolean } {
+  const b = VEHICLE_BOX[kind], m = RULES.vehicleBlockMargin;
+  const fx = Math.sin(heading), fz = Math.cos(heading);
+  const hit = (cx: number, cz: number) => others.some((o) => {
+    const dx = o.x - cx, dz = o.z - cz;
+    return Math.abs(dx * fx + dz * fz) < b.len / 2 + m && Math.abs(dx * fz - dz * fx) < b.width / 2 + m;
+  });
+  if (hit(prev.x, prev.z)) {
+    // já encostado: só deixa se AFASTAR (ré / desviar) — nunca avançar sobre a pessoa
+    const closer = others.some((o) => Math.hypot(o.x - next.x, o.z - next.z) < Math.hypot(o.x - prev.x, o.z - prev.z) - 1e-3);
+    return closer ? { x: prev.x, z: prev.z, blocked: true } : { x: next.x, z: next.z, blocked: false };
+  }
+  const steps = Math.max(1, Math.ceil(Math.hypot(next.x - prev.x, next.z - prev.z) / 0.25));
+  let lx = prev.x, lz = prev.z;
+  for (let k = 1; k <= steps; k++) {
+    const cx = prev.x + (next.x - prev.x) * (k / steps), cz = prev.z + (next.z - prev.z) * (k / steps);
+    if (hit(cx, cz)) return { x: lx, z: lz, blocked: true };
+    lx = cx; lz = cz;
+  }
+  return { x: next.x, z: next.z, blocked: false };
+}
+
+/** veículo abandonado longe da vaga, sem ninguém por perto há tempo suficiente → volta para a vaga */
+export function shouldResetVehicle(
+  v: { occupant: string; x: number; z: number; spawnX: number; spawnZ: number; idleSince: number },
+  now: number, nearestPlayerM: number, resetMs: number = RULES.vehicleResetMs,
+): boolean {
+  if (v.occupant) return false;
+  if (Math.hypot(v.x - v.spawnX, v.z - v.spawnZ) < RULES.vehicleResetAwayM) return false;
+  if (nearestPlayerM < RULES.vehicleResetClearM) return false;
+  return now - v.idleSince >= resetMs;
 }
 
 /** Pode entrar no veículo? */
@@ -109,7 +172,8 @@ export function canEnter(p: { x: number; z: number; status: number; vehicle: str
   if (v.occupant) return { ok: false as const, reason: 'ocupado' };
   if (p.vehicle) return { ok: false as const, reason: 'ja_em_veiculo' };
   if (p.status !== STATUS.OK) return { ok: false as const, reason: 'estado' };
-  if (distToVehicle(p.x, p.z, v) > (v.kind === 'car' ? RULES.enterRangeCar : RULES.enterRange)) return { ok: false as const, reason: 'distancia' };
+  const range = v.kind === 'car' ? RULES.enterRangeCar : v.kind === 'moto' ? 1.6 : RULES.enterRange;
+  if (distToVehicle(p.x, p.z, v) > range) return { ok: false as const, reason: 'distancia' };
   return { ok: true as const };
 }
 

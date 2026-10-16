@@ -3,7 +3,7 @@
  * NÃO fazer deploy sem autorização (ver docs/MULTIPLAYER.md).
  *
  * Variáveis: PORT (2567) · HOST (127.0.0.1) · COLYSEUS_LATENCY (RTT simulado, ms) · PV_JITTER (ms) · PV_LOSS (0–1)
- *            PV_METRICS=1 (log a cada 5 s) · PV_EVENT · PV_SEED · PV_TRAFFIC (população) · PV_AOI (m)
+ *            PV_METRICS=1 (log a cada 5 s) · PV_EVENT · PV_SEED · PV_AOI (m) · PV_VEH_RESET_MS (retorno à vaga)
  */
 import { createServer } from 'node:http';
 import { Server } from '@colyseus/core';

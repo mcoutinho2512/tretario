@@ -1,5 +1,6 @@
 /**
- * Close-ups dos veículos (Rodada 5): carro dirigível estacionado (3/4 frente e traseira) e veículos do trânsito.
+ * Close-ups dos veículos (Rodada 5): carro dirigível estacionado (3/4 frente e traseira); moto, bicicleta e patinete estacionados
+ * (rodada 7: avenida fechada, sem trânsito NPC).
  * uso (com o dev server): BASE=http://localhost:5173 node tools/qa/vehicle_closeup.mjs <pasta> [quality=high] [hora=10:30]
  */
 import puppeteer from 'puppeteer-core';
@@ -45,26 +46,15 @@ if (cars.length) {
   }
 }
 
-// trânsito: avenida (shot mid), veículos próximos
-await page.evaluate(() => window.__pv.setShot('mid'));
-await wait(5000);
-const me = await page.evaluate(() => window.__pv.metrics().player);
-// prefere veículos parados (sinal vermelho / fila): close-up nítido
-const l1 = await page.evaluate((x, z) => window.__pv.trafficIds(x, z, 220), me.x, me.z);
-await wait(500);
-const l2 = await page.evaluate((x, z) => window.__pv.trafficIds(x, z, 220), me.x, me.z);
-const list = l2.map((v) => { const o = l1.find((p) => p.id === v.id); return { ...v, moved: o ? Math.hypot(o.x - v.x, o.z - v.z) : 99 }; })
-  .sort((a, b) => a.moved - b.moved);
-let k = 0;
-for (const v of list.slice(0, 12)) {
-  if (k >= 3) break;
-  const cur = await page.evaluate((id, x, z) => window.__pv.trafficIds(x, z, 400).find((o) => o.id === id), v.id, me.x, me.z);
-  if (!cur) continue;
-  await look(cur.x, cur.z, 0.6 + k * 2.1, 9, 0.2);
-  await wait(700);
-  await page.screenshot({ path: `${OUT}/${tag}traffic_${k}.jpg`, type: 'jpeg', quality: 88 });
-  console.log('traffic', k, v.id);
-  k++;
+// avenida fechada (rodada 7): sem trânsito NPC — close-ups da moto, bicicleta e patinete estacionados
+const all = await page.evaluate(() => window.__pv.vehicles('all'));
+for (const kind of ['moto', 'bicycle', 'scooter']) {
+  const v = all.find((o) => o.kind === kind);
+  if (!v) continue;
+  await look(v.x, v.z, v.heading + Math.PI + 0.9, kind === 'moto' ? 5 : 4, 0.2);
+  await wait(2500);
+  await page.screenshot({ path: `${OUT}/${tag}parked_${kind}.jpg`, type: 'jpeg', quality: 88 });
+  console.log('parked', kind, v.id);
 }
 console.log(JSON.stringify(await page.evaluate(() => window.__pv.metrics())));
 await browser.close();

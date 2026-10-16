@@ -222,12 +222,12 @@ export class AvatarVisual {
   }
 
   /** montado num veículo: posiciona sobre ele e aplica a pose */
-  updateRiding(x: number, y: number, z: number, heading: number, pose: 'sit-pedal' | 'stand' | 'drive', speed: number, seatHeight: number, dt: number) {
+  updateRiding(x: number, y: number, z: number, heading: number, pose: 'sit-pedal' | 'stand' | 'drive' | 'ride', speed: number, seatHeight: number, dt: number) {
     this.smoothY = y;
     this.root.rotation.y = heading;
     if (this.legacy) {
       this.root.position.set(x, y, z);
-      this.legacy.anim.updateRiding(pose, speed, seatHeight, dt);
+      this.legacy.anim.updateRiding(pose === 'ride' ? 'sit-pedal' : pose, speed, seatHeight, dt);
       return;
     }
     const a = this.human?.animator;

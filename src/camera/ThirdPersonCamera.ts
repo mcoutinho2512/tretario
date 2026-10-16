@@ -25,7 +25,7 @@ export class ThirdPersonCamera {
 
   /** perfil de câmera por veículo (distância e altura do pivô) */
   pivotHeight = 1.6;
-  setProfile(kind: 'foot' | 'bicycle' | 'scooter' | 'car') {
+  setProfile(kind: 'foot' | 'bicycle' | 'scooter' | 'car' | 'moto') {
     const d = kind === 'car' ? 8.5 : kind === 'foot' ? 5.2 : 6;
     this.pivotHeight = kind === 'car' ? 1.9 : 1.6;
     this.maxDistance = kind === 'car' ? 18 : 16;

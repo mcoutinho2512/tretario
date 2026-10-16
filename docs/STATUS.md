@@ -1,6 +1,39 @@
 # STATUS — Presidente Vargas 3D
 
-_Atualizado em 2026-10-16 (rodada 6: produto web — memória, aparelhos, carregamento, multidões, prédios de reconhecimento)._
+_Atualizado em 2026-10-16 (alteração de jogabilidade antes da rodada 7: avenida fechada ao trânsito convencional)._
+
+## Antes da rodada 7 — avenida fechada (detalhes em [SHARED_WORLD.md](SHARED_WORLD.md))
+A Presidente Vargas está **fechada ao trânsito convencional**: não existe mais trânsito NPC. Os veículos são dos
+jogadores, ficam estacionados e só se movem quando alguém os usa.
+
+| Item | Situação |
+|---|---|
+| Trânsito NPC | **removido** (`TrafficSim`, `TrafficSystem`, rotas, geração e snapshot `traffic`; semáforos ficam visuais) |
+| Veículos utilizáveis | 89 estacionados: 14 carros, 12 motos (nova, procedural), 38 bicicletas, 25 patinetes; nunca no meio da avenida (> 12 m do eixo) |
+| Interação | `E — USAR <VEÍCULO>`; servidor autoritativo com estados `AVAILABLE` / `OCCUPIED` / `RESETTING`; um controlador por veículo; ao sair fica parado e disponível |
+| Controles | carro: acelera, freia/ré, esterça, entra/sai · moto/bicicleta/patinete: acelera, freia, esterça, entra/sai |
+| Limites urbanos | carro e moto 30 km/h, bicicleta 25, patinete 20 (servidor valida) |
+| Modo pacífico | sem atropelamento, dano ou ragdoll: o veículo para antes de encostar (`vehicleBlock`, mesma regra no cliente e no servidor) |
+| Cenário de via fechada | 4 ônibus estacionados (só cenário, com colisão), gradis atravessando as pistas nas duas pontas com passagens para pedestres, placas "VIA INTERDITADA" ([fotos](screenshots/round7/)) |
+| Testes | **118** automatizados (103 − 4 do `TrafficSim` removido + 19 novos em `tests/closedAvenue.test.ts`); walkthrough multiplayer **36/36**; `vehicles_mp` **24/24**; build de produção OK |
+
+**Servidor** (`server/tools/bots.ts`, `docs/screenshots/loadtest.json`; M5 Pro):
+
+| Cenário | Tick médio / máx | CPU | Saída por cliente |
+|---|---|---|---|
+| 50 bots densos | 0,75 / 2,2 ms | 7,8 % | 6,8 KB/s |
+| 500 bots densos | 7,7 / 12,6 ms (antes 9,5 / 19,5) | 32 % | 17,3 KB/s (antes 18,8) |
+| 50 bots espalhados | 0,33 ms | — | 1,7 KB/s |
+| 500 bots espalhados | 3,3 / 8,1 ms | — | 9,0 KB/s |
+
+**Cliente** (`tools/qa/crowd_bench.mjs`, sem vsync): 50 bots — LOW 474 FPS, MEDIUM 315, HIGH 125;
+500 bots — LOW 466, MEDIUM 262, HIGH **100 FPS** (antes 82; 1431 draw calls, heap 270 MB).
+
+**Notas honestas**
+- Os carros estacionam **sobre a calçada, encostados no meio-fio** (as vagas são amostradas ao longo das fachadas).
+  Funciona e não bloqueia a passagem, mas o ideal seria uma faixa de estacionamento no asfalto.
+- O modo interação (`impactAllowed`) continua com o empurrão antigo; nenhuma mecânica nova de PvP foi criada.
+- Veículos abandonados voltam à vaga depois de 5 min sem ninguém por perto (`PV_VEH_RESET_MS` para testes).
 
 ## Rodada 6 — resumo (detalhes em [WEB_PRODUCT.md](WEB_PRODUCT.md))
 | Critério | Resultado |
@@ -254,7 +287,7 @@ Mobile (emulação de iPhone 14 no Chrome, BAIXO): 60 FPS, sem erros, joystick f
   parecidos entre si (grade de janelas). Os prédios históricos nomeados não têm modelo próprio (classe B só no shader).
 - **Personagens** procedurais estilizados (sem rosto detalhado/roupas com textura). Trocar por GLB rigado com o mesmo esqueleto.
 - Cada personagem usa uma textura de ossos: com 56 pedestres, o total de texturas sobe de ~43 para ~100 (sem impacto medido).
-- Veículos não respeitam semáforos nem trocam de faixa; pedestres não atravessam na faixa (ainda).
+- Avenida fechada (rodada 7): não há trânsito NPC; pedestres não atravessam na faixa (ainda).
 - **Postes** da Pres. Vargas em parte procedurais; espécies de árvores genéricas.
 - Copas de árvore estilizadas (sem folhas/alpha cards).
 - Sem veículos, pedestres ou áudio (fora do escopo desta etapa).

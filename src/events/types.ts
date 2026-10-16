@@ -76,7 +76,7 @@ export interface BillboardPlan {
 /** Veículo disponível para uso no evento. */
 export interface VehicleOption {
   id: string;
-  kind: 'bicycle' | 'scooter' | 'car';
+  kind: 'bicycle' | 'scooter' | 'car' | 'moto';
   name: string;
   /** spawns: 'bike-stations' = estações de bicicleta reais do OSM */
   spawn: 'bike-stations' | 'none';

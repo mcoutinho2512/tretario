@@ -8,7 +8,7 @@ import * as THREE from 'three';
 
 const LOCO = ['idle', 'walk', 'jog', 'sprint'] as const;
 type Loco = (typeof LOCO)[number];
-export type RidePose = 'sit-pedal' | 'stand' | 'drive';
+export type RidePose = 'sit-pedal' | 'stand' | 'drive' | 'ride';
 export type ShowPose = 'parado' | 'andando' | 'acenando' | 'dancando';
 
 /** pose de repouso de todos os ossos (o mixer não reescreve ossos sem trilha: medições e jogo partem do repouso) */
@@ -274,7 +274,7 @@ export class HumanAnimator {
     this.t += dt;
     const targets: Record<string, number> = {};
     for (const k of this.act.keys()) targets[k] = 0;
-    targets[pose === 'drive' ? 'drive' : pose === 'sit-pedal' ? 'sit' : 'idle'] = 1;
+    targets[pose === 'drive' ? 'drive' : pose === 'sit-pedal' || pose === 'ride' ? 'sit' : 'idle'] = 1;
     this.blend(targets, dt, 14);
     this.restorePose();
     this.mixer.update(dt);

@@ -1,0 +1,71 @@
+[
+  {
+    "browser": "Chrome (macOS)",
+    "ok": true,
+    "errors": [],
+    "loadS": 6.2,
+    "device": "Mac detectado · preset recomendado: ULTRA · 60 FPS · resolução dinâmica",
+    "quality": "ultra",
+    "targetFps": 60,
+    "governor": {
+      "scale": 0.84,
+      "intervalMs": 16.72,
+      "gpuMs": 10.78
+    },
+    "fps": 50.5,
+    "frameMs": 28.8,
+    "cpuMs": 7.9,
+    "gpuMs": 8.712,
+    "calls": 768,
+    "trianglesK": 2572,
+    "heapMB": 271.1,
+    "ua": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/155.0.0.0 Safari/537.36",
+    "gl": "ANGLE (Apple, ANGLE Metal Renderer: Apple M5 Pro, Unspecified Version)"
+  },
+  {
+    "browser": "WebKit / Safari (macOS)",
+    "ok": true,
+    "errors": [],
+    "loadS": 3,
+    "device": "Mac detectado · preset recomendado: ALTO · 60 FPS · resolução dinâmica",
+    "quality": "high",
+    "targetFps": 60,
+    "governor": {
+      "scale": 0.92,
+      "intervalMs": 17.29,
+      "gpuMs": null
+    },
+    "fps": 32.6,
+    "frameMs": 114.7,
+    "cpuMs": 15.9,
+    "gpuMs": null,
+    "calls": 622,
+    "trianglesK": 2099,
+    "heapMB": null,
+    "ua": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/27.2 Safari/605.1.15",
+    "gl": "Apple GPU"
+  },
+  {
+    "browser": "WebKit / Safari — iPhone 15 (emulado)",
+    "ok": true,
+    "errors": [],
+    "loadS": 2,
+    "device": "iPhone detectado · preset recomendado: MÉDIO · 30 FPS · resolução dinâmica",
+    "quality": "medium",
+    "targetFps": 30,
+    "governor": {
+      "scale": 1,
+      "intervalMs": 33.28,
+      "gpuMs": null
+    },
+    "fps": 29.4,
+    "frameMs": 34.1,
+    "cpuMs": 3.3,
+    "gpuMs": null,
+    "calls": 269,
+    "trianglesK": 490,
+    "heapMB": null,
+    "ua": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/27.2 Mobile/15E148 Safari/604.1",
+    "gl": "Apple GPU"
+  }
+]

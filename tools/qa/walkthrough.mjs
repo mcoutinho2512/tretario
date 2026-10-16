@@ -7,10 +7,12 @@
  * uso: node tools/qa/walkthrough.mjs [baseUrl] [latência RTT ms] [jitter ms]
  *
  * Cena: calçada externa da Pres. Vargas, junto ao primeiro carro estacionado (car0, sentido do trânsito).
- * Roteiro: A (homem), B (mulher), C (idoso) entram · todos se veem · A e B andam juntos · mesmo semáforo e
- * mesmo trânsito · A tenta atravessar o prédio (servidor impede) · A entra no carro · B tenta o mesmo carro
- * (servidor impede) · A dirige, freia, dá ré · A sai · A ativa interação · B pacífico (A não empurra) ·
- * B ativa interação · A empurra B · B cai (ragdoll) · B levanta · proteção anti-griefing · impacto de veículo.
+ * Roteiro: A (homem), B (mulher), C (idoso) entram · todos se veem · A e B andam juntos · mesmo semáforo ·
+ * SEM trânsito NPC (avenida fechada) · A tenta atravessar o prédio (servidor impede) · carro parado e disponível ·
+ * A entra no carro · B tenta o mesmo carro (servidor impede) · A dirige, freia, dá ré · A sai (carro fica parado e
+ * disponível) · A ativa interação · B pacífico (A não empurra) · B ativa interação · A empurra B · B cai (ragdoll) ·
+ * B levanta · proteção anti-griefing · impacto de veículo (ambos em interação) · carro NÃO derruba C pacífico (para
+ * antes) · moto, bicicleta e patinete (entrar, andar, os outros veem, sair, disponível) · área de interesse.
  */
 import puppeteer from 'puppeteer-core';
 import { spawn } from 'node:child_process';
@@ -43,7 +45,20 @@ process.on('exit', cleanup);
 
 // ------------------------------------------------------------------ cena
 const manifest = JSON.parse(readFileSync('public/world/manifest.json', 'utf8'));
-const car = manifest.vehicleSpawns.find((v) => v.id === 'car0');
+// carro da cena: precisa de uma FACHADA de prédio à direita (lado da calçada) a até ~14 m — o teste de colisão
+// empurra A para dentro dela; escolhido pelos dados (robusto a mudanças nas vagas do pipeline)
+const insidePoly = (ring, p) => { let ins = false; for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) { const [xi, zi] = ring[i], [xj, zj] = ring[j]; if (zi > p[1] !== zj > p[1] && p[0] < ((xj - xi) * (p[1] - zi)) / (zj - zi) + xi) ins = !ins; } return ins; };
+const buildingAt = (x, z) => {
+  const ch = manifest.chunks.find((c) => c.key === `${Math.floor(x / 250)}_${Math.floor(z / 250)}`);
+  if (!ch) return null;
+  return JSON.parse(readFileSync(`public/world/${ch.file}`, 'utf8')).buildings.find((bd) => !bd.canopy && insidePoly(bd.poly.outer, [x, z]));
+};
+const car = manifest.vehicleSpawns.filter((v) => v.kind === 'car').find((v) => {
+  const R2 = [-Math.cos(v.heading), Math.sin(v.heading)];
+  // prédio à direita (8–14 m) e calçada livre atrás (a cena usa até 22 m para trás)
+  return [8, 11, 14].some((d) => buildingAt(v.x + R2[0] * d, v.z + R2[1] * d)) && !buildingAt(v.x - Math.sin(v.heading) * 15, v.z - Math.cos(v.heading) * 15);
+}) ?? manifest.vehicleSpawns.find((v) => v.id === 'car0');
+console.log(`cena: ${car.id} (${car.x}, ${car.z})`);
 const F = [Math.sin(car.heading), Math.cos(car.heading)]; // frente do carro (sentido do trânsito)
 const L = [Math.cos(car.heading), -Math.sin(car.heading)]; // esquerda = pista
 const R = [-L[0], -L[1]]; // direita = prédio
@@ -107,19 +122,13 @@ await w(800);
   await shot(C, '01_tres_jogadores.png');
 }
 
-// ------------------------------------------------------------------ 3. mesmo semáforo e trânsito
+// ------------------------------------------------------------------ 3. semáforos (cenário/pedestres) e SEM trânsito NPC
 {
   const states = await Promise.all([A, B].map((c) => ev(c, () => Array.from({ length: 135 }, (_, j) => window.__pv.signalState(j, 0)).join(''))));
   const same = [...states[0]].filter((ch, i) => ch === states[1][i]).length;
   check('A e B veem o mesmo estado em todos os semáforos', same >= 133, `${same}/135 iguais no mesmo instante`);
-  const pa = await me(A);
-  const [ta, tb] = await Promise.all([A, B].map((c) => ev(c, (x, z) => window.__pv.trafficIds(x, z, 150), pa.x, pa.z)));
-  const mb = new Map(tb.map((v) => [v.id, v]));
-  const common = ta.filter((v) => mb.has(v.id));
-  const errs = common.map((v) => Math.hypot(v.x - mb.get(v.id).x, v.z - mb.get(v.id).z)).sort((x, y) => x - y);
-  const med = errs.length ? errs[Math.floor(errs.length / 2)] : NaN;
-  check('A e B veem o mesmo trânsito perto deles', ta.length > 3 && common.length / Math.max(ta.length, tb.length) > 0.85 && med < 3,
-    `A:${ta.length} B:${tb.length} em comum:${common.length} · erro mediano ${med.toFixed(2)} m`);
+  const nt = await Promise.all([A, B, C].map((c) => ev(c, () => window.__pv.npcTraffic())));
+  check('não existe trânsito NPC (nenhum cliente recebe ou renderiza trânsito)', nt.every((t) => !t.group && t.messages === 0), JSON.stringify(nt));
 }
 
 // ------------------------------------------------------------------ 4. A tenta atravessar o prédio (cliente modificado)
@@ -129,11 +138,31 @@ await w(800);
   const pa = await me(A);
   // passos de 0,5 m a cada 70 ms (velocidade "legal") em direção ao prédio (lado direito do carro)
   const corr0 = (await mp(A)).corrections;
+  // alvo: 3 m DENTRO do prédio mais próximo de A (ponto mais próximo das fachadas) — robusto a mudanças de cena
+  let dir = R, firstIn = 0;
+  {
+    let best = Infinity, bp = null;
+    for (let cx = Math.floor(pa.x / 250) - 1; cx <= Math.floor(pa.x / 250) + 1; cx++) for (let cz = Math.floor(pa.z / 250) - 1; cz <= Math.floor(pa.z / 250) + 1; cz++) {
+      const ch = manifest.chunks.find((c) => c.key === `${cx}_${cz}`);
+      if (!ch) continue;
+      for (const bd of JSON.parse(readFileSync(`public/world/${ch.file}`, 'utf8')).buildings) {
+        if (bd.canopy || bd.height < 6) continue;
+        const r = bd.poly.outer;
+        for (let i = 0; i < r.length; i++) {
+          const [ax, az] = r[i], [bx, bz] = r[(i + 1) % r.length];
+          const dx = bx - ax, dz = bz - az, l2 = dx * dx + dz * dz || 1;
+          const t = Math.max(0, Math.min(1, ((pa.x - ax) * dx + (pa.z - az) * dz) / l2));
+          const qx = ax + dx * t, qz = az + dz * t, d = Math.hypot(qx - pa.x, qz - pa.z);
+          if (d < best && d > 0.5) { best = d; bp = [qx, qz]; }
+        }
+      }
+    }
+    if (bp) { dir = [(bp[0] - pa.x) / best, (bp[1] - pa.z) / best]; firstIn = Math.ceil(best / 0.5); }
+  }
   const steps = [];
-  for (let k = 1; k <= 30; k++) steps.push([pa.x + R[0] * k * 0.5, pa.z + R[1] * k * 0.5]);
+  for (let k = 1; k <= (firstIn || 30) + 6; k++) steps.push([pa.x + dir[0] * k * 0.5, pa.z + dir[1] * k * 0.5]);
   const target = steps[steps.length - 1];
-  const chunk = JSON.parse(readFileSync(`public/world/${chunkOf(target[0], target[1]).file}`, 'utf8'));
-  const bld = chunk.buildings.find((bd) => !bd.canopy && inside(bd.poly.outer, target));
+  const bld = buildingAt(target[0], target[1]);
   for (const s of steps) { await ev(A, (x, z) => window.__pv.cheatMove(x, z), s[0], s[1]); await w(70); }
   await w(1200);
   const seen = (await mp(B)).remotes.find((r) => r.name === 'Jogador_A');
@@ -144,9 +173,13 @@ await w(800);
 }
 
 // ------------------------------------------------------------------ 5. A entra no carro; B tenta o mesmo
+{
+  const v0 = (await ev(A, () => window.__pv.vehicles())).find((v) => v.id === car.id);
+  check('carro inicialmente parado na vaga e disponível', Math.hypot(v0.x - car.x, v0.z - car.z) < 0.3 && !v0.occupant && v0.state === 0, `estado ${v0.state}`);
+}
 await walk(A, at(-3.3, 0));
 await ev(A, () => window.__pv.key('KeyE'));
-check('A entrou no carro (servidor confirmou)', await until(A, () => window.__pv.riding() === 'car', 6000), car.id);
+check('A entrou no carro (servidor confirmou)', await until(A, () => window.__pv.riding() === 'car', 6000), `${car.id} · montado em ${await ev(A, () => window.__pv.riding())} · negativa ${await ev(A, () => window.__pv.lastDenial())} · prompt ${await ev(A, () => document.querySelector('.use-prompt')?.textContent)}`);
 await walk(B, at(-5.0, 0.3));
 await ev(B, () => window.__pv.key('KeyE')); // cliente normal: nem pede (estado do servidor diz "ocupado")
 await w(500);
@@ -184,6 +217,13 @@ check('servidor responde "ocupado" ao pedido forçado de B', (await ev(B, () => 
 // ------------------------------------------------------------------ 7. A sai do carro
 await ev(A, () => window.__pv.key('KeyE'));
 check('A saiu do carro', await until(A, () => window.__pv.riding() === null, 5000));
+{
+  await w(1500);
+  const before = (await ev(B, () => window.__pv.vehicles())).find((v) => v.id === car.id);
+  await w(1500);
+  const after = (await ev(B, () => window.__pv.vehicles())).find((v) => v.id === car.id);
+  check('carro fica parado e volta a ficar disponível (visto por B)', !after.occupant && after.state === 0 && Math.hypot(after.x - before.x, after.z - before.z) < 0.05, `estado ${after.state}`);
+}
 
 // ------------------------------------------------------------------ 8. modos: B pacífico
 await ev(A, () => window.__pv.key('KeyK'));
@@ -245,12 +285,6 @@ await w(800);
   while (!hit && attempt++ < 3) {
     const cv = (await ev(A, () => window.__pv.vehicles())).find((x) => x.id === car.id);
     const h = await ev(A, () => window.__pv.carHeading());
-    // espera o trecho à frente ficar livre de veículos do trânsito
-    for (let k = 0; k < 15; k++) {
-      const n = await ev(A, (x, z, hh) => window.__pv.trafficIds(x + Math.sin(hh) * 9, z + Math.cos(hh) * 9, 9).length, cv.x, cv.z, h);
-      if (!n) break;
-      await w(2000);
-    }
     const tgt = [cv.x + Math.sin(h) * 9, cv.z + Math.cos(h) * 9];
     await walk(B, tgt, true);
     await walk(C, [tgt[0] - Math.cos(h) * 8, tgt[1] + Math.sin(h) * 8], true);
@@ -269,7 +303,62 @@ await w(800);
   }
   check('impacto de veículo: servidor valida e B cai (sem dano)', hit, `tentativas: ${attempt}`);
   check('B levanta após o impacto', await until(B, () => !window.__pv.isDown() && window.__pv.mp().self.status === 0, 9000));
+
+  // ---------------------------------------------------------------- 11. modo pacífico: carro NÃO derruba C (para antes)
+  await w(5500); // imunidade de B termina (irrelevante: o alvo agora é C, pacífico)
+  const cv = (await ev(A, () => window.__pv.vehicles())).find((x) => x.id === car.id);
+  const h = await ev(A, () => window.__pv.carHeading());
+  const tgt = [cv.x + Math.sin(h) * 8, cv.z + Math.cos(h) * 8];
+  await walk(B, [tgt[0] - Math.cos(h) * 10, tgt[1] + Math.sin(h) * 10], true); // B sai do caminho
+  await walk(C, tgt, true);
+  check('C continua pacífico', (await mp(C)).self.interaction === 'pacifico');
+  await ev(A, () => window.__pv.press('KeyW', 3500));
+  const cDown = await until(C, () => window.__pv.isDown(), 4500, 80);
+  const pc = await me(C);
+  const carNow = (await ev(C, () => window.__pv.vehicles())).find((x) => x.id === car.id);
+  const along = (pc.x - carNow.x) * Math.sin(h) + (pc.z - carNow.z) * Math.cos(h);
+  check('carro não derruba jogador em modo pacífico (para antes de encostar)', !cDown && along > 2.2, `C ${cDown ? 'caiu' : 'de pé'} · ${along.toFixed(2)} m à frente do centro do carro`);
   await ev(A, () => window.__pv.key('KeyE'));
+  await until(A, () => window.__pv.riding() === null, 5000);
+}
+
+// ------------------------------------------------------------------ 12. moto, bicicleta e patinete
+for (const [kind, label] of [['moto', 'moto'], ['bicycle', 'bicicleta'], ['scooter', 'patinete']]) {
+  const pa0 = await me(A);
+  const list = await ev(A, (k) => window.__pv.vehicles(k), kind);
+  const v = list.filter((x) => !x.occupant).sort((x, y) => Math.hypot(x.x - pa0.x, x.z - pa0.z) - Math.hypot(y.x - pa0.x, y.z - pa0.z))[0];
+  if (!v) { check(`${label} funciona`, false, 'nenhum disponível'); continue; }
+  // chega pela lateral (lado da calçada/afastado da pista)
+  const side = [v.x - Math.cos(v.heading) * 1.1, v.z + Math.sin(v.heading) * 1.1];
+  const walkFar = async (c, p) => { await ev(c, (x, z) => window.__pv.walkTo(x, z, true), p[0], p[1]); return until(c, () => window.__pv.arrived(), 70000); };
+  await Promise.all([walkFar(A, side), walkFar(B, [side[0] - Math.cos(v.heading) * 2.5, side[1] + Math.sin(v.heading) * 2.5])]);
+  // pede ESTE veículo (estações/duplas têm vizinhos a < 1 m; o E pegaria o mais próximo — testado no carro)
+  await ev(A, (id) => window.__pv.rawEnter(id), v.id);
+  const entered = await until(A, () => window.__pv.riding() !== null, 6000);
+  const p0 = await me(A);
+  await ev(A, () => window.__pv.press('KeyW', 2500));
+  await w(2900);
+  const p1 = await me(A);
+  const seen = (await ev(B, (k) => window.__pv.vehicles(k), kind)).find((x) => x.id === v.id);
+  await ev(A, () => window.__pv.press('KeyS', 900));
+  await w(1000);
+  await ev(A, () => window.__pv.key('KeyE'));
+  const out = await until(A, () => window.__pv.riding() === null, 5000);
+  await w(1200);
+  const after = (await ev(B, (k) => window.__pv.vehicles(k), kind)).find((x) => x.id === v.id);
+  check(`${label} funciona: entra, anda, B vê, sai e fica disponível`,
+    entered && dist(p1, p0) > 3 && seen && Math.hypot(seen.x - p1.x, seen.z - p1.z) < 2.5 && out && !after.occupant && after.state === 0,
+    `${v.id}: andou ${dist(p1, p0).toFixed(1)} m · B vê a ${seen ? Math.hypot(seen.x - p1.x, seen.z - p1.z).toFixed(2) : '?'} m · saiu ${out} · estado ${after?.state}`);
+}
+
+// ------------------------------------------------------------------ 13. área de interesse dos veículos
+{
+  const pa = await me(A);
+  const inView = (await mp(A)).vehiclesInView;
+  const all = await ev(A, () => window.__pv.vehicles('all')); // posições atuais (veículos dirigidos mudam de lugar)
+  const far = inView.map((id) => all.find((s) => s.id === id)).filter(Boolean).filter((s) => Math.hypot(s.x - pa.x, s.z - pa.z) > 253 + 40);
+  check('área de interesse: só veículos próximos são enviados', inView.length > 0 && inView.length < all.length && far.length === 0,
+    `${inView.length} de ${all.length} veículos na vista; ${far.length} além do raio`);
 }
 
 // ------------------------------------------------------------------ relatório

@@ -131,6 +131,13 @@ export class PedestrianSystem {
   }
 
   /** posições de pedestres na pista (para os veículos frearem) */
+  /** pedestres ativos a até `r` metros (veículos de jogadores param antes deles: ninguém é atropelado) */
+  nearby(x: number, z: number, r: number): { x: number; z: number }[] {
+    const out: { x: number; z: number }[] = [];
+    for (const p of this.peds) if (p.active && Math.abs(p.x - x) < r && Math.abs(p.z - z) < r) out.push({ x: p.x, z: p.z });
+    return out;
+  }
+
   crossingPositions(): { x: number; z: number }[] {
     const out: { x: number; z: number }[] = [];
     for (const p of this.peds) if (p.active && p.mode === 'cross') out.push({ x: p.x, z: p.z });

@@ -4,9 +4,10 @@
  *  posição      cliente propõe; servidor valida velocidade por modo, limites e PAREDES (colisão 2D) e corrige
  *  veículos     registro no servidor; entrar/sair validados; 1 ocupante por veículo; posição vem do ocupante validado
  *  interação    modo por jogador (política do evento); empurrão e impacto de veículo validados aqui
- *  mundo        relógio global, semente, semáforos (função do relógio) e trânsito GLOBAL simulado aqui
+ *  mundo        relógio global e semente. SEM trânsito NPC: a Pres. Vargas está fechada para o evento — só veículos
+ *               de jogadores (carro, moto, bicicleta, patinete), estacionados até alguém usar
  *  interesse    grade espacial (SpatialGrid) + StateView por cliente: os AOI_MAX jogadores mais próximos a ≤ AOI_RADIUS
- *               com estado completo (20 Hz); o resto da área vai como multidão compacta ("crowd", 2 Hz). Trânsito só da área
+ *               com estado completo (20 Hz); o resto da área vai como multidão compacta ("crowd", 2 Hz). Veículos também pela grade
  *  rede adversa PV_JITTER / PV_LOSS (ms / 0–1) além de COLYSEUS_LATENCY (RTT nativo)
  */
 import { Room, type Client } from '@colyseus/core';
@@ -15,9 +16,7 @@ import { WorldState, NetPlayer, NetVehicle } from './state.ts';
 import { loadWorld, type ServerWorld } from './world.ts';
 import { BODIES, NET_ACCESSORIES, MAX_SPEED, sanitizeColor, sanitizeName, type JoinOptions, type MoveMode } from '../../src/net/protocol.ts';
 import { validateMoveInWorld } from '../../src/net/authority.ts';
-import { RULES, STATUS, canPush, canEnter, knockdownOutcome, vehicleImpact, unpackMove, type Actor, type Mode } from '../../src/net/rules.ts';
-import { TrafficSim } from '../../src/traffic/TrafficSim.ts';
-import { SignalController } from '../../src/traffic/SignalController.ts';
+import { RULES, STATUS, VEHICLE_BOX, VEHICLE_STATE, canPush, canEnter, impactAllowed, knockdownOutcome, shouldResetVehicle, vehicleBlock, vehicleImpact, unpackMove, type Actor, type Mode, type VehicleKind } from '../../src/net/rules.ts';
 import { metrics } from './metrics.ts';
 import { SpatialGrid, selectInterest, selectInterestSlots, InterestScratch, makeSlotView, type SlotView } from '../../src/net/spatialGrid.ts';
 import { CrowdTable } from '../../src/net/crowdCodec.ts';
@@ -41,9 +40,8 @@ const clientCap = (req: unknown) => {
   return n > 0 ? Math.max(8, Math.min(AOI_MAX, n)) : AOI_MAX;
 };
 const BODY_INDEX: Record<string, number> = Object.fromEntries(BODIES.map((b, i) => [b, i]));
-const TRAFFIC_RADIUS = 380; // m — trânsito enviado a cada cliente
-const TRAFFIC_HZ = 2;
-const TRAFFIC_POP = Number(process.env.PV_TRAFFIC ?? 220);
+/** veículo abandonado longe da vaga volta para ela após este tempo (ms) sem ninguém por perto */
+const VEH_RESET_MS = Number(process.env.PV_VEH_RESET_MS ?? RULES.vehicleResetMs);
 const SIM_JITTER = Number(process.env.PV_JITTER ?? 0);
 const SIM_LOSS = Number(process.env.PV_LOSS ?? 0);
 
@@ -77,11 +75,14 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
   state = new WorldState();
   private rt = new Map<string, PlayerRT>();
   private clients2 = new Map<string, Client>();
-  private traffic!: TrafficSim;
-  private signals!: SignalController;
+  /** vaga original e ociosidade de cada veículo (só servidor) */
+  private vehRT = new Map<string, { spawnX: number; spawnZ: number; spawnHeading: number; idleSince: number; vslot: number }>();
+  /** grade espacial dos veículos (AOI e retorno à vaga) */
+  private vgrid = new SpatialGrid(AOI_RADIUS / 2);
+  private vehIds: string[] = [];
+  private vehAcc = 0;
   private interactionPolicy: 'pacifico' | 'opcional' = 'opcional';
   private spawn = { x: -580, z: 280, heading: 1.75 };
-  private trafficAcc = 0;
   private tickN = 0;
   private crowdTable = new CrowdTable();
   private crowdSlots = new Int32Array(1024);
@@ -124,17 +125,17 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     for (const s of W.manifest.vehicleSpawns ?? []) {
       if (allowed.size && !allowed.has(s.kind)) continue;
       const v = new NetVehicle();
-      v.kind = s.kind; v.x = s.x; v.z = s.z; v.y = 0; v.heading = s.heading; v.speed = 0; v.occupant = '';
+      v.kind = s.kind; v.x = s.x; v.z = s.z; v.y = 0; v.heading = s.heading; v.speed = 0; v.occupant = ''; v.state = VEHICLE_STATE.AVAILABLE;
       this.state.vehicles.set(s.id, v);
+      this.vehRT.set(s.id, { spawnX: s.x, spawnZ: s.z, spawnHeading: s.heading, idleSince: Date.now(), vslot: this.vehIds.length });
+      this.vehIds.push(s.id);
     }
-    // trânsito global determinístico pela semente + semáforos pelo relógio do servidor
-    this.signals = new SignalController(W.traffic.junctions);
-    this.traffic = new TrafficSim(W.traffic.lanes, this.state.seed);
-    this.traffic.signals = (j, ph) => this.signals.state(j, ph);
-    this.traffic.populateGlobal(TRAFFIC_POP);
+    this.rebuildVehicleGrid();
     this.patchRate = 50; // 20 Hz
     this.setSimulationInterval((dt) => this.tick(dt), 100); // 10 Hz
-    console.log(`[room] ${this.roomId} evento=${ev} (interação: ${this.interactionPolicy}) trânsito=${this.traffic.vehicles.length} veículos AOI=${AOI_RADIUS} m`);
+    const kinds: Record<string, number> = {};
+    this.state.vehicles.forEach((v) => { kinds[v.kind] = (kinds[v.kind] ?? 0) + 1; });
+    console.log(`[room] ${this.roomId} evento=${ev} (interação: ${this.interactionPolicy}) sem trânsito NPC · veículos ${JSON.stringify(kinds)} AOI=${AOI_RADIUS} m`);
   }
 
   /** mede a codificação/envio dos patches (StateView por cliente): é o custo que cresce com a multidão */
@@ -162,12 +163,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     const now = Date.now();
     const dt = dtMs / 1000;
     this.state.serverTime = now;
-    this.signals.setTime(now / 1000);
-    // trânsito: obstáculos = jogadores a pé e veículos utilizáveis (parados ou dirigidos)
-    const obstacles: { x: number; z: number; r: number }[] = [];
-    this.state.players.forEach((p) => { if (!p.vehicle) obstacles.push({ x: p.x, z: p.z, r: 0.9 }); });
-    this.state.vehicles.forEach((v) => { if (v.kind === 'car') obstacles.push({ x: v.x, z: v.z, r: 1.6 }); });
-    this.traffic.step(dt, obstacles, true);
+    void dt;
     // recuperação de quedas
     for (const [id, r] of this.rt) {
       const p = this.state.players.get(id);
@@ -185,19 +181,34 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     this.tickN++;
     this.updateInterest(this.tickN % AOI_SLICES, AOI_SLICES);
     if (CROWD_HZ > 0) { const tc = performance.now(); this.sendCrowd(this.tickN % CROWD_SLICES, CROWD_SLICES); metrics.crowd(performance.now() - tc); }
-    // trânsito por área de interesse (2 Hz)
-    this.trafficAcc += dtMs;
-    if (this.trafficAcc >= 1000 / TRAFFIC_HZ) {
-      this.trafficAcc = 0;
-      for (const [id, c] of this.clients2) {
-        const p = this.state.players.get(id);
-        if (!p) continue;
-        if (SIM_LOSS && Math.random() < SIM_LOSS) continue;
-        const buf = this.traffic.packAround(p.x, p.z, TRAFFIC_RADIUS);
-        c.send('traffic', buf);
-      }
-    }
+    // veículos: grade (AOI) e retorno à vaga dos abandonados (1 Hz)
+    this.vehAcc += dtMs;
+    if (this.vehAcc >= 1000) { this.vehAcc = 0; this.rebuildVehicleGrid(); this.resetAbandoned(now); }
     metrics.tick(performance.now() - t0, this.state.players.size);
+  }
+
+  private rebuildVehicleGrid() {
+    this.vgrid.clear();
+    this.state.vehicles.forEach((v, id) => { const rt = this.vehRT.get(id); if (rt) this.vgrid.insert(rt.vslot, v.x, v.z); });
+  }
+
+  /** veículo deixado longe da vaga, sem ninguém por perto há VEH_RESET_MS → RESETTING (1 s) → volta à vaga, AVAILABLE */
+  private resetAbandoned(now: number) {
+    this.state.vehicles.forEach((v, id) => {
+      const rt = this.vehRT.get(id);
+      if (!rt) return;
+      if (v.state === VEHICLE_STATE.RESETTING) {
+        v.x = rt.spawnX; v.z = rt.spawnZ; v.heading = rt.spawnHeading; v.speed = 0; v.y = 0;
+        v.state = VEHICLE_STATE.AVAILABLE; rt.idleSince = now;
+        console.log(`[room] veículo ${id} voltou para a vaga`);
+        return;
+      }
+      let nearest = Infinity;
+      this.grid.forEachInRadius(v.x, v.z, RULES.vehicleResetClearM, (_sl, d) => { nearest = Math.min(nearest, d); });
+      if (shouldResetVehicle({ occupant: v.occupant, x: v.x, z: v.z, spawnX: rt.spawnX, spawnZ: rt.spawnZ, idleSince: rt.idleSince }, now, nearest, VEH_RESET_MS)) {
+        v.state = VEHICLE_STATE.RESETTING;
+      }
+    });
   }
 
   private rebuildGrid() {
@@ -212,8 +223,6 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
    */
   private updateInterest(phase = 0, slices = 1, only?: string) {
     const t0 = performance.now();
-    const vehs: { id: string; v: NetVehicle }[] = [];
-    this.state.vehicles.forEach((v, id) => vehs.push({ id, v }));
     for (const [id, r] of this.rt) {
       if (only ? id !== only : r.slot % slices !== phase) continue;
       const me = this.state.players.get(id);
@@ -221,9 +230,9 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
       selectInterestSlots(this.grid, r.slot, me.x, me.z, r.inView, { radius: AOI_RADIUS, hysteresis: AOI_HYST, cap: r.aoiCap }, this.scratch, this.aoiAdd, this.aoiRem, r.overflow);
       for (const sl of this.aoiAdd) { const p = this.state.players.get(this.slotIds[sl]); if (p) r.view.add(p); }
       for (const sl of this.aoiRem) { const p = this.state.players.get(this.slotIds[sl]); if (p) r.view.remove(p); }
-      // veículos utilizáveis: poucos (dezenas) — lista direta; o do próprio jogador fica sempre
+      // veículos: mesma grade espacial (só células próximas); o do próprio jogador fica sempre
       const vc: { item: string; d: number }[] = [];
-      for (const { id: vid, v } of vehs) { const d = Math.hypot(v.x - me.x, v.z - me.z); if (d <= AOI_RADIUS * AOI_HYST) vc.push({ item: vid, d }); }
+      this.vgrid.forEachInRadius(me.x, me.z, AOI_RADIUS * AOI_HYST, (vs, d) => vc.push({ item: this.vehIds[vs], d }));
       const vr = selectInterest({ candidates: vc, inView: r.vehInView, radius: AOI_RADIUS, hysteresis: AOI_HYST, always: me.vehicle ? new Set([me.vehicle]) : undefined });
       for (const vid of vr.add) { const v = this.state.vehicles.get(vid); if (v) { r.view.add(v); r.vehInView.add(vid); } }
       for (const vid of vr.remove) { const v = this.state.vehicles.get(vid); if (v) r.view.remove(v); r.vehInView.delete(vid); }
@@ -335,7 +344,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     const p = this.state.players.get(client.sessionId);
     if (p?.vehicle) {
       const v = this.state.vehicles.get(p.vehicle);
-      if (v) { v.occupant = ''; v.speed = 0; }
+      if (v) { v.occupant = ''; v.speed = 0; v.state = VEHICLE_STATE.AVAILABLE; const rt = this.vehRT.get(p.vehicle); if (rt) rt.idleSince = Date.now(); }
     }
     const leaving = this.rt.get(client.sessionId);
     if (leaving) {
@@ -371,6 +380,14 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     const dtS = Math.max(0.05, (now - r.last.t) / 1000);
     const measured = Math.hypot(res.x - r.last.x, res.z - r.last.z) / dtS;
     const prevX = r.last.x, prevZ = r.last.z;
+    if (veh) {
+      // MODO PACÍFICO: veículo não atravessa nem derruba ninguém — para antes de encostar (validado aqui)
+      const blk = this.vehicleBlockers(client.sessionId, veh.kind as VehicleKind, prevX, prevZ, res.x, res.z);
+      if (blk.length) {
+        const b = vehicleBlock(veh.kind as VehicleKind, { x: prevX, z: prevZ }, { x: res.x, z: res.z }, m.heading, blk);
+        if (b.blocked) { res.x = b.x; res.z = b.z; res.ok = false; res.reason = 'bloqueado'; }
+      }
+    }
     p.x = res.x; p.y = res.y; p.z = res.z;
     p.heading = m.heading;
     p.speed = Math.min(Math.abs(m.speed), MAX_SPEED[mode]);
@@ -383,7 +400,10 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     }
     if (veh) {
       veh.x = res.x; veh.z = res.z; veh.y = res.y; veh.heading = m.heading; veh.speed = measured;
-      if (veh.kind === 'car') this.checkImpacts(client.sessionId, { x: res.x, z: res.z, px: prevX, pz: prevZ, heading: m.heading, speed: measured });
+      if (veh.kind === 'car' || veh.kind === 'moto') {
+        const box = VEHICLE_BOX[veh.kind as VehicleKind];
+        this.checkImpacts(client.sessionId, { x: res.x, z: res.z, px: prevX, pz: prevZ, heading: m.heading, speed: measured, len: box.len, width: box.width });
+      }
     }
   }
 
@@ -406,6 +426,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     const c = canEnter({ x: r.last.x, z: r.last.z, status: p.status, vehicle: p.vehicle }, v ? { x: v.x, z: v.z, occupant: v.occupant, heading: v.heading, kind: v.kind } : undefined);
     if (!c.ok) { client.send('enter_denied', { id, reason: c.reason }); metrics.denied(); console.log(`[room] entrar negado ${client.sessionId} → ${JSON.stringify(id)}: ${c.reason}`); return; }
     v!.occupant = client.sessionId;
+    v!.state = VEHICLE_STATE.OCCUPIED;
     p.vehicle = id;
     r.actor.vehicle = id;
     // o ocupante "assume" a posição do veículo (autoritativa)
@@ -420,12 +441,15 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     const p = this.state.players.get(client.sessionId);
     const r = this.rt.get(client.sessionId);
     if (!p || !r || !p.vehicle) return;
-    const v = this.state.vehicles.get(p.vehicle);
+    const vid = p.vehicle;
+    const v = this.state.vehicles.get(vid);
     p.vehicle = ''; r.actor.vehicle = '';
     if (v) {
-      v.occupant = ''; v.speed = 0;
+      v.occupant = ''; v.speed = 0; v.state = VEHICLE_STATE.AVAILABLE;
+      const vrt = this.vehRT.get(vid);
+      if (vrt) vrt.idleSince = Date.now();
       // sai pelo lado esquerdo (motorista); se houver parede, pelo direito; senão no lugar
-      const side = v.kind === 'car' ? 1.6 : 0.9;
+      const side = v.kind === 'car' ? 1.6 : v.kind === 'moto' ? 1.0 : 0.9;
       const cands = [[-Math.cos(v.heading), Math.sin(v.heading)], [Math.cos(v.heading), -Math.sin(v.heading)]];
       let out = { x: v.x, z: v.z };
       for (const [dx, dz] of cands) {
@@ -466,7 +490,27 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     this.knockdown(targetId, r.actor.x, r.actor.z, RULES.pushDistance, 'push', client.sessionId, 1);
   }
 
-  private checkImpacts(driverId: string, car: { x: number; z: number; px: number; pz: number; heading: number; speed: number }) {
+  /**
+   * jogadores a pé que BLOQUEIAM este veículo: todos, exceto quando o atropelamento é permitido (motorista e alvo em
+   * modo interação, alvo de pé e sem imunidade, e só carro/moto). Candidatos pela grade espacial.
+   */
+  private vehicleBlockers(driverId: string, kind: VehicleKind, px: number, pz: number, x: number, z: number) {
+    const d = this.rt.get(driverId);
+    const now = Date.now();
+    const out: { x: number; z: number }[] = [];
+    const reach = Math.hypot(x - px, z - pz) / 2 + VEHICLE_BOX[kind].len / 2 + 2;
+    this.grid.forEachInRadius((x + px) / 2, (z + pz) / 2, reach, (sl) => {
+      const id = this.slotIds[sl];
+      if (id === driverId) return;
+      const a = this.rt.get(id)?.actor;
+      if (!a || a.vehicle) return;
+      const canHit = (kind === 'car' || kind === 'moto') && !!d && impactAllowed(d.actor.mode, a.mode) && a.status === STATUS.OK && now >= a.immuneUntil;
+      if (!canHit) out.push({ x: a.x, z: a.z });
+    });
+    return out;
+  }
+
+  private checkImpacts(driverId: string, car: { x: number; z: number; px: number; pz: number; heading: number; speed: number; len?: number; width?: number }) {
     const d = this.rt.get(driverId);
     if (!d || d.actor.mode !== 'interacao') return; // motorista também precisa estar em modo interação
     const now = Date.now();

@@ -25,7 +25,7 @@ describe('presets gráficos', () => {
   it('ajuste mobile reduz NPCs, trânsito, sombras e distância de desenho', () => {
     const m = mobileAdjust(PRESETS.ultra);
     expect(m.pedestrians).toBeLessThanOrEqual(12);
-    expect(m.vehicles).toBeLessThanOrEqual(20);
+    // (sem trânsito NPC desde a rodada 7: não há mais população de veículos por preset)
     expect(m.shadowMapSize).toBeLessThanOrEqual(1024);
     expect(m.lodDistances[2]).toBeLessThanOrEqual(1400);
     expect(m.ambientOcclusion).toBe(false);

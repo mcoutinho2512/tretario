@@ -17,6 +17,7 @@ import { ROOM_NAME, NET_TICK_HZ, LOCO, type JoinOptions } from './protocol';
 import { packMove } from './rules';
 import { netStats, SIM } from './netWebSocket';
 import { worldClock } from './clock';
+import { RIDEABLE_DEFS, type RideableKind } from '../vehicles/Rideable';
 import { AvatarVisual } from '../player/AvatarVisual';
 import { createPlayerState, type PlayerState } from '../player/PlayerState';
 import type { Accessory, BodyType, CharacterAppearance } from '../characters/bodyTypes';
@@ -90,8 +91,13 @@ export class NetworkClient {
   // callbacks para o jogo
   onSpawn: ((s: { x: number; y: number; z: number; heading: number }) => void) | null = null;
   onCorrect: ((dx: number, dz: number, abs: { x: number; y: number; z: number }, reason: string) => void) | null = null;
-  onTraffic: ((buf: Uint8Array) => void) | null = null;
-  onVehicle: ((id: string, v: { x: number; y: number; z: number; heading: number; occupant: string; kind: string }) => void) | null = null;
+  /** QA: mensagens de trânsito NPC recebidas (deve ser 0: a avenida está fechada) */
+  trafficMessages = 0;
+  /** veículos que o servidor está enviando agora (área de interesse) */
+  vehiclesInView() { return [...this.vehicleKinds.keys()]; }
+  /** tipo de cada veículo (pela sincronização do servidor) — pose/altura do assento dos remotos */
+  private vehicleKinds = new Map<string, string>();
+  onVehicle: ((id: string, v: { x: number; y: number; z: number; heading: number; occupant: string; kind: string; state: number }) => void) | null = null;
   onEnter: ((ok: boolean, data: { id: string; reason?: string; x?: number; z?: number; heading?: number }) => void) | null = null;
   onExit: ((pos: { x: number; z: number }) => void) | null = null;
   onKnock: ((k: KnockMsg, isSelf: boolean) => void) | null = null;
@@ -140,7 +146,8 @@ export class NetworkClient {
         this.onCorrect?.(h ? c[0] - h.x : 0, h ? c[2] - h.z : 0, { x: c[0], y: c[1], z: c[2] }, c[4]);
       });
       room.onMessage('pong', (p: [number, number]) => worldClock.addSample(p[0], p[1], Date.now()));
-      room.onMessage('traffic', (b: Uint8Array | ArrayBuffer) => this.onTraffic?.(b instanceof Uint8Array ? b : new Uint8Array(b)));
+      // trânsito NPC foi removido (avenida fechada); se um servidor antigo mandar, só conta — não renderiza nada
+      room.onMessage('traffic', () => { this.trafficMessages++; });
       room.onMessage('enter_ok', (d: { id: string; x: number; z: number; heading: number }) => { this.holdMoves = false; this.onEnter?.(true, d); });
       room.onMessage('enter_denied', (d: { id: string; reason: string }) => { this.holdMoves = false; this.lastDenial = `enter:${d.reason}`; this.onEnter?.(false, d); });
       room.onMessage('exit_ok', (d: { x: number; z: number }) => { this.holdMoves = false; this.onExit?.(d); });
@@ -163,10 +170,13 @@ export class NetworkClient {
       });
       cb.onRemove('players', (_p: any, id: string) => this.removeRemote(id));
       cb.onAdd('vehicles', (v: any, id: string) => {
-        const emit = () => this.onVehicle?.(id, { x: v.x, y: v.y, z: v.z, heading: v.heading, occupant: v.occupant, kind: v.kind });
+        this.vehicleKinds.set(id, v.kind);
+        const emit = () => this.onVehicle?.(id, { x: v.x, y: v.y, z: v.z, heading: v.heading, occupant: v.occupant, kind: v.kind, state: v.state ?? 0 });
         emit();
         cb.onChange(v, emit);
       });
+      // área de interesse: o servidor tira da vista veículos distantes
+      cb.onRemove('vehicles', (_v: any, id: string) => { this.vehicleKinds.delete(id); });
       // sincronização rápida do relógio
       for (let i = 0; i < 5; i++) setTimeout(() => this.room?.send('ping', Date.now()), 150 * i);
     } catch (e) {
@@ -378,9 +388,9 @@ export class NetworkClient {
       if (crowd) { visual.applyLod(ag.lod, d); visual.root.visible = ag.inView || d < 6 || visual.isDown; }
       else visual.setDistance(d);
       if (c.vehicle && !visual.isDown) {
-        const kind = c.vehicle.startsWith('car') ? 'car' : c.vehicle.endsWith('_2') ? 'scooter' : 'bicycle';
-        const pose = kind === 'bicycle' ? 'sit-pedal' : kind === 'scooter' ? 'stand' : 'drive';
-        visual.updateRiding(s.x, s.y, s.z, s.heading, pose, s.speed, kind === 'bicycle' ? 0.92 : kind === 'scooter' ? 0.18 : 0.42, dt);
+        // tipo REAL do veículo (sincronizado), não deduzido do id
+        const def = RIDEABLE_DEFS[(this.vehicleKinds.get(c.vehicle) ?? 'bicycle') as RideableKind] ?? RIDEABLE_DEFS.bicycle;
+        visual.updateRiding(s.x, s.y, s.z, s.heading, def.pose, s.speed, def.seatHeight, dt);
       } else visual.update(s, dt, crowd ? visual.root.visible && crowd.shouldAnimate(ag) : undefined);
       v.set(s.x, s.y + 2.1, s.z).project(camera);
       const vis = visual.root.visible && v.z < 1 && Math.hypot(s.x - cam.x, s.z - cam.z) < 70;

@@ -37,6 +37,8 @@ export const NetVehicle = schema({
   speed: t.float32(),
   /** sessionId do ocupante ('' = livre) */
   occupant: t.string(),
+  /** 0 disponível · 1 ocupado · 2 voltando para a vaga (VEHICLE_STATE) */
+  state: t.uint8(),
 }, 'NetVehicle');
 export type NetVehicle = SchemaType<typeof NetVehicle>;
 

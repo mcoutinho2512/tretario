@@ -21,7 +21,9 @@ export type NetBody = (typeof BODIES)[number];
 export const WORLD_LIMITS = { minX: -1800, maxX: 1600, minZ: -1100, maxZ: 1300 };
 
 /** velocidades máximas aceitas (m/s), com folga para jitter de rede */
-export const MAX_SPEED = { foot: 5.6, bicycle: 9.5, scooter: 7.5, car: 19 } as const;
+// limites URBANOS (avenida fechada para evento, não pista de corrida): carro/moto 30 km/h, bicicleta 25,
+// patinete 20 km/h (≈ boost × 1,05; validateMove ainda dá 35 % de folga para jitter)
+export const MAX_SPEED = { foot: 5.6, bicycle: 7.3, scooter: 5.9, car: 8.8, moto: 8.8 } as const;
 export type MoveMode = keyof typeof MAX_SPEED;
 
 export interface JoinOptions {

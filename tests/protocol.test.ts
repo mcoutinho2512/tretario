@@ -16,8 +16,10 @@ describe('protocolo multiplayer — autoridade do servidor', () => {
     expect(r.x).toBeLessThan(MAX_SPEED.foot);
   });
   it('bicicleta pode ir mais rápido que a pé', () => {
-    const foot = validateMove({ x: 0, y: 0, z: 0, t: 0 }, msg(3, 0, 'foot'), 200);
-    const bike = validateMove({ x: 0, y: 0, z: 0, t: 0 }, msg(3, 0, 'bicycle'), 200);
+    // 2,2 m em 200 ms (11 m/s com folga de rede): acima do limite a pé, dentro do da bicicleta
+    // (limites urbanos da rodada 7: avenida fechada — bicicleta até ~25 km/h)
+    const foot = validateMove({ x: 0, y: 0, z: 0, t: 0 }, msg(2.2, 0, 'foot'), 200);
+    const bike = validateMove({ x: 0, y: 0, z: 0, t: 0 }, msg(2.2, 0, 'bicycle'), 200);
     expect(foot.ok).toBe(false);
     expect(bike.ok).toBe(true);
   });
