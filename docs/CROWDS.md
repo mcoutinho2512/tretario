@@ -116,6 +116,14 @@ pedestres NPC                        ─┘    (cada sistema aplica o tier      
   velocidade (mesma velocidade natural medida pelo HumanAnimator → sem patinar). Por instância: matriz, quadro
   A/B/mistura e 4 cores (pele, cabelo, camisa, calça) como multiplicadores da cor de vértice. Normais de repouso.
   O assado roda uma vez, assíncrono, depois do carregamento (tempo em `renderer.stats.bakeMs`); até lá só os esqueletos aparecem.
+- **Ações sociais na multidão instanciada (rodada 7)**: os `crowdClip` de `src/social/actions.ts` (aceno, palmas,
+  braço(s) erguido(s), 4 danças procedurais + dança da biblioteca) também são assados, com menos quadros
+  (`CROWD_ACTION_FRAMES`: gestos 4–10, danças 12 no LOD2 / 8 no LOD3). Parado com `CrowdAgent.act` → clipe da ação,
+  fase = `now − actAt` (+ deslocamento por agente nos loops), entrada/saída misturando o quadro do idle; andando →
+  locomoção. Mesma `InstancedMesh` por corpo/LOD: nenhuma draw call a mais. Quadros gravados contíguos
+  (quadro × V + vértice, sem sobra de linha) e cópia da CPU liberada após o envio. Memória das texturas: antes
+  (3 ciclos) 7,3 MiB na GPU + 7,3 MiB na CPU; agora 19,0 MiB na GPU (LOD2 15,5 + LOD3 3,5) e 0 na CPU; preset BAIXO
+  (só LOD3): 2,0 + 2,0 → 3,5 + 0 MiB. Ver `docs/EMOTES.md`.
 - **Disputa única**: quem já tem esqueleto ganha vantagem (× 0,85); fora de vista perde (× 4), exceto a < 6 m;
   caído/em veículo tem prioridade (× 0,5). O instanciado continua desenhando enquanto o esqueleto carrega.
 - **Esqueletos em pool por corpo** (NetworkClient): ninguém cria `HumanCharacter` para os 500 — só quando o

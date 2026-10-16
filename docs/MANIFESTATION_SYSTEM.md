@@ -133,3 +133,4 @@ QA: `node tools/qa/trio_mp.mjs <baseUrl>` (multiplayer, servidor de teste própr
 `node tools/qa/event_vehicles_shots.mjs <baseUrl> [pasta]` (fotos + custo). Fotos: `screenshots/round7/vehicles/`
 (D carro de som, E trio, E3 trio à noite, F jogador sobre o trio, F2 visto por outro cliente, G caminhões 13/22 e
 G3 arte neutra — mesma geometria, só textura, H telão, I palco); representativas em `docs/screenshots/round7/`.
+Animações das ações e poses de itens (clipes procedurais, camada de ação, multidão instanciada, pegadas): `docs/EMOTES.md`.

@@ -17,6 +17,50 @@ export interface HideOptions {
   /** testa também a direção RADIAL (horizontal, para fora do eixo vertical da roupa): pega bordas finas cuja normal
    * aponta para cima/baixo (topo do cós/cinto), que o raio pela normal nunca cruza */
   radial?: boolean;
+  /** vértices do corpo escondidos de qualquer forma (1 = coberto), p.ex. o braço dentro da manga (sleeveCovered) */
+  force?: ArrayLike<number>;
+}
+
+/**
+ * Braço DENTRO da manga curta: com o braço erguido (aceno, bandeira, dança) a manga e o braço se deformam por
+ * ossos diferentes e a pele do braço atravessava o tecido em frestas — pele que, em repouso, nem sempre está a
+ * poucos cm da manga (o raio pela normal não a pega). Aqui o critério é geométrico, ao longo do eixo do braço:
+ * pele do braço (peso no úmero ≥ 0,5) entre o ombro e `margin` antes do punho da manga é coberta.
+ * `armOf`: 1 = braço do 1º eixo, 2 = do 2º, 0 = outro; `arms`: ombro e cotovelo de cada braço (mesmo espaço).
+ */
+export function sleeveCovered(
+  bodyPos: ArrayLike<number>, armOf: ArrayLike<number>, arms: { shoulder: number[]; elbow: number[] }[],
+  cloth: ClothInput, margin = 0.035,
+): Uint8Array {
+  const nb = bodyPos.length / 3;
+  const out = new Uint8Array(nb);
+  const idx = cloth.index ?? Array.from({ length: cloth.pos.length / 3 }, (_, i) => i);
+  const bnd = boundaryVerts(cloth.pos, idx);
+  arms.forEach((arm, k) => {
+    const [sx, sy, sz] = arm.shoulder;
+    let dx = arm.elbow[0] - sx, dy = arm.elbow[1] - sy, dz = arm.elbow[2] - sz;
+    const L = Math.hypot(dx, dy, dz);
+    if (L < 0.05) return;
+    dx /= L; dy /= L; dz /= L;
+    const axial = (p: ArrayLike<number>, i: number) => (p[i * 3] - sx) * dx + (p[i * 3 + 1] - sy) * dy + (p[i * 3 + 2] - sz) * dz;
+    const radial = (p: ArrayLike<number>, i: number, t: number) =>
+      Math.hypot(p[i * 3] - sx - dx * t, p[i * 3 + 1] - sy - dy * t, p[i * 3 + 2] - sz - dz * t);
+    // punho da manga: borda da roupa em volta do eixo, além do ombro (a gola e a barra ficam de fora)
+    const cuff: number[] = [];
+    for (const i of bnd) {
+      const t = axial(cloth.pos, i);
+      if (t > 0.15 * L && t < 1.2 * L && radial(cloth.pos, i, t) < 0.12) cuff.push(t);
+    }
+    if (cuff.length < 4) return;
+    cuff.sort((a, b) => a - b);
+    const tc = cuff[Math.floor(cuff.length * 0.25)] - margin; // lado mais curto do punho, com folga
+    for (let v = 0; v < nb; v++) {
+      if (armOf[v] !== k + 1) continue;
+      const t = axial(bodyPos, v);
+      if (t > 0.02 && t < tc && radial(bodyPos, v, t) < 0.1) out[v] = 1;
+    }
+  });
+  return out;
 }
 
 const CELL = 0.03;
@@ -70,6 +114,7 @@ export function hideCoveredSkin(
   const inside = o.inside ?? 0.035, outside = o.outside ?? 0.03, edge = o.edgeMargin ?? 0.02;
   const nb = bodyPos.length / 3;
   const covered = new Uint8Array(nb);
+  if (o.force) for (let v = 0; v < nb; v++) if (o.force[v]) covered[v] = 1;
   const stats: Record<string, number>[] = [];
   for (const c of cloths) {
     const nc = c.pos.length / 3;
