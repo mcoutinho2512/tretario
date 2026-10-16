@@ -30,6 +30,6 @@ setInterval(() => {
 createServer((req, res) => {
   if (req.url?.startsWith('/metrics')) {
     res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
-    res.end(JSON.stringify(metrics.sample()));
+    res.end(JSON.stringify(metrics.sample('http')));
   } else { res.writeHead(404); res.end(); }
 }).listen(port + 1, host);
