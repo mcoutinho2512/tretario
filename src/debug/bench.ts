@@ -46,6 +46,8 @@ export async function runBench(pv: Pv) {
     tela: `${screen.width}×${screen.height} @${devicePixelRatio}`, memoriaJS_MB: m.heapMB, trechos: per,
   };
   try { localStorage.setItem('pv3d.bench', JSON.stringify(result)); } catch { /* sem storage */ }
+  // servidor de desenvolvimento grava em screenshots/bench_results/ (no build de produção não existe: ignora)
+  void fetch('/__bench', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(result) }).catch(() => {});
   const rows = per.map((p) => `<tr><td>${p.label}</td><td>${p.fps}</td><td>${p.low1}</td><td>${p.scale}</td><td>${p.calls}</td></tr>`).join('');
   say(`<b>Resultado</b> · ${result.aparelho}<br>preset ${String(result.preset).toUpperCase()} · alvo ${result.fpsAlvo} FPS · GPU: ${result.gpu}
     <table style="width:100%;margin:8px 0;border-collapse:collapse;font-size:12px"><tr style="opacity:.7"><td>trecho</td><td>FPS</td><td>1% low</td><td>escala</td><td>draws</td></tr>${rows}</table>

@@ -118,6 +118,9 @@ export function profileDevice(i: DeviceInput): DeviceProfile {
     default:
       recommended = 'medium'; dynamicResolution = true; reason = 'GPU não identificada';
   }
+  // resolução dinâmica para todos: medido no Safari (M5 Pro, janela Retina 2x) o ALTO caía para 15–19 FPS só por
+  // excesso de pixels; com a escala dinâmica (0,84–0,92) volta a ~59 FPS. Ela só reduz quando falta folga.
+  dynamicResolution = true;
   if (mem !== null && mem <= 4 && recommended !== 'low') {
     recommended = mobile ? 'low' : 'medium';
     reason += ` · ${mem} GB de memória`;
