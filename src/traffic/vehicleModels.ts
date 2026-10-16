@@ -15,6 +15,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { assetManager } from '../core/AssetManager';
 
 export type VehicleModelName = 'sedan' | 'hatch' | 'suv' | 'taxi' | 'bus';
 export const VEHICLE_MODELS: VehicleModelName[] = ['sedan', 'hatch', 'suv', 'taxi', 'bus'];
@@ -61,7 +62,7 @@ export async function loadVehicleModels(url = `${import.meta.env?.BASE_URL ?? '/
           parts.push({ geo, mat: m.material as THREE.MeshStandardMaterial });
         });
         const g = bake(parts.map((p) => ({ geo: p.geo, name: p.mat.name.replace(/\.\d+$/, ''), color: p.mat.color })));
-        if (g) cache.set(`${name}:${lod}`, g);
+        if (g) { cache.set(`${name}:${lod}`, g); assetManager.register({ category: 'vehicles/assets', geometry: g }); }
       }
     }
     loaded = cache.size > 0;

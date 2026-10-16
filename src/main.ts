@@ -3,6 +3,7 @@
  * em um chunk separado (pré-buscado em segundo plano enquanto o jogador monta o personagem).
  * A prévia 3D do avatar (src/ui/AvatarPreview) usa o mesmo three.js e o mesmo personagem do jogo.
  */
+import './debug/memProbe'; // sondas de memória (WASM; GPU com ?mem=1) — antes de qualquer módulo WASM/WebGL
 import './ui/style.css';
 import './ui/start.css';
 import { detectQuality, loadQualityChoice, saveQualityChoice, resolveQualityChoice, type QualityChoice } from './core/qualityChoice';

@@ -7,6 +7,7 @@ import * as THREE from 'three';
 import { GLTFLoader, type GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import type { BodyType } from '../bodyTypes';
+import { assetManager } from '../../core/AssetManager';
 
 export type Lod = 0 | 1 | 2 | 3;
 export const LAYERS = ['BODY', 'HAIR', 'SHIRT', 'PANTS', 'SHOES', 'EYES', 'EYEBROWS', 'EYELASHES'] as const;
@@ -25,6 +26,7 @@ export function loadLod(body: BodyType, lod: Lod): Promise<GLTF> {
   if (!p) {
     p = loader.loadAsync(BASE + file);
     cache.set(file, p);
+    void p.then((g) => assetManager.register({ category: 'characters/assets', object: g.scene })).catch(() => {});
   }
   return p;
 }
@@ -34,6 +36,7 @@ let clipsP: Promise<{ clips: Map<string, THREE.AnimationClip>; pelvisRest: THREE
 export function loadClips() {
   clipsP ??= loader.loadAsync(`${BASE}anims.glb`).then((g) => {
     const clips = new Map(g.animations.map((c) => [c.name, c]));
+    assetManager.registerClips('anims.glb', g.animations);
     const pelvis = g.scene.getObjectByName('pelvis');
     return { clips, pelvisRest: pelvis ? pelvis.position.clone() : new THREE.Vector3(0, 1, 0) };
   });

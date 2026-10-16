@@ -11,6 +11,7 @@
  */
 import * as THREE from 'three';
 import { generateVegetation, type VegVariant } from './vegetationGen';
+import { assetManager } from '../core/AssetManager';
 
 export type { VegVariant } from './vegetationGen';
 
@@ -61,6 +62,7 @@ export async function loadVegetation(baseUrl: string, onProgress?: (f: number) =
   // gera as variantes cedendo o thread entre elas (tela de carregamento continua respondendo)
   const variants = await generateVegetation(async (i, n) => { onProgress?.(i / n); await nextFrame(); });
   const [leafMap, barkMap, barkNormal] = await texP;
+  for (const v of variants) for (const l of v.lods) for (const g of [l.bark, l.leaves]) assetManager.register({ category: 'vegetation/variants', geometry: g });
   barkMap.wrapT = barkNormal.wrapT = THREE.RepeatWrapping;
   return { variants, leafMap, barkMap, barkNormal };
 }

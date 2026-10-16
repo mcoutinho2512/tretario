@@ -44,6 +44,7 @@ import { preloadRagdoll } from '../physics/Ragdoll';
 import type { NetworkClient } from '../net/NetworkClient';
 import type { PropRec, BuildingRec } from '../world/types';
 import { distToPolyline } from '../geo/polyline';
+import { memoryReport } from '../debug/memoryReport';
 import type { TrafficData } from '../world/types';
 
 export { DEFAULT_PLAYER_APPEARANCE } from '../characters/bodyTypes';
@@ -747,6 +748,8 @@ export class Game {
       /** QA: número de pedestres (medir o custo dos personagens) */
       peds: (n: number) => this.peds.setMax(n),
       metrics: () => this.metrics(),
+      /** QA: relatório de memória por categoria (docs/MEMORY.md); dup=false pula a busca de duplicatas */
+      memoryReport: (dup = true) => memoryReport(this.gr.renderer, this.scene, { duplicates: dup }),
       teleport: (x: number, z: number, yaw?: number) => {
         this.player.x = x; this.player.z = z; this.player.y = this.collision.groundHeight(x, z);
         if (yaw !== undefined) { this.cam.yaw = yaw; this.player.heading = yaw; }
