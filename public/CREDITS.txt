@@ -5,7 +5,7 @@ Mapa: © OpenStreetMap contributors (ODbL 1.0) — https://www.openstreetmap.org
 
 Personagens: gerados com MakeHuman / MPFB2 (MakeHuman Community, https://www.makehumancommunity.org).
 Assets CC0: corpo, rig, olhos, sobrancelhas, cílios, peles, cabelos (MakeHuman; bogdan666; dariush086),
-  camisetas (Elvaerwyn; Joel Palmius), camisa polo (namuhekam), sapatilha (MargaretToigo), óculos (spamrakuen).
+  camisetas (MargaretToigo; Joel Palmius), camisa polo (namuhekam), sapatilha (MargaretToigo), óculos (spamrakuen).
 Assets CC BY (https://creativecommons.org/licenses/by/4.0/):
   punkduck — jeans masculino clássico, jeans feminino justo, tênis de corrida, tênis confortável, sacola de compras
   Mindfront — calça feminina, sapato oxford masculino, boné

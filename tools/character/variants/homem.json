@@ -3,11 +3,11 @@
   "anim_out": "/Users/magnun/pv3d-assets-src/out/anims.glb",
   "phenotype": {
     "gender": 1.0,
-    "age": 0.52,
-    "muscle": 0.56,
-    "weight": 0.52,
-    "proportions": 0.62,
-    "height": 0.55,
+    "age": 0.56,
+    "muscle": 0.95,
+    "weight": 0.62,
+    "proportions": 0.8,
+    "height": 0.6,
     "cupsize": 0.5,
     "firmness": 0.5,
     "race": {
@@ -22,7 +22,7 @@
     "HAIR": "short01_diffuse_light.png"
   },
   "clothes": {
-    "elvs_crude_t-shirt_male.mhclo": "SHIRT",
+    "toigo_basic_tucked_t-shirt.mhclo": "SHIRT",
     "punkduck_male_classic_jeans.mhclo": "PANTS",
     "punkduck_running_shoes_01.mhclo": "SHOES",
     "mindfront_patrol_cap.mhclo": "ACC_bone",

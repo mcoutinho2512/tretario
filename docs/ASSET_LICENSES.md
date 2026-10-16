@@ -15,7 +15,7 @@ cílios e peles do pacote de sistema são **CC0**.
 | Asset | Autor | Licença | Pacote | Origem | Usado em |
 |---|---|---|---|---|---|
 | `bob02` | makehuman_system | CC0 | makehuman_system_assets | http://www.makehumancommunity.org | idosa |
-| `elvs_crude_t-shirt_male` | Elvaerwyn | CC0 | shirts01 | http://www.makehumancommunity.org/node/1416 | homem |
+| `toigo_basic_tucked_t-shirt` | MargaretToigo | CC0 | shirts01 | http://www.makehumancommunity.org | homem |
 | `elvs_male_trouser` | Elvaerwyn | CC-BY | pants02 | http://www.makehumancommunity.org/node/1796 | idoso |
 | `elvs_sling_purse1` | Elvaerwyn | CC-BY | equipment03 | http://www.makehumancommunity.org/node/1459 | homem, idosa, idoso, mulher |
 | `eyebrow001` | makehuman_system | CC0 | makehuman_system_assets | http://www.makehumancommunity.org | homem, idosa, idoso, mulher |
