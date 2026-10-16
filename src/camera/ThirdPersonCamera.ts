@@ -23,6 +23,15 @@ export class ThirdPersonCamera {
     this.pitch = THREE.MathUtils.clamp(this.pitch + dy, -0.45, 1.25);
   }
 
+  /** perfil de câmera por veículo (distância e altura do pivô) */
+  pivotHeight = 1.6;
+  setProfile(kind: 'foot' | 'bicycle' | 'scooter' | 'car') {
+    const d = kind === 'car' ? 8.5 : kind === 'foot' ? 5.2 : 6;
+    this.pivotHeight = kind === 'car' ? 1.9 : 1.6;
+    this.maxDistance = kind === 'car' ? 18 : 16;
+    this.targetDistance = d;
+  }
+
   zoom(delta: number) {
     this.targetDistance = THREE.MathUtils.clamp(this.targetDistance * Math.exp(delta), this.minDistance, this.maxDistance);
   }
@@ -33,7 +42,7 @@ export class ThirdPersonCamera {
   }
 
   update(target: THREE.Vector3, dt: number) {
-    const head = target.clone().add(new THREE.Vector3(0, 1.6, 0));
+    const head = target.clone().add(new THREE.Vector3(0, this.pivotHeight, 0));
     if (!this.initialized) { this.smoothTarget.copy(head); this.initialized = true; }
     this.smoothTarget.lerp(head, 1 - Math.exp(-14 * dt));
     this.distance += (this.targetDistance - this.distance) * (1 - Math.exp(-10 * dt));

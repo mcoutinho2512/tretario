@@ -30,11 +30,14 @@ import { buildCandelaria } from '../world/landmarks/candelaria';
 import { PedestrianSystem } from '../npc/PedestrianSystem';
 import { TrafficSystem } from '../traffic/TrafficSystem';
 import { SignalController } from '../traffic/SignalController';
+import { worldClock } from '../net/clock';
 import { MonumentSystem } from '../world/Monuments';
 import { BillboardSystem } from '../events/Billboards';
 import { EventManager } from '../events/EventManager';
 import { RideableSystem, stepRideable, type RideableInstance } from '../vehicles/Rideable';
 import { InteractionController } from '../interaction/InteractionMode';
+import type { KnockMsg } from '../net/NetworkClient';
+import { preloadRagdoll } from '../physics/Ragdoll';
 import type { NetworkClient } from '../net/NetworkClient';
 import type { PropRec } from '../world/types';
 import { distToPolyline } from '../geo/polyline';
@@ -209,8 +212,8 @@ export class Game {
     } catch (e) { console.warn('evento não carregado', e); }
     this.interaction.setPolicy(this.events.current?.interaction);
     // veículos utilizáveis nas estações reais de bicicleta compartilhada
-    const kinds = (this.events.current?.vehicles ?? [{ kind: 'bicycle' }, { kind: 'scooter' }]).map((v) => v.kind).filter((k) => k !== 'car') as ('bicycle' | 'scooter')[];
-    this.rideables = new RideableSystem(this.manifest.bikeStations ?? [], (x, z) => this.collision.groundHeight(x, z), kinds);
+    const kinds = (this.events.current?.vehicles ?? [{ kind: 'bicycle' }, { kind: 'scooter' }, { kind: 'car' }]).map((v) => v.kind);
+    this.rideables = new RideableSystem(this.manifest.vehicleSpawns ?? [], (x, z) => this.collision.groundHeight(x, z), kinds);
     this.scene.add(this.rideables.group);
     this.cam = new ThirdPersonCamera(this.camera, this.collision);
     // intro: começa olhando a Central, depois gira para a avenida (direção da Candelária)
@@ -380,7 +383,10 @@ export class Game {
     (window as any).__pvReady = true;
   }
 
+  private cpuMs = 0;
+
   private frame() {
+    const tCpu = performance.now();
     const dt = Math.min(0.05, this.clock.getDelta());
     this.time += dt;
     this.debug.tick();
@@ -412,76 +418,22 @@ export class Game {
       }
     }
 
-    // modo de interação / ações (pedidos — servidor será a autoridade)
-    this.interaction.update(dt);
-    if (this.input.consumeToggle('mode')) this.flash(this.interaction.toggle().message);
-    if (this.input.consumeToggle('action')) {
-      const r = this.interaction.request('empurrar', this.player.x, this.player.z, this.player.heading, this.time);
-      if (r) { if (!this.peds.pushNear(r.x, r.z, r.dir)) this.flash('Ninguém ao alcance'); }
-      else if (this.interaction.mode === 'pacifico') this.flash('Modo pacífico: aperte K para alternar (se o evento permitir)');
-    }
-
-    // usar/descer de veículo
-    const ax = this.input.moveAxis();
-    const [fx, fz] = this.cam.forward();
-    if (this.input.consumeToggle('use')) {
-      if (this.riding) {
-        const v = this.riding;
-        v.state.occupant = null;
-        v.state.speed = 0;
-        this.player.x = v.state.x + Math.cos(v.state.heading) * 0.9;
-        this.player.z = v.state.z - Math.sin(v.state.heading) * 0.9;
-        this.player.heading = v.state.heading;
-        this.riding = null;
-      } else {
-        const near = this.rideables.nearest(this.player.x, this.player.z);
-        if (near) { this.riding = near; near.state.occupant = this.player.id; near.state.heading = this.player.heading; }
-      }
-    }
-    if (this.riding) {
-      const v = this.riding;
-      // A/D esterçam, W/S aceleram/freiam; câmera acompanha o rumo suavemente
-      stepRideable(v.state, v.def, { throttle: ax.y, steer: -ax.x, boost: this.input.running() }, dt, this.collision);
-      this.input.consumeJump();
-      this.player.x = v.state.x; this.player.z = v.state.z; this.player.y = v.state.y;
-      this.player.heading = v.state.heading; this.player.speed = Math.abs(v.state.speed);
-      this.player.locomotion = 'walk';
-      this.avatar.updateRiding(v.state.x, v.state.y, v.state.z, v.state.heading, v.def.pose, v.state.speed, v.def.seatHeight, dt);
-      let dyaw = v.state.heading - this.cam.yaw;
-      while (dyaw > Math.PI) dyaw -= Math.PI * 2;
-      while (dyaw < -Math.PI) dyaw += Math.PI * 2;
-      if (Math.abs(v.state.speed) > 1) this.cam.yaw += dyaw * Math.min(1, dt * 1.5);
-      this.prompt.textContent = `E — descer da ${v.def.label.toLowerCase()} · W/S acelerar/frear · A/D virar · Shift mais rápido`;
-    } else {
-      // movimento a pé relativo à câmera
-      const intent = {
-        dirX: fx * ax.y + -Math.cos(this.cam.yaw) * ax.x,
-        dirZ: fz * ax.y + Math.sin(this.cam.yaw) * ax.x,
-        run: this.input.running(),
-        jump: this.input.consumeJump(),
-        speedFactor: this.avatar.speedFactor,
-      };
-      const steps = Math.max(1, Math.ceil(dt / (1 / 120)));
-      for (let i = 0; i < steps; i++) stepPlayer(this.player, intent, dt / steps, this.collision);
-      this.traffic.pushOut(this.player);
-      this.avatar.update(this.player, dt);
-      const near = this.rideables.nearest(this.player.x, this.player.z);
-      this.prompt.textContent = near ? `E — usar ${near.def.label.toLowerCase()}` : '';
-    }
-    this.rideables.sync(this.camera.position);
-    this.prompt.classList.toggle('show', !!this.prompt.textContent);
-    this.messageTimer -= dt;
-    if (this.messageTimer <= 0) this.modeBadge.textContent = this.interaction.mode === 'pacifico' ? 'Modo pacífico' : 'Modo interação';
-    this.modeBadge.classList.toggle('combat', this.interaction.mode === 'interacao');
+    this.updateInteraction(dt);
+    this.updateMovement(dt);
     const ppos = this.avatar.root.position;
     this.cam.update(ppos, dt);
-    this.signals.update(dt);
+    this.signals.setTime(worldClock.seconds());
     if (this.net) {
-      const mode = this.riding ? (this.riding.def.kind as 'bicycle' | 'scooter' | 'car') : 'foot';
-      this.net.update(dt, this.player, mode, this.camera, { w: this.canvas.clientWidth, h: this.canvas.clientHeight });
+      this.net.update(dt, this.player, this.riding ? this.riding.state.id : null, this.camera, { w: this.canvas.clientWidth, h: this.canvas.clientHeight });
+      this.rideables.smooth(dt, this.net.sessionId);
     }
     this.peds.update(dt, this.camera, this.player);
-    this.traffic.obstacles = this.peds.crossingPositions();
+    this.traffic.obstacles = [
+      ...this.peds.crossingPositions(),
+      ...(this.net ? this.net.remotesForObstacles().map((r) => ({ x: r.x, z: r.z, r: r.vehicle.startsWith('car') ? 1.6 : 0.9 })) : []),
+      ...this.rideables.items.filter((it) => it.def.kind === 'car' && it !== this.riding).map((it) => ({ x: it.state.x, z: it.state.z, r: 1.6 })),
+      ...(this.riding?.def.kind === 'car' ? [{ x: this.player.x, z: this.player.z, r: 1.6 }] : []),
+    ];
     this.traffic.update(dt, this.camera, this.player);
     this.props.updateSignals((j, ph) => this.signals.state(j, ph));
 
@@ -502,6 +454,7 @@ export class Game {
     this.env.update(this.camera, ppos, this.time);
 
     this.gr.render(this.scene, this.camera);
+    this.cpuMs = this.cpuMs * 0.9 + (performance.now() - tCpu) * 0.1;
 
     // HUD
     this.updateValidation();
@@ -517,7 +470,7 @@ export class Game {
       quality: this.preset.level.toUpperCase(),
       chunks: `${st.visible} vis (F${st.full}/M${st.medium}/L${st.far}) · ${st.loaded} baixados`,
       props: this.props.instanceCount, heading: this.player.heading, locomotion: this.player.locomotion,
-      npcs: `${this.net ? `MP ${this.net.status} · remotos ${this.net.remoteCount} · correções ${this.net.corrections} · ` : ''}pedestres ${this.peds.stats.visible}/${this.peds.stats.active} (atravessando ${this.peds.stats.crossing}) · veículos ${this.traffic.stats.active} (parados no vermelho ${this.traffic.stats2.stoppedAtRed})`,
+      npcs: `${this.net ? `MP ${this.net.status} · remotos ${this.net.remoteCount} · correções ${this.net.corrections} · ↓${(this.net.bandwidth.inBps / 1024).toFixed(1)} KB/s ↑${(this.net.bandwidth.outBps / 1024).toFixed(1)} KB/s · RTT ${worldClock.rtt === Infinity ? '—' : worldClock.rtt.toFixed(0)} ms · interp ${this.net.interpDelay.toFixed(0)} ms<br>` : ''}pedestres ${this.peds.stats.visible}/${this.peds.stats.active} (atravessando ${this.peds.stats.crossing}) · veículos ${this.traffic.stats.active} (parados no vermelho ${this.traffic.stats2.stoppedAtRed})`,
     });
   }
 
@@ -533,19 +486,195 @@ export class Game {
     (window as any).__pvRemotes = () => this.net?.remotesInfo();
     this.net.onSpawn = (sp) => {
       this.player.x = sp.x; this.player.z = sp.z; this.player.y = this.collision.groundHeight(sp.x, sp.z);
+      this.interaction.setPolicy(this.net!.policy === 'pacifico' ? 'pacifico' : 'opcional');
     };
-    this.net.onCorrect = (c) => {
-      // servidor é a autoridade sobre a posição definitiva
-      this.player.x = c.x; this.player.z = c.z; this.player.y = Math.max(c.y, this.collision.groundHeight(c.x, c.z));
+    this.net.onCorrect = (dx, dz, abs, reason) => {
+      // reconciliação: aplica o erro medido no seq corrigido sobre a posição atual (preserva o movimento posterior)
+      const big = Math.hypot(dx, dz) > 4 || (!dx && !dz);
+      if (big) { this.player.x = abs.x; this.player.z = abs.z; } else { this.player.x += dx; this.player.z += dz; }
+      if (this.riding) { this.riding.state.x = this.player.x; this.riding.state.z = this.player.z; if (reason === 'collision') this.riding.state.speed = 0; }
+      this.player.y = Math.max(abs.y, this.collision.groundHeight(this.player.x, this.player.z));
     };
+    this.net.onTraffic = (buf) => this.traffic.applySnapshot(buf);
+    this.net.onVehicle = (id, v) => this.rideables.applyServer(id, v.x, v.y, v.z, v.heading, v.occupant, this.net!.sessionId);
+    this.net.onEnter = (ok, d) => {
+      const it = this.rideables.byId.get(d.id);
+      if (ok && it) { it.state.x = d.x ?? it.state.x; it.state.z = d.z ?? it.state.z; it.state.heading = d.heading ?? it.state.heading; this.mountLocal(it); this.flash(it.def.kind === 'car' ? 'Você está dirigindo (servidor confirmou)' : 'Montado'); }
+      else this.flash(d.reason === 'ocupado' ? 'Esse veículo já está sendo usado por outro jogador' : `Não foi possível entrar (${d.reason})`);
+      this.pendingEnter = null;
+    };
+    this.net.onExit = (pos) => this.dismountLocal(pos);
+    this.net.onKnock = (k, isSelf) => { if (isSelf) this.onSelfKnock(k); };
+    this.net.onNotice = (m) => this.flash(m);
+    this.net.onEvent = (id) => {
+      if (this.events.current?.id !== id) void this.events.load(id).then(() => this.interaction.setPolicy(this.events.current?.interaction));
+    };
+    void preloadRagdoll().catch(() => { /* fallback procedural */ });
     try {
-      await this.net.connect(this.appearance ?? DEFAULT_PLAYER_APPEARANCE_LOCAL, q.get('name') ?? `Visitante ${Math.floor(Math.random() * 900 + 100)}`);
+      const sp = q.get('spawn')?.split(',').map(Number);
+      await this.net.connect(this.appearance ?? DEFAULT_PLAYER_APPEARANCE_LOCAL, q.get('name') ?? `Visitante ${Math.floor(Math.random() * 900 + 100)}`, sp && sp.length === 2 && sp.every(Number.isFinite) ? { x: sp[0], z: sp[1] } : undefined);
       this.flash(`Multiplayer conectado (${endpoint})`);
     } catch (e) {
       this.flash(`Multiplayer indisponível: ${(e as Error).message ?? e}`);
       console.warn('[mp] falha ao conectar', e);
     }
   }
+
+  // ------------------------------------------------------------------ interação (modos, empurrão)
+  private get mpOnline() { return !!this.net && this.net.status === 'online'; }
+
+  private updateInteraction(dt: number) {
+    this.interaction.update(dt);
+    if (this.input.consumeToggle('mode')) {
+      if (this.mpOnline) {
+        // multiplayer: o SERVIDOR decide o modo (política do evento)
+        this.net!.requestMode(this.net!.self.interaction === 'interacao' ? 'pacifico' : 'interacao');
+      } else this.flash(this.interaction.toggle().message);
+    }
+    if (this.mpOnline) this.interaction.mode = this.net!.self.interaction === 'interacao' ? 'interacao' : 'pacifico';
+    if (this.input.consumeToggle('action') && !this.avatar.isDown && !this.riding) {
+      if (this.interaction.mode !== 'interacao') { this.flash('Modo pacífico: aperte K para alternar (se o evento permitir)'); return; }
+      const target = this.net?.pickTarget(this.player.x, this.player.z, this.player.heading) ?? null;
+      this.avatar.playPush(); // só a animação é local; o resultado vem do servidor
+      if (target && this.mpOnline) this.net!.requestPush(target);
+      else if (!this.peds.pushNear(this.player.x, this.player.z, this.player.heading)) this.flash('Ninguém ao alcance');
+    }
+  }
+
+  /** queda do jogador local (decidida pelo servidor) */
+  private onSelfKnock(k: KnockMsg) {
+    if (this.riding) this.dismountLocal();
+    const walls = this.collision.walls.near(this.player.x, this.player.z, 6);
+    void this.avatar.knockdown({ dirX: k.dx, dirZ: k.dz, strength: k.strength, groundY: this.player.y, walls, downMs: k.downMs, getupMs: k.getupMs });
+    // posição de repouso é do servidor
+    this.player.x = k.rx; this.player.z = k.rz; this.player.vx = this.player.vz = 0;
+    this.flash(k.kind === 'impact' ? 'Você foi atingido por um carro! (sem dano — levante-se)' : 'Você foi empurrado!');
+  }
+
+  // ------------------------------------------------------------------ movimento e veículos
+  private mountLocal(v: RideableInstance) {
+    this.riding = v;
+    v.state.occupant = this.net?.sessionId || this.player.id;
+    v.state.speed = 0;
+    this.player.x = v.state.x; this.player.z = v.state.z;
+    this.cam.setProfile(v.def.kind);
+  }
+
+  private dismountLocal(pos?: { x: number; z: number }) {
+    const v = this.riding;
+    if (!v) return;
+    v.state.occupant = null;
+    v.state.speed = 0;
+    if (pos) { this.player.x = pos.x; this.player.z = pos.z; }
+    else { this.player.x = v.state.x + Math.cos(v.state.heading) * (v.def.kind === 'car' ? -1.6 : 0.9); this.player.z = v.state.z - Math.sin(v.state.heading) * (v.def.kind === 'car' ? -1.6 : 0.9); }
+    this.player.y = this.collision.groundHeight(this.player.x, this.player.z);
+    this.player.heading = v.state.heading;
+    this.riding = null;
+    this.cam.setProfile('foot');
+  }
+
+  private pendingEnter: string | null = null;
+
+  private updateMovement(dt: number) {
+    const ax = this.input.moveAxis();
+    const [fx, fz] = this.cam.forward();
+    if (this.autopilot) {
+      const dx = this.autopilot.x - this.player.x, dz = this.autopilot.z - this.player.z;
+      if (Math.hypot(dx, dz) < 0.8) this.autopilot = null;
+      else {
+        // direção-alvo em linha reta (o roteiro de teste monta cenas sem obstáculos no caminho)
+        const l = Math.hypot(dx, dz);
+        const ddx = dx / l, ddz = dz / l;
+        ax.y = ddx * fx + ddz * fz;
+        ax.x = ddx * -Math.cos(this.cam.yaw) + ddz * Math.sin(this.cam.yaw);
+      }
+    }
+    if (this.input.consumeToggle('use') && !this.avatar.isDown) {
+      if (this.riding) {
+        if (this.mpOnline) this.net!.requestExit();
+        else this.dismountLocal();
+      } else {
+        const near = this.rideables.nearest(this.player.x, this.player.z);
+        if (near) {
+          if (this.mpOnline) { this.pendingEnter = near.state.id; this.net!.requestEnter(near.state.id); this.flash(`Entrando… (aguardando o servidor)`); }
+          else this.mountLocal(near);
+        }
+      }
+    }
+    if (this.avatar.isDown) {
+      // caído: sem controle; o servidor decide quando levanta
+      this.input.consumeJump();
+      this.player.speed = 0;
+      this.player.locomotion = 'idle';
+      this.avatar.update(this.player, dt);
+      this.prompt.textContent = 'Caído… levantando em instantes';
+    } else if (this.riding) {
+      const v = this.riding;
+      const prev = { x: v.state.x, z: v.state.z };
+      stepRideable(v.state, v.def, { throttle: ax.y, steer: -ax.x, boost: this.input.running() }, dt, this.collision);
+      if (v.def.kind === 'car') {
+        // colisão simples com o trânsito
+        const p = { x: v.state.x, z: v.state.z };
+        this.traffic.pushOut(p, 1.25);
+        if (Math.hypot(p.x - v.state.x, p.z - v.state.z) > 1e-3) { v.state.x = p.x; v.state.z = p.z; v.state.speed *= 0.3; }
+        // jogadores pacíficos (ou eu pacífico) bloqueiam o carro; impacto só entre jogadores em modo interação (servidor decide)
+        for (const r of this.net?.remotesForObstacles() ?? []) {
+          if (r.vehicle) continue;
+          const eligible = r.interaction === 'interacao' && this.interaction.mode === 'interacao' && r.status === 0;
+          if (eligible) continue;
+          const fx2 = Math.sin(v.state.heading), fz2 = Math.cos(v.state.heading);
+          const dx = r.x - v.state.x, dz = r.z - v.state.z;
+          if (Math.abs(dx * fx2 + dz * fz2) < 2.6 && Math.abs(dx * fz2 - dz * fx2) < 1.3) { v.state.x = prev.x; v.state.z = prev.z; v.state.speed = 0; }
+        }
+      }
+      this.input.consumeJump();
+      this.player.x = v.state.x; this.player.z = v.state.z; this.player.y = v.state.y;
+      this.player.heading = v.state.heading; this.player.speed = Math.abs(v.state.speed);
+      this.player.locomotion = 'walk';
+      this.avatar.updateRiding(v.state.x, v.state.y, v.state.z, v.state.heading, v.def.pose, v.state.speed, v.def.seatHeight, dt);
+      let dyaw = v.state.heading - this.cam.yaw;
+      while (dyaw > Math.PI) dyaw -= Math.PI * 2;
+      while (dyaw < -Math.PI) dyaw += Math.PI * 2;
+      if (Math.abs(v.state.speed) > 1) this.cam.yaw += dyaw * Math.min(1, dt * (v.def.kind === 'car' ? 2.2 : 1.5));
+      this.prompt.textContent = v.def.kind === 'car'
+        ? 'E — sair do carro · W acelerar · S frear/ré · A/D volante · Shift turbo'
+        : `E — descer da ${v.def.label.toLowerCase()} · W/S acelerar/frear · A/D virar · Shift mais rápido`;
+    } else {
+      const intent = {
+        dirX: fx * ax.y + -Math.cos(this.cam.yaw) * ax.x,
+        dirZ: fz * ax.y + Math.sin(this.cam.yaw) * ax.x,
+        run: this.input.running() || !!this.autopilotRun,
+        jump: this.input.consumeJump(),
+        speedFactor: this.avatar.speedFactor,
+      };
+      const steps = Math.max(1, Math.ceil(dt / (1 / 120)));
+      for (let i = 0; i < steps; i++) stepPlayer(this.player, intent, dt / steps, this.collision);
+      this.traffic.pushOut(this.player);
+      for (const it of this.rideables.items) if (it.def.kind === 'car' && it !== this.riding) {
+        // carros estacionados são sólidos
+        const fx2 = Math.sin(it.state.heading), fz2 = Math.cos(it.state.heading);
+        const dx = this.player.x - it.state.x, dz = this.player.z - it.state.z;
+        const lz = dx * fx2 + dz * fz2, lx = dx * fz2 - dz * fx2;
+        const hx = 0.9 + 0.35, hz = 2.2 + 0.35;
+        if (Math.abs(lx) < hx && Math.abs(lz) < hz) {
+          if (hx - Math.abs(lx) < hz - Math.abs(lz)) { const nlx = Math.sign(lx || 1) * hx; this.player.x = it.state.x + lz * fx2 + nlx * fz2; this.player.z = it.state.z + lz * fz2 - nlx * fx2; }
+          else { const nlz = Math.sign(lz || 1) * hz; this.player.x = it.state.x + nlz * fx2 + lx * fz2; this.player.z = it.state.z + nlz * fz2 - lx * fx2; }
+        }
+      }
+      this.avatar.update(this.player, dt);
+      const near = this.rideables.nearest(this.player.x, this.player.z);
+      this.prompt.textContent = this.pendingEnter ? 'Aguardando o servidor…' : near ? (near.def.kind === 'car' ? 'E — entrar no carro' : `E — usar ${near.def.label.toLowerCase()}`) : '';
+    }
+    this.rideables.sync(this.camera.position);
+    this.prompt.classList.toggle('show', !!this.prompt.textContent);
+    this.messageTimer -= dt;
+    if (this.messageTimer <= 0) this.modeBadge.textContent = this.interaction.mode === 'pacifico' ? 'Modo pacífico' : 'Modo interação';
+    this.modeBadge.classList.toggle('combat', this.interaction.mode === 'interacao');
+  }
+
+  /** piloto automático para testes reproduzíveis (anda até um ponto usando o movimento normal) */
+  private autopilot: { x: number; z: number } | null = null;
+  private autopilotRun = false;
 
   /** mensagem curta no selo de modo */
   private flash(msg: string) {
@@ -571,8 +700,12 @@ export class Game {
   /** métricas para testes automatizados de performance */
   metrics() {
     const r = this.gr.renderer.info;
+    const mem = (performance as unknown as { memory?: { usedJSHeapSize: number } }).memory;
     return {
       fps: this.debug.fps, frameMs: this.debug.frameMs, worstMs: this.debug.worstMs,
+      cpuMs: +this.cpuMs.toFixed(3), gpuMs: this.gr.gpuMs === null ? null : +this.gr.gpuMs.toFixed(3),
+      heapMB: mem ? +(mem.usedJSHeapSize / 1e6).toFixed(1) : null,
+      bandwidth: this.net?.bandwidth ?? null,
       calls: r.render.calls, triangles: r.render.triangles, textures: r.memory.textures, geometries: r.memory.geometries,
       quality: this.preset.level, chunks: { ...this.chunks.stats }, props: this.props.instanceCount,
       net: this.net ? { status: this.net.status, remotes: this.net.remoteCount, corrections: this.net.corrections, error: this.net.lastError } : null,
@@ -603,6 +736,26 @@ export class Game {
       },
       press: (code: string, ms = 1000) => { window.dispatchEvent(new KeyboardEvent('keydown', { code })); setTimeout(() => window.dispatchEvent(new KeyboardEvent('keyup', { code })), ms); },
       riding: () => this.riding?.def.kind ?? null,
+      ridingId: () => this.riding?.state.id ?? null,
+      carHeading: () => this.riding?.state.heading ?? null,
+      /** anda até (x,z) usando o movimento normal (aceito pelo servidor) */
+      walkTo: (x: number, z: number, run = true) => { this.autopilot = { x, z }; this.autopilotRun = run; this.intro.active = false; },
+      arrived: () => !this.autopilot,
+      stopWalk: () => { this.autopilot = null; },
+      /** TESTE DE TRAPAÇA: envia ao servidor uma posição arbitrária sem passar pela colisão local */
+      cheatMove: (x: number, z: number) => this.net?.sendRawMove(x, z),
+      /** TESTE: cliente modificado pede para entrar num veículo ignorando o estado local */
+      rawEnter: (id: string) => this.net?.requestEnter(id),
+      /** TESTE: cliente modificado pede empurrão em um alvo arbitrário */
+      rawPush: (target: string) => this.net?.requestPush(target),
+      lastDenial: () => this.net?.lastDenial ?? '',
+      mp: () => (this.net ? { session: this.net.sessionId, self: { ...this.net.self }, remotes: this.net.remotesInfo(), bandwidth: this.net.bandwidth, interpDelay: this.net.interpDelay, rtt: worldClock.rtt, clockOffset: worldClock.offsetMs, corrections: this.net.corrections, correctionReasons: this.net.correctionReasons, policy: this.net.policy } : null),
+      vehicles: () => this.rideables.items.filter((i) => i.def.kind === 'car').map((i) => ({ id: i.state.id, x: +i.state.x.toFixed(2), z: +i.state.z.toFixed(2), heading: +i.state.heading.toFixed(3), occupant: i.state.occupant })),
+      signalState: (j: number, ph: number) => this.signals.state(j, ph),
+      trafficIds: (x: number, z: number, r: number) => this.traffic.vehicles.filter((v) => Math.hypot(v.x - x, v.z - z) < r).map((v) => ({ id: v.id, x: +v.x.toFixed(1), z: +v.z.toFixed(1) })),
+      key: (code: string) => { window.dispatchEvent(new KeyboardEvent('keydown', { code })); setTimeout(() => window.dispatchEvent(new KeyboardEvent('keyup', { code })), 60); },
+      isDown: () => this.avatar.isDown,
+      groundAt: (x: number, z: number) => this.collision.groundHeight(x, z),
       toggleDebug: () => this.debug.toggle(),
       /** identifica o objeto sob um pixel (coordenadas de tela) */
       pick: (px: number, py: number) => {

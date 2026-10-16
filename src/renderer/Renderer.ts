@@ -12,6 +12,10 @@ export class GameRenderer {
   private composer: EffectComposer | null = null;
   private gtao: GTAOPass | null = null;
   private preset: QualityPreset;
+  /** tempo de GPU (ms) via EXT_disjoint_timer_query_webgl2, quando o navegador expõe; senão null */
+  gpuMs: number | null = null;
+  private timerExt: { TIME_ELAPSED_EXT: number; GPU_DISJOINT_EXT: number } | null = null;
+  private queries: WebGLQuery[] = [];
 
   constructor(canvas: HTMLCanvasElement, preset: QualityPreset) {
     this.preset = preset;
@@ -27,6 +31,8 @@ export class GameRenderer {
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 0.8;
     this.renderer.info.autoReset = false;
+    const gl = this.renderer.getContext() as WebGL2RenderingContext;
+    this.timerExt = gl.getExtension('EXT_disjoint_timer_query_webgl2');
     this.setPixelRatio();
   }
 
@@ -66,7 +72,26 @@ export class GameRenderer {
 
   render(scene: THREE.Scene, camera: THREE.Camera) {
     this.renderer.info.reset();
+    const gl = this.renderer.getContext() as WebGL2RenderingContext;
+    const ext = this.timerExt;
+    let q: WebGLQuery | null = null;
+    if (ext && this.queries.length < 4) { q = gl.createQuery(); if (q) gl.beginQuery(ext.TIME_ELAPSED_EXT, q); }
     if (this.composer) this.composer.render();
     else this.renderer.render(scene, camera);
+    if (q && ext) { gl.endQuery(ext.TIME_ELAPSED_EXT); this.queries.push(q); }
+    // resultados chegam alguns frames depois
+    if (ext && this.queries.length) {
+      const first = this.queries[0];
+      if (gl.getQueryParameter(first, gl.QUERY_RESULT_AVAILABLE)) {
+        const disjoint = gl.getParameter(ext.GPU_DISJOINT_EXT);
+        if (!disjoint) {
+          const ns = gl.getQueryParameter(first, gl.QUERY_RESULT) as number;
+          const ms = ns / 1e6;
+          this.gpuMs = this.gpuMs === null ? ms : this.gpuMs * 0.9 + ms * 0.1;
+        }
+        gl.deleteQuery(first);
+        this.queries.shift();
+      }
+    }
   }
 }
