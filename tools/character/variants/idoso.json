@@ -16,9 +16,9 @@
     }
   },
   "skin": "old_caucasian_male.mhmat",
-  "hair": "short02.mhclo",
+  "hair": "short01.mhclo",
   "texture_override": {
-    "HAIR": "short02_diffuse_mat_04.png"
+    "HAIR": "short01_diffuse_light.png"
   },
   "clothes": {
     "namuhekam_male_polo_shirt.mhclo": "SHIRT",

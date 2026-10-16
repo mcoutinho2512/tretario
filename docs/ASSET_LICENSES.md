@@ -35,7 +35,7 @@ cílios e peles do pacote de sistema são **CC0**.
 | `punkduck_male_classic_jeans` | punkduck | CC-BY | pants02 | http://www.makehumancommunity.org/node/1655 | homem |
 | `punkduck_running_shoes_01` | punkduck | CC-BY | shoes02 | http://www.makehumancommunity.org/node/570 | homem |
 | `punkduck_shopping_bag01` | punkduck | CC-BY | equipment03 | http://www.makehumancommunity.org/node/967 | homem, idosa, idoso, mulher |
-| `short02` | makehuman_system | CC0 | makehuman_system_assets | http://www.makehumancommunity.org | homem, idoso |
+| `short01` (+ base clara derivada por `tools/character/make_light_hair.py`) | makehuman_system | CC0 | makehuman_system_assets | http://www.makehumancommunity.org | homem, idoso |
 | `spamrakuen_sagerfrogs_glasses_01` | spamrakuen | CC0 | glasses01 | http://www.makehumancommunity.org/node/3331 | homem, idosa, idoso, mulher |
 | `toigo_flats` | MargaretToigo | CC0 | shoes01 | http://www.makehumancommunity.org/node/1117 | idosa |
 | `young_caucasian_female` | makehuman_system | CC0 | makehuman_system_assets | http://www.makehumancommunity.org | mulher |
