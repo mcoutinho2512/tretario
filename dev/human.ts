@@ -1,12 +1,18 @@
 /**
  * Página de desenvolvimento (não entra no build): visualiza o personagem humano, LODs e animações.
  * /dev/human.html?body=homem&lod=0&speed=1.4&pose=walk&cam=close|full|lods
+ * Itens: &prop=<tipo ou id>&design=<chave ou id>[&hold=0][&wind=0..1]
  */
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { HumanCharacter } from '../src/characters/human/HumanCharacter';
 import { DEFAULT_PLAYER_APPEARANCE, type BodyType } from '../src/characters/bodyTypes';
 import type { Lod } from '../src/characters/human/HumanAssets';
+import { EMPTY_SOCIAL } from '../src/social/types';
+import { PROP_BY_ID, PROP_BY_KIND, type PropKind } from '../src/social/props';
+import { DESIGN_BY_KEY } from '../src/social/designs';
+import { setPropWind } from '../src/social/props/propMaterials';
+import { applyHoldPose } from './propHoldPose';
 
 const q = new URLSearchParams(location.search);
 import { HumanAnimator } from '../src/characters/human/HumanAnimator';
@@ -39,6 +45,8 @@ const cam = new THREE.PerspectiveCamera(q.get('cam') === 'close' ? 22 : 35, inne
 const mode = q.get('cam') ?? 'full';
 if (mode === 'close') { cam.position.set(0.25, 1.62, 1.35); cam.lookAt(0, 1.55, 0); }
 else if (mode === 'lods') { cam.position.set(0, 1.4, 7.5); cam.lookAt(0, 0.9, 0); }
+else if (mode === 'wide') { cam.position.set(2.4, 1.9, 5.6); cam.lookAt(0, 1.45, 0); }
+else if (mode === 'front') { cam.position.set(0.3, 1.5, 3.4); cam.lookAt(0, 1.2, 0); }
 else if (mode === 'side') { cam.position.set(3.2, 0.9, 0); cam.lookAt(0, 0.85, 0); }
 else { cam.position.set(1.4, 1.25, 3.6); cam.lookAt(0, 0.9, 0); }
 
@@ -57,6 +65,13 @@ lods.forEach((l, i) => {
   scene.add(h.root);
   chars.push(h);
 });
+// item na mão: ?prop=flag_large&design=brasil (tipo/chave ou ids numéricos)
+const propQ = q.get('prop'), designQ = q.get('design');
+const propDef = propQ ? (PROP_BY_KIND.get(propQ as PropKind) ?? PROP_BY_ID.get(Number(propQ))) : undefined;
+const designId = designQ ? (DESIGN_BY_KEY.get(designQ)?.id ?? (Number(designQ) || 0)) : 0;
+if (q.get('wind')) setPropWind(0.8, 0.6, Number(q.get('wind')));
+if (propDef) for (const c of chars) c.setSocial({ ...EMPTY_SOCIAL, prop: propDef.id, design: designId });
+const holdPose = propDef && q.get('hold') !== '0';
 const speed = Number(q.get('speed') ?? 0);
 const pose = q.get('pose');
 let t0 = performance.now();
@@ -72,6 +87,8 @@ function frame() {
     if (pose && !c.userData) { c.animator?.setShow(pose as never); (c as any).userData = 1; }
     if (freeze !== null) { for (let k = 0; k < 120; k++) c.animator?.update(speed, true, 1 / 60); c.animator!.mixer.setTime(freeze); c.animator?.update(speed, true, 0); }
     else c.animator?.update(speed, true, dt);
+    if (holdPose) applyHoldPose(c, propDef!.kind);
+    c.updateProps(dt);
   }
   renderer.render(scene, cam);
   requestAnimationFrame(frame);

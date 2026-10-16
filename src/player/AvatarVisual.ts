@@ -149,7 +149,7 @@ export class AvatarVisual {
   }
   private animate(speed: number, grounded: boolean, dt: number) {
     if (this.legacy) this.legacy.anim.update(speed, grounded, dt);
-    else this.human?.animator?.update(speed, grounded, dt);
+    else { this.human?.animator?.update(speed, grounded, dt); this.human?.updateProps(dt); }
   }
 
   /**

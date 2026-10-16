@@ -197,6 +197,9 @@ export class HumanCharacter {
     }
   }
 
+  /** itens na mão: chamado logo depois da animação (o quadro dos itens de duas mãos sai da pose deste quadro) */
+  updateProps(dt: number) { this.propAttachment?.update(dt, performance.now() / 1000, this.want <= 1); }
+
   get lod(): Lod { return this.want; }
   /** já há algum LOD carregado e visível (antes disso o personagem é invisível) */
   get showing(): boolean { return this.shown >= 0; }
@@ -422,6 +425,7 @@ export class HumanCharacter {
   dispose() {
     this.disposed = true;
     this.animator?.dispose();
+    this.propAttachment?.dispose();
     const skels = new Set<THREE.Skeleton>();
     for (const inst of this.lods) inst?.meshes.forEach((m) => { (m.material as THREE.Material).dispose(); skels.add(m.skeleton); });
     skels.forEach((k) => k.dispose());

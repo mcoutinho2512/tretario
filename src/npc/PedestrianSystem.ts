@@ -223,7 +223,7 @@ export class PedestrianSystem {
       setSocial: (s) => human.setSocial(s),
       ready: () => human.showing,
     };
-    ped.anim = { update: (sp, g, dt) => human.animator?.update(sp, g, dt) };
+    ped.anim = { update: (sp, g, dt) => { human.animator?.update(sp, g, dt); human.updateProps(dt); } };
     this.group.add(human.root);
     human.ready.catch(() => {
       human.dispose();

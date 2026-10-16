@@ -14,12 +14,15 @@ import type { QualityLevel } from '../../core/settings';
 import type { Lod } from '../human/HumanAssets';
 import { CROWD_BUDGETS, assignTiers, type CrowdAgent, type CrowdBudget, type TierStats } from './crowdBudget';
 import { CrowdRenderer } from './CrowdRenderer';
+import { PropInstancer, qaCrowdProp } from '../../social/props/PropInstancer';
 
 export type AgentSource = 'net' | 'far' | 'ped';
 
 export class CrowdDirector {
   readonly budget: CrowdBudget;
   readonly renderer: CrowdRenderer;
+  /** itens (bandeiras, cartazes…) da multidão instanciada: um draw call por tipo de peça */
+  readonly props: PropInstancer;
   private list: CrowdAgent[] = [];
   private draw: CrowdAgent[] = [];
   private order: number[] = [];
@@ -34,8 +37,8 @@ export class CrowdDirector {
   frame = 0;
   /** humanos de OUTRAS fontes (rede) no último quadro — os pedestres NPC cedem lugar a eles */
   othersCount = 0;
-  stats: TierStats & { submitted: number; net: number; far: number; ped: number; drawnInstanced: number; instancedCalls: number; ms: number } =
-    { skinned: 0, instanced: 0, hidden: 0, lod: [0, 0, 0, 0], submitted: 0, net: 0, far: 0, ped: 0, drawnInstanced: 0, instancedCalls: 0, ms: 0 };
+  stats: TierStats & { submitted: number; net: number; far: number; ped: number; drawnInstanced: number; instancedCalls: number; props: number; propCalls: number; ms: number } =
+    { skinned: 0, instanced: 0, hidden: 0, lod: [0, 0, 0, 0], submitted: 0, net: 0, far: 0, ped: 0, drawnInstanced: 0, instancedCalls: 0, props: 0, propCalls: 0, ms: 0 };
 
   constructor(level: QualityLevel, parent: THREE.Object3D) {
     this.budget = { ...(CROWD_BUDGETS[level] ?? CROWD_BUDGETS.medium) };
@@ -44,12 +47,19 @@ export class CrowdDirector {
     const num = (k: string) => { const v = q?.get(k); return v !== null && v !== undefined && v !== '' && Number.isFinite(Number(v)) ? Number(v) : null; };
     this.budget.skinned = num('crowdSkinned') ?? this.budget.skinned;
     this.budget.total = num('crowdTotal') ?? this.budget.total;
+    // QA: ?crowdProps=0..1 dá itens (bandeiras, cartazes…) a essa fração dos agentes sem item
+    this.qaProps = num('crowdProps') ?? 0;
     this.renderer = new CrowdRenderer(this.budget.total, this.budget.instancedLod2Dist > 0);
     parent.add(this.renderer.group);
+    this.props = new PropInstancer(this.budget.total);
+    parent.add(this.props.group);
     void this.renderer.init();
   }
 
+  private qaProps = 0;
+
   submit(a: CrowdAgent, src: AgentSource) {
+    if (this.qaProps && !a.prop) qaCrowdProp(a, this.qaProps);
     this.list.push(a);
     this.counts[src]++;
   }
@@ -76,9 +86,12 @@ export class CrowdDirector {
     this.draw.length = 0;
     for (const a of this.list) if (a.inView && (a.tier === 1 || (a.tier === 2 && !a.skinReady))) this.draw.push(a);
     this.renderer.draw(this.draw, dt);
+    // itens só depois que a multidão existe (sem corpo instanciado, item flutuando no ar)
+    this.props.draw(this.renderer.ready ? this.draw : []);
     Object.assign(this.stats, st, {
       submitted: this.list.length, net: this.counts.net, far: this.counts.far, ped: this.counts.ped,
-      drawnInstanced: this.renderer.stats.drawn, instancedCalls: this.renderer.stats.calls, ms: +(performance.now() - t0).toFixed(3),
+      drawnInstanced: this.renderer.stats.drawn, instancedCalls: this.renderer.stats.calls,
+      props: this.props.stats.drawn, propCalls: this.props.stats.calls, ms: +(performance.now() - t0).toFixed(3),
     });
     this.othersCount = this.counts.net + this.counts.far;
     this.list.length = 0;
@@ -86,5 +99,5 @@ export class CrowdDirector {
     this.frame++;
   }
 
-  dispose() { this.renderer.dispose(); }
+  dispose() { this.renderer.dispose(); this.props.dispose(); }
 }
