@@ -167,9 +167,21 @@ export interface WorldManifest {
   pvAxis: XZ[];
   /** polilinhas simplificadas das ruas para o minimapa */
   minimapRoads: { pts: XZ[]; w: number; pv?: boolean; name?: string }[];
+  /** arquivo das faixas de tráfego (veículos NPC) */
+  traffic?: string;
   attribution: string;
   osmTimestamp: string | null;
 }
 
 export const CURB_HEIGHT = 0.15;
 export const PLATFORM_HEIGHT = 1.0;
+
+/** Faixa de tráfego dirigível (sentido = ordem dos pontos). */
+export interface TrafficLane {
+  id: number;
+  pts: XZ[];
+  pv?: 1;
+  next: number[];
+  /** velocidade de cruzeiro (m/s) */
+  speed: number;
+}

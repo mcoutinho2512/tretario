@@ -102,3 +102,42 @@ describe('geografia', () => {
     expect(central + lateral).toBeGreaterThan(30);
   });
 });
+
+describe('faixas de tráfego', () => {
+  const file = manifest.traffic!;
+  const { lanes } = JSON.parse(readFileSync(`public/world/${file}`, 'utf8')) as { lanes: { id: number; pts: [number, number][]; pv?: 1; next: number[]; speed: number }[] };
+  it('existem, com ids e conexões válidas', () => {
+    expect(lanes.length).toBeGreaterThan(300);
+    for (const l of lanes) {
+      expect(l.pts.length).toBeGreaterThanOrEqual(2);
+      for (const n of l.next) expect(lanes[n]).toBeDefined();
+      expect(l.speed).toBeGreaterThan(5);
+    }
+  });
+  it('Pres. Vargas: maioria das faixas conectada ao trecho seguinte e ambos os sentidos presentes', () => {
+    const pv = lanes.filter((l) => l.pv);
+    expect(pv.length).toBeGreaterThan(100);
+    expect(pv.filter((l) => l.next.length).length / pv.length).toBeGreaterThan(0.8);
+    let east = 0, west = 0;
+    for (const l of pv) {
+      const dx = l.pts[l.pts.length - 1][0] - l.pts[0][0];
+      if (dx > 0) east++; else west++;
+    }
+    expect(east).toBeGreaterThan(30);
+    expect(west).toBeGreaterThan(30);
+  });
+  it('mão direita: faixa no sentido leste fica ao sul (z maior) da faixa no sentido oeste no mesmo ponto', () => {
+    // amostra no meio do corredor: centro das faixas centrais por sentido
+    const pv = lanes.filter((l) => l.pv);
+    const at = (l: typeof pv[number]) => l.pts.find((p) => Math.abs(p[0]) < 60);
+    const eastZ: number[] = [], westZ: number[] = [];
+    for (const l of pv) {
+      const p = at(l);
+      if (!p) continue;
+      (l.pts[l.pts.length - 1][0] > l.pts[0][0] ? eastZ : westZ).push(p[1]);
+    }
+    const mean = (a: number[]) => a.reduce((s, v) => s + v, 0) / a.length;
+    expect(eastZ.length && westZ.length).toBeTruthy();
+    expect(mean(eastZ)).toBeGreaterThan(mean(westZ));
+  });
+});

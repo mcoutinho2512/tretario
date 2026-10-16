@@ -27,6 +27,8 @@ import { createLandmarkMaterials } from '../world/landmarks/arch';
 import { buildCentral, type LandmarkInstance } from '../world/landmarks/central';
 import { buildCandelaria } from '../world/landmarks/candelaria';
 import { PedestrianSystem } from '../npc/PedestrianSystem';
+import { TrafficSystem } from '../traffic/TrafficSystem';
+import type { TrafficLane } from '../world/types';
 
 export { DEFAULT_PLAYER_APPEARANCE } from '../characters/bodyTypes';
 
@@ -49,6 +51,7 @@ export class Game {
   private props!: PropSystem;
   private landmarks: LandmarkInstance[] = [];
   private peds!: PedestrianSystem;
+  private traffic!: TrafficSystem;
   private input: InputManager;
   private player!: PlayerState;
   private avatar: AvatarVisual;
@@ -138,6 +141,15 @@ export class Game {
     this.scene.add(this.avatar.root);
     this.peds = new PedestrianSystem(this.collision, this.preset.pedestrians);
     this.scene.add(this.peds.group);
+    let lanes: TrafficLane[] = [];
+    if (this.manifest.traffic) {
+      try {
+        const tr = await fetch(`${base}${this.manifest.traffic}`);
+        if (tr.ok) lanes = ((await tr.json()) as { lanes: TrafficLane[] }).lanes;
+      } catch { /* trânsito é opcional */ }
+    }
+    this.traffic = new TrafficSystem(lanes, this.preset.vehicles);
+    this.scene.add(this.traffic.group);
     this.cam = new ThirdPersonCamera(this.camera, this.collision);
     // intro: começa olhando a Central, depois gira para a avenida (direção da Candelária)
     const central = this.manifest.landmarks.find((l) => l.key === 'LANDMARK_CENTRAL')!;
@@ -343,10 +355,12 @@ export class Game {
     // passo fixo para estabilidade
     const steps = Math.max(1, Math.ceil(dt / (1 / 120)));
     for (let i = 0; i < steps; i++) stepPlayer(this.player, intent, dt / steps, this.collision);
+    this.traffic.pushOut(this.player);
     this.avatar.update(this.player, dt);
     const ppos = this.avatar.root.position;
     this.cam.update(ppos, dt);
     this.peds.update(dt, this.camera, this.player);
+    this.traffic.update(dt, this.camera, this.player);
 
     // mundo
     const camXZ = new THREE.Vector2(this.camera.position.x, this.camera.position.z);
@@ -377,7 +391,7 @@ export class Game {
       quality: this.preset.level.toUpperCase(),
       chunks: `${st.visible} vis (F${st.full}/M${st.medium}/L${st.far}) · ${st.loaded} baixados`,
       props: this.props.instanceCount, heading: this.player.heading, locomotion: this.player.locomotion,
-      npcs: `pedestres ${this.peds.stats.visible}/${this.peds.stats.active}`,
+      npcs: `pedestres ${this.peds.stats.visible}/${this.peds.stats.active} · veículos ${this.traffic.stats.active}`,
     });
   }
 
@@ -403,7 +417,7 @@ export class Game {
       fps: this.debug.fps, frameMs: this.debug.frameMs, worstMs: this.debug.worstMs,
       calls: r.render.calls, triangles: r.render.triangles, textures: r.memory.textures, geometries: r.memory.geometries,
       quality: this.preset.level, chunks: { ...this.chunks.stats }, props: this.props.instanceCount,
-      pedestrians: { ...this.peds.stats },
+      pedestrians: { ...this.peds.stats }, vehicles: this.traffic.stats.active,
       player: { x: this.player.x, y: this.player.y, z: this.player.z },
     };
   }

@@ -259,6 +259,71 @@ for (let cx = cx0; cx <= cx1; cx++) {
 log(`chunks gravados: ${manifestChunks.length}, total ${(manifestChunks.reduce((s, c) => s + c.bytes, 0) / 1e6).toFixed(2)} MB`);
 
 // ---------------------------------------------------------------------------------------------
+// Faixas de tráfego (para veículos NPC): deslocadas da linha central OSM, no sentido real
+// ---------------------------------------------------------------------------------------------
+interface LaneOut { id: number; pts: XZ[]; pv?: 1; next: number[]; speed: number }
+const lanesOut: LaneOut[] = [];
+{
+  const TRAFFIC_KINDS = new Set(['trunk', 'primary', 'secondary', 'tertiary', 'link']);
+  const speedOf = (k: string) => (k === 'trunk' || k === 'primary' ? 14 : k === 'secondary' ? 12 : 10);
+  for (const r of F.roads) {
+    if (!TRAFFIC_KINDS.has(r.kind)) continue;
+    const n = Math.max(1, r.lanes);
+    const lw = r.width / n;
+    const addLane = (pts: XZ[], off: number) => {
+      const lp = simplify(offsetLine(pts, off), 0.3).map((p) => [r2(p[0]), r2(p[1])] as XZ);
+      if (polylineLength(lp) < 4) return;
+      lanesOut.push({ id: lanesOut.length, pts: lp, next: [], speed: speedOf(r.kind), ...(r.presidenteVargas ? { pv: 1 as const } : {}) });
+    };
+    if (r.oneway) {
+      // mão direita: faixa 0 = mais à esquerda
+      for (let i = 0; i < n; i++) addLane(r.pts, -r.width / 2 + (i + 0.5) * lw);
+    } else {
+      const half = Math.max(1, Math.floor(n / 2));
+      const rev = [...r.pts].reverse();
+      for (let i = 0; i < half; i++) {
+        addLane(r.pts, (i + 0.5) * lw); // sentido dos nós: lado direito
+        addLane(rev, (i + 0.5) * lw); // sentido oposto
+      }
+    }
+  }
+  // conexões: fim de uma faixa → início de outra (≤ 4 m, ângulo < 65°)
+  const startHash = new Map<string, number[]>();
+  const key = (p: XZ) => `${Math.floor(p[0] / 8)},${Math.floor(p[1] / 8)}`;
+  for (const l of lanesOut) {
+    const k = key(l.pts[0]);
+    (startHash.get(k) ?? startHash.set(k, []).get(k)!).push(l.id);
+  }
+  const dirAt = (pts: XZ[], end: boolean) => {
+    const a = end ? pts[pts.length - 2] : pts[0], b = end ? pts[pts.length - 1] : pts[1];
+    return Math.atan2(b[1] - a[1], b[0] - a[0]);
+  };
+  for (const l of lanesOut) {
+    const e = l.pts[l.pts.length - 1];
+    const de = dirAt(l.pts, true);
+    const cands: { id: number; score: number }[] = [];
+    const [kx, kz] = [Math.floor(e[0] / 8), Math.floor(e[1] / 8)];
+    for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) {
+      for (const id of startHash.get(`${kx + dx},${kz + dz}`) ?? []) {
+        if (id === l.id) continue;
+        const o = lanesOut[id];
+        const d = Math.hypot(o.pts[0][0] - e[0], o.pts[0][1] - e[1]);
+        if (d > 4) continue;
+        let da = Math.abs(dirAt(o.pts, false) - de);
+        if (da > Math.PI) da = Math.PI * 2 - da;
+        if (da > 1.13) continue;
+        cands.push({ id, score: d + da * 6 });
+      }
+    }
+    l.next = cands.sort((a, b) => a.score - b.score).slice(0, 3).map((c) => c.id);
+  }
+}
+const trafficJson = JSON.stringify({ lanes: lanesOut });
+const trafficFile = `traffic.${createHash('sha1').update(trafficJson).digest('hex').slice(0, 10)}.json`;
+writeFileSync(`${OUT_DIR}/${trafficFile}`, trafficJson);
+log(`faixas de tráfego: ${lanesOut.length} (${lanesOut.filter((l) => l.pv).length} na Pres. Vargas), conectadas: ${lanesOut.filter((l) => l.next.length).length}`);
+
+// ---------------------------------------------------------------------------------------------
 // Manifest
 // ---------------------------------------------------------------------------------------------
 const minimapRoads = F.roads
@@ -278,6 +343,7 @@ const manifest: WorldManifest = {
   spawn: F.spawn,
   pvAxis: F.pvAxis,
   minimapRoads,
+  traffic: trafficFile,
   attribution: '© OpenStreetMap contributors (ODbL)',
   osmTimestamp: F.source.osmBaseTimestamp,
 };
