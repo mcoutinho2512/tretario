@@ -33,7 +33,7 @@ const check = (name, ok, detail = '') => { results.push({ name, ok, detail }); c
 // proteção: nunca falar com um servidor antigo esquecido na porta
 try { await fetch(`http://127.0.0.1:${PORT + 1}/metrics`); console.error(`porta ${PORT} ocupada por outro servidor — abortando`); process.exit(2); } catch { /* livre */ }
 const server = spawn('npx', ['tsx', 'src/index.ts'], {
-  cwd: 'server', env: { ...process.env, PORT: String(PORT), PV_TEST: '1', PV_METRICS: '0', ...(lag ? { COLYSEUS_LATENCY: String(lag), PV_JITTER: String(jitter) } : {}) },
+  cwd: 'server', env: { ...process.env, PORT: String(PORT), PV_TEST: '1', PV_METRICS: '0', PV_EVENT: process.env.PV_EVENT ?? 'cotidiano' /* modo interação (empurrão) só em evento 'opcional'; o ato é pacífico */, ...(lag ? { COLYSEUS_LATENCY: String(lag), PV_JITTER: String(jitter) } : {}) },
   stdio: ['ignore', 'pipe', 'pipe'], detached: true,
 });
 const serverLog = [];
