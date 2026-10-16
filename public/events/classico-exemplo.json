@@ -134,6 +134,18 @@
       "kind": "moto",
       "spawn": "none",
       "name": "Moto"
+    },
+    {
+      "id": "carro-de-som",
+      "kind": "soundcar",
+      "name": "Carro de som",
+      "spawn": "none"
+    },
+    {
+      "id": "trio",
+      "kind": "trio",
+      "name": "Trio elétrico",
+      "spawn": "none"
     }
   ]
 }

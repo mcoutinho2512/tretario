@@ -35,6 +35,16 @@ export const NetPlayer = schema({
   prop: t.uint8(),
   /** design do item (src/social/designs.ts; 0 = padrão) */
   design: t.uint16(),
+  /**
+   * em cima de um TRIO (id do veículo; '' = no chão) — src/vehicles/platform.ts. `vehicle` continua '' (ações
+   * sociais permitidas); x/z/y continuam no MUNDO (AOI, multidão), mas quem desenha usa o LOCAL abaixo × a pose
+   * interpolada do trio: o passageiro não escorrega quando o trio anda.
+   */
+  platform: t.string(),
+  /** posição local no piso do trio (m) e rumo relativo ao trio (rad) */
+  plx: t.float32(),
+  plz: t.float32(),
+  plh: t.float32(),
 }, 'NetPlayer');
 export type NetPlayer = SchemaType<typeof NetPlayer>;
 
@@ -49,6 +59,8 @@ export const NetVehicle = schema({
   occupant: t.string(),
   /** 0 disponível · 1 ocupado · 2 voltando para a vaga (VEHICLE_STATE) */
   state: t.uint8(),
+  /** design dos painéis (carro de som/trio; src/social/designs.ts; 0 = arte neutra padrão) */
+  design: t.uint16(),
 }, 'NetVehicle');
 export type NetVehicle = SchemaType<typeof NetVehicle>;
 

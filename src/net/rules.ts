@@ -4,6 +4,7 @@
  */
 import type { WallGrid } from '../physics/walls';
 import { checkPath } from './authority';
+import { TRIO, distToCabDoor } from '../vehicles/platform';
 
 export const RULES = {
   pushRange: 1.9, // m (centro a centro)
@@ -26,13 +27,18 @@ export const RULES = {
   vehicleBlockMargin: 0.45,
 } as const;
 
-/** tipos de veículo utilizáveis (servidor e cliente) */
-export const VEHICLE_KINDS = ['car', 'moto', 'bicycle', 'scooter'] as const;
+/** tipos de veículo utilizáveis (servidor e cliente). soundcar/trio = veículos de EVENTO (lentos, nunca atropelam) */
+export const VEHICLE_KINDS = ['car', 'moto', 'bicycle', 'scooter', 'soundcar', 'trio'] as const;
 export type VehicleKind = (typeof VEHICLE_KINDS)[number];
 /** carroceria (comprimento × largura, m) por tipo — colisão, entrada, impacto, bloqueio */
 export const VEHICLE_BOX: Record<VehicleKind, { len: number; width: number }> = {
   car: { len: 4.4, width: 1.8 }, moto: { len: 2.1, width: 0.8 }, bicycle: { len: 1.8, width: 0.6 }, scooter: { len: 1.2, width: 0.5 },
+  soundcar: { len: 5.0, width: 2.0 }, trio: { len: 12.6, width: 2.6 },
 };
+/** veículos com carroceria (caixa orientada): alcance, bloqueio de quem anda a pé, colisão entre veículos */
+export const BOXED_KINDS: ReadonlySet<string> = new Set(['car', 'moto', 'soundcar', 'trio']);
+/** veículos de evento: velocidade de cortejo, sempre pacíficos (nunca derrubam ninguém), sólidos para quem anda */
+export const EVENT_VEHICLE_KINDS: ReadonlySet<string> = new Set(['soundcar', 'trio']);
 /** estado do veículo no servidor */
 export const VEHICLE_STATE = { AVAILABLE: 0, OCCUPIED: 1, RESETTING: 2 } as const;
 
@@ -50,6 +56,8 @@ export interface Actor {
   actionTimes: number[];
   /** instante da última queda (servidor) */
   lastDown?: number;
+  /** id do trio em que está em cima ('' / ausente = no chão) — src/vehicles/platform.ts */
+  platform?: string;
 }
 
 export type Denial =
@@ -63,6 +71,8 @@ export function canPush(a: Actor, t: Actor | undefined, now: number, walls?: Wal
   if (t.mode !== 'interacao') return { ok: false, reason: 'pacifico_alvo' };
   if (a.status !== STATUS.OK || t.status !== STATUS.OK) return { ok: false, reason: 'estado' };
   if (a.vehicle || t.vehicle) return { ok: false, reason: 'veiculo' };
+  // em cima do trio ninguém empurra nem é empurrado (queda de 3 m não existe neste jogo)
+  if (a.platform || t.platform) return { ok: false, reason: 'veiculo' };
   if (now - a.lastActionAt < RULES.pushCooldownMs) return { ok: false, reason: 'cooldown' };
   const recent = a.actionTimes.filter((x) => now - x < RULES.rateWindowMs);
   if (recent.length >= RULES.rateMax) return { ok: false, reason: 'spam' };
@@ -110,10 +120,10 @@ export function vehicleImpact(
   return { hit: false, strength: 0 };
 }
 
-/** distância de um ponto à carroceria (caixa orientada) — carros; bicicletas/patinetes: ao centro */
+/** distância de um ponto à carroceria (caixa orientada) — carros, motos e veículos de evento; bicicletas/patinetes: ao centro */
 export function distToVehicle(px: number, pz: number, v: { x: number; z: number; heading?: number; kind?: string }): number {
-  if (v.kind !== 'car' && v.kind !== 'moto') return Math.hypot(px - v.x, pz - v.z);
-  const b = VEHICLE_BOX[v.kind];
+  if (!v.kind || !BOXED_KINDS.has(v.kind)) return Math.hypot(px - v.x, pz - v.z);
+  const b = VEHICLE_BOX[v.kind as VehicleKind];
   const h = v.heading ?? 0, fx = Math.sin(h), fz = Math.cos(h);
   const dx = px - v.x, dz = pz - v.z;
   const along = Math.max(0, Math.abs(dx * fx + dz * fz) - b.len / 2), lat = Math.max(0, Math.abs(dx * fz - dz * fx) - b.width / 2);
@@ -155,6 +165,37 @@ export function vehicleBlock(
   return { x: next.x, z: next.z, blocked: false };
 }
 
+/**
+ * Empurra um ponto (pessoa a pé, raio `r`) para fora da carroceria de um veículo (caixa orientada).
+ * Cliente (colisão local) e servidor (validação) usam a mesma função; devolve null se não havia sobreposição.
+ */
+export function pushOutOfBox(px: number, pz: number, v: { x: number; z: number; heading: number; kind: string }, r: number): { x: number; z: number } | null {
+  const b = VEHICLE_BOX[v.kind as VehicleKind];
+  if (!b) return null;
+  const fx = Math.sin(v.heading), fz = Math.cos(v.heading);
+  const dx = px - v.x, dz = pz - v.z;
+  const lz = dx * fx + dz * fz, lx = dx * fz - dz * fx;
+  const hx = b.width / 2 + r, hz = b.len / 2 + r;
+  if (Math.abs(lx) >= hx || Math.abs(lz) >= hz) return null;
+  if (hx - Math.abs(lx) < hz - Math.abs(lz)) { const nlx = Math.sign(lx || 1) * hx; return { x: v.x + lz * fx + nlx * fz, z: v.z + lz * fz - nlx * fx }; }
+  const nlz = Math.sign(lz || 1) * hz;
+  return { x: v.x + nlz * fx + lx * fz, z: v.z + nlz * fz - lx * fx };
+}
+
+/** dois veículos se sobrepõem? (caixas orientadas, teste de eixos separadores) — trio/carro de som são sólidos para os outros */
+export function boxesOverlap(a: { x: number; z: number; heading: number; kind: string }, b: { x: number; z: number; heading: number; kind: string }, margin = 0): boolean {
+  const A = VEHICLE_BOX[a.kind as VehicleKind], B = VEHICLE_BOX[b.kind as VehicleKind];
+  if (!A || !B) return false;
+  const axes = [[Math.sin(a.heading), Math.cos(a.heading)], [Math.cos(a.heading), -Math.sin(a.heading)], [Math.sin(b.heading), Math.cos(b.heading)], [Math.cos(b.heading), -Math.sin(b.heading)]];
+  const half = (box: { len: number; width: number }, h: number, ax: number[]) =>
+    (box.len / 2 + margin) * Math.abs(Math.sin(h) * ax[0] + Math.cos(h) * ax[1]) + (box.width / 2 + margin) * Math.abs(Math.cos(h) * ax[0] - Math.sin(h) * ax[1]);
+  for (const ax of axes) {
+    const d = Math.abs((b.x - a.x) * ax[0] + (b.z - a.z) * ax[1]);
+    if (d > half(A, a.heading, ax) + half(B, b.heading, ax)) return false;
+  }
+  return true;
+}
+
 /** veículo abandonado longe da vaga, sem ninguém por perto há tempo suficiente → volta para a vaga */
 export function shouldResetVehicle(
   v: { occupant: string; x: number; z: number; spawnX: number; spawnZ: number; idleSince: number },
@@ -172,8 +213,11 @@ export function canEnter(p: { x: number; z: number; status: number; vehicle: str
   if (v.occupant) return { ok: false as const, reason: 'ocupado' };
   if (p.vehicle) return { ok: false as const, reason: 'ja_em_veiculo' };
   if (p.status !== STATUS.OK) return { ok: false as const, reason: 'estado' };
-  const range = v.kind === 'car' ? RULES.enterRangeCar : v.kind === 'moto' ? 1.6 : RULES.enterRange;
-  if (distToVehicle(p.x, p.z, v) > range) return { ok: false as const, reason: 'distancia' };
+  const range = v.kind === 'car' || v.kind === 'soundcar' ? RULES.enterRangeCar : v.kind === 'moto' ? 1.6 : RULES.enterRange;
+  // trio: o motorista entra pela porta da cabine (a escada de trás é para SUBIR no trio, não dirigir)
+  if (v.kind === 'trio') {
+    if (distToCabDoor(p.x, p.z, { x: v.x, z: v.z, heading: v.heading ?? 0 }) > TRIO.driveRange) return { ok: false as const, reason: 'distancia' };
+  } else if (distToVehicle(p.x, p.z, v) > range) return { ok: false as const, reason: 'distancia' };
   return { ok: true as const };
 }
 

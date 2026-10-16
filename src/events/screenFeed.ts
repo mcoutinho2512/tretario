@@ -1,0 +1,134 @@
+/**
+ * Telões de evento (trio elétrico, palco, pontos da avenida): UM canal de conteúdo (`ScreenFeed`) — um canvas
+ * 512×288 compartilhado por todos os telões, redesenhado em baixa frequência (2 Hz) e só quando algum telão está
+ * perto da câmera. Conteúdo configurável e PRÓPRIO: designs estáticos (src/social/designs.ts, alvo 'screen'),
+ * cartão de informações do jogo (hora do mundo, pessoas na avenida) e animações simples desenhadas no canvas
+ * (equalizador, letreiro). Sem vídeo remoto, sem imagens externas.
+ *
+ * Longe (> `nearDistance`), o telão troca para um material liso (`farMaterial`): nada de textura nem atualização.
+ */
+import * as THREE from 'three';
+import { DESIGN_BY_KEY, DESIGN_BY_ID, designsFor } from '../social/designs';
+import { paintDesign } from '../social/designPainter';
+
+export type ScreenSlide =
+  | { type: 'design'; design: number | string }
+  | { type: 'info' }
+  | { type: 'eq'; text?: string };
+
+export interface ScreenInfo { time: string; players: number; label?: string }
+
+const W = 512, H = 288;
+
+export class ScreenFeed {
+  readonly canvas: HTMLCanvasElement;
+  readonly texture: THREE.CanvasTexture;
+  /** material do telão perto (sem tom/neblina: é luz emitida) */
+  readonly material: THREE.MeshBasicMaterial;
+  /** material do telão longe: cor média, sem textura */
+  readonly farMaterial = new THREE.MeshBasicMaterial({ color: 0x1d2a44, toneMapped: false });
+  playlist: ScreenSlide[];
+  /** segundos por slide */
+  rotateSeconds = 7;
+  /** redesenhos por segundo (baixa frequência: o upload da textura é o custo) */
+  hz = 2;
+  nearDistance = 160;
+  info: () => ScreenInfo = () => ({ time: '', players: 0 });
+  /** QA: quantos redesenhos */
+  draws = 0;
+  private acc = 1e9;
+  private t = 0;
+  private ctx: CanvasRenderingContext2D;
+
+  constructor(playlist?: ScreenSlide[]) {
+    this.canvas = document.createElement('canvas');
+    this.canvas.width = W; this.canvas.height = H;
+    this.ctx = this.canvas.getContext('2d')!;
+    this.texture = new THREE.CanvasTexture(this.canvas);
+    this.texture.colorSpace = THREE.SRGBColorSpace;
+    this.texture.name = 'event_screen_feed';
+    this.material = new THREE.MeshBasicMaterial({ map: this.texture, toneMapped: false });
+    this.material.name = 'event_screen';
+    this.playlist = playlist ?? ScreenFeed.defaultPlaylist();
+    this.draw();
+  }
+
+  /** padrão neutro: arte do ato, informações, equalizador; campanhas só se o evento configurar */
+  static defaultPlaylist(): ScreenSlide[] {
+    const neutral = designsFor('screen').filter((d) => d.family !== 'campaign' && d.key !== 'neutro_liso').map((d) => ({ type: 'design' as const, design: d.id }));
+    return [{ type: 'design', design: 'ato_pv' }, { type: 'info' }, ...neutral.filter((s) => s.design !== DESIGN_BY_KEY.get('ato_pv')?.id), { type: 'eq', text: 'AO VIVO · PRESIDENTE VARGAS' }];
+  }
+
+  setPlaylist(list: ScreenSlide[] | undefined) {
+    this.playlist = list?.length ? list : ScreenFeed.defaultPlaylist();
+    this.acc = 1e9;
+  }
+
+  /** `anyNear`: algum telão perto e visível — senão nada é redesenhado */
+  update(dt: number, anyNear: boolean) {
+    this.t += dt;
+    this.acc += dt;
+    if (!anyNear || this.acc < 1 / this.hz) return;
+    this.acc = 0;
+    this.draw();
+  }
+
+  get slideIndex() { return this.playlist.length ? Math.floor(this.t / this.rotateSeconds) % this.playlist.length : 0; }
+
+  private draw() {
+    const x = this.ctx, s = this.playlist[this.slideIndex] ?? { type: 'info' };
+    x.save();
+    x.fillStyle = '#05070c'; x.fillRect(0, 0, W, H);
+    if (s.type === 'design') {
+      const d = typeof s.design === 'string' ? DESIGN_BY_KEY.get(s.design) : DESIGN_BY_ID.get(s.design);
+      if (d) paintDesign(x, d, 0, 0, W, H, 'screen');
+    } else if (s.type === 'info') this.drawInfo();
+    else this.drawEq(s.text ?? '');
+    // moldura de LED: pontinho "ao vivo" piscando (animação própria, barata)
+    if (Math.floor(this.t * 2) % 2 === 0) { x.fillStyle = '#ff2b2b'; x.beginPath(); x.arc(W - 22, 20, 7, 0, Math.PI * 2); x.fill(); }
+    x.restore();
+    this.texture.needsUpdate = true;
+    this.draws++;
+  }
+
+  private drawInfo() {
+    const x = this.ctx, i = this.info();
+    const g = x.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, '#0b2545'); g.addColorStop(1, '#13315c');
+    x.fillStyle = g; x.fillRect(0, 0, W, H);
+    x.fillStyle = '#f2c230'; x.fillRect(0, 0, W, 46);
+    x.fillStyle = '#111'; x.textAlign = 'center'; x.textBaseline = 'middle';
+    x.font = '900 28px "Arial Black", Arial, sans-serif'; x.fillText(i.label ?? 'AV. PRESIDENTE VARGAS', W / 2, 24);
+    x.fillStyle = '#ffffff';
+    x.font = '900 96px "Arial Black", Arial, sans-serif'; x.fillText(i.time || '--:--', W / 2, 130);
+    x.font = '700 34px Arial, sans-serif';
+    x.fillText(`${i.players} ${i.players === 1 ? 'pessoa' : 'pessoas'} na avenida`, W / 2, 222);
+    x.font = '600 14px Arial, sans-serif'; x.globalAlpha = 0.7;
+    x.fillText('SIMULAÇÃO · PRESIDENTE VARGAS 3D', W / 2, 270);
+    x.globalAlpha = 1;
+  }
+
+  private drawEq(text: string) {
+    const x = this.ctx;
+    x.fillStyle = '#0a0a12'; x.fillRect(0, 0, W, H);
+    const n = 24, bw = W / n;
+    for (let k = 0; k < n; k++) {
+      // "música" própria: soma de senos (nenhum áudio é analisado — é só animação)
+      const v = 0.25 + 0.75 * Math.abs(Math.sin(this.t * 2.1 + k * 0.7) * Math.cos(this.t * 1.3 + k * 0.23));
+      const h = v * (H - 90);
+      x.fillStyle = `hsl(${(k * 12 + this.t * 40) % 360}, 85%, 55%)`;
+      x.fillRect(k * bw + 3, H - 60 - h, bw - 6, h);
+    }
+    x.fillStyle = '#ffffff'; x.textBaseline = 'middle';
+    x.font = '800 30px Arial, sans-serif';
+    const tw = x.measureText(text).width + 80;
+    const off = (this.t * 90) % tw;
+    for (let px = -off; px < W; px += tw) x.fillText(text, px, H - 28);
+  }
+}
+
+let shared: ScreenFeed | null = null;
+/** canal único do jogo (trio, palco e telões da avenida mostram o mesmo conteúdo, como numa transmissão) */
+export function screenFeed(): ScreenFeed {
+  return (shared ??= new ScreenFeed());
+}

@@ -61,6 +61,9 @@ apesar de estarem num pacote rotulado CC0) e `toigo_maga_hat` (conteúdo políti
 | Mostrador do relógio, ícone | canvas/SVG | UI e landmark |
 | Itens da manifestação (mastros, bandeiras, cartazes, faixa, megafone, apito, guarda-chuva, surdo, taco), bandeiras de cenário, textura de desgaste | `src/social/props/*` (geometria e canvas deste projeto; artes via `designPainter.ts`) | itens na mão, multidão, palco/avenida |
 | Grafites (traços, símbolos coração/estrela/seta/paz/círculo/sol), textura do tapume | canvas/Path2D em `src/graffiti/raster.ts` e `GraffitiRenderer.ts` — sem arquivo de asset; texto com as fontes do sistema | pichação (rodada 7) |
+| Carro de som, trio elétrico, caminhões de campanha, telão de treliça, palco (rodada 7) | `src/vehicles/eventModels.ts` (caixas/cilindros por código, cores por vértice; modelos originais, sem referência copiada) | veículos e cenário de evento |
+| Grade de alto-falante, conteúdo dos telões (equalizador, letreiro, cartão de hora/pessoas) | canvas em `src/vehicles/eventModels.ts` e `src/events/screenFeed.ts` | painéis e telões |
+| Artes de painéis (designs neutros e de campanha) | `src/social/designPainter.ts` a partir de DADOS (`public/designs/campaigns.json`): só nome/número/sigla/cores, marca "SIMULAÇÃO", sem logotipos ou fotos | caminhões, trio, carro de som, palco, telões |
 
 Veículos, vegetação, mobiliário, materiais de prédios/chão e landmarks da rodada 5: ver as seções acrescentadas
 pelas respectivas passadas (`docs/licenses/*.md`).
