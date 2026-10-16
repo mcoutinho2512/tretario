@@ -123,7 +123,7 @@ export class NetworkClient {
     this.status = 'connecting';
     try {
       const client = new Client(this.endpoint);
-      const opts: JoinOptions = { name, body: app.body, skin: app.skin, hair: app.hair, top: app.top, bottom: app.bottom, shoes: app.shoes, accessory: app.accessory ?? 'nenhum', acc: app.acc ?? 0x222222, ...(testSpawn ? { testSpawn } : {}) };
+      const opts: JoinOptions = { name, body: app.body, skin: app.skin, hair: app.hair, top: app.top, bottom: app.bottom, shoes: app.shoes, accessory: app.accessory ?? 'nenhum', acc: app.acc ?? 0x222222, ...(testSpawn ? { testSpawn } : {}), ...(this.crowd ? { aoiMax: Math.max(16, Math.min(64, this.crowd.budget.skinned * 2)) } : {}) };
       const room = await client.joinOrCreate(ROOM_NAME, opts);
       this.room = room;
       this.sessionId = room.sessionId;

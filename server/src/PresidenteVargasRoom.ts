@@ -34,6 +34,12 @@ const TICK_MS = 100; // simulação a 10 Hz
 const AOI_SLICES = 2; // cada cliente a cada 2 ticks = 5 Hz (antes: todos juntos a 4 Hz)
 const CROWD_SLICES = Math.max(1, Math.round(1000 / TICK_MS / Math.max(0.1, CROWD_HZ)));
 const CROWD_MAX = Number(process.env.PV_CROWD_MAX ?? 600);
+/** limite pedido pelo cliente (aparelho fraco pede menos), entre 8 e AOI_MAX; 0 = sem limite */
+const clientCap = (req: unknown) => {
+  const n = typeof req === 'number' && Number.isFinite(req) ? Math.round(req) : 0;
+  if (AOI_MAX <= 0) return n > 0 ? Math.max(8, n) : 0;
+  return n > 0 ? Math.max(8, Math.min(AOI_MAX, n)) : AOI_MAX;
+};
 const BODY_INDEX: Record<string, number> = Object.fromEntries(BODIES.map((b, i) => [b, i]));
 const TRAFFIC_RADIUS = 380; // m — trânsito enviado a cada cliente
 const TRAFFIC_HZ = 2;
@@ -59,6 +65,8 @@ interface PlayerRT {
   overflow: number[];
   /** slot na grade espacial (inteiro pequeno, reaproveitado) */
   slot: number;
+  /** limite de detalhados deste cliente (pedido no join, ≤ AOI_MAX) */
+  aoiCap: number;
   /** nids cuja aparência este cliente já recebeu pela mensagem "crowd" */
   crowdKnown: Set<number>;
 }
@@ -210,7 +218,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
       if (only ? id !== only : r.slot % slices !== phase) continue;
       const me = this.state.players.get(id);
       if (!me) continue;
-      selectInterestSlots(this.grid, r.slot, me.x, me.z, r.inView, { radius: AOI_RADIUS, hysteresis: AOI_HYST, cap: AOI_MAX }, this.scratch, this.aoiAdd, this.aoiRem, r.overflow);
+      selectInterestSlots(this.grid, r.slot, me.x, me.z, r.inView, { radius: AOI_RADIUS, hysteresis: AOI_HYST, cap: r.aoiCap }, this.scratch, this.aoiAdd, this.aoiRem, r.overflow);
       for (const sl of this.aoiAdd) { const p = this.state.players.get(this.slotIds[sl]); if (p) r.view.add(p); }
       for (const sl of this.aoiRem) { const p = this.state.players.get(this.slotIds[sl]); if (p) r.view.remove(p); }
       // veículos utilizáveis: poucos (dezenas) — lista direta; o do próprio jogador fica sempre
@@ -311,6 +319,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
       last: { x: p.x, y: p.y, z: p.z, t: Date.now(), seq: -1 },
       view, inView: makeSlotView(), vehInView: new Set(), rest: null, pendingIn: 0,
       nid: p.nid, overflow: [], crowdKnown: new Set(), slot: this.allocSlot(client.sessionId),
+      aoiCap: clientCap(options?.aoiMax),
     };
     this.slotNid[r.slot] = p.nid;
     this.rt.set(client.sessionId, r);
