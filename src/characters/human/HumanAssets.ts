@@ -4,8 +4,7 @@
  * Tudo carregado sob demanda e em cache; o LOD mais barato é baixado primeiro.
  */
 import * as THREE from 'three';
-import { GLTFLoader, type GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
+import type { GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import type { BodyType } from '../bodyTypes';
 import { assetManager } from '../../core/AssetManager';
 
@@ -16,17 +15,14 @@ export type Layer = (typeof LAYERS)[number];
 export const LAYER_INDEX: Record<string, number> = { BODY: 0, HAIR: 1, SHIRT: 2, PANTS: 3, SHOES: 4 };
 
 const BASE = `${import.meta.env.BASE_URL ?? '/'}characters/`;
-const loader = new GLTFLoader();
-loader.setMeshoptDecoder(MeshoptDecoder);
-
+// carregamento/cache pelo AssetManager (uma carga por URL; texturas idênticas entre corpos e LODs compartilhadas)
 const cache = new Map<string, Promise<GLTF>>();
 export function loadLod(body: BodyType, lod: Lod): Promise<GLTF> {
   const file = lod === 0 ? `${body}.glb` : `${body}_lod${lod}.glb`;
   let p = cache.get(file);
   if (!p) {
-    p = loader.loadAsync(BASE + file);
+    p = assetManager.loadGLTF(BASE + file, 'characters/assets');
     cache.set(file, p);
-    void p.then((g) => assetManager.register({ category: 'characters/assets', object: g.scene })).catch(() => {});
   }
   return p;
 }
@@ -34,7 +30,7 @@ export function loadLod(body: BodyType, lod: Lod): Promise<GLTF> {
 let clipsP: Promise<{ clips: Map<string, THREE.AnimationClip>; pelvisRest: THREE.Vector3 }> | null = null;
 /** clipes compartilhados (retargetados para o rig "game_engine"; posição da pelve relativa ao corpo-fonte) */
 export function loadClips() {
-  clipsP ??= loader.loadAsync(`${BASE}anims.glb`).then((g) => {
+  clipsP ??= assetManager.loadGLTF(`${BASE}anims.glb`, 'characters/assets').then((g) => {
     const clips = new Map(g.animations.map((c) => [c.name, c]));
     assetManager.registerClips('anims.glb', g.animations);
     const pelvis = g.scene.getObjectByName('pelvis');

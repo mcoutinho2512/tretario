@@ -7,6 +7,7 @@ import {
   asphaltTexture, portugueseStoneTexture, concreteSlabTexture, grassTexture, ballastTexture, trackbedTexture,
   paintWearTexture, noiseTexture, graniteTexture, type PbrSet,
 } from './textures';
+import { assetManager } from '../core/AssetManager';
 
 export interface MaterialLibrary {
   asphalt: THREE.MeshStandardMaterial;
@@ -96,5 +97,10 @@ export async function createMaterialLibrary(onStep?: (label: string) => void): P
   const water = new THREE.MeshStandardMaterial({ color: 0x2a3d3a, roughness: 0.08, metalness: 0.2 });
   const steel = new THREE.MeshStandardMaterial({ color: 0x8a8d90, roughness: 0.35, metalness: 0.9 });
   const darkMetal = new THREE.MeshStandardMaterial({ color: 0x2a2d30, roughness: 0.55, metalness: 0.6 });
+  // memória (docs/MEMORY.md): ~50 MB de pixels gerados ficariam duplicados na CPU depois do upload
+  for (const m of [asphalt, sidewalk, plaza, grass, concrete, curb, ballast, trackbed, paintWhite, paintYellow]) {
+    for (const t of [m.map, m.normalMap, m.roughnessMap, m.alphaMap]) if (t) { t.userData.category = 'chunks/ground'; assetManager.releaseCpuAfterUpload(t); }
+  }
+  assetManager.releaseCpuAfterUpload(noise);
   return { asphalt, sidewalk, plaza, grass, concrete, curb, ballast, trackbed, water, paintWhite, paintYellow, steel, darkMetal, noise };
 }

@@ -12,8 +12,6 @@
  * Sem o GLB (testes, falha de rede) usa os modelos de caixas antigos como reserva.
  */
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { assetManager } from '../core/AssetManager';
 
@@ -46,9 +44,7 @@ let loaded = false;
 export async function loadVehicleModels(url = `${import.meta.env?.BASE_URL ?? '/'}vehicles/vehicles.glb`): Promise<boolean> {
   if (loaded) return true;
   try {
-    const loader = new GLTFLoader();
-    loader.setMeshoptDecoder(MeshoptDecoder);
-    const gltf = await loader.loadAsync(url);
+    const gltf = await assetManager.loadGLTF(url, 'vehicles/assets');
     gltf.scene.updateMatrixWorld(true);
     for (const name of VEHICLE_MODELS) {
       for (const lod of [0, 1]) {
@@ -66,6 +62,8 @@ export async function loadVehicleModels(url = `${import.meta.env?.BASE_URL ?? '/
       }
     }
     loaded = cache.size > 0;
+    // as primitivas quantizadas de origem já foram convertidas/mescladas: o GLB sai do cache
+    assetManager.releaseGLTF(url);
     return loaded;
   } catch (e) {
     console.warn('veículos: GLB indisponível, usando modelos de reserva', e);

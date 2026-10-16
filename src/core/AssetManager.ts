@@ -138,8 +138,10 @@ export class AssetManager {
     this.stats.gltfLoads++;
     const entry: Entry<GLTF> = { value: null as unknown as Promise<GLTF>, refs: 1, category };
     entry.value = this.loader().loadAsync(url).then((g) => {
-      g.scene.userData.category = category;
+      // (sem userData.category na cena: os clones de esqueleto dos personagens herdariam a marca)
       g.scene.name ||= url.split('/').pop() ?? url;
+      // o parser retém o binário inteiro do GLB (e os bufferViews decodificados): não é usado depois da carga
+      (g as unknown as { parser: unknown }).parser = null;
       entry.resolved = g;
       return g;
     });

@@ -16,6 +16,7 @@ import type { MaterialLibrary } from '../renderer/materials';
 import type { CollisionWorld } from '../physics/CollisionWorld';
 import type { PropSystem } from './builders/props';
 import type { QualityPreset } from '../core/settings';
+import { assetManager } from '../core/AssetManager';
 
 export type LodLevel = 0 | 1 | 2 | 3; // 0 FULL, 1 MEDIUM, 2 FAR, 3 hidden
 
@@ -173,6 +174,9 @@ export class ChunkManager {
         const g = buildGroundMeshes(data, this.lib, wantDetailed);
         c.ground = g.group;
         c.markings = g.markings;
+        g.group.userData.category = g.markings.userData.category = 'chunks/ground';
+        // geometria estática (colisão vem dos dados do chunk): só a cópia da GPU é necessária
+        for (const grp of [g.group, g.markings]) grp.traverse((o) => { const m = o as THREE.Mesh; if (m.isMesh) assetManager.releaseGeometryCpu(m.geometry); });
         c.groundDetailed = wantDetailed;
         this.group.add(c.ground, c.markings);
       }
@@ -192,6 +196,8 @@ export class ChunkManager {
           c.buildings.receiveShadow = true;
           c.buildings.matrixAutoUpdate = false;
           c.buildings.name = `buildings_${data.key}`;
+          c.buildings.userData.category = 'chunks/buildings';
+          assetManager.releaseGeometryCpu(geo);
           this.group.add(c.buildings);
         }
       }
@@ -206,6 +212,8 @@ export class ChunkManager {
           c.buildingsFar.receiveShadow = true;
           c.buildingsFar.matrixAutoUpdate = false;
           c.buildingsFar.name = `buildingsFar_${data.key}`;
+          c.buildingsFar.userData.category = 'chunks/buildings';
+          assetManager.releaseGeometryCpu(geo);
           this.group.add(c.buildingsFar);
         }
       }
@@ -219,6 +227,8 @@ export class ChunkManager {
     if (lod === 3) {
       if (c.ground) { this.disposeGroup(c.ground); c.ground = undefined; }
       if (c.markings) { this.disposeGroup(c.markings); c.markings = undefined; }
+      // silhueta distante também sai (antes ficava oculta para sempre: crescia com cada chunk visitado)
+      if (c.buildingsFar) { this.disposeMesh(c.buildingsFar); c.buildingsFar = undefined; }
     }
     if (lod >= 2 && c.buildings) { this.disposeMesh(c.buildings); c.buildings = undefined; }
   }

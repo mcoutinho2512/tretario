@@ -7,6 +7,7 @@ import * as THREE from 'three';
 import type { ChunkData, Poly, XZ, CrossingRec } from '../types';
 import { CURB_HEIGHT, PLATFORM_HEIGHT } from '../types';
 import type { MaterialLibrary } from '../../renderer/materials';
+import { assetManager } from '../../core/AssetManager';
 
 class GeoAcc {
   pos: number[] = [];
@@ -319,6 +320,7 @@ function fenceMaterial(): THREE.MeshStandardMaterial {
   tex.minFilter = THREE.LinearMipmapLinearFilter;
   tex.generateMipmaps = true;
   tex.needsUpdate = true;
+  assetManager.releaseCpuAfterUpload(tex);
   _fence = new THREE.MeshStandardMaterial({
     color: 0x1f2a22, map: tex, alphaTest: 0.4, roughness: 0.5, metalness: 0.6, side: THREE.DoubleSide,
   });

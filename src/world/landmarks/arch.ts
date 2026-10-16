@@ -13,6 +13,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { XZ } from '../types';
+import { assetManager } from '../../core/AssetManager';
 
 export type ArchMat = 'stone' | 'concrete' | 'granite' | 'dark' | 'metal' | 'glass';
 const MAT_ORDER: ArchMat[] = ['stone', 'concrete', 'granite', 'dark', 'metal', 'glass'];
@@ -350,6 +351,7 @@ export class ArchBuilder {
         const merged = mergeGeometries(list, false);
         if (!merged) continue;
         merged.computeBoundingSphere();
+        assetManager.releaseGeometryCpu(merged);
         const m = new THREE.Mesh(merged, materials[k]);
         m.castShadow = k !== 'glass' && tier === 0;
         m.receiveShadow = true;
@@ -359,6 +361,8 @@ export class ArchBuilder {
     }
     if (detail.children.length) group.add(detail);
     group.userData.detail = detail;
+    group.userData.category = 'landmarks';
+    this.parts.clear(); // peças de origem (já mescladas) não são mais necessárias
     return group;
   }
 
@@ -379,14 +383,7 @@ export function updateDetailLod(group: THREE.Object3D, center: THREE.Vector3, ca
 export interface LandmarkTextures { plaster: THREE.Texture; concrete: THREE.Texture; granite: THREE.Texture }
 
 export async function loadLandmarkTextures(base: string): Promise<LandmarkTextures> {
-  const loader = new THREE.TextureLoader();
-  const load = async (f: string) => {
-    const t = await loader.loadAsync(`${base}${f}`);
-    t.wrapS = t.wrapT = THREE.RepeatWrapping;
-    t.colorSpace = THREE.NoColorSpace;
-    t.anisotropy = 8;
-    return t;
-  };
+  const load = (f: string) => assetManager.loadTexture(`${base}${f}`, 'landmarks', { srgb: false, anisotropy: 8, wrap: THREE.RepeatWrapping });
   const [plaster, concrete, granite] = await Promise.all([load('plaster_detail.jpg'), load('concrete_detail.jpg'), load('granite_detail.jpg')]);
   return { plaster, concrete, granite };
 }

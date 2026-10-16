@@ -51,18 +51,11 @@ export function speciesAt(x: number, z: number): string {
 const nextFrame = () => new Promise<void>((r) => (typeof requestAnimationFrame === 'function' ? requestAnimationFrame(() => r()) : setTimeout(r, 0)));
 
 export async function loadVegetation(baseUrl: string, onProgress?: (f: number) => void): Promise<VegetationAssets> {
-  const loader = new THREE.TextureLoader();
-  const tex = async (f: string, srgb: boolean) => {
-    const t = await loader.loadAsync(`${baseUrl}${f}`);
-    t.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace;
-    t.anisotropy = 4;
-    return t;
-  };
+  const tex = (f: string, srgb: boolean) => assetManager.loadTexture(`${baseUrl}${f}`, 'vegetation', { srgb, anisotropy: 4 });
   const texP = Promise.all([tex('leaves.webp', true), tex('bark.jpg', true), tex('bark_n.jpg', false)]);
   // gera as variantes cedendo o thread entre elas (tela de carregamento continua respondendo)
   const variants = await generateVegetation(async (i, n) => { onProgress?.(i / n); await nextFrame(); });
   const [leafMap, barkMap, barkNormal] = await texP;
-  for (const v of variants) for (const l of v.lods) for (const g of [l.bark, l.leaves]) assetManager.register({ category: 'vegetation/variants', geometry: g });
   barkMap.wrapT = barkNormal.wrapT = THREE.RepeatWrapping;
   return { variants, leafMap, barkMap, barkNormal };
 }
@@ -313,6 +306,7 @@ export class VegetationSystem {
 
   constructor(renderer: THREE.WebGLRenderer, readonly assets: VegetationAssets, wind: { value: number }, public opts: VegetationOptions) {
     this.group.name = 'vegetation';
+    this.group.userData.category = 'vegetation';
     const m = createMaterials(assets, wind);
     const imp = bakeImpostors(renderer, assets, opts.impostorCell);
     this.impSizes = imp.sizes;
@@ -341,6 +335,12 @@ export class VegetationSystem {
       }
       skipOverridePasses(leaves);
       this.batches.push({ bark, leaves });
+    }
+    // memória: o BatchedMesh copiou as variantes para os próprios buffers; as geometrias-fonte (e os buffers de GPU
+    // criados ao renderizar o atlas de impostores) não são mais necessárias. Contagens (budget()) continuam válidas.
+    for (const v of assets.variants) for (const l of v.lods) for (const g of [l.bark, l.leaves]) {
+      g.dispose();
+      for (const a of [...Object.values(g.attributes), g.index]) if (a) (a as unknown as { array: unknown }).array = null;
     }
     const quad = new THREE.PlaneGeometry(2, 2);
     const ig = new THREE.InstancedBufferGeometry();

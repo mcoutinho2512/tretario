@@ -9,6 +9,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { MonumentRec, StreetSignRec } from './types';
 import { CURB_HEIGHT } from './types';
+import { assetManager } from '../core/AssetManager';
 
 const bronze = () => new THREE.MeshStandardMaterial({ color: 0x5a4a32, roughness: 0.45, metalness: 0.85 });
 const granite = () => new THREE.MeshStandardMaterial({ color: 0x8a8580, roughness: 0.75, metalness: 0 });
@@ -187,7 +188,8 @@ export class MonumentSystem {
     const W = 1024, rowH = 256;
     const c = document.createElement('canvas');
     c.width = W;
-    c.height = THREE.MathUtils.ceilPowerOfTwo(Math.max(1, names.length) * rowH);
+    // altura exata (WebGL2 aceita NPOT com mipmaps): antes 1024×8192 para 18 nomes (43 MB na GPU)
+    c.height = Math.max(1, names.length) * rowH;
     const x = c.getContext('2d')!;
     names.forEach((n, i) => {
       const y = i * rowH;
@@ -216,6 +218,8 @@ export class MonumentSystem {
     const tex = new THREE.CanvasTexture(c);
     tex.colorSpace = THREE.SRGBColorSpace;
     tex.anisotropy = 8;
+    tex.name = 'street_signs_atlas';
+    assetManager.releaseCpuAfterUpload(tex);
     const plates: THREE.BufferGeometry[] = [];
     const poles: THREE.BufferGeometry[] = [];
     for (const s of signs) {

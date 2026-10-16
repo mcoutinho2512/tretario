@@ -7,6 +7,7 @@ import { SMAAPass } from 'three/examples/jsm/postprocessing/SMAAPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import type { QualityPreset } from '../core/settings';
 import { renderQuality } from './quality';
+import { assetManager } from '../core/AssetManager';
 
 export class GameRenderer {
   readonly renderer: THREE.WebGLRenderer;
@@ -29,6 +30,9 @@ export class GameRenderer {
       preserveDrawingBuffer: false,
     });
     if (!this.renderer.capabilities.isWebGL2) throw new Error('WebGL2 indisponível neste navegador.');
+    // a partir daqui as cópias na CPU de texturas/geometrias estáticas podem ser soltas após o upload
+    // (a prévia do avatar — outro contexto WebGL — já foi descartada quando o jogo cria o renderer)
+    assetManager.cpuRelease = true;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 0.8;

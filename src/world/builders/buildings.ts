@@ -44,6 +44,7 @@ function floorHeightFor(b: BuildingRec): number {
 }
 
 import { arcadeSpans, type ArcadeSpan } from '../arcades';
+import { assetManager } from '../../core/AssetManager';
 export { arcadeSpans, ARCADE_HEIGHT, type ArcadeSpan } from '../arcades';
 
 /** quad com winding coerente com a normal dada */
@@ -389,6 +390,7 @@ function signAtlas(): THREE.Texture {
   t.anisotropy = 4;
   t.generateMipmaps = true;
   t.minFilter = THREE.LinearMipmapLinearFilter;
+  assetManager.releaseCpuAfterUpload(t); // canvas estático: solto após o upload
   return t;
 }
 

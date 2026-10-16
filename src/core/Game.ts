@@ -795,7 +795,9 @@ export class Game {
         const rc = new THREE.Raycaster();
         const r = this.canvas.getBoundingClientRect();
         rc.setFromCamera(new THREE.Vector2((px / r.width) * 2 - 1, -(py / r.height) * 2 + 1), this.camera);
-        const hit = rc.intersectObjects(this.scene.children, true).find((h) => h.object.visible && h.object.name !== 'clouds' && !(h.object as any).isSky);
+        const pickable: THREE.Object3D[] = [];
+        this.scene.traverse((o) => { const g = (o as THREE.Mesh).geometry; if (g?.attributes?.position?.array) pickable.push(o); });
+        const hit = rc.intersectObjects(pickable, false).find((h) => h.object.visible && h.object.name !== 'clouds' && !(h.object as any).isSky);
         if (!hit) return null;
         const geo = (hit.object as THREE.Mesh).geometry as THREE.BufferGeometry;
         const f1 = geo.getAttribute('aFacade'), f2 = geo.getAttribute('aFacade2');

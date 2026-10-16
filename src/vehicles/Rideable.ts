@@ -86,7 +86,16 @@ function part(g: THREE.BufferGeometry, x = 0, y = 0, z = 0, rx = 0, ry = 0, rz =
   return g;
 }
 
+const modelCache = new Map<string, THREE.Group>();
+/** modelo por tipo+cor: as instâncias compartilham geometrias e materiais (clone raso do grupo) */
 export function rideableModel(kind: RideableKind, color: number): THREE.Group {
+  const key = `${kind}:${color}`;
+  let proto = modelCache.get(key);
+  if (!proto) { proto = buildRideableModel(kind, color); modelCache.set(key, proto); }
+  return proto.clone();
+}
+
+function buildRideableModel(kind: RideableKind, color: number): THREE.Group {
   const g = new THREE.Group();
   const frameMat = new THREE.MeshStandardMaterial({ color, roughness: 0.45, metalness: 0.5 });
   const dark = new THREE.MeshStandardMaterial({ color: 0x1b1b1b, roughness: 0.7, metalness: 0.2 });
@@ -140,6 +149,7 @@ export class RideableSystem {
 
   constructor(spawns: { id: string; kind: RideableKind; x: number; z: number; heading: number }[], heightAt: (x: number, z: number) => number, kinds: RideableKind[] = ['bicycle', 'scooter', 'car']) {
     this.group.name = 'rideables';
+    this.group.userData.category = 'vehicles/rideables';
     for (const sp of spawns) {
       if (!kinds.includes(sp.kind)) continue;
       const state: RideableState = { id: sp.id, kind: sp.kind, x: sp.x, y: heightAt(sp.x, sp.z), z: sp.z, heading: sp.heading, speed: 0, occupant: null };
