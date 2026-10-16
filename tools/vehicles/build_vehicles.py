@@ -30,12 +30,12 @@ ONLY = argv[argv.index('--only') + 1].split(',') if '--only' in argv else None
 # cor linear (aprox.) + PBR. O cliente usa a mesma tabela por nome (ver vehicleModels.ts).
 MATS = {
     'paint':      dict(color=(0.55, 0.56, 0.58), metal=0.45, rough=0.32, coat=1.0),
-    'glass':      dict(color=(0.010, 0.013, 0.016), metal=0.0, rough=0.04, coat=0.0),
+    'glass':      dict(color=(0.018, 0.024, 0.028), metal=0.0, rough=0.04, coat=0.0),
     'trim':       dict(color=(0.016, 0.016, 0.017), metal=0.0, rough=0.55, coat=0.0),
     'rubber':     dict(color=(0.018, 0.018, 0.018), metal=0.0, rough=0.92, coat=0.0),
     'alloy':      dict(color=(0.50, 0.52, 0.55), metal=0.9, rough=0.32, coat=0.0),
     'chrome':     dict(color=(0.80, 0.80, 0.80), metal=1.0, rough=0.12, coat=0.0),
-    'lamp_front': dict(color=(0.75, 0.76, 0.78), metal=0.85, rough=0.08, coat=0.0, emit=(1.0, 0.95, 0.85)),
+    'lamp_front': dict(color=(0.88, 0.89, 0.92), metal=0.6, rough=0.06, coat=0.0, emit=(1.0, 0.95, 0.85)),
     'lamp_rear':  dict(color=(0.45, 0.012, 0.010), metal=0.1, rough=0.12, coat=0.0, emit=(1.0, 0.05, 0.03)),
     'lamp_amber': dict(color=(0.80, 0.33, 0.03), metal=0.1, rough=0.15, coat=0.0, emit=(1.0, 0.5, 0.05)),
     'stripe':     dict(color=(0.02, 0.09, 0.42), metal=0.3, rough=0.32, coat=1.0),
@@ -268,7 +268,7 @@ def inset_glass(ob, thickness=0.022, depth=-0.006):
     bm.free()
 
 
-def cut_arches(ob, axles, r, w_body, depth=0.34, mats=None):
+def cut_arches(ob, axles, r, w_body, depth=0.34, mats=None, cz=None):
     """caixas de roda: booleana com cilindros (faces da caixa herdam o material 'trim')"""
     cutters = []
     for ay in axles:
@@ -276,7 +276,7 @@ def cut_arches(ob, axles, r, w_body, depth=0.34, mats=None):
             bm = bmesh.new()
             bmesh.ops.create_cone(bm, cap_ends=True, segments=40, radius1=r, radius2=r, depth=depth + 0.4)
             bm.transform(Matrix.Rotation(math.pi / 2, 4, 'Y'))
-            bm.transform(Matrix.Translation((s * (w_body - depth + (depth + 0.4) / 2), ay, r - 0.02)))
+            bm.transform(Matrix.Translation((s * (w_body - depth + (depth + 0.4) / 2), ay, cz if cz is not None else r - 0.02)))
             for f in bm.faces:
                 f.material_index = 0
             c = new_obj('cut', bm)
@@ -521,27 +521,27 @@ CARS = {
     'hatch': dict(
         L=3.98, W=1.74, R=0.30, tireW=0.185, rimR=0.19, axles=(0.60, 3.13), track=0.745,
         keys=[
-            dict(y=0.00, zb=0.36, zs=0.90, zr=0.90, w=0.76, wr=0.6, tuck=0.82),
-            dict(y=0.04, zb=0.26, zs=0.99, zr=1.06, w=0.835, wr=0.62),
-            dict(y=0.12, zb=0.21, zs=1.01, zr=1.22, w=0.86, wr=0.64),
-            dict(y=0.48, zb=0.19, zs=1.01, zr=1.41, w=0.868, wr=0.66),
-            dict(y=1.10, zb=0.19, zs=0.99, zr=1.475, w=0.870, wr=0.675),
-            dict(y=1.75, zb=0.19, zs=0.97, zr=1.48, w=0.870, wr=0.675),
-            dict(y=2.30, zb=0.19, zs=0.95, zr=1.44, w=0.868, wr=0.675),
+            dict(y=0.00, zb=0.36, zs=0.92, zr=0.92, w=0.77, wr=0.6, tuck=0.82),
+            dict(y=0.04, zb=0.26, zs=1.01, zr=1.07, w=0.838, wr=0.62),
+            dict(y=0.14, zb=0.21, zs=1.04, zr=1.22, w=0.862, wr=0.63),
+            dict(y=0.50, zb=0.19, zs=1.045, zr=1.37, w=0.870, wr=0.645),
+            dict(y=1.10, zb=0.19, zs=1.01, zr=1.465, w=0.870, wr=0.67),
+            dict(y=1.75, zb=0.19, zs=0.98, zr=1.48, w=0.870, wr=0.675),
+            dict(y=2.30, zb=0.19, zs=0.955, zr=1.44, w=0.868, wr=0.675),
             dict(y=3.15, zb=0.19, zs=0.89, zr=0.90, w=0.862, wr=0.68),
             dict(y=3.55, zb=0.21, zs=0.84, zr=0.84, w=0.852, wr=0.68),
             dict(y=3.88, zb=0.25, zs=0.77, zr=0.77, w=0.82, wr=0.64),
             dict(y=3.98, zb=0.31, zs=0.70, zr=0.70, w=0.74, wr=0.6, tuck=0.82),
         ],
-        windshield=(2.30, 3.15), backlight=(0.04, 0.48), side_glass=(0.50, 3.05), bpillar=(1.72, 1.84),
-        cpillar_glass=True, cpillar=(0.48, 0.80),
+        windshield=(2.30, 3.15), backlight=(0.04, 0.50), side_glass=(0.50, 3.05), bpillar=(1.72, 1.84),
+        cpillar_glass=True, cpillar=(0.50, 0.92),
         lamps_front=dict(y=3.92, z0=0.70, z1=0.80, x0=0.50, x1=0.77),
         lamps_rear=dict(y=0.02, z0=0.90, z1=1.06, x0=0.56, x1=0.80),
         grille=dict(z0=0.44, z1=0.64, x=0.46), lower_grille=dict(z0=0.28, z1=0.40, x=0.58),
         doors=(1.12, 1.85, 2.78), handle_z=0.90,
     ),
     'suv': dict(
-        L=4.45, W=1.82, R=0.355, tireW=0.215, rimR=0.225, axles=(0.93, 3.58), track=0.79,
+        L=4.45, W=1.82, R=0.365, tireW=0.225, rimR=0.235, axles=(0.93, 3.58), track=0.79,
         keys=[
             dict(y=0.00, zb=0.52, zs=1.00, zr=1.00, w=0.78, wr=0.66, tuck=0.80),
             dict(y=0.05, zb=0.36, zs=1.10, zr=1.16, w=0.875, wr=0.72),
@@ -582,7 +582,7 @@ def car_classifier(spec):
         if row in (5, 6):
             # limiar por linha: a borda do vidro fica inclinada, paralela ao para-brisa / coluna C
             front = ym > (bl1 + ws0) / 2
-            thr = (0.15, 0.26)[row - 5] if front else (0.22, 0.31)[row - 5]
+            thr = (0.17, 0.21)[row - 5] if front else (0.24, 0.29)[row - 5]
             if gh > thr and sg0 <= ym <= sg1 and not (bp0 <= ym <= bp1):
                 if spec.get('cpillar') and spec['cpillar'][0] <= ym <= spec['cpillar'][1]:
                     return 'paint'
@@ -609,7 +609,7 @@ def build_car(kind, lod, mats):
     if lod == 0:
         inset_glass(body)
     W2 = spec['W'] / 2
-    cut_arches(body, spec['axles'], spec['R'] + (0.045 if lod == 0 else 0.05), W2, mats=mats)
+    cut_arches(body, spec['axles'], spec['R'] + (0.035 if lod == 0 else 0.04), W2, mats=mats, cz=spec['R'] + 0.012)
     for p in body.data.polygons:
         p.use_smooth = True
     parts = [body]
@@ -673,6 +673,25 @@ def build_car(kind, lod, mats):
         parts.append(rounded_box('mirb', (0.10, 0.10, 0.06), (sx * (w_m * 0.95 + 0.0), my + 0.02, zs_m + 0.03), 'trim', 0.015 if lod == 0 else 0.0, 1))
         parts.append(rounded_box('mirg', (0.012, 0.13, 0.085), (sx * (w_m * 0.95 + 0.09), my - 0.083, zs_m + 0.075), 'glass', 0.0, 1) if False else
                      rounded_box('mirg', (0.08, 0.012, 0.085), (sx * (w_m * 0.95 + 0.095), my - 0.081, zs_m + 0.075), 'chrome', 0.0, 1))
+
+    if spec.get('cladding'):
+        # SUV: molduras plásticas pretas em arco ao redor das caixas de roda (projetadas na lateral)
+        rr = R + 0.035
+        for ay in spec['axles']:
+            for sx in (1, -1):
+                bm = bmesh.new()
+                nseg = 14 if lod == 0 else 6
+                rows = []
+                for j in range(nseg + 1):
+                    a = math.radians(-8 + 196 * j / nseg)
+                    rows.append([bm.verts.new((sx * (W2 + 0.4), ay + math.cos(a) * r, R + 0.012 + math.sin(a) * r)) for r in (rr + 0.012, rr + 0.10)])
+                for j in range(nseg):
+                    f = bm.faces.new((rows[j][0], rows[j][1], rows[j + 1][1], rows[j + 1][0]))
+                    f.material_index = MI['trim']
+                ob = new_obj('flare', bm)
+                project(ob, body, 'X', 0.008)
+                orient_out(ob, (sx, 0, 0))
+                parts.append(ob)
 
     if spec.get('roof_rails'):
         zr_t = max(k['zr'] for k in spec['keys'])
@@ -794,7 +813,7 @@ def build_bus(lod, mats):
     assign_mats(body, mats)
     if lod == 0:
         inset_glass(body, 0.03, -0.012)
-    cut_arches(body, BUS['axles'], BUS['R'] + 0.07, W2, 0.42, mats=mats)
+    cut_arches(body, BUS['axles'], BUS['R'] + 0.06, W2, 0.42, mats=mats, cz=BUS['R'] + 0.03)
     parts = [body]
     wh = add_wheels('bus_wheels', BUS['axles'], W2 - 0.04, BUS['R'], BUS['tireW'], BUS['rimR'], 22 if lod == 0 else 10, lod, spokes=8, dual_rear=True, hub_mat='chrome')
     assign_mats(wh, mats)
@@ -804,7 +823,7 @@ def build_bus(lod, mats):
     # para-brisa grande, letreiro de destino (LED âmbar), faróis, para-choque
     parts += proj_patch('ws', body, [(-W2 + 0.10, yF, 1.25), (W2 - 0.10, yF, 1.25), (W2 - 0.12, yF, 2.55), (-W2 + 0.12, yF, 2.55)], 'glass', 'Y', (0, 1, 0), 0.006, nu, 3)
     parts += proj_patch('wsf', body, [(-W2 + 0.06, yF, 1.20), (W2 - 0.06, yF, 1.20), (W2 - 0.06, yF, 2.95), (-W2 + 0.06, yF, 2.95)], 'trim', 'Y', (0, 1, 0), 0.003, nu, 3)
-    parts += proj_patch('dest', body, [(-W2 + 0.25, yF, 2.64), (W2 - 0.25, yF, 2.64), (W2 - 0.25, yF, 2.88), (-W2 + 0.25, yF, 2.88)], 'sign', 'Y', (0, 1, 0), 0.009, nu, 1)
+    parts += proj_patch('dest', body, [(-0.85, yF, 2.70), (0.85, yF, 2.70), (0.85, yF, 2.82), (-0.85, yF, 2.82)], 'sign', 'Y', (0, 1, 0), 0.009, nu, 1)
     parts += proj_patch('hl', body, [(0.78, yF, 0.62), (1.18, yF, 0.62), (1.18, yF, 0.78), (0.78, yF, 0.78)], 'lamp_front', 'Y', (0, 1, 0), 0.008, 2, 1, mirror_x=True)
     parts += proj_patch('am', body, [(0.60, yF, 0.62), (0.74, yF, 0.62), (0.74, yF, 0.78), (0.60, yF, 0.78)], 'lamp_amber', 'Y', (0, 1, 0), 0.008, 1, 1, mirror_x=True)
     parts += proj_patch('bmp', body, [(-W2, yF, 0.36), (W2, yF, 0.36), (W2, yF, 0.56), (-W2, yF, 0.56)], 'trim', 'Y', (0, 1, 0), 0.006, nu, 1)
@@ -815,10 +834,11 @@ def build_bus(lod, mats):
     parts += proj_patch('eng', body, [(-0.8, yR, 0.75), (0.8, yR, 0.75), (0.8, yR, 1.30), (-0.8, yR, 1.30)], 'trim', 'Y', (0, -1, 0), 0.006, nu, 2)
     parts += proj_patch('rbmp', body, [(-W2, yR, 0.36), (W2, yR, 0.36), (W2, yR, 0.56), (-W2, yR, 0.56)], 'trim', 'Y', (0, -1, 0), 0.006, nu, 1)
     if lod == 0:
-        parts += proj_patch('rdest', body, [(-0.45, yR, 2.66), (0.45, yR, 2.66), (0.45, yR, 2.86), (-0.45, yR, 2.86)], 'sign', 'Y', (0, -1, 0), 0.009, 2, 1)
+        parts += proj_patch('rdestb', body, [(-0.5, yR, 2.64), (0.5, yR, 2.64), (0.5, yR, 2.88), (-0.5, yR, 2.88)], 'trim', 'Y', (0, -1, 0), 0.006, 2, 1)
+        parts += proj_patch('rdest', body, [(-0.32, yR, 2.71), (0.32, yR, 2.71), (0.32, yR, 2.81), (-0.32, yR, 2.81)], 'sign', 'Y', (0, -1, 0), 0.009, 2, 1)
         parts += proj_patch('pl', body, [(-0.2, yR, 0.58), (0.2, yR, 0.58), (0.2, yR, 0.72), (-0.2, yR, 0.72)], 'plate', 'Y', (0, -1, 0), 0.009, 2, 1)
         # letreiro lateral (junto à porta dianteira) e piscas laterais
-        parts += proj_patch('sdest', body, [(W2 + 0.5, L - 2.9, 2.30), (W2 + 0.5, L - 1.8, 2.30), (W2 + 0.5, L - 1.8, 2.52), (W2 + 0.5, L - 2.9, 2.52)], 'sign', 'X', (1, 0, 0), 0.009, 2, 1)
+        parts += proj_patch('sdest', body, [(W2 + 0.5, L - 2.8, 2.36), (W2 + 0.5, L - 1.9, 2.36), (W2 + 0.5, L - 1.9, 2.46), (W2 + 0.5, L - 2.8, 2.46)], 'sign', 'X', (1, 0, 0), 0.012, 2, 1)
         # faixa decorativa clara (saia) — mantém leitura de ônibus urbano carioca
         parts += proj_patch('band', body, [(W2 + 0.5, 0.3, 1.12), (W2 + 0.5, L - 0.3, 1.12), (W2 + 0.5, L - 0.3, 1.20), (W2 + 0.5, 0.3, 1.20)], 'chrome', 'X', (1, 0, 0), 0.004, 24, 1, mirror_x=True)
     # retrovisores tipo "orelha de coelho"

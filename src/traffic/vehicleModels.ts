@@ -24,12 +24,12 @@ interface MatDef { rough: number; metal: number; paint: number; emit: number; co
 /** propriedades por nome de material do GLB (cores vêm do próprio GLB, exceto quando indicado) */
 export const VEHICLE_MATS: Record<string, MatDef> = {
   paint: { rough: 0.34, metal: 0.45, paint: 1, emit: 0 },
-  glass: { rough: 0.05, metal: 0.3, paint: 0, emit: 0 },
+  glass: { rough: 0.04, metal: 0.4, paint: 0, emit: 0 },
   trim: { rough: 0.6, metal: 0, paint: 0, emit: 0 },
   rubber: { rough: 0.92, metal: 0, paint: 0, emit: 0 },
   alloy: { rough: 0.32, metal: 0.9, paint: 0, emit: 0 },
   chrome: { rough: 0.14, metal: 1, paint: 0, emit: 0 },
-  lamp_front: { rough: 0.08, metal: 0.85, paint: 0, emit: 1 },
+  lamp_front: { rough: 0.06, metal: 0.6, paint: 0, emit: 1 },
   lamp_rear: { rough: 0.12, metal: 0.1, paint: 0, emit: 2 },
   lamp_amber: { rough: 0.15, metal: 0.1, paint: 0, emit: 0 },
   stripe: { rough: 0.32, metal: 0.3, paint: 0, emit: 0 },
@@ -176,7 +176,7 @@ export function vehicleMaterial(): THREE.MeshPhysicalMaterial {
 /** atualiza as luzes conforme a noite (0 dia … 1 noite) */
 export function setVehicleNight(night: number) {
   const v = vehicleEmit.value;
-  v.x = night * 3.2; // faróis
+  v.x = 0.12 + night * 3.2; // faróis (de dia: leve brilho de DRL)
   v.y = 0.15 + night * 1.6; // lanternas (sempre um pouco acesas: leitura de "luz")
   v.z = 0.7 + night * 1.2; // letreiro LED de destino
   v.w = night * 1.4; // luminoso do táxi
