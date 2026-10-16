@@ -50,6 +50,7 @@ export interface PropMaterials {
   bark: THREE.MeshStandardMaterial;
   lampGlow: THREE.MeshStandardMaterial;
   signalLights: THREE.MeshStandardMaterial;
+  signalLamp: THREE.MeshBasicMaterial;
   glass: THREE.MeshStandardMaterial;
   windUniform: { value: number };
 }
@@ -81,6 +82,7 @@ export function createPropMaterials(noise: THREE.Texture): PropMaterials {
     bark: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0 }),
     lampGlow: new THREE.MeshStandardMaterial({ color: 0xfff4dd, emissive: 0xffe2b0, emissiveIntensity: 0.15, roughness: 0.3 }),
     signalLights: new THREE.MeshStandardMaterial({ vertexColors: true, emissive: 0xffffff, emissiveIntensity: 0.0, roughness: 0.3, metalness: 0 }),
+    signalLamp: new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false }),
     glass: new THREE.MeshStandardMaterial({ color: 0x9fb4bb, roughness: 0.1, metalness: 0.3, transparent: true, opacity: 0.35, depthWrite: false }),
     windUniform,
   };
@@ -220,13 +222,16 @@ function signalModel(mats: PropMaterials): PropModel {
     colorize(at(new THREE.BoxGeometry(0.62, 1.25, 0.03), 0, 3.3, -0.1), 0x111111), // anteparo
   ];
   for (let i = 0; i < 3; i++) body.push(colorize(at(new THREE.BoxGeometry(0.28, 0.06, 0.16), 0, 3.66 - i * 0.32, 0.27), dark));
-  // luzes: vermelho (aceso), amarelo, verde — cores via vertex color, emissão leve
-  const lights = [
-    colorize(at(new THREE.CircleGeometry(0.11, 12), 0, 3.6, 0.215), 0xff2a1a),
-    colorize(at(new THREE.CircleGeometry(0.11, 12), 0, 3.3, 0.215), 0x3a2a08),
-    colorize(at(new THREE.CircleGeometry(0.11, 12), 0, 3.0, 0.215), 0x083a18),
-  ];
-  return { parts: [{ geo: merge(body), mat: mats.painted, castShadow: true }, { geo: merge(lights), mat: mats.signalLights, castShadow: false }] };
+  // lâmpadas (vermelho, amarelo, verde) — partes separadas, cor por instância conforme o ciclo
+  const lamp = (y: number) => at(new THREE.CircleGeometry(0.11, 12), 0, y, 0.215);
+  return {
+    parts: [
+      { geo: merge(body), mat: mats.painted, castShadow: true },
+      { geo: lamp(3.6), mat: mats.signalLamp, castShadow: false },
+      { geo: lamp(3.3), mat: mats.signalLamp, castShadow: false },
+      { geo: lamp(3.0), mat: mats.signalLamp, castShadow: false },
+    ],
+  };
 }
 
 function benchModel(mats: PropMaterials): PropModel {
@@ -300,7 +305,7 @@ function kioskModel(mats: PropMaterials): PropModel {
 // ------------------------------------------------------------------------------------------
 type ModelKey = 'tree0' | 'tree1' | 'tree2' | 'treeFar0' | 'treeFar1' | 'treeFar2' | 'palm' | 'lamp' | 'signal' | 'bench' | 'bus_stop' | 'bus_pole' | 'bollard' | 'waste' | 'kiosk';
 
-interface Inst { p: [number, number]; r: number; s: number; y: number }
+interface Inst { p: [number, number]; r: number; s: number; y: number; j?: number; ph?: number }
 
 export class PropSystem {
   readonly group = new THREE.Group();
@@ -310,6 +315,8 @@ export class PropSystem {
   private dummy = new THREE.Object3D();
   /** posições das luminárias ativas (para luzes reais próximas à noite) */
   private lampHeads: THREE.Vector3[] = [];
+  /** semáforos instanciados: cruzamento e fase de cada instância */
+  private signalInfo: { j: number; ph: number }[] = [];
   private nightLights: THREE.PointLight[] = [];
 
   constructor(noise: THREE.Texture) {
@@ -335,6 +342,28 @@ export class PropSystem {
       this.nightLights.push(l);
       this.group.add(l);
     }
+  }
+
+  /** Atualiza as lâmpadas dos semáforos conforme o estado de cada cruzamento. */
+  updateSignals(stateOf: (j: number, ph: number) => 'G' | 'Y' | 'R') {
+    const meshes = this.meshes.get('signal');
+    if (!meshes || meshes.length < 4) return;
+    const [, red, yellow, green] = meshes;
+    for (const m of [red, yellow, green]) if (!m.instanceColor) m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(m.instanceMatrix.count * 3), 3);
+    const on = { R: [1, 0.06, 0.03], Y: [1, 0.62, 0.02], G: [0.1, 1, 0.5] } as const;
+    const off = [0.035, 0.03, 0.028];
+    for (let i = 0; i < this.signalInfo.length; i++) {
+      const si = this.signalInfo[i];
+      const st = si.j < 0 ? 'G' : stateOf(si.j, si.ph);
+      const set = (m: THREE.InstancedMesh, active: boolean, c: readonly number[]) => {
+        const v = active ? c : off;
+        m.instanceColor!.setXYZ(i, v[0], v[1], v[2]);
+      };
+      set(red, st === 'R', on.R);
+      set(yellow, st === 'Y', on.Y);
+      set(green, st === 'G', on.G);
+    }
+    for (const m of [red, yellow, green]) m.instanceColor!.needsUpdate = true;
   }
 
   /** À noite: acende as luminárias (emissivo) e posiciona luzes reais nos postes mais próximos. */
@@ -373,7 +402,7 @@ export class PropSystem {
     const push = (key: ModelKey, rec: PropRec) => {
       const arr = buckets.get(key) ?? [];
       const y = rec.k === 'tree' || rec.k === 'palm' ? heightAt(rec.p[0], rec.p[1]) : heightAt(rec.p[0], rec.p[1]);
-      arr.push({ p: rec.p, r: rec.r ?? 0, s: rec.s ?? 1, y });
+      arr.push({ p: rec.p, r: rec.r ?? 0, s: rec.s ?? 1, y, j: rec.j, ph: rec.ph });
       buckets.set(key, arr);
     };
     for (const rec of near) {
@@ -412,6 +441,7 @@ export class PropSystem {
         this.dummy.updateMatrix();
         for (const m of meshes) m.setMatrixAt(i, this.dummy.matrix);
       }
+      if (key === 'signal') this.signalInfo = list.map((it) => ({ j: it.j ?? -1, ph: it.ph ?? 0 }));
       if (key === 'lamp') {
         this.lampHeads = [];
         for (const it of list) {

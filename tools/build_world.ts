@@ -174,10 +174,33 @@ log(`sinalização: ${dashedClipped.length} tracejadas, ${solidClipped.length} c
 // ---------------------------------------------------------------------------------------------
 // Semáforos → props posicionados no meio-fio
 // ---------------------------------------------------------------------------------------------
+// cruzamentos semaforizados: agrupa nós de semáforo a ≤ 35 m
+interface JunctionB { id: number; c: XZ; axis: number; members: SignalRec[] }
+const junctions: JunctionB[] = [];
+{
+  const sorted = [...F.signals].sort((a, b) => b.width - a.width);
+  for (const s of sorted) {
+    let j = junctions.find((x) => Math.hypot(x.c[0] - s.p[0], x.c[1] - s.p[1]) < 35);
+    if (!j) { j = { id: junctions.length, c: [s.p[0], s.p[1]], axis: s.dir, members: [] }; junctions.push(j); }
+    j.members.push(s);
+    const n = j.members.length;
+    j.c = [r2(j.members.reduce((t, m) => t + m.p[0], 0) / n), r2(j.members.reduce((t, m) => t + m.p[1], 0) / n)];
+  }
+}
+/** fase 0 = fluxo paralelo ao eixo principal do cruzamento (via mais larga); fase 1 = transversal */
+const phaseOf = (j: JunctionB, dir: number) => (Math.abs(Math.cos(dir - j.axis)) > 0.6 ? 0 : 1);
+const junctionAt = (p: XZ, maxD = 40) => {
+  let best: JunctionB | null = null, bd = maxD;
+  for (const j of junctions) { const d = Math.hypot(j.c[0] - p[0], j.c[1] - p[1]); if (d < bd) { bd = d; best = j; } }
+  return best;
+};
+log(`cruzamentos semaforizados: ${junctions.length}`);
+
 const signalProps: PropRec[] = [];
 {
   const placed: XZ[] = [];
   for (const s of F.signals) {
+    const jn = junctionAt(s.p);
     const nx = -Math.sin(s.dir), nz = Math.cos(s.dir);
     for (const side of [1, -1]) {
       const off = s.width / 2 + 0.7;
@@ -187,7 +210,7 @@ const signalProps: PropRec[] = [];
       placed.push(p);
       // cabeça do semáforo voltada para o tráfego que chega
       // lado +1 = direita do sentido `dir` (mão direita no Brasil): encara o tráfego que chega
-      signalProps.push({ k: 'signal', p: [r2(p[0]), r2(p[1])], r: r2(s.dir + (side > 0 ? Math.PI : 0)) });
+      signalProps.push({ k: 'signal', p: [r2(p[0]), r2(p[1])], r: r2(s.dir + (side > 0 ? Math.PI : 0)), ...(jn ? { j: jn.id, ph: phaseOf(jn, s.dir) } : {}) });
     }
   }
 }
@@ -361,7 +384,68 @@ const streetSigns: StreetSignRec[] = [];
   log(`placas de logradouro: ${streetSigns.length}`);
 }
 
-const trafficJson = JSON.stringify({ lanes: lanesOut });
+// linhas de retenção: projeta cada semáforo nas faixas alinhadas que passam por ele
+{
+  const proj = (pts: XZ[], p: XZ) => {
+    let best = { d: Infinity, s: 0, dir: 0 }, acc = 0;
+    for (let i = 0; i < pts.length - 1; i++) {
+      const a = pts[i], b = pts[i + 1];
+      const dx = b[0] - a[0], dz = b[1] - a[1], l = Math.hypot(dx, dz) || 1;
+      const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dz) / (l * l)));
+      const d = Math.hypot(a[0] + dx * t - p[0], a[1] + dz * t - p[1]);
+      if (d < best.d) best = { d, s: acc + t * l, dir: Math.atan2(dz, dx) };
+      acc += l;
+    }
+    return best;
+  };
+  let nStops = 0;
+  const preds = new Map<number, number[]>();
+  for (const l of lanesOut) for (const n of l.next) (preds.get(n) ?? preds.set(n, []).get(n)!).push(l.id);
+  const lenOf = (l: LaneOut) => polylineLength(l.pts);
+  for (const sig of F.signals) {
+    const jn = junctionAt(sig.p);
+    if (!jn) continue;
+    for (const l of lanesOut) {
+      const b0 = l.pts[0];
+      if (Math.abs(b0[0] - sig.p[0]) > 400 || Math.abs(b0[1] - sig.p[1]) > 400) continue;
+      const pr = proj(l.pts, sig.p);
+      if (pr.d > sig.width / 2 + 1.5) continue;
+      if (Math.abs(Math.cos(pr.dir - sig.dir)) < 0.8) continue;
+      const ph = phaseOf(jn, pr.dir);
+      const sStop = pr.s - 4; // retenção ~4 m antes do nó (faixa de pedestres)
+      const push = (lane: LaneOut, s: number) => {
+        const st = ((lane as any).stops ??= []) as { s: number; j: number; ph: number }[];
+        if (!st.some((x) => Math.abs(x.s - s) < 6)) { st.push({ s: r2(s), j: jn.id, ph }); nStops++; }
+      };
+      if (sStop > 1) push(l, sStop);
+      else for (const pid of preds.get(l.id) ?? []) { const pl = lanesOut[pid]; push(pl, lenOf(pl) + sStop); }
+    }
+  }
+  log(`linhas de retenção: ${nStops}`);
+}
+// defasagem: onda verde ao longo do eixo da Pres. Vargas (~11 m/s)
+const junctionsOut = junctions.map((j) => {
+  const ax = F.pvAxis;
+  let acc = 0, best = Infinity, sAlong = 0;
+  for (let i = 0; i < ax.length - 1; i++) {
+    const a = ax[i], b = ax[i + 1];
+    const dx = b[0] - a[0], dz = b[1] - a[1], l = Math.hypot(dx, dz);
+    const t = Math.max(0, Math.min(1, ((j.c[0] - a[0]) * dx + (j.c[1] - a[1]) * dz) / (l * l)));
+    const d = Math.hypot(a[0] + dx * t - j.c[0], a[1] + dz * t - j.c[1]);
+    if (d < best) { best = d; sAlong = acc + t * l; }
+    acc += l;
+  }
+  return { id: j.id, c: j.c, offset: r2(sAlong / 11) };
+});
+// faixas de pedestres para NPCs: semaforizadas quando perto de um cruzamento
+const pedCrossings = crossings.map((c) => {
+  const mid: XZ = [(c.a[0] + c.b[0]) / 2, (c.a[1] + c.b[1]) / 2];
+  const jn = junctionAt(mid, 30);
+  // a faixa atravessa a via perpendicular a ela
+  const roadDir = Math.atan2(c.b[1] - c.a[1], c.b[0] - c.a[0]) + Math.PI / 2;
+  return { a: c.a, b: c.b, j: jn ? jn.id : -1, ph: jn ? phaseOf(jn, roadDir) : 0 };
+});
+const trafficJson = JSON.stringify({ lanes: lanesOut, junctions: junctionsOut, crossings: pedCrossings });
 const trafficFile = `traffic.${createHash('sha1').update(trafficJson).digest('hex').slice(0, 10)}.json`;
 writeFileSync(`${OUT_DIR}/${trafficFile}`, trafficJson);
 log(`faixas de tráfego: ${lanesOut.length} (${lanesOut.filter((l) => l.pv).length} na Pres. Vargas), conectadas: ${lanesOut.filter((l) => l.next.length).length}`);

@@ -7,6 +7,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { TrafficLane } from '../world/types';
+import type { SignalController } from './SignalController';
 import { timeUniforms } from '../renderer/timeOfDay';
 
 type VType = 'car' | 'taxi' | 'bus';
@@ -16,6 +17,8 @@ interface LaneRT extends TrafficLane { cum: number[]; length: number }
 interface Vehicle {
   type: VType;
   lane: LaneRT;
+  /** próxima faixa planejada (escolhida ao entrar na faixa atual) */
+  next: LaneRT | null;
   s: number;
   v: number;
   v0: number;
@@ -109,6 +112,11 @@ export class TrafficSystem {
   radius = 320;
   stats = { active: 0 };
 
+  /** pontos que os veículos devem evitar (pedestres atravessando) */
+  obstacles: { x: number; z: number }[] = [];
+  signals: SignalController | null = null;
+  stats2 = { stoppedAtRed: 0 };
+
   constructor(lanes: TrafficLane[], private max: number) {
     this.group.name = 'traffic';
     for (const l of lanes) {
@@ -156,6 +164,14 @@ export class TrafficSystem {
     return this.seed / 4294967296;
   }
 
+  private pickNext(l: LaneRT): LaneRT | null {
+    const nexts = l.next;
+    if (!nexts.length) return null;
+    const pvNext = nexts.filter((id) => this.lanes[id].pv);
+    const pool = pvNext.length && l.pv ? pvNext : nexts;
+    return this.lanes[pool[Math.floor(this.rnd() * pool.length)]];
+  }
+
   private posAt(l: LaneRT, s: number): { x: number; z: number; h: number } {
     let i = 1;
     while (i < l.cum.length - 1 && l.cum[i] < s) i++;
@@ -184,7 +200,7 @@ export class TrafficSystem {
       if (slot === undefined) continue;
       const color = new THREE.Color(type === 'taxi' ? 0xf2c40f : type === 'bus' ? BUS_COLORS[Math.floor(this.rnd() * BUS_COLORS.length)] : CAR_COLORS[Math.floor(this.rnd() * CAR_COLORS.length)]);
       const v0 = lane.speed * (type === 'bus' ? 0.8 : 0.85 + this.rnd() * 0.3);
-      return { type, lane, s, v: v0 * 0.7, v0, len: dims.len, width: dims.width, x: p.x, z: p.z, heading: p.h, slot, color, active: true };
+      return { type, lane, next: this.pickNext(lane), s, v: v0 * 0.7, v0, len: dims.len, width: dims.width, x: p.x, z: p.z, heading: p.h, slot, color, active: true };
     }
     return null;
   }
@@ -208,7 +224,8 @@ export class TrafficSystem {
       const v = this.spawn(player.x, player.z, camFwd, this.time < 1);
       if (v) this.vehicles.push(v);
     }
-    // seguimento (gap ao veículo da frente / jogador)
+    // seguimento (gap ao veículo da frente / jogador / pedestres / semáforo)
+    let stopped = 0;
     for (const v of this.vehicles) {
       const fx = Math.sin(v.heading), fz = Math.cos(v.heading);
       let gap = 80;
@@ -223,10 +240,27 @@ export class TrafficSystem {
         if (Math.sin(o.heading) * fx + Math.cos(o.heading) * fz < 0.5) continue;
         gap = Math.min(gap, ahead - (v.len + o.len) / 2);
       }
-      {
-        const dx = player.x - v.x, dz = player.z - v.z;
+      for (const ob of [player, ...this.obstacles]) {
+        const dx = ob.x - v.x, dz = ob.z - v.z;
         const ahead = dx * fx + dz * fz, lat = Math.abs(dx * fz - dz * fx);
         if (ahead > 0 && ahead < 30 && lat < v.width / 2 + 0.9) gap = Math.min(gap, ahead - v.len / 2 - 0.6);
+      }
+      // semáforos: linha de retenção da faixa atual (e início da próxima)
+      if (this.signals) {
+        const checkStops = (lane: LaneRT, base: number) => {
+          for (const st of lane.stops ?? []) {
+            const d = base + st.s - v.s - v.len / 2;
+            if (d < -1 || d > 70) continue;
+            const light = this.signals!.state(st.j, st.ph);
+            if (light === 'G') continue;
+            // amarelo: só para se ainda dá para frear com conforto
+            if (light === 'Y' && d < (v.v * v.v) / (2 * 4.5)) continue;
+            gap = Math.min(gap, d + 2.4);
+            if (d < 6 && v.v < 0.5) stopped++;
+          }
+        };
+        checkStops(v.lane, 0);
+        if (v.next) checkStops(v.next, v.lane.length);
       }
       // velocidade desejada a partir do gap (distância mínima 3 m + 1,4 s de headway)
       const safe = Math.max(0, (gap - 3) / 1.4);
@@ -239,13 +273,10 @@ export class TrafficSystem {
     for (const v of this.vehicles) {
       v.s += v.v * dt;
       while (v.s > v.lane.length) {
-        const nexts = v.lane.next;
-        if (!nexts.length) { this.release(v); break; }
+        if (!v.next) { this.release(v); break; }
         v.s -= v.lane.length;
-        // prefere continuar na Pres. Vargas
-        const pvNext = nexts.filter((id) => this.lanes[id].pv);
-        const pick = (pvNext.length && v.lane.pv ? pvNext : nexts)[Math.floor(this.rnd() * (pvNext.length && v.lane.pv ? pvNext.length : nexts.length))];
-        v.lane = this.lanes[pick];
+        v.lane = v.next;
+        v.next = this.pickNext(v.lane);
       }
       if (!v.active) continue;
       const p = this.posAt(v.lane, v.s);
@@ -270,6 +301,7 @@ export class TrafficSystem {
       if (m.body.instanceColor) m.body.instanceColor.needsUpdate = true;
     }
     this.lightMat.emissiveIntensity = 0.2 + timeUniforms.night.value * 3.5;
+    this.stats2.stoppedAtRed = stopped;
     this.vehicles = this.vehicles.filter((v) => v.active);
     this.stats.active = active;
     this.time += dt;

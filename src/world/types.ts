@@ -83,6 +83,9 @@ export type PropKind = 'tree' | 'palm' | 'lamp' | 'bench' | 'bus_stop' | 'bus_po
 export interface PropRec {
   k: PropKind;
   p: XZ;
+  /** semáforo: cruzamento controlador e fase */
+  j?: number;
+  ph?: number;
   r?: number; // rotação (rad)
   s?: number; // escala
   proc?: 1; // gerado proceduralmente (não mapeado no OSM)
@@ -191,6 +194,31 @@ export interface TrafficLane {
   next: number[];
   /** velocidade de cruzeiro (m/s) */
   speed: number;
+  /** linhas de retenção: distância ao longo da faixa, cruzamento, fase */
+  stops?: { s: number; j: number; ph: number }[];
+}
+
+/** Cruzamento semaforizado (controlador de fases). */
+export interface Junction {
+  id: number;
+  c: XZ;
+  /** defasagem do ciclo (s) — onda verde ao longo da Pres. Vargas */
+  offset: number;
+}
+
+/** Faixa de pedestres utilizável por NPCs. */
+export interface PedCrossing {
+  a: XZ;
+  b: XZ;
+  /** cruzamento semaforizado (ou −1) e fase dos VEÍCULOS que a faixa atravessa */
+  j: number;
+  ph: number;
+}
+
+export interface TrafficData {
+  lanes: TrafficLane[];
+  junctions: Junction[];
+  crossings: PedCrossing[];
 }
 
 /** Monumentos e mobiliário notável com posição real (OSM). */

@@ -28,8 +28,9 @@ import { buildCentral, type LandmarkInstance } from '../world/landmarks/central'
 import { buildCandelaria } from '../world/landmarks/candelaria';
 import { PedestrianSystem } from '../npc/PedestrianSystem';
 import { TrafficSystem } from '../traffic/TrafficSystem';
+import { SignalController } from '../traffic/SignalController';
 import { MonumentSystem } from '../world/Monuments';
-import type { TrafficLane } from '../world/types';
+import type { TrafficData } from '../world/types';
 
 export { DEFAULT_PLAYER_APPEARANCE } from '../characters/bodyTypes';
 
@@ -53,6 +54,7 @@ export class Game {
   private landmarks: LandmarkInstance[] = [];
   private peds!: PedestrianSystem;
   private traffic!: TrafficSystem;
+  private signals!: SignalController;
   private monuments!: MonumentSystem;
   private input: InputManager;
   private player!: PlayerState;
@@ -143,14 +145,20 @@ export class Game {
     this.scene.add(this.avatar.root);
     this.peds = new PedestrianSystem(this.collision, this.preset.pedestrians);
     this.scene.add(this.peds.group);
-    let lanes: TrafficLane[] = [];
+    let tdata: TrafficData = { lanes: [], junctions: [], crossings: [] };
     if (this.manifest.traffic) {
       try {
         const tr = await fetch(`${base}${this.manifest.traffic}`);
-        if (tr.ok) lanes = ((await tr.json()) as { lanes: TrafficLane[] }).lanes;
+        if (tr.ok) {
+          const d = (await tr.json()) as Partial<TrafficData>;
+          tdata = { lanes: d.lanes ?? [], junctions: d.junctions ?? [], crossings: d.crossings ?? [] };
+        }
       } catch { /* trânsito é opcional */ }
     }
-    this.traffic = new TrafficSystem(lanes, this.preset.vehicles);
+    this.signals = new SignalController(tdata.junctions);
+    this.traffic = new TrafficSystem(tdata.lanes, this.preset.vehicles);
+    this.traffic.signals = this.signals;
+    this.peds.setCrossings(tdata.crossings, this.signals);
     this.scene.add(this.traffic.group);
     {
       const ax = this.manifest.pvAxis;
@@ -367,8 +375,11 @@ export class Game {
     this.avatar.update(this.player, dt);
     const ppos = this.avatar.root.position;
     this.cam.update(ppos, dt);
+    this.signals.update(dt);
     this.peds.update(dt, this.camera, this.player);
+    this.traffic.obstacles = this.peds.crossingPositions();
     this.traffic.update(dt, this.camera, this.player);
+    this.props.updateSignals((j, ph) => this.signals.state(j, ph));
 
     // mundo
     const camXZ = new THREE.Vector2(this.camera.position.x, this.camera.position.z);
@@ -400,7 +411,7 @@ export class Game {
       quality: this.preset.level.toUpperCase(),
       chunks: `${st.visible} vis (F${st.full}/M${st.medium}/L${st.far}) · ${st.loaded} baixados`,
       props: this.props.instanceCount, heading: this.player.heading, locomotion: this.player.locomotion,
-      npcs: `pedestres ${this.peds.stats.visible}/${this.peds.stats.active} · veículos ${this.traffic.stats.active}`,
+      npcs: `pedestres ${this.peds.stats.visible}/${this.peds.stats.active} (atravessando ${this.peds.stats.crossing}) · veículos ${this.traffic.stats.active} (parados no vermelho ${this.traffic.stats2.stoppedAtRed})`,
     });
   }
 
@@ -426,7 +437,7 @@ export class Game {
       fps: this.debug.fps, frameMs: this.debug.frameMs, worstMs: this.debug.worstMs,
       calls: r.render.calls, triangles: r.render.triangles, textures: r.memory.textures, geometries: r.memory.geometries,
       quality: this.preset.level, chunks: { ...this.chunks.stats }, props: this.props.instanceCount,
-      pedestrians: { ...this.peds.stats }, vehicles: this.traffic.stats.active,
+      pedestrians: { ...this.peds.stats }, vehicles: this.traffic.stats.active, stoppedAtRed: this.traffic.stats2.stoppedAtRed,
       player: { x: this.player.x, y: this.player.y, z: this.player.z },
     };
   }

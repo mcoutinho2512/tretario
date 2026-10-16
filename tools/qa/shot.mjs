@@ -7,7 +7,7 @@ page.on('pageerror', (e) => console.log('ERR', e.message));
 await page.goto(`http://localhost:5173/?autostart=1&quality=${quality}&time=${time}${process.env.EXTRA ?? ''}`);
 await page.waitForFunction('window.__pvReady === true', { timeout: 120000 });
 if (js) await page.evaluate(js);
-await new Promise((r) => setTimeout(r, 3000));
+await new Promise((r) => setTimeout(r, Number(process.env.WAIT ?? 3000)));
 console.log(JSON.stringify(await page.evaluate(() => window.__pv.metrics())));
 await page.screenshot({ path: out });
 await browser.close();

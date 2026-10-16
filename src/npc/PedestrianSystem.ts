@@ -12,6 +12,8 @@ import type { CollisionWorld } from '../physics/CollisionWorld';
 import { createCharacter, type CharacterRig } from '../characters/CharacterMesh';
 import { CharacterAnimator } from '../characters/CharacterAnimator';
 import { BODY_TYPES, randomAppearance, type BodyType } from '../characters/bodyTypes';
+import type { PedCrossing } from '../world/types';
+import type { SignalController } from '../traffic/SignalController';
 
 interface Ped {
   rig: CharacterRig;
@@ -25,6 +27,15 @@ interface Ped {
   animAcc: number;
   frame: number;
   active: boolean;
+  mode: 'walk' | 'wait' | 'cross';
+  target: [number, number] | null;
+  crossing: PedCrossing | null;
+  waitTime: number;
+  crossCooldown: number;
+  /** ponta de faixa de pedestres para onde está indo */
+  approach: [number, number] | null;
+  /** contador de atualizações de comportamento (independe da animação/visibilidade) */
+  tick: number;
 }
 
 const BODY_MIX: BodyType[] = ['homem', 'mulher', 'homem', 'mulher', 'idoso', 'idosa', 'homem', 'mulher'];
@@ -37,7 +48,45 @@ export class PedestrianSystem {
   private projScreen = new THREE.Matrix4();
   private tmp = new THREE.Vector3();
   radius = 95;
-  stats = { active: 0, visible: 0 };
+  stats = { active: 0, visible: 0, crossing: 0, waiting: 0 };
+  private crossings: PedCrossing[] = [];
+  private crossGrid = new Map<string, number[]>();
+  private signals: SignalController | null = null;
+
+  setCrossings(c: PedCrossing[], signals: SignalController) {
+    this.crossings = c;
+    this.signals = signals;
+    c.forEach((x, i) => {
+      for (const e of [x.a, x.b]) {
+        const k = `${Math.floor(e[0] / 20)},${Math.floor(e[1] / 20)}`;
+        (this.crossGrid.get(k) ?? this.crossGrid.set(k, []).get(k)!).push(i);
+      }
+    });
+  }
+
+  /** posições de pedestres na pista (para os veículos frearem) */
+  crossingPositions(): { x: number; z: number }[] {
+    const out: { x: number; z: number }[] = [];
+    for (const p of this.peds) if (p.active && p.mode === 'cross') out.push({ x: p.x, z: p.z });
+    return out;
+  }
+
+  /** procura uma ponta de faixa de pedestres a até `radius` metros */
+  private nearCrossing(p: Ped, radius = 2.6): { c: PedCrossing; from: [number, number]; to: [number, number]; d: number } | null {
+    const gx = Math.floor(p.x / 20), gz = Math.floor(p.z / 20);
+    const r = Math.ceil(radius / 20);
+    let best: { c: PedCrossing; from: [number, number]; to: [number, number]; d: number } | null = null;
+    for (let dx = -r; dx <= r; dx++) for (let dz = -r; dz <= r; dz++) {
+      for (const i of this.crossGrid.get(`${gx + dx},${gz + dz}`) ?? []) {
+        const c = this.crossings[i];
+        for (const [from, to] of [[c.a, c.b], [c.b, c.a]] as const) {
+          const d = Math.hypot(from[0] - p.x, from[1] - p.z);
+          if (d < radius && (!best || d < best.d)) best = { c, from: [from[0], from[1]], to: [to[0], to[1]], d };
+        }
+      }
+    }
+    return best;
+  }
 
   constructor(private world: CollisionWorld, private max: number) {
     this.group.name = 'pedestrians';
@@ -60,6 +109,7 @@ export class PedestrianSystem {
     return {
       rig, anim: new CharacterAnimator(rig), x: 0, z: 0, y: 0, heading: 0, speed: 0, cruise: 1.3,
       idleTimer: 0, walkTimer: 0, animAcc: 0, frame: i, active: false,
+      mode: 'walk', target: null, crossing: null, waitTime: 0, crossCooldown: 0, approach: null, tick: i * 13,
     };
   }
 
@@ -82,6 +132,7 @@ export class PedestrianSystem {
       p.walkTimer = 6 + this.rnd() * 20;
       p.rig.setAppearance(randomAppearance(Math.floor(this.rnd() * 1e9), p.rig.body));
       p.active = true;
+      p.mode = 'walk'; p.target = null; p.crossing = null; p.crossCooldown = 3 + this.rnd() * 10; p.approach = null;
       return true;
     }
     return false;
@@ -103,7 +154,7 @@ export class PedestrianSystem {
     this.projScreen.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
     this.frustum.setFromProjectionMatrix(this.projScreen);
     const cx = player.x, cz = player.z;
-    let active = 0, visible = 0;
+    let active = 0, visible = 0, crossing = 0, waiting = 0;
 
     for (let i = 0; i < this.max; i++) {
       const p = this.peds[i];
@@ -115,8 +166,65 @@ export class PedestrianSystem {
       if (d > this.radius + 20) { p.active = false; p.rig.mesh.visible = false; continue; }
       active++;
 
+      // travessia de rua (faixas de pedestres reais do OSM)
+      p.tick++;
+      p.crossCooldown -= dt;
+      // escolhe uma faixa próxima como destino de tempos em tempos
+      if (p.mode === 'walk' && !p.approach && p.crossCooldown <= 0 && (p.tick % 60) === 0 && this.rnd() < 0.5) {
+        const far = this.nearCrossing(p, 30);
+        if (far && far.d > 2.6) p.approach = far.from;
+      }
+      if (p.mode === 'walk' && p.approach && p.idleTimer <= 0) {
+        const dx = p.approach[0] - p.x, dz = p.approach[1] - p.z;
+        if (Math.hypot(dx, dz) > 2.4) {
+          const want = Math.atan2(dx, dz);
+          if (this.clear(p.x, p.z, want, 1.5, p.y)) p.heading = want;
+        }
+        if (p.crossCooldown < -40) p.approach = null; // desistiu
+      }
+      if (p.mode === 'walk' && p.crossCooldown <= 0 && (p.tick & 3) === 0) {
+        const nc = this.nearCrossing(p);
+        if (nc) {
+          p.approach = null;
+          p.crossCooldown = 25;
+          if (this.rnd() < 0.85) {
+            p.mode = 'wait'; p.crossing = nc.c; p.target = nc.to; p.waitTime = 0;
+            p.heading = Math.atan2(nc.to[0] - p.x, nc.to[1] - p.z);
+          }
+        }
+      }
+      if (p.mode === 'wait') {
+        p.waitTime += dt;
+        p.speed = Math.max(0, p.speed - dt * 4);
+        const c = p.crossing!;
+        let go: boolean;
+        if (c.j >= 0 && this.signals) {
+          const len = Math.hypot(c.b[0] - c.a[0], c.b[1] - c.a[1]);
+          go = this.signals.state(c.j, c.ph) === 'R' && this.signals.remaining(c.j, c.ph) > Math.min(len / p.cruise, 7);
+        } else go = p.waitTime > 1.5 + (p.tick % 5);
+        if (go) p.mode = 'cross';
+        else if (p.waitTime > 60) { p.mode = 'walk'; p.heading += Math.PI / 2; }
+      }
+      if (p.mode === 'cross' && p.target) {
+        const dx = p.target[0] - p.x, dz = p.target[1] - p.z;
+        const dist = Math.hypot(dx, dz);
+        p.heading = Math.atan2(dx, dz);
+        p.speed += (p.cruise * 1.15 - p.speed) * (1 - Math.exp(-4 * dt));
+        if (dist < 0.5) {
+          // chegou: sobe na calçada e segue ao longo dela
+          p.x += Math.sin(p.heading) * 1.2; p.z += Math.cos(p.heading) * 1.2;
+          p.mode = 'walk'; p.target = null; p.crossing = null;
+          p.heading += (this.rnd() < 0.5 ? 1 : -1) * Math.PI / 2;
+        } else {
+          const st = Math.min(dist, p.speed * dt);
+          p.x += (dx / dist) * st; p.z += (dz / dist) * st;
+        }
+      }
+
       // comportamento
-      if (p.idleTimer > 0) {
+      if (p.mode !== 'walk') {
+        // esperando/atravessando: sem desvio nem separação
+      } else if (p.idleTimer > 0) {
         p.idleTimer -= dt;
         p.speed = Math.max(0, p.speed - dt * 3);
       } else {
@@ -144,6 +252,7 @@ export class PedestrianSystem {
       }
       // separação (outros pedestres e jogador)
       let sx = 0, sz = 0;
+      if (p.mode === 'walk') {
       for (let j = 0; j < this.max; j++) {
         if (j === i) continue;
         const o = this.peds[j];
@@ -163,7 +272,10 @@ export class PedestrianSystem {
       const pos = { x: p.x, y: p.y, z: p.z };
       this.world.resolveCircle(pos, 0.3, 1.7);
       if (this.world.isPedestrianWalkable(pos.x, pos.z)) { p.x = pos.x; p.z = pos.z; }
+      }
       p.y = this.world.groundHeight(p.x, p.z);
+      if (p.mode === 'cross') crossing++;
+      if (p.mode === 'wait') waiting++;
 
       // visual + LOD
       const mesh = p.rig.mesh;
@@ -184,6 +296,8 @@ export class PedestrianSystem {
     this.time += dt;
     this.stats.active = active;
     this.stats.visible = visible;
+    this.stats.crossing = crossing;
+    this.stats.waiting = waiting;
   }
 
   private time = 0;
