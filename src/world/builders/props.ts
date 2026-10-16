@@ -3,10 +3,12 @@
  * (um InstancedMesh por parte de modelo, global para todos os chunks próximos).
  */
 import * as THREE from 'three';
-import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import type { PropKind, PropRec } from '../types';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
+import type { PropRec } from '../types';
 import { CURB_HEIGHT } from '../types';
 import { mulberry32 } from '../../renderer/noise';
+import { loadVegetation, speciesAt, VegetationSystem, vegetationOptionsFor, type TreeInstance } from '../vegetation';
 
 type Part = { geo: THREE.BufferGeometry; mat: THREE.Material; castShadow: boolean };
 export interface PropModel { parts: Part[] }
@@ -44,42 +46,25 @@ const merge = (gs: THREE.BufferGeometry[]) => {
 // materiais compartilhados
 // ------------------------------------------------------------------------------------------
 export interface PropMaterials {
-  painted: THREE.MeshStandardMaterial; // vertexColors, fosco
-  metal: THREE.MeshStandardMaterial; // vertexColors, metálico
-  foliage: THREE.MeshStandardMaterial; // vertexColors + vento
-  bark: THREE.MeshStandardMaterial;
+  painted: THREE.MeshStandardMaterial; // vertexColors, aço pintado (acetinado)
+  metal: THREE.MeshStandardMaterial; // vertexColors, aço galvanizado
+  matte: THREE.MeshStandardMaterial; // vertexColors, madeira/concreto
+  plastic: THREE.MeshStandardMaterial; // vertexColors, plástico (lixeiras)
   lampGlow: THREE.MeshStandardMaterial;
   signalLights: THREE.MeshStandardMaterial;
   signalLamp: THREE.MeshBasicMaterial;
   glass: THREE.MeshStandardMaterial;
+  /** tempo para o vento das folhas (VegetationSystem) */
   windUniform: { value: number };
 }
 
-export function createPropMaterials(noise: THREE.Texture): PropMaterials {
+export function createPropMaterials(_noise: THREE.Texture): PropMaterials {
   const windUniform = { value: 0 };
-  const foliage = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, metalness: 0 });
-  foliage.onBeforeCompile = (shader) => {
-    shader.uniforms.uTime = windUniform;
-    shader.uniforms.uNoise = { value: noise };
-    shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nuniform float uTime;')
-      .replace('#include <begin_vertex>', `#include <begin_vertex>
-        #ifdef USE_INSTANCING
-          vec3 ip = vec3(instanceMatrix[3][0], instanceMatrix[3][1], instanceMatrix[3][2]);
-          float ph = ip.x * 0.37 + ip.z * 0.21;
-        #else
-          float ph = 0.0;
-        #endif
-        float sway = max(0.0, transformed.y - 2.0) * 0.012;
-        transformed.x += sin(uTime * 1.3 + ph) * sway + sin(uTime * 3.1 + ph * 2.0 + transformed.y) * sway * 0.35;
-        transformed.z += cos(uTime * 1.1 + ph) * sway * 0.7;`);
-  };
-  foliage.customProgramCacheKey = () => 'pv-foliage-wind';
   return {
-    painted: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.75, metalness: 0 }),
-    metal: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.45, metalness: 0.7 }),
-    foliage,
-    bark: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0 }),
+    painted: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0.3 }),
+    metal: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.36, metalness: 0.85 }),
+    matte: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.86, metalness: 0 }),
+    plastic: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.42, metalness: 0 }),
     lampGlow: new THREE.MeshStandardMaterial({ color: 0xfff4dd, emissive: 0xffe2b0, emissiveIntensity: 0.15, roughness: 0.3 }),
     signalLights: new THREE.MeshStandardMaterial({ vertexColors: true, emissive: 0xffffff, emissiveIntensity: 0.0, roughness: 0.3, metalness: 0 }),
     signalLamp: new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false }),
@@ -89,221 +74,255 @@ export function createPropMaterials(noise: THREE.Texture): PropMaterials {
 }
 
 // ------------------------------------------------------------------------------------------
-// árvores (copas de esferas deformadas com sombreamento falso de oclusão)
+// mobiliário (rodada 5): proporções reais, chanfros (RoundedBox/Lathe/Tube/Extrude) e materiais
+// distintos — aço pintado, aço galvanizado, plástico, madeira, vidro. Tudo instanciado.
 // ------------------------------------------------------------------------------------------
-function crownBlob(radius: number, seed: number, color: THREE.Color, detail: number): THREE.BufferGeometry {
-  // icosfera indexada → deslocamento contínuo (sem frestas) e normais suaves
-  let g: THREE.BufferGeometry = new THREE.IcosahedronGeometry(radius, detail);
-  g.deleteAttribute('normal');
-  g.deleteAttribute('uv');
-  g = mergeVertices(g, 1e-4);
-  const pos = g.attributes.position as THREE.BufferAttribute;
-  const rnd = mulberry32(seed);
-  const bumps = Array.from({ length: 9 }, () => new THREE.Vector3(rnd() - 0.5, rnd() - 0.5 + 0.15, rnd() - 0.5).normalize());
-  const v = new THREE.Vector3();
-  for (let i = 0; i < pos.count; i++) {
-    v.fromBufferAttribute(pos, i);
-    const d = v.clone().normalize();
-    let k = 1;
-    for (const b of bumps) k += Math.max(0, d.dot(b)) ** 4 * 0.28;
-    // ruído determinístico pela direção (mesmo vértice compartilhado → mesmo deslocamento)
-    k += (Math.sin(d.x * 9.1 + seed) * Math.sin(d.y * 7.3) * Math.sin(d.z * 8.7 + seed * 0.5)) * 0.1;
-    v.multiplyScalar(k);
-    v.y *= d.y < 0 ? 0.62 : 0.85; // base mais achatada
-    pos.setXYZ(i, v.x, v.y, v.z);
-  }
-  g.computeVertexNormals();
-  // cor: mais escura embaixo/dentro (oclusão), variação suave
-  const col = new Float32Array(pos.count * 3);
-  for (let i = 0; i < pos.count; i++) {
-    const y = pos.getY(i);
-    const shade = 0.5 + 0.5 * THREE.MathUtils.clamp((y / radius) * 0.6 + 0.5, 0, 1);
-    const j = 0.88 + rnd() * 0.24;
-    col[i * 3] = color.r * shade * j;
-    col[i * 3 + 1] = color.g * shade * (0.95 + rnd() * 0.1);
-    col[i * 3 + 2] = color.b * shade * j;
-  }
-  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
-  return g.toNonIndexed();
+const C = {
+  steel: 0x5f6468, // cinza-grafite dos postes da Pres. Vargas
+  steelDark: 0x3a3e41,
+  galv: 0xa9adb0, // galvanizado
+  black: 0x1d1f21,
+  signal: 0x26292b,
+  wood: 0x8a6239,
+  comlurb: 0xf07a14, // laranja da Comlurb
+  comlurbDark: 0xc95f0a,
+  kiosk: 0x2f5d3e,
+};
+
+/**
+ * LOD do mobiliário: os mesmos construtores geram a versão distante (LO = true) com caixas sem chanfro,
+ * menos segmentos e sem detalhes pequenos (usada além de PROP_LOD_DIST).
+ */
+let LO = false;
+export const PROP_LOD_DIST = 95;
+
+/** caixa com cantos arredondados (chanfro real nas arestas) */
+const rbox = (w: number, h: number, d: number, r = 0.02, seg = 1): THREE.BufferGeometry =>
+  LO ? new THREE.BoxGeometry(w, h, d) : new RoundedBoxGeometry(w, h, d, seg, Math.min(r, w / 2 - 1e-3, h / 2 - 1e-3, d / 2 - 1e-3));
+
+/** sólido de revolução a partir de um perfil [raio, altura] */
+const lathe = (profile: [number, number][], seg = 12) => new THREE.LatheGeometry(profile.map(([r, y]) => new THREE.Vector2(r, y)), LO ? Math.max(5, seg >> 1) : seg);
+
+/** tubo ao longo de uma curva */
+const tube = (pts: THREE.Vector3[], r: number, seg = 16, radial = 6) =>
+  new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), LO ? Math.max(4, seg >> 1) : seg, r, LO ? 4 : radial, false);
+
+/** prisma extrudado de um contorno 2D (no plano XY, extrusão em Z, centrado) */
+function extrude(shape: [number, number][], depth: number, bevel = 0.01): THREE.BufferGeometry {
+  const s = new THREE.Shape(shape.map(([x, y]) => new THREE.Vector2(x, y)));
+  const g = new THREE.ExtrudeGeometry(s, { depth, bevelEnabled: bevel > 0, bevelThickness: bevel, bevelSize: bevel, bevelSegments: 1, curveSegments: 6 });
+  g.translate(0, 0, -depth / 2);
+  return g;
 }
 
-function treeModel(variant: number, lod: 0 | 1, mats: PropMaterials): PropModel {
-  const rnd = mulberry32(100 + variant);
-  const greens = [new THREE.Color(0.16, 0.30, 0.10), new THREE.Color(0.20, 0.33, 0.12), new THREE.Color(0.13, 0.26, 0.11)];
-  const green = greens[variant % greens.length];
-  const detail = lod === 0 ? 2 : 1;
-  const blobs: THREE.BufferGeometry[] = [];
-  const trunkParts: THREE.BufferGeometry[] = [];
-  const barkC = new THREE.Color(0.30, 0.25, 0.20);
-  if (variant === 0) {
-    // oiti: copa densa e arredondada (muito comum nas ruas do Rio)
-    const h = 3.2;
-    trunkParts.push(colorize(at(new THREE.CylinderGeometry(0.16, 0.24, h + 1, 7), 0, (h + 1) / 2, 0), barkC, 0.1));
-    blobs.push(at(crownBlob(2.9, 1, green, detail), 0, h + 2.4, 0));
-    if (lod === 0) {
-      blobs.push(at(crownBlob(2.0, 2, green, detail), 1.6, h + 1.6, 0.6));
-      blobs.push(at(crownBlob(2.1, 3, green, detail), -1.4, h + 1.8, -0.8));
-      blobs.push(at(crownBlob(1.8, 4, green, detail), 0.2, h + 3.8, -0.4));
-    }
-  } else if (variant === 1) {
-    // amendoeira: copa em camadas horizontais
-    const h = 4.0;
-    trunkParts.push(colorize(at(new THREE.CylinderGeometry(0.18, 0.28, h + 2, 7), 0, (h + 2) / 2, 0), barkC, 0.1));
-    for (let i = 0; i < (lod === 0 ? 3 : 2); i++) {
-      const b = crownBlob(3.4 - i * 0.7, 10 + i, green.clone().offsetHSL(0.01, 0, 0.02 * i), detail);
-      b.scale(1, 0.45, 1);
-      blobs.push(at(b, (rnd() - 0.5) * 0.8, h + 0.6 + i * 1.5, (rnd() - 0.5) * 0.8));
-    }
-  } else {
-    // árvore grande (ficus/sibipiruna)
-    const h = 4.5;
-    trunkParts.push(colorize(at(new THREE.CylinderGeometry(0.25, 0.4, h + 2, 8), 0, (h + 2) / 2, 0), barkC, 0.1));
-    if (lod === 0) {
-      trunkParts.push(colorize(at(new THREE.CylinderGeometry(0.1, 0.16, 3, 5), 0.8, h + 1.2, 0, 0, 0, -0.6), barkC));
-      trunkParts.push(colorize(at(new THREE.CylinderGeometry(0.1, 0.16, 3, 5), -0.8, h + 1.2, 0.3, 0.2, 0, 0.6), barkC));
-    }
-    blobs.push(at(crownBlob(3.6, 20, green, detail), 0, h + 3.4, 0));
-    if (lod === 0) {
-      blobs.push(at(crownBlob(2.6, 21, green, detail), 2.4, h + 2.6, 1));
-      blobs.push(at(crownBlob(2.7, 22, green, detail), -2.3, h + 2.8, -0.9));
-      blobs.push(at(crownBlob(2.2, 23, green, detail), 0.4, h + 5.2, 1.2));
-    }
+/** posições (no espaço do modelo) das duas luminárias do poste — usadas também para as luzes noturnas */
+export const LAMP_HEADS: [number, number, number][] = [[2.55, 11.05, 0], [-2.55, 11.05, 0]];
+
+function lampModel(mats: PropMaterials): PropModel {
+  // poste cônico de aço (~11,5 m) com base flangeada e dois braços curvos com luminárias LED planas
+  const H = 10.9;
+  const pole = lathe([[0, 0], [0.24, 0], [0.24, 0.05], [0.17, 0.08], [0.15, 0.55], [0.125, 0.62], [0.11, 1.0], [0.065, H], [0.07, H + 0.05], [0, H + 0.12]], 10);
+  const metal = [colorize(pole, C.steel)];
+  // chumbadores/base de concreto
+  const base = [colorize(at(rbox(0.62, 0.12, 0.62, 0.03), 0, 0.06, 0), 0x8f8c86, 0.05)];
+  // portinhola de inspeção
+  if (!LO) metal.push(colorize(at(rbox(0.1, 0.36, 0.05, 0.012), 0, 0.85, 0.15), C.steelDark));
+  const glow: THREE.BufferGeometry[] = [];
+  for (const s of [1, -1]) {
+    const [hx, hy] = LAMP_HEADS[s === 1 ? 0 : 1];
+    // braço: sobe do topo do poste e se curva para fora
+    metal.push(colorize(tube([
+      new THREE.Vector3(0, H - 0.9, 0), new THREE.Vector3(s * 0.25, H - 0.1, 0), new THREE.Vector3(s * 1.0, H + 0.45, 0),
+      new THREE.Vector3(s * 1.9, H + 0.35, 0), new THREE.Vector3(hx - s * 0.45, hy + 0.04, 0),
+    ], 0.045, 12, 6), C.steel));
+    // luminária: corpo achatado com chanfro, levemente inclinado
+    metal.push(colorize(at(rbox(0.95, 0.13, 0.4, 0.05), hx, hy + 0.04, 0, 0, 0, s * -0.06), C.steelDark));
+    metal.push(colorize(at(rbox(0.3, 0.09, 0.22, 0.03), hx - s * 0.5, hy + 0.06, 0, 0, 0, s * -0.06), C.steelDark));
+    // lente (emissiva à noite)
+    glow.push(at(rbox(0.78, 0.03, 0.3, 0.012), hx + s * 0.02, hy - 0.035, 0, 0, 0, s * -0.06));
   }
   return {
     parts: [
-      { geo: merge(trunkParts), mat: mats.bark, castShadow: true },
-      { geo: merge(blobs), mat: mats.foliage, castShadow: true },
+      { geo: merge(metal), mat: mats.painted, castShadow: true },
+      { geo: merge(base), mat: mats.matte, castShadow: false },
+      { geo: merge(glow.map((g) => { g.deleteAttribute('uv'); return g; })), mat: mats.lampGlow, castShadow: false },
     ],
   };
 }
 
-function palmModel(mats: PropMaterials): PropModel {
-  const trunk = colorize(at(new THREE.CylinderGeometry(0.17, 0.24, 12, 8), 0, 6, 0), 0x8a8478, 0.1);
-  const fronds: THREE.BufferGeometry[] = [];
-  for (let i = 0; i < 9; i++) {
-    const g = new THREE.PlaneGeometry(0.9, 4.2, 1, 4);
-    const p = g.attributes.position as THREE.BufferAttribute;
-    for (let k = 0; k < p.count; k++) {
-      const y = p.getY(k) + 2.1;
-      p.setZ(k, -0.05 * y * y);
-      p.setY(k, y);
-    }
-    g.computeVertexNormals();
-    const c = colorize(g, 0x3c5a24, 0.2, i);
-    fronds.push(at(c, 0, 12, 0, -1.0, (i / 9) * Math.PI * 2, 0));
-  }
-  return { parts: [{ geo: trunk, mat: mats.bark, castShadow: true }, { geo: merge(fronds), mat: mats.foliage, castShadow: true }] };
-}
-
-// ------------------------------------------------------------------------------------------
-// mobiliário
-// ------------------------------------------------------------------------------------------
-function lampModel(mats: PropMaterials): PropModel {
-  // poste alto de braço duplo (padrão de avenidas do Centro)
-  const grey = 0x6d7276;
-  const parts = [
-    colorize(at(new THREE.CylinderGeometry(0.07, 0.13, 10.5, 8), 0, 5.25, 0), grey),
-    colorize(at(new THREE.CylinderGeometry(0.2, 0.22, 0.6, 8), 0, 0.3, 0), 0x55595c),
-  ];
-  for (const s of [1, -1]) {
-    parts.push(colorize(at(new THREE.CylinderGeometry(0.045, 0.06, 2.2, 6), s * 1.0, 10.55, 0, 0, 0, s * 1.25), grey));
-    parts.push(colorize(at(new THREE.BoxGeometry(0.75, 0.16, 0.34), s * 2.0, 10.9, 0), 0x4a4e52));
-  }
-  const glow: THREE.BufferGeometry[] = [];
-  for (const s of [1, -1]) glow.push(at(new THREE.BoxGeometry(0.6, 0.04, 0.26), s * 2.0, 10.8, 0));
-  return { parts: [{ geo: merge(parts), mat: mats.metal, castShadow: true }, { geo: merge(glow), mat: mats.lampGlow, castShadow: false }] };
-}
-
 function signalModel(mats: PropMaterials): PropModel {
-  const dark = 0x2b2e30;
+  // coluna semafórica com grupo focal de 3 lentes, pala (viseira) em cada foco e anteparo preto com borda
   const body = [
-    colorize(at(new THREE.CylinderGeometry(0.06, 0.08, 3.4, 8), 0, 1.7, 0), 0x45494c),
-    colorize(at(new THREE.BoxGeometry(0.36, 1.05, 0.3), 0, 3.3, 0.06), dark),
-    colorize(at(new THREE.BoxGeometry(0.62, 1.25, 0.03), 0, 3.3, -0.1), 0x111111), // anteparo
+    colorize(lathe([[0, 0], [0.13, 0], [0.13, 0.04], [0.085, 0.07], [0.075, 0.3], [0.068, 3.0], [0.07, 3.02], [0, 3.05]], 8), C.signal),
+    // braçadeiras
+    colorize(at(new THREE.CylinderGeometry(0.085, 0.085, 0.06, 8), 0, 2.86, 0), C.steelDark),
+    colorize(at(new THREE.CylinderGeometry(0.085, 0.085, 0.06, 8), 0, 3.72, 0), C.steelDark),
+    // caixa do grupo focal
+    colorize(at(rbox(0.36, 1.04, 0.26, 0.05), 0, 3.3, 0.17), C.signal),
+    // anteparo (backplate) com borda branca retrorrefletiva
+    colorize(at(rbox(0.6, 1.26, 0.025, 0.04), 0, 3.3, 0.03), C.black),
   ];
-  for (let i = 0; i < 3; i++) body.push(colorize(at(new THREE.BoxGeometry(0.28, 0.06, 0.16), 0, 3.66 - i * 0.32, 0.27), dark));
-  // lâmpadas (vermelho, amarelo, verde) — partes separadas, cor por instância conforme o ciclo
-  const lamp = (y: number) => at(new THREE.CircleGeometry(0.11, 12), 0, y, 0.215);
+  // borda retrorrefletiva e botoeira de pedestre (só no detalhado)
+  if (!LO) body.push(colorize(at(rbox(0.64, 1.3, 0.012, 0.045), 0, 3.3, 0.012), 0xd8d8d2), colorize(at(rbox(0.12, 0.2, 0.1, 0.02), 0, 1.15, 0.1), 0xd4b21c));
+  for (let i = 0; i < (LO ? 0 : 3); i++) {
+    // pala: meio cilindro aberto acima de cada lente
+    const hood = new THREE.CylinderGeometry(0.135, 0.135, 0.2, 6, 1, true, -Math.PI / 2, Math.PI);
+    body.push(colorize(at(hood, 0, 3.62 - i * 0.32, 0.4, -Math.PI / 2, 0, 0), C.signal));
+  }
+  // lentes (vermelho, amarelo, verde) — partes separadas, cor por instância conforme o ciclo (updateSignals)
+  const lamp = (y: number) => {
+    const g = new THREE.SphereGeometry(0.11, 10, 2, 0, Math.PI * 2, 0, Math.PI / 2.6);
+    g.rotateX(Math.PI / 2);
+    g.scale(1, 1, 0.35);
+    g.translate(0, y, 0.3);
+    return g;
+  };
   return {
     parts: [
       { geo: merge(body), mat: mats.painted, castShadow: true },
-      { geo: lamp(3.6), mat: mats.signalLamp, castShadow: false },
+      { geo: lamp(3.62), mat: mats.signalLamp, castShadow: false },
       { geo: lamp(3.3), mat: mats.signalLamp, castShadow: false },
-      { geo: lamp(3.0), mat: mats.signalLamp, castShadow: false },
+      { geo: lamp(2.98), mat: mats.signalLamp, castShadow: false },
     ],
   };
 }
 
 function benchModel(mats: PropMaterials): PropModel {
-  const wood = 0x7a5a3a, iron = 0x2a2a2a;
-  const parts = [
-    colorize(at(new THREE.BoxGeometry(1.8, 0.05, 0.42), 0, 0.45, 0), wood, 0.1),
-    colorize(at(new THREE.BoxGeometry(1.8, 0.35, 0.05), 0, 0.72, -0.2, -0.15), wood, 0.1),
-    colorize(at(new THREE.BoxGeometry(0.06, 0.45, 0.42), -0.8, 0.22, 0), iron),
-    colorize(at(new THREE.BoxGeometry(0.06, 0.45, 0.42), 0.8, 0.22, 0), iron),
+  // banco de praça: ripas de madeira sobre laterais de ferro fundido (perfil extrudado com chanfro)
+  const wood: THREE.BufferGeometry[] = [];
+  for (let i = 0; i < 4; i++) wood.push(colorize(at(rbox(1.9, 0.04, 0.085, 0.015), 0, 0.45, 0.17 - i * 0.105), C.wood, 0.12, i));
+  for (let i = 0; i < 3; i++) wood.push(colorize(at(rbox(1.9, 0.085, 0.035, 0.012), 0, 0.62 + i * 0.12, -0.22 - i * 0.025, -0.2), C.wood, 0.12, 9 + i));
+  // lateral: pé dianteiro, assento, encosto inclinado e braço
+  const side: [number, number][] = [
+    [0.22, 0], [0.3, 0], [0.24, 0.42], [0.27, 0.62], [0.33, 0.66], [0.33, 0.7], [0.2, 0.7], [0.17, 0.44],
+    [-0.2, 0.44], [-0.26, 0.92], [-0.31, 0.92], [-0.25, 0.42], [-0.24, 0], [-0.17, 0], [-0.17, 0.38], [0.18, 0.38],
   ];
-  return { parts: [{ geo: merge(parts), mat: mats.painted, castShadow: true }] };
+  const iron: THREE.BufferGeometry[] = [];
+  for (const x of [-0.82, 0.82]) {
+    const g = extrude(side.map(([z, y]) => [z, y]), 0.05, 0.008);
+    g.rotateY(-Math.PI / 2); // perfil (z, y) → plano ZY, frente do banco em +Z
+    iron.push(colorize(at(g, x, 0, 0), C.black));
+  }
+  return {
+    parts: [
+      { geo: merge(wood), mat: mats.matte, castShadow: true },
+      { geo: merge(iron), mat: mats.painted, castShadow: true },
+    ],
+  };
 }
 
 function busStopModel(mats: PropMaterials): PropModel {
-  const frame = 0x3d4246;
-  const parts = [
-    colorize(at(new THREE.BoxGeometry(4.2, 0.12, 1.7), 0, 2.6, 0), 0x9aa3a8),
-    colorize(at(new THREE.BoxGeometry(0.1, 2.6, 0.1), -2.0, 1.3, -0.7), frame),
-    colorize(at(new THREE.BoxGeometry(0.1, 2.6, 0.1), 2.0, 1.3, -0.7), frame),
-    colorize(at(new THREE.BoxGeometry(0.1, 2.6, 0.1), 0, 1.3, -0.7), frame),
-    colorize(at(new THREE.BoxGeometry(3.6, 0.06, 0.35), 0, 0.5, -0.5), 0x8a8f93),
-    colorize(at(new THREE.BoxGeometry(1.2, 1.8, 0.08), 2.4, 1.2, -0.65), 0x23415f), // painel informativo
-  ];
-  const glass = [at(new THREE.BoxGeometry(4.0, 1.8, 0.03), 0, 1.5, -0.75)];
-  return { parts: [{ geo: merge(parts), mat: mats.painted, castShadow: true }, { geo: merge(glass.map((g) => { g.deleteAttribute('uv'); return g; })), mat: mats.glass, castShadow: false }] };
+  // abrigo de ônibus: estrutura de aço, cobertura curva, painéis de vidro, banco e painel publicitário iluminado
+  const frame = C.steelDark;
+  const parts: THREE.BufferGeometry[] = [];
+  for (const x of [-1.95, 0, 1.95]) parts.push(colorize(at(rbox(0.09, 2.55, 0.09, 0.02), x, 1.275, -0.72), frame));
+  // vigas da cobertura (em balanço para a frente)
+  for (const x of [-1.95, 0, 1.95]) parts.push(colorize(tube([new THREE.Vector3(x, 2.5, -0.78), new THREE.Vector3(x, 2.62, 0), new THREE.Vector3(x, 2.58, 0.85)], 0.04, 6, 5), frame));
+  // cobertura curva (chapa) com pingadeira
+  const roofShape: [number, number][] = [];
+  for (let i = 0; i <= 8; i++) { const t = i / 8; roofShape.push([-0.85 + 1.75 * t, 2.62 + 0.08 * Math.sin(Math.PI * t)]); }
+  for (let i = 8; i >= 0; i--) { const t = i / 8; roofShape.push([-0.85 + 1.75 * t, 2.66 + 0.08 * Math.sin(Math.PI * t)]); }
+  const roof = extrude(roofShape, 4.3, 0.005);
+  roof.rotateY(-Math.PI / 2);
+  parts.push(colorize(roof, 0xb7bdc0));
+  // banco perfurado (lâminas) e apoios
+  parts.push(colorize(at(rbox(3.4, 0.04, 0.36, 0.015), 0, 0.48, -0.5), C.galv));
+  for (const x of [-1.5, 1.5]) parts.push(colorize(at(rbox(0.05, 0.46, 0.3, 0.01), x, 0.24, -0.52), frame));
+  // painel publicitário (MUPI) na lateral direita: caixa com moldura
+  parts.push(colorize(at(rbox(1.3, 1.95, 0.14, 0.03), 2.6, 1.15, -0.3, 0, Math.PI / 2, 0), frame));
+  // rodapé do vidro
+  parts.push(colorize(at(rbox(3.9, 0.06, 0.05, 0.01), 0, 0.32, -0.74), frame));
+  const ad = [colorize(at(new THREE.PlaneGeometry(1.15, 1.75), 2.6 + 0.075, 1.15, -0.3, 0, Math.PI / 2, 0), 0xf0e7d0)];
+  const glass = [at(rbox(1.85, 1.95, 0.012, 0.004), -0.975, 1.33, -0.74), at(rbox(1.85, 1.95, 0.012, 0.004), 0.975, 1.33, -0.74)];
+  return {
+    parts: [
+      { geo: merge(parts), mat: mats.painted, castShadow: true },
+      { geo: merge(ad), mat: mats.lampGlow, castShadow: false },
+      { geo: merge(glass.map((g) => { g.deleteAttribute('uv'); return g; })), mat: mats.glass, castShadow: false },
+    ],
+  };
 }
 
 function busPoleModel(mats: PropMaterials): PropModel {
-  // poste de parada de ônibus (sem abrigo): haste + placa
+  // poste de parada (sem abrigo): tubo galvanizado com placa azul "ÔNIBUS" chanfrada
   return {
     parts: [{
       geo: merge([
-        colorize(at(new THREE.CylinderGeometry(0.045, 0.05, 2.8, 8), 0, 1.4, 0), 0x4a4f54),
-        colorize(at(new THREE.BoxGeometry(0.5, 0.62, 0.04), 0, 2.55, 0), 0x1f4fa8),
-        colorize(at(new THREE.BoxGeometry(0.42, 0.18, 0.045), 0, 2.62, 0), 0xf4f4f0),
+        colorize(lathe([[0, 0], [0.07, 0], [0.07, 0.03], [0.042, 0.06], [0.04, 2.95], [0, 2.97]], 8), C.galv),
+        colorize(at(rbox(0.52, 0.66, 0.035, 0.03), 0, 2.55, 0.05), 0x1f4fa8),
+        colorize(at(rbox(0.42, 0.16, 0.04, 0.012), 0, 2.67, 0.055), 0xf4f4f0),
+        colorize(at(rbox(0.3, 0.22, 0.04, 0.012), 0, 2.42, 0.055), 0xf4f4f0),
       ]),
-      mat: mats.painted, castShadow: true,
+      mat: mats.metal, castShadow: true,
     }],
   };
 }
 
 function bollardModel(mats: PropMaterials): PropModel {
-  return { parts: [{ geo: merge([colorize(at(new THREE.CylinderGeometry(0.1, 0.12, 0.85, 8), 0, 0.42, 0), 0x2f3336)]), mat: mats.metal, castShadow: true }] };
+  // frade de ferro fundido com cabeça arredondada e anel
+  const prof: [number, number][] = [[0, 0], [0.13, 0], [0.13, 0.05], [0.105, 0.09], [0.095, 0.62], [0.11, 0.66], [0.11, 0.7], [0.09, 0.72], [0.085, 0.8], [0.06, 0.86], [0.03, 0.885], [0, 0.89]];
+  return { parts: [{ geo: merge([colorize(lathe(prof, 8), 0x2b2e30)]), mat: mats.painted, castShadow: true }] };
 }
 
 function wasteModel(mats: PropMaterials): PropModel {
-  // lixeira laranja da Comlurb ("laranjinha")
+  // "laranjinha" da Comlurb: cesto plástico afunilado com aro e tampa basculante, preso a um poste
+  const body = lathe([[0.17, 0.42], [0.2, 0.44], [0.235, 0.98], [0.255, 1.0], [0.255, 1.04], [0.24, 1.05], [0.215, 0.99], [0.18, 0.47], [0, 0.46]], 12);
+  const lid = lathe([[0, 1.1], [0.2, 1.1], [0.25, 1.06], [0.26, 1.045], [0, 1.045]], 12);
   return {
-    parts: [{
-      geo: merge([
-        colorize(at(new THREE.CylinderGeometry(0.24, 0.2, 0.7, 10), 0, 0.75, 0), 0xe0731c),
-        colorize(at(new THREE.CylinderGeometry(0.035, 0.035, 0.8, 6), 0, 0.4, -0.27), 0x555555),
-      ]),
-      mat: mats.painted, castShadow: true,
-    }],
+    parts: [
+      { geo: merge([colorize(body, C.comlurb), colorize(lid, C.comlurbDark)]), mat: mats.plastic, castShadow: true },
+      {
+        geo: merge([
+          colorize(at(new THREE.CylinderGeometry(0.035, 0.04, 1.2, 8), 0, 0.6, -0.29), C.galv),
+          colorize(at(rbox(0.08, 0.5, 0.06, 0.015), 0, 0.8, -0.25), C.galv),
+        ]), mat: mats.metal, castShadow: true,
+      },
+    ],
   };
 }
 
 function kioskModel(mats: PropMaterials): PropModel {
-  // banca de jornal
+  // banca de jornal: caixa metálica com cobertura em balanço, letreiro, vitrines laterais abertas e revistas
   const parts = [
-    colorize(at(new THREE.BoxGeometry(3.0, 2.4, 2.0), 0, 1.2, 0), 0x2d5a3a),
-    colorize(at(new THREE.BoxGeometry(3.6, 0.1, 2.6), 0, 2.5, 0), 0x244a30),
-    colorize(at(new THREE.BoxGeometry(2.6, 1.3, 0.05), 0, 1.4, 1.03), 0xc9c2a8, 0.4),
+    colorize(at(rbox(3.0, 2.3, 2.0, 0.06), 0, 1.2, 0), C.kiosk),
+    colorize(at(rbox(3.7, 0.12, 2.7, 0.04), 0, 2.48, 0.12, 0.03), 0x244a30),
+    colorize(at(rbox(3.0, 0.38, 0.06, 0.02), 0, 2.2, 1.04), 0xf2efe6), // letreiro
+    colorize(at(rbox(3.0, 0.08, 0.06, 0.02), 0, 2.0, 1.05), 0xd2a21c),
+    colorize(at(rbox(3.04, 0.1, 2.04, 0.02), 0, 0.05, 0), 0x2b2e30), // rodapé
+    // vitrine frontal (vão) e prateleiras
+    colorize(at(rbox(2.5, 1.35, 0.04, 0.01), 0, 1.25, 1.0), LO ? 0x8a6a5a : 0x1f2a22),
   ];
+  // revistas: pequenos retângulos coloridos em 3 prateleiras + abas laterais abertas
+  const rnd = mulberry32(42);
+  const pal = [0xd8402f, 0x2a6fc0, 0xf1c232, 0xffffff, 0x3a9b4a, 0xe07fb0, 0x222222, 0xf08a24];
+  for (let row = 0; row < 3; row++) {
+    parts.push(colorize(at(rbox(2.45, 0.025, 0.2, 0.005), 0, 0.72 + row * 0.42, 1.06), 0x8d8f8a));
+    for (let i = 0; i < (LO ? 0 : 9); i++) {
+      const c = pal[Math.floor(rnd() * pal.length)];
+      parts.push(colorize(at(new THREE.BoxGeometry(0.2, 0.28, 0.012), -1.08 + i * 0.27, 0.88 + row * 0.42, 1.035, -0.12), c, 0.2, i + row * 9));
+    }
+  }
+  for (const s of [1, -1]) {
+    parts.push(colorize(at(rbox(0.04, 1.5, 0.9, 0.01), s * 1.53, 1.3, 1.35, 0, s * 0.5, 0), C.kiosk));
+    for (let i = 0; i < (LO ? 0 : 4); i++) {
+      const c = pal[Math.floor(rnd() * pal.length)];
+      parts.push(colorize(at(new THREE.BoxGeometry(0.012, 0.28, 0.2), s * 1.555 + Math.sin(s * 0.5) * 0.02, 0.9 + (i % 2) * 0.42, 1.18 + Math.floor(i / 2) * 0.3, 0, s * 0.5, 0), c, 0.2, 50 + i));
+    }
+  }
   return { parts: [{ geo: merge(parts), mat: mats.painted, castShadow: true }] };
 }
 
 // ------------------------------------------------------------------------------------------
 // Gerenciador de instâncias
 // ------------------------------------------------------------------------------------------
-type ModelKey = 'tree0' | 'tree1' | 'tree2' | 'treeFar0' | 'treeFar1' | 'treeFar2' | 'palm' | 'lamp' | 'signal' | 'bench' | 'bus_stop' | 'bus_pole' | 'bollard' | 'waste' | 'kiosk';
+type FurnitureKind = 'lamp' | 'signal' | 'bench' | 'bus_stop' | 'bus_pole' | 'bollard' | 'waste' | 'kiosk';
+type ModelKey = FurnitureKind | `${FurnitureKind}_lo`;
+const BUILDERS: Record<FurnitureKind, (m: PropMaterials) => PropModel> = {
+  lamp: lampModel, signal: signalModel, bench: benchModel, bus_stop: busStopModel,
+  bollard: bollardModel, bus_pole: busPoleModel, waste: wasteModel, kiosk: kioskModel,
+};
+/** versões distantes que ainda projetam sombra (as demais são pequenas demais para justificar o custo) */
+const LO_SHADOW = new Set<FurnitureKind>(['lamp', 'bus_stop', 'kiosk']);
 
 interface Inst { p: [number, number]; r: number; s: number; y: number; j?: number; ph?: number }
 
@@ -316,25 +335,27 @@ export class PropSystem {
   /** posições das luminárias ativas (para luzes reais próximas à noite) */
   private lampHeads: THREE.Vector3[] = [];
   /** semáforos instanciados: cruzamento e fase de cada instância */
-  private signalInfo: { j: number; ph: number }[] = [];
+  private signalInfo = new Map<ModelKey, { j: number; ph: number }[]>();
+  /** mobiliário do último rebuild (o LOD perto/longe é refeito quando a câmera se afasta do centro) */
+  private furniture: { kind: FurnitureKind; it: Inst }[] = [];
+  private lodCenter: THREE.Vector3 | null = null;
+  private lastCam: THREE.Vector3 | null = null;
   private nightLights: THREE.PointLight[] = [];
+  /** árvores/palmeiras (sistema próprio com LOD e impostores) */
+  veg?: VegetationSystem;
+  private pendingTrees: { rec: PropRec; y: number }[] | null = null;
 
   constructor(noise: THREE.Texture) {
     this.group.name = 'props';
     this.mats = createPropMaterials(noise);
-    for (let v = 0; v < 3; v++) {
-      this.models.set(`tree${v}` as ModelKey, treeModel(v, 0, this.mats));
-      this.models.set(`treeFar${v}` as ModelKey, treeModel(v, 1, this.mats));
+    for (const [kind, build] of Object.entries(BUILDERS) as [FurnitureKind, (m: PropMaterials) => PropModel][]) {
+      this.models.set(kind, build(this.mats));
+      LO = true;
+      const lo = build(this.mats);
+      LO = false;
+      for (const p of lo.parts) p.castShadow &&= LO_SHADOW.has(kind);
+      this.models.set(`${kind}_lo`, lo);
     }
-    this.models.set('palm', palmModel(this.mats));
-    this.models.set('lamp', lampModel(this.mats));
-    this.models.set('signal', signalModel(this.mats));
-    this.models.set('bench', benchModel(this.mats));
-    this.models.set('bus_stop', busStopModel(this.mats));
-    this.models.set('bollard', bollardModel(this.mats));
-    this.models.set('bus_pole', busPoleModel(this.mats));
-    this.models.set('waste', wasteModel(this.mats));
-    this.models.set('kiosk', kioskModel(this.mats));
     // pool fixo de luzes pontuais (sempre presentes → sem recompilar shaders ao anoitecer)
     for (let i = 0; i < 8; i++) {
       const l = new THREE.PointLight(0xffc98a, 0, 30, 1.6);
@@ -346,14 +367,19 @@ export class PropSystem {
 
   /** Atualiza as lâmpadas dos semáforos conforme o estado de cada cruzamento. */
   updateSignals(stateOf: (j: number, ph: number) => 'G' | 'Y' | 'R') {
-    const meshes = this.meshes.get('signal');
-    if (!meshes || meshes.length < 4) return;
+    for (const key of ['signal', 'signal_lo'] as const) this.updateSignalMeshes(key, stateOf);
+  }
+
+  private updateSignalMeshes(key: ModelKey, stateOf: (j: number, ph: number) => 'G' | 'Y' | 'R') {
+    const meshes = this.meshes.get(key);
+    const info = this.signalInfo.get(key);
+    if (!meshes || meshes.length < 4 || !info) return;
     const [, red, yellow, green] = meshes;
     for (const m of [red, yellow, green]) if (!m.instanceColor) m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(m.instanceMatrix.count * 3), 3);
     const on = { R: [1, 0.06, 0.03], Y: [1, 0.62, 0.02], G: [0.1, 1, 0.5] } as const;
     const off = [0.035, 0.03, 0.028];
-    for (let i = 0; i < this.signalInfo.length; i++) {
-      const si = this.signalInfo[i];
+    for (let i = 0; i < info.length; i++) {
+      const si = info[i];
       const st = si.j < 0 ? 'G' : stateOf(si.j, si.ph);
       const set = (m: THREE.InstancedMesh, active: boolean, c: readonly number[]) => {
         const v = active ? c : off;
@@ -385,35 +411,67 @@ export class PropSystem {
     });
   }
 
-  static modelFor(k: PropKind, rec: PropRec, far: boolean): ModelKey {
-    if (k === 'tree') {
-      const v = Math.floor(Math.abs(Math.sin(rec.p[0] * 12.9898 + rec.p[1] * 78.233) * 43758.5453) % 1 * 3) as 0 | 1 | 2;
-      return (far ? `treeFar${v}` : `tree${v}`) as ModelKey;
+  /**
+   * Carrega a vegetação pré-gerada (public/vegetation/) e renderiza os impostores.
+   * Falha de rede não derruba o jogo: o mundo segue sem árvores (aviso no console).
+   */
+  async loadVegetation(renderer: THREE.WebGLRenderer, vegetationDensity: number, baseUrl = `${import.meta.env.BASE_URL}vegetation/`) {
+    try {
+      const assets = await loadVegetation(baseUrl);
+      this.veg = new VegetationSystem(renderer, assets, this.mats.windUniform, vegetationOptionsFor(vegetationDensity));
+      this.group.add(this.veg.group);
+      if (this.pendingTrees) this.veg.setTrees(this.treeInstances(this.pendingTrees));
+    } catch (e) {
+      console.warn('vegetação indisponível:', e);
     }
-    return k as ModelKey;
+  }
+
+  private treeInstances(list: { rec: PropRec; y: number }[]): TreeInstance[] {
+    const veg = this.veg!;
+    return list.map(({ rec, y }) => {
+      const [x, z] = rec.p;
+      const species = rec.k === 'palm' ? 'palmeira' : speciesAt(x, z);
+      const h = Math.abs(Math.sin(x * 4.231 + z * 9.137) * 43758.5453) % 1;
+      return {
+        x, y, z,
+        rot: h * Math.PI * 2,
+        scale: (rec.s ?? 1) * (0.88 + 0.24 * ((h * 7.31) % 1)),
+        variant: veg.variantFor(species, x, z),
+      };
+    });
   }
 
   /**
    * Reconstrói as instâncias a partir dos props dos chunks ativos.
-   * near: props em detalhe; far: somente árvores simplificadas.
+   * near: mobiliário em detalhe + árvores; far: somente árvores (o LOD das árvores é por distância,
+   * decidido a cada passo da câmera em VegetationSystem — perto/médio/impostor).
    */
-  rebuild(near: PropRec[], far: PropRec[], vegetationDensity: number, heightAt: (x: number, z: number) => number) {
-    const buckets = new Map<ModelKey, Inst[]>();
-    const push = (key: ModelKey, rec: PropRec) => {
-      const arr = buckets.get(key) ?? [];
-      const y = rec.k === 'tree' || rec.k === 'palm' ? heightAt(rec.p[0], rec.p[1]) : heightAt(rec.p[0], rec.p[1]);
-      arr.push({ p: rec.p, r: rec.r ?? 0, s: rec.s ?? 1, y, j: rec.j, ph: rec.ph });
-      buckets.set(key, arr);
-    };
+  rebuild(near: PropRec[], far: PropRec[], _vegetationDensity: number, heightAt: (x: number, z: number) => number) {
+    const trees: { rec: PropRec; y: number }[] = [];
+    this.furniture = [];
     for (const rec of near) {
-      if ((rec.k === 'tree' || rec.k === 'palm') && vegetationDensity < 1) {
-        const h = Math.abs(Math.sin(rec.p[0] * 3.1 + rec.p[1] * 7.7) * 1e4) % 1;
-        if (h > vegetationDensity) { push(PropSystem.modelFor(rec.k, rec, true), rec); continue; }
-      }
-      push(PropSystem.modelFor(rec.k, rec, false), rec);
+      if (rec.k === 'tree' || rec.k === 'palm') trees.push({ rec, y: heightAt(rec.p[0], rec.p[1]) });
+      else this.furniture.push({ kind: rec.k as FurnitureKind, it: { p: rec.p, r: rec.r ?? 0, s: rec.s ?? 1, y: heightAt(rec.p[0], rec.p[1]), j: rec.j, ph: rec.ph } });
     }
-    for (const rec of far) if (rec.k === 'tree' || rec.k === 'palm') push(PropSystem.modelFor('tree', rec, true), rec);
+    for (const rec of far) if (rec.k === 'tree' || rec.k === 'palm') trees.push({ rec, y: heightAt(rec.p[0], rec.p[1]) });
+    this.pendingTrees = trees;
+    if (this.veg) this.veg.setTrees(this.treeInstances(trees));
+    this.fillFurniture(this.lastCam);
+  }
 
+  /** distribui o mobiliário entre os modelos detalhado/distante conforme a distância a `center` */
+  private fillFurniture(center: THREE.Vector3 | null) {
+    this.lodCenter = center ? center.clone() : null;
+    const d2 = PROP_LOD_DIST * PROP_LOD_DIST;
+    const buckets = new Map<ModelKey, Inst[]>();
+    for (const { kind, it } of this.furniture) {
+      const far = center !== null && (it.p[0] - center.x) ** 2 + (it.p[1] - center.z) ** 2 > d2;
+      const key: ModelKey = far ? `${kind}_lo` : kind;
+      const arr = buckets.get(key) ?? [];
+      arr.push(it);
+      buckets.set(key, arr);
+    }
+    this.lampHeads = [];
     for (const [key, model] of this.models) {
       const list = buckets.get(key) ?? [];
       let meshes = this.meshes.get(key);
@@ -441,14 +499,13 @@ export class PropSystem {
         this.dummy.updateMatrix();
         for (const m of meshes) m.setMatrixAt(i, this.dummy.matrix);
       }
-      if (key === 'signal') this.signalInfo = list.map((it) => ({ j: it.j ?? -1, ph: it.ph ?? 0 }));
-      if (key === 'lamp') {
-        this.lampHeads = [];
+      if (key === 'signal' || key === 'signal_lo') this.signalInfo.set(key, list.map((it) => ({ j: it.j ?? -1, ph: it.ph ?? 0 })));
+      if (key === 'lamp' || key === 'lamp_lo') {
         for (const it of list) {
-          // as duas cabeças ficam a ±2 m no eixo X local do modelo, a ~10.6 m de altura
+          // as duas luminárias ficam no eixo X local do modelo (LAMP_HEADS)
           const ang = Math.atan2(Math.cos(it.r), Math.sin(it.r));
-          for (const sgn of [1, -1]) {
-            this.lampHeads.push(new THREE.Vector3(it.p[0] + Math.cos(ang) * 2 * sgn, it.y + 10.4, it.p[1] - Math.sin(ang) * 2 * sgn));
+          for (const [hx, hy] of LAMP_HEADS) {
+            this.lampHeads.push(new THREE.Vector3(it.p[0] + Math.cos(ang) * hx, it.y + hy - 0.3, it.p[1] - Math.sin(ang) * hx));
           }
         }
       }
@@ -461,14 +518,18 @@ export class PropSystem {
     }
   }
 
-  update(time: number) {
+  update(time: number, camera?: THREE.Vector3) {
     this.mats.windUniform.value = time;
+    if (!camera) return;
+    (this.lastCam ??= new THREE.Vector3()).copy(camera);
+    if (!this.lodCenter || this.lodCenter.distanceToSquared(camera) > 35 * 35) this.fillFurniture(camera);
+    this.veg?.update(camera);
   }
 
   get instanceCount() {
     let n = 0;
     for (const ms of this.meshes.values()) n += ms[0]?.count ?? 0;
-    return n;
+    return n + (this.pendingTrees?.length ?? 0);
   }
 }
 
