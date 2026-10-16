@@ -1,0 +1,21 @@
+{
+  "id": "encontro-exemplo",
+  "name": "Encontro / ato (exemplo genérico)",
+  "category": "encontro",
+  "description": "Exemplo neutro de evento social na avenida (encontro, ato, manifestação). Grupos, cores e mensagens são definidos pelo organizador.",
+  "interaction": "pacifico",
+  "groups": [
+    { "id": "grupo-1", "name": "Grupo 1", "colors": ["#2e7dd1", "#ffffff"], "npcShare": 0.25 },
+    { "id": "grupo-2", "name": "Grupo 2", "colors": ["#f2b705", "#1b5e20"], "npcShare": 0.25 }
+  ],
+  "decorations": [
+    { "type": "flag", "placement": "pv-lamps", "colors": ["#2e7dd1", "#f2b705", "#ffffff"], "every": 2 }
+  ],
+  "billboards": {
+    "rotateSeconds": 10,
+    "playlist": [
+      { "type": "text", "text": "ENCONTRO NA PRESIDENTE VARGAS", "subtext": "Concentração na Candelária", "colors": ["#0b2545", "#ffffff"] },
+      { "type": "text", "text": "PROGRAMAÇÃO", "subtext": "Palco • Candelária • 17h", "colors": ["#1b5e20", "#f2b705"] }
+    ]
+  }
+}

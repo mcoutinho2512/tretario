@@ -100,3 +100,5 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); o
   .minimap.expanded { transform: translate(50%, -50%); }
   .debug-panel { min-width: 0; font-size: 10px; }
 }
+.event-badge { position: absolute; left: 14px; top: 14px; background: rgba(10, 12, 14, 0.62); padding: 5px 10px; border-radius: 6px; font-size: 12px; color: #ffe9a8; }
+.event-badge:empty { display: none; }

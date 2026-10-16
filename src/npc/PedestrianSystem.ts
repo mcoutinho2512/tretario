@@ -53,6 +53,13 @@ export class PedestrianSystem {
   private crossGrid = new Map<string, number[]>();
   private signals: SignalController | null = null;
 
+  /** cores de grupos do evento ativo: parte dos NPCs se veste com elas */
+  private palettes: { colors: number[]; share: number }[] = [];
+  setGroupPalettes(p: { colors: number[]; share: number }[]) {
+    this.palettes = p;
+    for (const ped of this.peds) ped.active = false; // reveste a população
+  }
+
   setCrossings(c: PedCrossing[], signals: SignalController) {
     this.crossings = c;
     this.signals = signals;
@@ -130,7 +137,19 @@ export class PedestrianSystem {
       p.speed = 0;
       p.idleTimer = this.rnd() < 0.2 ? 1 + this.rnd() * 4 : 0;
       p.walkTimer = 6 + this.rnd() * 20;
-      p.rig.setAppearance(randomAppearance(Math.floor(this.rnd() * 1e9), p.rig.body));
+      const app = randomAppearance(Math.floor(this.rnd() * 1e9), p.rig.body);
+      const roll = this.rnd();
+      let cum = 0;
+      for (const pal of this.palettes) {
+        cum += pal.share;
+        if (roll < cum) {
+          app.top = pal.colors[0];
+          if (pal.colors[1] !== undefined) app.acc = pal.colors[1];
+          if (pal.colors[1] !== undefined && this.rnd() < 0.4) app.bottom = pal.colors[1];
+          break;
+        }
+      }
+      p.rig.setAppearance(app);
       p.active = true;
       p.mode = 'walk'; p.target = null; p.crossing = null; p.crossCooldown = 3 + this.rnd() * 10; p.approach = null;
       return true;

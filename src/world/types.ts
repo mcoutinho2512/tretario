@@ -176,6 +176,7 @@ export interface WorldManifest {
   /** polilinhas simplificadas das ruas para o minimapa */
   minimapRoads: { pts: XZ[]; w: number; pv?: boolean; name?: string }[];
   monuments?: MonumentRec[];
+  billboards?: BillboardSlot[];
   streetSigns?: StreetSignRec[];
   /** arquivo das faixas de tráfego (veículos NPC) */
   traffic?: string;
@@ -238,4 +239,19 @@ export interface StreetSignRec {
   /** direção (rad) da face principal */
   r: number;
   names: string[];
+}
+
+/** Local identificado para painel de LED virtual (fachada voltada para a avenida). */
+export interface BillboardSlot {
+  id: string;
+  /** centro do painel (x, z) e altura do centro */
+  p: XZ;
+  y: number;
+  w: number;
+  h: number;
+  /** direção (rad, atan2 dx,dz) para onde a face do painel aponta */
+  r: number;
+  /** zona: nome do cruzamento/marco mais próximo */
+  zone: string;
+  buildingId: number;
 }

@@ -1,0 +1,34 @@
+{
+  "id": "classico-exemplo",
+  "name": "Clássico (exemplo genérico)",
+  "category": "futebol",
+  "description": "Exemplo de configuração de evento esportivo. Times genéricos — nomes, cores oficiais e escudos de clubes reais só devem ser usados com autorização dos titulares.",
+  "interaction": "opcional",
+  "teams": [
+    { "id": "time-a", "name": "Time A", "colors": ["#c8102e", "#111111"] },
+    { "id": "time-b", "name": "Time B", "colors": ["#ffffff", "#111111"] }
+  ],
+  "groups": [
+    { "id": "torcida-a", "name": "Torcida do Time A", "colors": ["#c8102e", "#111111"], "teamId": "time-a", "npcShare": 0.3 },
+    { "id": "torcida-b", "name": "Torcida do Time B", "colors": ["#ffffff", "#111111"], "teamId": "time-b", "npcShare": 0.3 }
+  ],
+  "cosmetics": [
+    { "id": "camisa-a", "name": "Camisa Time A", "slot": "top", "colors": ["#c8102e"], "groupId": "torcida-a", "price": 0 },
+    { "id": "camisa-b", "name": "Camisa Time B", "slot": "top", "colors": ["#ffffff"], "groupId": "torcida-b", "price": 0 }
+  ],
+  "decorations": [
+    { "type": "banner", "placement": "pv-lamps", "colors": ["#c8102e", "#111111", "#ffffff"], "every": 1 }
+  ],
+  "billboards": {
+    "rotateSeconds": 8,
+    "playlist": [
+      { "type": "text", "text": "TIME A × TIME B", "subtext": "Hoje • Concentração na Presidente Vargas", "colors": ["#111111", "#ffffff"] },
+      { "type": "text", "text": "VAI, TIME A!", "subtext": "Torcida concentrada na Uruguaiana", "colors": ["#c8102e", "#111111"] },
+      { "type": "text", "text": "VAI, TIME B!", "subtext": "Torcida concentrada na Rio Branco", "colors": ["#ffffff", "#111111"] }
+    ]
+  },
+  "vehicles": [
+    { "id": "bike", "kind": "bicycle", "name": "Bicicleta", "spawn": "bike-stations" },
+    { "id": "patinete", "kind": "scooter", "name": "Patinete", "spawn": "bike-stations" }
+  ]
+}

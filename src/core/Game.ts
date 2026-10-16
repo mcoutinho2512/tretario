@@ -30,6 +30,10 @@ import { PedestrianSystem } from '../npc/PedestrianSystem';
 import { TrafficSystem } from '../traffic/TrafficSystem';
 import { SignalController } from '../traffic/SignalController';
 import { MonumentSystem } from '../world/Monuments';
+import { BillboardSystem } from '../events/Billboards';
+import { EventManager } from '../events/EventManager';
+import type { PropRec } from '../world/types';
+import { distToPolyline } from '../geo/polyline';
 import type { TrafficData } from '../world/types';
 
 export { DEFAULT_PLAYER_APPEARANCE } from '../characters/bodyTypes';
@@ -56,6 +60,8 @@ export class Game {
   private traffic!: TrafficSystem;
   private signals!: SignalController;
   private monuments!: MonumentSystem;
+  private billboards!: BillboardSystem;
+  readonly events!: EventManager;
   private input: InputManager;
   private player!: PlayerState;
   private avatar: AvatarVisual;
@@ -166,6 +172,25 @@ export class Game {
       this.monuments = new MonumentSystem(this.manifest.monuments ?? [], this.manifest.streetSigns ?? [], (x, z) => this.collision.groundHeight(x, z), pvDir);
       this.scene.add(this.monuments.group);
     }
+    // painéis de LED + evento ativo (?event=id; padrão em public/events/index.json)
+    this.billboards = new BillboardSystem(this.manifest.billboards ?? []);
+    this.scene.add(this.billboards.group);
+    const pvAxis = this.manifest.pvAxis;
+    (this as { events: EventManager }).events = new EventManager(
+      `${import.meta.env.BASE_URL}events/`,
+      this.billboards,
+      () => {
+        const out: PropRec[] = [];
+        this.chunks.forEachProp((p) => { if (p.k === 'lamp' && distToPolyline(p.p, pvAxis) < 48) out.push(p); });
+        return out;
+      },
+      (x, z) => this.collision.groundHeight(x, z),
+      (pal) => this.peds.setGroupPalettes(pal),
+    );
+    this.scene.add(this.events.decorations);
+    try {
+      await this.events.load(new URLSearchParams(location.search).get('event') ?? undefined);
+    } catch (e) { console.warn('evento não carregado', e); }
     this.cam = new ThirdPersonCamera(this.camera, this.collision);
     // intro: começa olhando a Central, depois gira para a avenida (direção da Candelária)
     const central = this.manifest.landmarks.find((l) => l.key === 'LANDMARK_CENTRAL')!;
@@ -209,6 +234,10 @@ export class Game {
       ? 'Joystick: andar · Arraste: câmera · Pinça: zoom'
       : '<b>WASD</b> andar · <b>Shift</b> correr · <b>Espaço</b> pular · <b>Mouse</b> câmera · <b>Roda</b> zoom · <b>M</b> mapa · <b>F3</b> debug · <b>H</b> ajuda · <b>Esc</b> soltar mouse';
     this.hud.appendChild(help);
+    const evb = document.createElement('div');
+    evb.className = 'event-badge';
+    evb.textContent = this.events.current ? `Evento: ${this.events.current.name}` : '';
+    this.hud.appendChild(evb);
     const attr = document.createElement('div');
     attr.className = 'attribution';
     attr.innerHTML = 'Dados do mapa © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a> (ODbL)';
@@ -389,6 +418,8 @@ export class Game {
     const sim = this.simTime;
     for (const lm of this.landmarks) lm.update(sim, this.camera.position);
     this.monuments.update(dt, sim);
+    this.billboards.update(dt, this.camera.position);
+    this.events.update(this.time);
     if (this.time - this.lastSunUpdate > 30) {
       this.lastSunUpdate = this.time;
       this.env.setTime(sim, WORLD_ORIGIN.lat, WORLD_ORIGIN.lon);
@@ -471,6 +502,10 @@ export class Game {
         };
       },
       hud: (v: boolean) => { this.hud.style.display = v ? '' : 'none'; },
+      /** painéis de LED: conteúdo por painel ('*' = todos). Preparado para o backend. */
+      billboard: (id: string, content: unknown) => this.billboards.setPanelContent(id, content as never),
+      billboards: () => this.manifest.billboards ?? [],
+      event: async (id: string) => { await this.events.load(id); return this.events.current?.name; },
       env: () => ({
         sunDir: this.env.sunDir.toArray(), sunI: this.env.sun.intensity, night: this.env.night,
         castShadow: this.env.sun.castShadow, shadowEnabled: this.gr.renderer.shadowMap.enabled,

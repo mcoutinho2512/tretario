@@ -253,6 +253,11 @@ export class ChunkManager {
     g.removeFromParent();
   }
 
+  /** percorre os props de todos os chunks baixados (ex.: postes para decoração de eventos) */
+  forEachProp(cb: (p: PropRec) => void) {
+    for (const c of this.chunks.values()) if (c.data) for (const p of c.data.props) cb(p);
+  }
+
   lodAt(x: number, z: number): LodLevel | null {
     return this.chunks.get(this.chunkKeyAt(x, z))?.lod ?? null;
   }
