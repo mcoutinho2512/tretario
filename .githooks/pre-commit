@@ -1,7 +1,16 @@
 #!/bin/sh
 # Barreira obrigatória: nenhum commit com typecheck, testes ou build quebrados.
+# Verifica EXATAMENTE o conteúdo que será commitado (o que não está staged é guardado temporariamente).
 # Ativada automaticamente por `npm install` (script "prepare" → core.hooksPath=.githooks).
-set -e
-echo "[pre-commit] verificando (typecheck + testes + build + servidor)…"
-npm run --silent verify || { echo "[pre-commit] FALHOU — commit bloqueado."; exit 1; }
+echo "[pre-commit] verificando o conteúdo staged (typecheck + testes + build + servidor)…"
+STASHED=0
+if ! git diff --quiet || [ -n "$(git ls-files --others --exclude-standard)" ]; then
+  git stash push --keep-index --include-untracked --quiet -m "pre-commit-verify" && STASHED=1
+fi
+npm run --silent verify
+RESULT=$?
+if [ "$STASHED" = "1" ]; then
+  git stash pop --quiet || { echo "[pre-commit] ATENÇÃO: falha ao restaurar alterações não staged (veja git stash list)"; exit 1; }
+fi
+if [ $RESULT -ne 0 ]; then echo "[pre-commit] FALHOU — commit bloqueado."; exit 1; fi
 echo "[pre-commit] ok"
