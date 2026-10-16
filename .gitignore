@@ -16,3 +16,5 @@ screenshots/loadtest.json
 screenshots/bg_*/
 screenshots/crowd_bench/
 screenshots/bench_results/
+# persistência local de desenvolvimento (grafites) — nunca no git
+server/data/

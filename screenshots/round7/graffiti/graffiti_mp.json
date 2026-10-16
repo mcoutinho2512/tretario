@@ -1,0 +1,135 @@
+{
+ "at": "2026-10-16T20:17:14.200Z",
+ "results": [
+  {
+   "name": "A vê o prompt de pichar",
+   "ok": true,
+   "detail": "perto de tap0"
+  },
+  {
+   "name": "A abre o editor (E)",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "durante o desenho B não recebe nada",
+   "ok": true,
+   "detail": "{\"add\":0,\"del\":0,\"state\":0,\"invalid\":0,\"bytes\":0}"
+  },
+  {
+   "name": "A publica (servidor aceita, editor fecha)",
+   "ok": true,
+   "detail": "{\"op\":\"new\",\"ok\":true,\"n\":1,\"i\":1}"
+  },
+  {
+   "name": "B vê o grafite de A",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "A vê como seu (mine) e B como de A",
+   "ok": true,
+   "detail": "id 1 · 81 B · 4 itens"
+  },
+  {
+   "name": "B recebeu só conteúdo válido",
+   "ok": true,
+   "detail": "{\"add\":1,\"del\":0,\"state\":0,\"invalid\":0,\"bytes\":81}"
+  },
+  {
+   "name": "C (distante) não recebe",
+   "ok": true,
+   "detail": "{\"add\":0,\"del\":0,\"state\":0,\"invalid\":0,\"bytes\":0}"
+  },
+  {
+   "name": "tamanhos",
+   "ok": true,
+   "detail": "conteúdo 81 B · gf_new ≈ 106 B · gf_add ≈ 137 B"
+  },
+  {
+   "name": "C longe/lixo: recusado",
+   "ok": true,
+   "detail": "formato"
+  },
+  {
+   "name": "superfície inexistente: recusado",
+   "ok": true,
+   "detail": "superficie"
+  },
+  {
+   "name": "B a 6 m: recusado por distância",
+   "ok": true,
+   "detail": "distancia"
+  },
+  {
+   "name": "nada inválido chegou a ninguém",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "A pinta o chão (2º grafite)",
+   "ok": true,
+   "detail": "{\"op\":\"new\",\"ok\":true,\"n\":2,\"i\":2}"
+  },
+  {
+   "name": "D (entrou depois) recebe o existente",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "B denuncia (aceito) e passa a não ver (oculto para quem denunciou)",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "D vê o estado REPORTED",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "autor não denuncia o próprio",
+   "ok": true,
+   "detail": "proprio"
+  },
+  {
+   "name": "2 denúncias → HIDDEN: some para A e D",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "D oculta localmente (fica no localStorage)",
+   "ok": true,
+   "detail": "[1,2]"
+  },
+  {
+   "name": "persistido no JSON local (estado e autor)",
+   "ok": true,
+   "detail": "2 registros"
+  },
+  {
+   "name": "admin sem token correto: recusado",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "admin restaura → volta para D",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "memória do atlas",
+   "ok": true,
+   "detail": "2 tiles em 1 página(s) · 5.6 MB GPU · 171 KB/tile"
+  },
+  {
+   "name": "TTL: 2º grafite expira e some para A",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "expirados saem do armazenamento",
+   "ok": true,
+   "detail": "0 registros"
+  }
+ ]
+}

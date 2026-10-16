@@ -22,6 +22,7 @@ import { AvatarVisual } from '../player/AvatarVisual';
 import { createPlayerState, type PlayerState } from '../player/PlayerState';
 import type { Accessory, BodyType, CharacterAppearance } from '../characters/bodyTypes';
 import { decodeCrowd } from './crowdCodec';
+import { anonymousClientId } from './clientId';
 import { createAgent, type CrowdAgent } from '../characters/crowd/crowdBudget';
 import type { CrowdDirector } from '../characters/crowd/CrowdDirector';
 
@@ -129,11 +130,12 @@ export class NetworkClient {
     this.status = 'connecting';
     try {
       const client = new Client(this.endpoint);
-      const opts: JoinOptions = { name, body: app.body, skin: app.skin, hair: app.hair, top: app.top, bottom: app.bottom, shoes: app.shoes, accessory: app.accessory ?? 'nenhum', acc: app.acc ?? 0x222222, ...(testSpawn ? { testSpawn } : {}), ...(this.crowd ? { aoiMax: Math.max(16, Math.min(64, this.crowd.budget.skinned * 2)) } : {}) };
+      const opts: JoinOptions = { name, body: app.body, skin: app.skin, hair: app.hair, top: app.top, bottom: app.bottom, shoes: app.shoes, accessory: app.accessory ?? 'nenhum', acc: app.acc ?? 0x222222, cid: anonymousClientId(), ...(testSpawn ? { testSpawn } : {}), ...(this.crowd ? { aoiMax: Math.max(16, Math.min(64, this.crowd.budget.skinned * 2)) } : {}) };
       const room = await client.joinOrCreate(ROOM_NAME, opts);
       this.room = room;
       this.sessionId = room.sessionId;
       this.status = 'online';
+      for (const [type, fn] of this.handlers) room.onMessage(type, fn);
       room.onMessage('spawn', (s: { x: number; y: number; z: number; heading: number; policy: 'pacifico' | 'opcional'; seed: number }) => {
         this.policy = s.policy; this.seed = s.seed;
         this.onSpawn?.(s);
@@ -195,6 +197,9 @@ export class NetworkClient {
   }
 
   send(type: string, payload?: unknown) { this.room?.send(type, payload); }
+  /** mensagens de outros sistemas (ex.: grafite, src/graffiti/GraffitiSystem.ts): registradas antes ou depois do connect */
+  private handlers = new Map<string, (msg: any) => void>();
+  on(type: string, fn: (msg: any) => void) { this.handlers.set(type, fn); this.room?.onMessage(type, fn); }
   requestMode(m: 'pacifico' | 'interacao') { this.send('mode', m); }
   /** entrar/sair levam o seq atual: o servidor descarta movimentos antigos ainda em trânsito */
   requestEnter(id: string) { this.holdMoves = true; this.send('enter', { id, seq: this.seq }); }

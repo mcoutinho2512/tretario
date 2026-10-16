@@ -13,5 +13,6 @@ Contratos ÚNICOS (não duplicar):
 | `src/social/types.ts` | `SocialState` — o mesmo estado para jogador local, remoto, NPC e multidão instanciada |
 | `HumanCharacter.setSocial` / `AvatarVisual.setSocial` | ponto único: animador (camada de ação) + `PropAttachment` (itens na mão) |
 | `CrowdAgent.act/actAt/prop/design` | vida social na multidão instanciada |
+| `src/graffiti/*` + `server/src/graffiti/*` | pichação/grafite: superfícies autorizadas, vetor compacto, regras/moderação, persistência — `docs/GRAFFITI.md` |
 
 Rede: `NetPlayer.act/actAt/actVar/prop/design`; mensagens `act {a, v}` e `prop {p, d}` (servidor valida e grava).

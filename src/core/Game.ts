@@ -51,6 +51,7 @@ import type { NetworkClient } from '../net/NetworkClient';
 import type { PropRec, BuildingRec } from '../world/types';
 import { distToPolyline } from '../geo/polyline';
 import { memoryReport } from '../debug/memoryReport';
+import { GraffitiSystem } from '../graffiti/GraffitiSystem';
 import type { TrafficData } from '../world/types';
 
 export { DEFAULT_PLAYER_APPEARANCE } from '../characters/bodyTypes';
@@ -95,6 +96,8 @@ export class Game {
   readonly events!: EventManager;
   private rideables!: RideableSystem;
   private riding: RideableInstance | null = null;
+  /** pichação/grafite (src/graffiti): superfícies autorizadas, editor, decalques, moderação */
+  private graffiti!: GraffitiSystem;
   readonly interaction = new InteractionController();
   private net: NetworkClient | null = null;
   private appearance: CharacterAppearance | undefined;
@@ -272,6 +275,10 @@ export class Game {
     const kinds = (this.events.current?.vehicles ?? [{ kind: 'bicycle' }, { kind: 'scooter' }, { kind: 'car' }, { kind: 'moto' }]).map((v) => v.kind);
     this.rideables = new RideableSystem(this.manifest.vehicleSpawns ?? [], (x, z) => this.collision.groundHeight(x, z), kinds);
     this.scene.add(this.rideables.group);
+    this.graffiti = new GraffitiSystem(this.hud, this.input.isTouch, this.preset.level);
+    this.graffiti.onNotice = (m) => this.flash(m);
+    await this.graffiti.load(base, (x, z) => this.collision.groundHeight(x, z), (ring, b, t) => this.collision.addPolygon(ring, b, t));
+    this.scene.add(this.graffiti.group);
     this.cam = new ThirdPersonCamera(this.camera, this.collision);
     // intro: começa olhando a Central, depois gira para a avenida (direção da Candelária)
     const central = this.manifest.landmarks.find((l) => l.key === 'LANDMARK_CENTRAL')!;
@@ -330,7 +337,7 @@ export class Game {
     help.className = 'help';
     help.innerHTML = this.input.isTouch
       ? 'Joystick: andar · Arraste: câmera · Pinça: zoom'
-      : '<b>WASD</b> andar · <b>Shift</b> correr · <b>Espaço</b> pular · <b>Mouse</b> câmera · <b>Roda</b> zoom · <b>E</b> usar bicicleta/patinete · <b>K</b> modo · <b>M</b> mapa · <b>F3</b> debug · <b>H</b> ajuda · <b>Esc</b> soltar mouse';
+      : '<b>WASD</b> andar · <b>Shift</b> correr · <b>Espaço</b> pular · <b>Mouse</b> câmera · <b>Roda</b> zoom · <b>E</b> usar veículo / pichar · <b>K</b> modo · <b>M</b> mapa · <b>F3</b> debug · <b>H</b> ajuda · <b>Esc</b> soltar mouse';
     this.hud.appendChild(help);
     this.prompt = document.createElement('div');
     this.prompt.className = 'use-prompt';
@@ -525,6 +532,7 @@ export class Game {
       this.net.update(dt, this.player, this.riding ? this.riding.state.id : null, this.camera, { w: this.canvas.clientWidth, h: this.canvas.clientHeight });
       this.rideables.smooth(dt, this.net.sessionId);
     }
+    this.graffiti.update(dt, this.camera.position, this.player);
     mark('rede');
     this.peds.update(dt, this.camera, this.player);
     mark('pedestres');
@@ -589,6 +597,7 @@ export class Game {
     const { NetworkClient } = await import('../net/NetworkClient');
     this.net = new NetworkClient(endpoint, this.hud);
     this.net.crowd = this.peds.crowd;
+    this.graffiti.attachNet(this.net);
     this.scene.add(this.net.group);
     (window as any).__pvRemotes = () => this.net?.remotesInfo();
     this.net.onSpawn = (sp) => {
@@ -682,7 +691,7 @@ export class Game {
   private pendingEnter: string | null = null;
 
   private updateMovement(dt: number) {
-    const ax = this.input.moveAxis();
+    const ax = this.graffiti.editing ? { x: 0, y: 0 } : this.input.moveAxis(); // desenhando: parado
     const [fx, fz] = this.cam.forward();
     if (this.autopilot) {
       const dx = this.autopilot.x - this.player.x, dz = this.autopilot.z - this.player.z;
@@ -704,7 +713,7 @@ export class Game {
         if (near) {
           if (this.mpOnline) { this.pendingEnter = near.state.id; this.net!.requestEnter(near.state.id); this.flash(`Entrando… (aguardando o servidor)`); }
           else this.mountLocal(near);
-        }
+        } else this.graffiti.tryOpen(this.player); // sem veículo perto: parede/tapume/chão autorizado
       }
     }
     if (this.avatar.isDown) {
@@ -765,7 +774,7 @@ export class Game {
       }
       this.avatar.update(this.player, dt);
       const near = this.rideables.nearest(this.player.x, this.player.z);
-      this.prompt.textContent = this.pendingEnter ? 'Aguardando o servidor…' : near ? `E — USAR ${near.def.label.toUpperCase()}` : '';
+      this.prompt.textContent = this.pendingEnter ? 'Aguardando o servidor…' : near ? `E — USAR ${near.def.label.toUpperCase()}` : this.graffiti.promptText();
     }
     this.rideables.sync(this.camera.position);
     this.prompt.classList.toggle('show', !!this.prompt.textContent);
@@ -821,6 +830,9 @@ export class Game {
   debugApi() {
     return {
       setShot: (n: string) => this.setShot(n),
+      /** QA: grafites conhecidos por este cliente (estado, autor, bytes, tile) e ganchos (superfícies próximas, editor…) */
+      graffiti: () => this.graffiti.info(),
+      gf: this.graffiti.qa,
       /** QA: intervalos dos quadros renderizados desde a última chamada */
       takeFrames: () => this.frameLog.splice(0),
       /** QA: altura do chão sob o jogador e alturas do personagem (contato com o chão) */

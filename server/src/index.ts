@@ -4,6 +4,7 @@
  *
  * Variáveis: PORT (2567) · HOST (127.0.0.1) · COLYSEUS_LATENCY (RTT simulado, ms) · PV_JITTER (ms) · PV_LOSS (0–1)
  *            PV_METRICS=1 (log a cada 5 s) · PV_EVENT · PV_SEED · PV_AOI (m) · PV_VEH_RESET_MS (retorno à vaga)
+ *            grafite: PV_GRAFFITI_FILE · PV_GRAFFITI_STORE=memory · PV_GRAFFITI_TTL_MS · PV_GRAFFITI_REPORTS · PV_ADMIN_TOKEN (docs/GRAFFITI.md)
  */
 import { createServer } from 'node:http';
 import { Server } from '@colyseus/core';

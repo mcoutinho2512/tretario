@@ -1,0 +1,72 @@
+{
+ "at": "2026-10-16T20:19:36.601Z",
+ "base": {
+  "heapMB": 165.7,
+  "textures": 134,
+  "calls": 561,
+  "cpuMs": 3.578,
+  "gpuMs": 13,
+  "tiles": 0,
+  "pages": 0,
+  "visible": 0,
+  "rasterized": 0,
+  "gpuBytes": 0,
+  "tileBytes": 174763
+ },
+ "um": {
+  "stress": {
+   "n": 1,
+   "avgBytes": 349,
+   "tiles": 1,
+   "pages": 1,
+   "visible": 1,
+   "rasterized": 1,
+   "gpuBytes": 5592405
+  },
+  "heapMB": 166.3,
+  "textures": 135,
+  "calls": 563,
+  "cpuMs": 3.784,
+  "gpuMs": 11.957,
+  "tiles": 1,
+  "pages": 1,
+  "visible": 1,
+  "rasterized": 1,
+  "gpuBytes": 5592405,
+  "tileBytes": 174763
+ },
+ "cem": {
+  "stress": {
+   "n": 99,
+   "avgBytes": 350,
+   "tiles": 100,
+   "pages": 4,
+   "visible": 100,
+   "rasterized": 100,
+   "gpuBytes": 22369620
+  },
+  "heapMB": 166.9,
+  "textures": 138,
+  "calls": 569,
+  "cpuMs": 3.733,
+  "gpuMs": 11.118,
+  "tiles": 100,
+  "pages": 4,
+  "visible": 100,
+  "rasterized": 100,
+  "gpuBytes": 22369620,
+  "tileBytes": 174763
+ },
+ "porGrafite": {
+  "conteudoBytes": 350,
+  "gpuTileKB": 171,
+  "heapKB": 5.9
+ },
+ "por100": {
+  "gpuMB": 22.4,
+  "paginas": 4,
+  "tiles": 100,
+  "heapMB": 1.2,
+  "drawCallsExtra": 8
+ }
+}

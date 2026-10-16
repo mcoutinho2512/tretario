@@ -59,6 +59,7 @@ apesar de estarem num pacote rotulado CC0) e `toigo_maga_hat` (conteúdo políti
 | Central do Brasil, Candelária, Palácio Duque de Caxias | `src/world/landmarks/*` (+ footprint OSM) | landmarks |
 | Personagem procedural antigo | `src/characters/CharacterMesh.ts` | **apenas reserva** (falha de carregamento, `?avatar=classic`) |
 | Mostrador do relógio, ícone | canvas/SVG | UI e landmark |
+| Grafites (traços, símbolos coração/estrela/seta/paz/círculo/sol), textura do tapume | canvas/Path2D em `src/graffiti/raster.ts` e `GraffitiRenderer.ts` — sem arquivo de asset; texto com as fontes do sistema | pichação (rodada 7) |
 
 Veículos, vegetação, mobiliário, materiais de prédios/chão e landmarks da rodada 5: ver as seções acrescentadas
 pelas respectivas passadas (`docs/licenses/*.md`).

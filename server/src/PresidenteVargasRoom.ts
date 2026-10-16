@@ -8,8 +8,11 @@
  *               de jogadores (carro, moto, bicicleta, patinete), estacionados até alguém usar
  *  interesse    grade espacial (SpatialGrid) + StateView por cliente: os AOI_MAX jogadores mais próximos a ≤ AOI_RADIUS
  *               com estado completo (20 Hz); o resto da área vai como multidão compacta ("crowd", 2 Hz). Veículos também pela grade
+ *  grafite      server/src/graffiti: gf_new validado (superfície autorizada, alcance, conteúdo, cota), interesse por
+ *               superfície, moderação e persistência (JSON local em dev) — docs/GRAFFITI.md
  *  rede adversa PV_JITTER / PV_LOSS (ms / 0–1) além de COLYSEUS_LATENCY (RTT nativo)
  */
+import { fileURLToPath } from 'node:url';
 import { Room, type Client } from '@colyseus/core';
 import { StateView } from '@colyseus/schema';
 import { WorldState, NetPlayer, NetVehicle } from './state.ts';
@@ -20,6 +23,8 @@ import { RULES, STATUS, VEHICLE_BOX, VEHICLE_STATE, canPush, canEnter, impactAll
 import { metrics } from './metrics.ts';
 import { SpatialGrid, selectInterest, selectInterestSlots, InterestScratch, makeSlotView, type SlotView } from '../../src/net/spatialGrid.ts';
 import { CrowdTable } from '../../src/net/crowdCodec.ts';
+import { GraffitiService, sanitizeClientId } from './graffiti/GraffitiService.ts';
+import { JsonFileGraffitiStore, MemoryGraffitiStore } from './graffiti/store.ts';
 import { ACTION_RULES, applyAction, applyProp, cancelsOnMove, onceFinished, validateAction, validateProp, type ActionActor } from '../../src/social/actionRules.ts';
 
 const AOI_RADIUS = Number(process.env.PV_AOI ?? 220); // m — jogadores/veículos visíveis
@@ -114,9 +119,21 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     prop: (client: Client, m: { p?: unknown; d?: unknown }) => this.onProp(client, m),
     appearance: (client: Client, opts: Partial<JoinOptions>) => {
       const p = this.state.players.get(client.sessionId);
-      if (p && opts) this.applyAppearance(p, opts);
+      if (p && opts) { this.applyAppearance(p, opts); this.graffiti.rename(client.sessionId, p.name); }
     },
+    // pichação/grafite (server/src/graffiti): o desenho em andamento é local — só chega aqui o grafite pronto
+    gf_new: (client: Client, m: unknown) => client.send('gf_res', this.graffiti.create(client.sessionId, m, this.gfAuthor(client.sessionId))),
+    gf_report: (client: Client, m: { i?: unknown }) => client.send('gf_res', this.graffiti.report(client.sessionId, m?.i)),
+    gf_admin: (client: Client, m: unknown) => client.send('gf_res', this.graffiti.adminMessage(client.sessionId, m)),
   };
+
+  /** grafites: autoridade, interesse, moderação e persistência (JSON local em dev; PV_GRAFFITI_STORE=memory para testes) */
+  private graffiti!: GraffitiService;
+  private gfPos = (sid: string) => { const r = this.rt.get(sid); return r ? { x: r.last.x, z: r.last.z } : undefined; };
+  private gfAuthor(sid: string) {
+    const p = this.state.players.get(sid), r = this.rt.get(sid);
+    return { x: r?.last.x ?? 0, z: r?.last.z ?? 0, ok: !!p && !!r && p.status === STATUS.OK && !p.vehicle };
+  }
 
   onCreate(options: { eventId?: string } = {}) {
     const W = world();
@@ -137,12 +154,17 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
       this.vehIds.push(s.id);
     }
     this.rebuildVehicleGrid();
+    const gfStore = process.env.PV_GRAFFITI_STORE === 'memory' ? new MemoryGraffitiStore() : new JsonFileGraffitiStore(process.env.PV_GRAFFITI_FILE ?? fileURLToPath(new URL('../data/graffiti.json', import.meta.url)));
+    this.graffiti = new GraffitiService(W.graffitiSurfaces, gfStore, { radius: Number(process.env.PV_GRAFFITI_AOI ?? 120), adminToken: process.env.PV_ADMIN_TOKEN ?? '' });
+    void this.graffiti.init();
     this.patchRate = 50; // 20 Hz
     this.setSimulationInterval((dt) => this.tick(dt), 100); // 10 Hz
     const kinds: Record<string, number> = {};
     this.state.vehicles.forEach((v) => { kinds[v.kind] = (kinds[v.kind] ?? 0) + 1; });
     console.log(`[room] ${this.roomId} evento=${ev} (interação: ${this.interactionPolicy}) sem trânsito NPC · veículos ${JSON.stringify(kinds)} AOI=${AOI_RADIUS} m`);
   }
+
+  async onDispose() { await this.graffiti?.flushStore(); }
 
   /** mede a codificação/envio dos patches (StateView por cliente): é o custo que cresce com a multidão */
   broadcastPatch() {
@@ -196,6 +218,8 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     // veículos: grade (AOI) e retorno à vaga dos abandonados (1 Hz)
     this.vehAcc += dtMs;
     if (this.vehAcc >= 1000) { this.vehAcc = 0; this.rebuildVehicleGrid(); this.resetAbandoned(now); }
+    // grafites: área de interesse por superfície (fatiada, 2 Hz por cliente) e expiração (1 Hz)
+    this.graffiti.update(now, this.gfPos);
     metrics.tick(performance.now() - t0, this.state.players.size);
   }
 
@@ -348,6 +372,8 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     this.clients2.set(client.sessionId, client);
     this.grid.insert(r.slot, p.x, p.z);
     this.updateInterest(0, 1, client.sessionId); // só o novo cliente; os demais o encontram na sua fatia
+    this.graffiti.join(client.sessionId, p.name, sanitizeClientId(options?.cid, client.sessionId), client);
+    this.graffiti.update(Date.now(), this.gfPos, client.sessionId); // quem entra já recebe os grafites próximos
     client.send('spawn', { x: p.x, y: p.y, z: p.z, heading: p.heading, sessionId: client.sessionId, policy: this.interactionPolicy, seed: this.state.seed });
     metrics.join(client.sessionId);
     console.log(`[room] entrou ${client.sessionId} (${p.name}, ${p.body}) — total ${this.state.players.size}`);
@@ -372,6 +398,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
       this.slotIds[slot] = '';
       this.freeSlots.push(slot);
     }
+    this.graffiti.leave(client.sessionId);
     this.state.players.delete(client.sessionId);
     this.rt.delete(client.sessionId);
     this.clients2.delete(client.sessionId);

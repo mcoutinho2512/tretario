@@ -38,6 +38,11 @@ export interface JoinOptions {
   acc?: number;
   /** máximo de jogadores com estado completo que ESTE cliente quer receber (preset; o servidor limita a PV_AOI_MAX) */
   aoiMax?: number;
+  /**
+   * id ANÔNIMO e estável do aparelho (UUID no localStorage) — autoria de grafites, cota e denúncias.
+   * Não é identidade real (não há login ainda): sessão + nome + este id. Ver docs/GRAFFITI.md.
+   */
+  cid?: string;
   /** SOMENTE servidor em modo de teste (PV_TEST=1): ponto de spawn para cenas reproduzíveis */
   testSpawn?: { x: number; z: number };
 }
