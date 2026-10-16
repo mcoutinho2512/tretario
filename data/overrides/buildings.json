@@ -53,5 +53,210 @@
       "source": "Panteão de Caxias: mausoléu/monumento em granito sob a estátua equestre (OSM historic=monument); sem janelas",
       "confidence": "media"
     }
+  },
+  "byId": {
+    "_doc": "Edifícios de reconhecimento (rodada 6) por id OSM (way/relação) — ver docs/RECOGNITION_BUILDINGS.md. 'model' escolhe o construtor em src/world/landmarks/models.ts.",
+    "326571730": {
+      "model": "paulo_frontin:0",
+      "source": "OSM way 326571730 (name=Edifício Paulo de Frontin, loc_name=Balança Mas Não Cai, building:levels=22); fotos Валерий Дед/panoramio (CC BY 3.0) e dfmarx 2007 (CC BY-SA 2.0): lâmina perpendicular à avenida, ponta vermelha, painel na cobertura",
+      "confidence": "media"
+    },
+    "930538349": {
+      "model": "paulo_frontin:1",
+      "source": "OSM way 930538349 (building:levels=22, contíguo ao 326571730); mesmas fotos: bloco sul cinza-esverdeado",
+      "confidence": "media"
+    },
+    "30842768": {
+      "model": "biblioteca_parque",
+      "height": 15,
+      "source": "OSM way 30842768 (Av. Pres. Vargas 1261); Thomaz Silva/Agência Brasil 2015 (CC BY 3.0 BR): pilares afunilados brancos, 2 níveis de vidro, beiral, pórtico vermelho; altura ~15 m por proporção (OSM sem altura)",
+      "confidence": "media"
+    },
+    "1001914831": {
+      "model": "pv1111",
+      "source": "OSM way 1001914831 (Av. Pres. Vargas 1111, 55 m, 16 pav.); torre de vidro azulado com aletas brancas ao fundo da foto da Biblioteca Parque (Agência Brasil 2015, CC BY 3.0 BR)",
+      "confidence": "media"
+    },
+    "330383010": {
+      "model": "embratel",
+      "source": "OSM way 330383010 (Embratel, Av. Pres. Vargas 1012, 55 m); Antonio Schubert 2011 (CC BY-SA 2.0): faixas horizontais + letreiro; Eduardo P 2011 (CC BY-SA 3.0): colunata de granito do nº 1012",
+      "confidence": "media"
+    },
+    "270244540": {
+      "model": "banco_central",
+      "height": 129.7,
+      "source": "OSM way 270244540 (Banco Central, Av. Pres. Vargas 730, sem altura); SKYDB/Structurae 129,67 m, 25 pav., 1984; Diário do Rio (130 m, 26 pav.); Fulviusbsas, AvPresVargas1 (2017-06-01, Wikimedia Commons, CC BY-SA 4.0): caixas de vidro escuro defasadas sobre núcleo branco",
+      "confidence": "alta"
+    },
+    "1052032450": {
+      "model": "presidente_kennedy",
+      "source": "OSM way 1052032450 (parte do lote de Av. Pres. Vargas 633, 76 m, ponta curva na Uruguaiana); Eduardo P, Edifício Presidente Kennedy (2012, CC BY-SA 3.0); endereço nº 633 por cadastro comercial",
+      "confidence": "media"
+    },
+    "433273588": {
+      "model": "belacap:letreiro",
+      "source": "OSM way 433273588 (Universidade Estácio, official_name=Edifício Belacap, Av. Pres. Vargas 642, 75 m); Fulviusbsas, AvPresVargas1 (2017-06-01, Wikimedia Commons, CC BY-SA 4.0): grelha bege + letreiro azul",
+      "confidence": "media"
+    },
+    "433274237": {
+      "model": "belacap",
+      "source": "OSM way 433274237 (75 m, contíguo ao Belacap entre ele e o Banco Central); Fulviusbsas, AvPresVargas1 (2017-06-01, Wikimedia Commons, CC BY-SA 4.0): mesma grelha bege na sequência após o BC",
+      "confidence": "baixa"
+    },
+    "433273654": {
+      "model": "pa:pilares:esquina",
+      "source": "OSM way 433273654 (altura OSM, lado norte entre Uruguaiana e Rio Branco); Fulviusbsas, AvPresVargas1 (2017-06-01, Wikimedia Commons, CC BY-SA 4.0): torre bege de pilastras com quina para a Uruguaiana, logo após o Belacap; tipologia PA (galeria, empenas cegas) confirmada por IMS, Avenida Presidente Vargas; ao fundo, a Igreja da Candelária (anos 1950, domínio público)",
+      "confidence": "baixa"
+    },
+    "433273538": {
+      "model": "pa:faixas",
+      "source": "OSM way 433273538 (altura OSM, lado norte entre Uruguaiana e Rio Branco); Fulviusbsas, AvPresVargas1 (2017-06-01, Wikimedia Commons, CC BY-SA 4.0): lâmina branca de faixas horizontais na sequência; tipologia PA (galeria, empenas cegas) confirmada por IMS, Avenida Presidente Vargas; ao fundo, a Igreja da Candelária (anos 1950, domínio público)",
+      "confidence": "baixa"
+    },
+    "433274872": {
+      "model": "pa:creme",
+      "source": "OSM way 433274872 (altura OSM, lado norte entre Uruguaiana e Rio Branco); Fulviusbsas, AvPresVargas1 (2017-06-01, Wikimedia Commons, CC BY-SA 4.0): paredão contínuo de lâminas claras com janelas pontuais e ar-condicionado; tipologia PA (galeria, empenas cegas) confirmada por IMS, Avenida Presidente Vargas; ao fundo, a Igreja da Candelária (anos 1950, domínio público)",
+      "confidence": "baixa"
+    },
+    "433275194": {
+      "model": "pa:creme",
+      "source": "OSM way 433275194 (altura OSM, lado norte entre Uruguaiana e Rio Branco); Fulviusbsas, AvPresVargas1 (2017-06-01, Wikimedia Commons, CC BY-SA 4.0): paredão contínuo de lâminas claras com janelas pontuais e ar-condicionado; tipologia PA (galeria, empenas cegas) confirmada por IMS, Avenida Presidente Vargas; ao fundo, a Igreja da Candelária (anos 1950, domínio público)",
+      "confidence": "baixa"
+    },
+    "433275011": {
+      "model": "pa:creme",
+      "source": "OSM way 433275011 (altura OSM, lado norte entre Uruguaiana e Rio Branco); Fulviusbsas, AvPresVargas1 (2017-06-01, Wikimedia Commons, CC BY-SA 4.0): paredão contínuo de lâminas claras com janelas pontuais e ar-condicionado; tipologia PA (galeria, empenas cegas) confirmada por IMS, Avenida Presidente Vargas; ao fundo, a Igreja da Candelária (anos 1950, domínio público)",
+      "confidence": "baixa"
+    },
+    "433273364": {
+      "model": "pa:creme",
+      "source": "OSM way 433273364 (altura OSM, lado norte entre Uruguaiana e Rio Branco); Fulviusbsas, AvPresVargas1 (2017-06-01, Wikimedia Commons, CC BY-SA 4.0): paredão contínuo de lâminas claras com janelas pontuais e ar-condicionado; tipologia PA (galeria, empenas cegas) confirmada por IMS, Avenida Presidente Vargas; ao fundo, a Igreja da Candelária (anos 1950, domínio público)",
+      "confidence": "baixa"
+    },
+    "433273485": {
+      "model": "pa:creme",
+      "source": "OSM way 433273485 (altura OSM, lado norte entre Uruguaiana e Rio Branco); Fulviusbsas, AvPresVargas1 (2017-06-01, Wikimedia Commons, CC BY-SA 4.0): paredão contínuo de lâminas claras com janelas pontuais e ar-condicionado; tipologia PA (galeria, empenas cegas) confirmada por IMS, Avenida Presidente Vargas; ao fundo, a Igreja da Candelária (anos 1950, domínio público)",
+      "confidence": "baixa"
+    },
+    "433274377": {
+      "model": "pa:creme",
+      "source": "OSM way 433274377 (altura OSM, lado norte entre Uruguaiana e Rio Branco); Fulviusbsas, AvPresVargas1 (2017-06-01, Wikimedia Commons, CC BY-SA 4.0): paredão contínuo de lâminas claras com janelas pontuais e ar-condicionado; tipologia PA (galeria, empenas cegas) confirmada por IMS, Avenida Presidente Vargas; ao fundo, a Igreja da Candelária (anos 1950, domínio público)",
+      "confidence": "baixa"
+    },
+    "433274597": {
+      "model": "pa:creme",
+      "source": "OSM way 433274597 (altura OSM, lado norte entre Uruguaiana e Rio Branco); Fulviusbsas, AvPresVargas1 (2017-06-01, Wikimedia Commons, CC BY-SA 4.0): paredão contínuo de lâminas claras com janelas pontuais e ar-condicionado; tipologia PA (galeria, empenas cegas) confirmada por IMS, Avenida Presidente Vargas; ao fundo, a Igreja da Candelária (anos 1950, domínio público)",
+      "confidence": "baixa"
+    },
+    "433273594": {
+      "model": "pa:creme",
+      "source": "OSM way 433273594 (altura OSM, lado norte entre Uruguaiana e Rio Branco); Fulviusbsas, AvPresVargas1 (2017-06-01, Wikimedia Commons, CC BY-SA 4.0): paredão contínuo de lâminas claras com janelas pontuais e ar-condicionado; tipologia PA (galeria, empenas cegas) confirmada por IMS, Avenida Presidente Vargas; ao fundo, a Igreja da Candelária (anos 1950, domínio público)",
+      "confidence": "baixa"
+    },
+    "433274392": {
+      "model": "pa:creme",
+      "source": "OSM way 433274392 (altura OSM, lado norte entre Uruguaiana e Rio Branco); Fulviusbsas, AvPresVargas1 (2017-06-01, Wikimedia Commons, CC BY-SA 4.0): paredão contínuo de lâminas claras com janelas pontuais e ar-condicionado; tipologia PA (galeria, empenas cegas) confirmada por IMS, Avenida Presidente Vargas; ao fundo, a Igreja da Candelária (anos 1950, domínio público)",
+      "confidence": "baixa"
+    },
+    "433273546": {
+      "model": "pa:creme",
+      "source": "OSM way 433273546 (altura OSM, lado norte entre Uruguaiana e Rio Branco); Fulviusbsas, AvPresVargas1 (2017-06-01, Wikimedia Commons, CC BY-SA 4.0): paredão contínuo de lâminas claras com janelas pontuais e ar-condicionado; tipologia PA (galeria, empenas cegas) confirmada por IMS, Avenida Presidente Vargas; ao fundo, a Igreja da Candelária (anos 1950, domínio público)",
+      "confidence": "baixa"
+    },
+    "433275108": {
+      "model": "pa:creme",
+      "source": "OSM way 433275108 (altura OSM, lado norte entre Uruguaiana e Rio Branco); Fulviusbsas, AvPresVargas1 (2017-06-01, Wikimedia Commons, CC BY-SA 4.0): paredão contínuo de lâminas claras com janelas pontuais e ar-condicionado; tipologia PA (galeria, empenas cegas) confirmada por IMS, Avenida Presidente Vargas; ao fundo, a Igreja da Candelária (anos 1950, domínio público)",
+      "confidence": "baixa"
+    },
+    "433274998": {
+      "model": "pa:creme",
+      "source": "OSM way 433274998 (altura OSM, lado norte entre Uruguaiana e Rio Branco); Fulviusbsas, AvPresVargas1 (2017-06-01, Wikimedia Commons, CC BY-SA 4.0): paredão contínuo de lâminas claras com janelas pontuais e ar-condicionado; tipologia PA (galeria, empenas cegas) confirmada por IMS, Avenida Presidente Vargas; ao fundo, a Igreja da Candelária (anos 1950, domínio público)",
+      "confidence": "baixa"
+    },
+    "1052039664": {
+      "model": "pa:varandas:esquina",
+      "source": "OSM way 1052039664 (IPP/OSM, altura OSM, lado sul entre Rio Branco e Uruguaiana); Fulviusbsas, AvPresVargas2 (2017-09-14, Wikimedia Commons, CC BY-SA 4.0): lâmina \"Santander\" na esquina da Rio Branco: loggias e pilotis afunilados",
+      "confidence": "media"
+    },
+    "1052039681": {
+      "model": "pa:tijolo",
+      "source": "OSM way 1052039681 (IPP/OSM, altura OSM, lado sul entre Rio Branco e Uruguaiana); Fulviusbsas, AvPresVargas2 (2017-09-14, Wikimedia Commons, CC BY-SA 4.0): torre marrom de pilastras com coroamento escalonado, vizinha do Santander",
+      "confidence": "media"
+    },
+    "1052039676": {
+      "model": "pa:creme",
+      "source": "OSM way 1052039676 (IPP/OSM, altura OSM, lado sul entre Rio Branco e Uruguaiana); Fulviusbsas, AvPresVargas2 (2017-09-14, Wikimedia Commons, CC BY-SA 4.0): lâminas brancas com ar-condicionado",
+      "confidence": "baixa"
+    },
+    "1052039647": {
+      "model": "pa:creme",
+      "source": "OSM way 1052039647 (IPP/OSM, altura OSM, lado sul entre Rio Branco e Uruguaiana); Fulviusbsas, AvPresVargas2 (2017-09-14, Wikimedia Commons, CC BY-SA 4.0): idem",
+      "confidence": "baixa"
+    },
+    "1052039660": {
+      "model": "pa:creme",
+      "source": "OSM way 1052039660 (IPP/OSM, altura OSM, lado sul entre Rio Branco e Uruguaiana); Fulviusbsas, AvPresVargas2 (2017-09-14, Wikimedia Commons, CC BY-SA 4.0): idem",
+      "confidence": "baixa"
+    },
+    "1052039694": {
+      "model": "pa:creme",
+      "source": "OSM way 1052039694 (IPP/OSM, altura OSM, lado sul entre Rio Branco e Uruguaiana); Fulviusbsas, AvPresVargas2 (2017-09-14, Wikimedia Commons, CC BY-SA 4.0): idem",
+      "confidence": "baixa"
+    },
+    "1052039673": {
+      "model": "pa:creme",
+      "source": "OSM way 1052039673 (IPP/OSM, altura OSM, lado sul entre Rio Branco e Uruguaiana); Fulviusbsas, AvPresVargas2 (2017-09-14, Wikimedia Commons, CC BY-SA 4.0): idem",
+      "confidence": "baixa"
+    },
+    "1052039635": {
+      "model": "pa:creme",
+      "source": "OSM way 1052039635 (IPP/OSM, altura OSM, lado sul entre Rio Branco e Uruguaiana); Fulviusbsas, AvPresVargas2 (2017-09-14, Wikimedia Commons, CC BY-SA 4.0): idem",
+      "confidence": "baixa"
+    },
+    "1052039658": {
+      "model": "pa:creme",
+      "source": "OSM way 1052039658 (IPP/OSM, altura OSM, lado sul entre Rio Branco e Uruguaiana); Fulviusbsas, AvPresVargas2 (2017-09-14, Wikimedia Commons, CC BY-SA 4.0): idem",
+      "confidence": "baixa"
+    },
+    "1052039666": {
+      "model": "pa:creme:esquina",
+      "source": "OSM way 1052039666 (IPP/OSM, altura OSM, lado sul entre Rio Branco e Uruguaiana); Fulviusbsas, AvPresVargas2 (2017-09-14, Wikimedia Commons, CC BY-SA 4.0): esquina com a Uruguaiana (Rua Uruguaiana 168)",
+      "confidence": "media"
+    },
+    "432943578": {
+      "model": "pa:coroa",
+      "source": "OSM way 432943578 (76 m, lado sul antes da Candelária); IMS, Avenida Presidente Vargas; ao fundo, a Igreja da Candelária (anos 1950, domínio público): torres brancas com coroamento escalonado e galeria de pilares quadrados",
+      "confidence": "media"
+    },
+    "432943760": {
+      "model": "pa:coroa",
+      "source": "OSM way 432943760 (76 m, lado sul antes da Candelária); IMS, Avenida Presidente Vargas; ao fundo, a Igreja da Candelária (anos 1950, domínio público): torres brancas com coroamento escalonado e galeria de pilares quadrados",
+      "confidence": "media"
+    },
+    "432943573": {
+      "model": "pa:coroa",
+      "source": "OSM way 432943573 (44 m, lado sul, junto à Candelária); IMS, Avenida Presidente Vargas; ao fundo, a Igreja da Candelária (anos 1950, domínio público): blocos mais baixos com coroamento escalonado no fim da avenida (fachada individual não verificada)",
+      "confidence": "baixa"
+    },
+    "432943877": {
+      "model": "pa:coroa",
+      "source": "OSM way 432943877 (44 m, lado sul, junto à Candelária); IMS, Avenida Presidente Vargas; ao fundo, a Igreja da Candelária (anos 1950, domínio público): blocos mais baixos com coroamento escalonado no fim da avenida (fachada individual não verificada)",
+      "confidence": "baixa"
+    },
+    "432943742": {
+      "model": "pa:coroa",
+      "source": "OSM way 432943742 (44 m, lado sul, junto à Candelária); IMS, Avenida Presidente Vargas; ao fundo, a Igreja da Candelária (anos 1950, domínio público): blocos mais baixos com coroamento escalonado no fim da avenida (fachada individual não verificada)",
+      "confidence": "baixa"
+    },
+    "432943746": {
+      "model": "pa:coroa",
+      "source": "OSM way 432943746 (44 m, lado sul, junto à Candelária); IMS, Avenida Presidente Vargas; ao fundo, a Igreja da Candelária (anos 1950, domínio público): blocos mais baixos com coroamento escalonado no fim da avenida (fachada individual não verificada)",
+      "confidence": "baixa"
+    },
+    "432943525": {
+      "model": "pa:coroa:esquina",
+      "source": "OSM way 432943525 (44 m, lado sul, junto à Candelária); IMS, Avenida Presidente Vargas; ao fundo, a Igreja da Candelária (anos 1950, domínio público): blocos mais baixos com coroamento escalonado no fim da avenida (fachada individual não verificada)",
+      "confidence": "baixa"
+    }
   }
 }
