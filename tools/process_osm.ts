@@ -224,6 +224,24 @@ function inLandmark(c: XZ): boolean {
   return landmarkFps.some((fp) => pointInPolygon(c, fp));
 }
 
+// arestas voltadas para a avenida: ponto médio perto do eixo e normal externa apontando para ele
+function arcadeEdgesOf(outer: XZ[]): number[] | undefined {
+  const ring = openRing(outer);
+  const edges: number[] = [];
+  for (let i = 0; i < ring.length; i++) {
+    const a = ring[i], c2 = ring[(i + 1) % ring.length];
+    const len = Math.hypot(c2[0] - a[0], c2[1] - a[1]);
+    if (len < 6) continue;
+    const mid: XZ = [(a[0] + c2[0]) / 2, (a[1] + c2[1]) / 2];
+    let nx = (c2[1] - a[1]) / len, nz = -(c2[0] - a[0]) / len;
+    if (pointInPolygon([mid[0] + nx * 0.5, mid[1] + nz * 0.5], ring)) { nx = -nx; nz = -nz; }
+    const dMid = distPointPolyline(mid, pvAxis);
+    const dOut = distPointPolyline([mid[0] + nx * 3, mid[1] + nz * 3], pvAxis);
+    if (dMid < 55 && dOut < dMid - 1.5) edges.push(i);
+  }
+  return edges.length ? edges : undefined;
+}
+
 function addBuilding(id: number, outer: XZ[], holes: XZ[][], t: Record<string, string>) {
   outer = openRing(outer);
   if (outer.length < 3) return;
@@ -244,24 +262,7 @@ function addBuilding(id: number, outer: XZ[], holes: XZ[][], t: Record<string, s
   const seed = hash32(id);
   // galeria/arcada no térreo: prédios altos com fachada para a Presidente Vargas (padrão PA dos anos 40)
   const arcade = !canopy && h > 25 && distPv < 75 && outer.some((p) => distPointPolyline(p, pvAxis) < 52);
-  // arestas voltadas para a avenida: ponto médio perto do eixo e normal externa apontando para ele
-  let arcadeEdges: number[] | undefined;
-  if (arcade) {
-    const ring = openRing(outer);
-    arcadeEdges = [];
-    for (let i = 0; i < ring.length; i++) {
-      const a = ring[i], c2 = ring[(i + 1) % ring.length];
-      const len = Math.hypot(c2[0] - a[0], c2[1] - a[1]);
-      if (len < 6) continue;
-      const mid: XZ = [(a[0] + c2[0]) / 2, (a[1] + c2[1]) / 2];
-      let nx = (c2[1] - a[1]) / len, nz = -(c2[0] - a[0]) / len;
-      if (pointInPolygon([mid[0] + nx * 0.5, mid[1] + nz * 0.5], ring)) { nx = -nx; nz = -nz; }
-      const dMid = distPointPolyline(mid, pvAxis);
-      const dOut = distPointPolyline([mid[0] + nx * 3, mid[1] + nz * 3], pvAxis);
-      if (dMid < 55 && dOut < dMid - 1.5) arcadeEdges.push(i);
-    }
-    if (!arcadeEdges.length) arcadeEdges = undefined;
-  }
+  const arcadeEdges = arcade ? arcadeEdgesOf(outer) : undefined;
   buildings.push({
     id,
     poly: { outer: outer.map((p) => [round2(p[0]), round2(p[1])] as XZ), holes: holes.length ? holes.map((r) => openRing(r)) : undefined },
@@ -372,13 +373,20 @@ for (const r of ds.rels.values()) {
 }
 // correções documentadas (data/overrides/buildings.json)
 {
-  const ov = JSON.parse(readFileSync('data/overrides/buildings.json', 'utf8')) as { byName: Record<string, { height?: number; style?: string; tint?: number; plain?: boolean; model?: string }> };
+  type Ov = { height?: number; style?: string; tint?: number; plain?: boolean; model?: string; arcade?: boolean };
+  const ov = JSON.parse(readFileSync('data/overrides/buildings.json', 'utf8')) as { byName: Record<string, Ov>; byId?: Record<string, Ov> };
   const styleMap: Record<string, FacadeStyle> = { eclectic: FacadeStyle.Eclectic, institutional: FacadeStyle.Institutional, artdeco: FacadeStyle.ArtDecoPiers, office: FacadeStyle.ModernOffice, classic: FacadeStyle.ClassicPunched };
   let applied = 0;
+  const idsSeen = new Set<string>();
   for (const b of buildings) {
-    const o = b.name ? ov.byName[b.name] : undefined;
+    // byId (id OSM do way/relação) tem precedência: edifícios de reconhecimento sem nome no OSM
+    const byId = ov.byId?.[String(b.id)];
+    if (byId) idsSeen.add(String(b.id));
+    const o = byId ?? (b.name ? ov.byName[b.name] : undefined);
     if (!o) continue;
     if (o.height) { b.height = o.height; b.heightSource = 'estimate'; b.levels = Math.round(o.height / 3.8); (b as any).override = true; }
+    // galeria recalculada (ex.: altura OSM ausente impedia a regra automática)
+    if (o.arcade) b.arcadeEdges = arcadeEdgesOf(b.poly.outer);
     if (o.style) b.style = styleMap[o.style] ?? b.style;
     if (o.tint !== undefined) b.tint = o.tint;
     if (o.plain) b.plain = true;
@@ -387,6 +395,8 @@ for (const r of ds.rels.values()) {
     b.arcade = undefined;
     applied++;
   }
+  const missing = Object.keys(ov.byId ?? {}).filter((k) => !k.startsWith('_') && !idsSeen.has(k));
+  if (missing.length) throw new Error(`overrides byId sem edifício correspondente: ${missing.join(', ')}`);
   console.log(`[process] overrides aplicados: ${applied}`);
 }
 console.log(`[process] edifícios=${buildings.length} (substituídos por partes: ${partsByParent.size})`);

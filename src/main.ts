@@ -4,9 +4,11 @@
  * A prévia 3D do avatar (src/ui/AvatarPreview) usa o mesmo three.js e o mesmo personagem do jogo.
  */
 import './debug/memProbe'; // sondas de memória (WASM; GPU com ?mem=1) — antes de qualquer módulo WASM/WebGL
+performance.mark('pv:script');
 import './ui/style.css';
 import './ui/start.css';
-import { detectQuality, loadQualityChoice, saveQualityChoice, resolveQualityChoice, type QualityChoice } from './core/qualityChoice';
+import { deviceProfile } from './core/settings';
+import { loadQualityChoice, saveQualityChoice, resolveQualityChoice, type QualityChoice } from './core/qualityChoice';
 import {
   ACCESSORIES, BOTTOMS, DEFAULT_PLAYER_APPEARANCE, HAIR_OLD, HAIR_YOUNG, SHOES, SKIN_TONES, TOPS, randomAppearance,
   type Accessory, type BodyType, type CharacterAppearance,
@@ -18,7 +20,7 @@ const start = $('start'), loading = $('loading'), errorEl = $('error');
 const btn = $<HTMLButtonElement>('explore');
 const fill = $('bar-fill'), label = $('loading-label');
 const params = new URLSearchParams(location.search);
-const autostart = params.get('autostart') === '1';
+const autostart = params.get('autostart') === '1' || params.get('bench') === '1';
 
 const enginePromise = import('./core/Game');
 enginePromise.then(() => { btn.disabled = false; btn.querySelector('span')!.textContent = 'Explorar a avenida'; }).catch((e) => showError(e));
@@ -58,7 +60,8 @@ const saveLook = () => { store.set('pv3d.look', JSON.stringify(look)); store.set
 const saved = loadQualityChoice();
 const radios = Array.from(document.querySelectorAll<HTMLInputElement>('input[name=q]'));
 radios.forEach((r) => { r.checked = r.value === saved; });
-$('detected').textContent = `Automático detectou: ${({ low: 'Baixo', medium: 'Médio', high: 'Alto', ultra: 'Ultra' } as const)[detectQuality()]}`;
+$('detected').textContent = deviceProfile().label;
+requestAnimationFrame(() => performance.mark('pv:home'));
 
 const pops: [HTMLElement, HTMLElement][] = [[$('btn-settings'), $('settings-pop')], [$('btn-help'), $('help-pop')]];
 for (const [b, pop] of pops) {
@@ -134,6 +137,9 @@ function schedulePortraits() {
   }, 220);
 }
 
+// retratos estáticos (gerados por tools/qa/make_portraits.mjs): nada de baixar 4 personagens só para a home
+BODIES.forEach((b) => { const img = document.querySelector<HTMLImageElement>(`img[data-portrait=${b}]`); if (img) img.src = `/ui/portraits/${b}.webp`; });
+
 function changed(portraitsToo: boolean) {
   saveLook();
   renderSwatches();
@@ -169,7 +175,7 @@ if (!autostart) {
     .then(({ AvatarPreview }) => {
       preview = new AvatarPreview($<HTMLCanvasElement>('avatar-canvas'), look);
       void preview.ready.then(() => $('preview-loading').classList.add('hidden'));
-      schedulePortraits();
+      // retratos: imagens estáticas (public/ui/portraits); renderização ao vivo só depois que o jogador mexe nas cores
       (window as any).__pvStart = { preview, look: () => look };
     })
     .catch((e) => { console.warn('[prévia] indisponível', e); $('preview-loading').textContent = 'Prévia 3D indisponível neste navegador'; });
@@ -203,6 +209,7 @@ async function launch(choice: QualityChoice) {
     loading.classList.add('hidden');
     game.start();
     (window as any).__pv = game.debugApi();
+    if (params.get('bench') === '1') void import('./debug/bench').then((b) => b.runBench((window as any).__pv));
   } catch (e) {
     showError(e);
   }
@@ -214,7 +221,7 @@ btn.addEventListener('click', () => {
 });
 
 // automação/validação: ?autostart=1&quality=high
-if (autostart) {
+if (autostart || params.get('bench') === '1') {
   const q = (params.get('quality') ?? 'auto') as QualityChoice;
   enginePromise.then(() => launch(q));
 }

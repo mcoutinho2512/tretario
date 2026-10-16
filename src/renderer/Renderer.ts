@@ -42,8 +42,19 @@ export class GameRenderer {
     this.setPixelRatio();
   }
 
+  /** escala de resolução dinâmica (0,5–1) sobre o pixel ratio do preset */
+  resolutionScale = 1;
   private setPixelRatio() {
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, this.preset.pixelRatio));
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, this.preset.pixelRatio) * this.resolutionScale);
+  }
+
+  /** muda a escala de resolução (resolução dinâmica) sem recriar nada */
+  setResolutionScale(s: number) {
+    const v = Math.max(0.5, Math.min(1, s));
+    if (Math.abs(v - this.resolutionScale) < 0.01) return;
+    this.resolutionScale = v;
+    const size = this.renderer.getSize(new THREE.Vector2());
+    this.resize(size.x, size.y);
   }
 
   setup(scene: THREE.Scene, camera: THREE.PerspectiveCamera) {

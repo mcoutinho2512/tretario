@@ -10,3 +10,18 @@
   Cache-Control: public, max-age=0, must-revalidate
 /index.html
   Cache-Control: public, max-age=0, must-revalidate
+# Arquivo de colisão tem hash de conteúdo no nome → imutável
+/world/collision.*
+  Cache-Control: public, max-age=31536000, immutable
+# Modelos e texturas sem hash no nome (personagens, veículos, vegetação, landmarks, UI):
+# 1 dia em cache + revalidação barata por ETag (304) depois disso
+/characters/*
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+/vehicles/*
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+/vegetation/*
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+/landmarks/*
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+/ui/*
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
