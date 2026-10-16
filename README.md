@@ -3,7 +3,8 @@
 Reconstrução 3D navegável, renderizada **no navegador** (WebGL2 / Three.js), do corredor real
 **Central do Brasil → Avenida Presidente Vargas → Candelária**, no Centro do Rio de Janeiro.
 
-Esta etapa é só o **cenário**: não há multiplayer, política, NPCs, chat nem missões.
+Já tem pedestres e trânsito de ambiente e quatro tipos de avatar (homem, mulher, idoso, idosa). Multiplayer, contas e
+pagamentos estão planejados: veja [docs/ROADMAP.md](docs/ROADMAP.md), [docs/AUDIT.md](docs/AUDIT.md) e [docs/DECISIONS.md](docs/DECISIONS.md).
 
 ![Presidente Vargas olhando para a Candelária](docs/screenshots/mid.jpg)
 
@@ -58,6 +59,7 @@ Para testes e screenshots dá para forçar o horário: `http://localhost:5173/?t
 - `?time=HH:MM`: força a hora local do Rio
 - `?autostart=1&quality=low|medium|high|auto`: inicia direto, sem a tela inicial
 - `?shot=central|avenue|mid|candelaria`: posiciona o jogador num ponto de validação
+- `?avatar=homem|mulher|idoso|idosa`: escolhe o avatar
 
 ## Estrutura
 

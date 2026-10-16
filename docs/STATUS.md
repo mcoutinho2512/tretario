@@ -13,6 +13,21 @@ _Atualizado em 2026-10-15._
 | ![](screenshots/corredor_aereo.jpg) | ![](screenshots/noite.jpg) |
 | Vista aérea do corredor (debug) | Noite (horário real) |
 
+## Novidades (Fase 1 — vida na avenida)
+| | |
+|---|---|
+| ![](screenshots/transito.jpg) | ![](screenshots/pedestres.jpg) |
+| Trânsito nas faixas reais da Pres. Vargas | Pedestres NPC nas calçadas |
+
+- **Personagens com esqueleto real** (SkinnedMesh, 17 ossos, 1 draw call): **homem, mulher, idoso, idosa**,
+  com tons de pele, cabelo e roupas variados. Idosos andam mais devagar e com postura curvada. Escolha na tela inicial (`?avatar=`).
+- **Pedestres NPC**: 14 / 32 / 56 (BAIXO/MÉDIO/ALTO) ao redor do jogador. Andam só por calçadas, praças e canteiros, desviam
+  de prédios, uns dos outros e do jogador, e param às vezes. Têm LOD de animação e de sombra.
+- **Trânsito**: 24 / 48 / 80 veículos (carros, **táxis amarelos com faixa azul**, ônibus) nas **884 faixas geradas do OSM**
+  (269 na Pres. Vargas), no sentido real e com mão direita (testado). Seguem o veículo da frente, **param para o jogador**, acendem os faróis à noite.
+  O jogador não atravessa os veículos.
+- Custo medido (M5 Pro, sem vsync): +0,1 a 0,3 ms por frame. Ainda não há semáforos com ciclo: os veículos não param no vermelho (passo 1.5).
+
 ## O que funciona
 - `npm install && npm run dev` → http://localhost:5173 → tela inicial → **EXPLORAR** → spawn na Pres. Vargas,
   em frente à Central. A intro enquadra a torre do relógio e depois gira para a avenida.
@@ -42,7 +57,7 @@ _Atualizado em 2026-10-15._
 - **Presets** BAIXO/MÉDIO/ALTO + detecção automática; **DEBUG (F3)**; **minimapa (M)**; **pontos de validação**
   (32) no HUD.
 - **Bundle inicial ~9 KB**; motor carregado sob demanda; chunks com hash e cache imutável (`public/_headers`).
-- **Testes**: 24 automatizados (projeção, sol, presets, colisão/movimento, orientação das paredes,
+- **Testes**: 27 automatizados (incluindo faixas de tráfego e mão direita) (projeção, sol, presets, colisão/movimento, orientação das paredes,
   integridade e geografia dos dados). `npm run build` sem erros.
 
 ## FPS medido
@@ -74,7 +89,9 @@ Mobile (emulação de iPhone 14 no Chrome, BAIXO): 60 FPS, sem erros, joystick f
   **estimativas** (ver MAP_VALIDATION). Detalhamento artístico no Blender recomendado.
 - **Fachadas** procedurais: plausíveis, sem correspondência individual. Os prédios altos ainda ficam
   parecidos entre si (grade de janelas). Os prédios históricos nomeados não têm modelo próprio (classe B só no shader).
-- **Avatar** placeholder (primitivas). Trocar por personagem rigado em GLB.
+- **Personagens** procedurais estilizados (sem rosto detalhado/roupas com textura). Trocar por GLB rigado com o mesmo esqueleto.
+- Cada personagem usa uma textura de ossos: com 56 pedestres, o total de texturas sobe de ~43 para ~100 (sem impacto medido).
+- Veículos não respeitam semáforos nem trocam de faixa; pedestres não atravessam na faixa (ainda).
 - **Postes** da Pres. Vargas em parte procedurais; espécies de árvores genéricas.
 - Copas de árvore estilizadas (sem folhas/alpha cards).
 - Sem veículos, pedestres ou áudio (fora do escopo desta etapa).

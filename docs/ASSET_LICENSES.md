@@ -12,7 +12,8 @@ na tela é gerado por código original deste repositório:
 | Central do Brasil | `src/world/landmarks/central.ts` (procedural + footprint OSM) | este projeto | idem (dados OSM: ODbL) | landmark |
 | Igreja da Candelária | `src/world/landmarks/candelaria.ts` (procedural + footprint OSM) | este projeto | idem | landmark |
 | Árvores, postes, semáforos, bancos, abrigos, lixeiras, bancas | `src/world/builders/props.ts` | este projeto | idem | mobiliário |
-| Avatar temporário | `src/player/AvatarVisual.ts` (primitivas + animação procedural) | este projeto | idem | placeholder |
+| Personagens (homem, mulher, idoso, idosa) | `src/characters/` (SkinnedMesh procedural + animação procedural) | este projeto | idem | jogador e NPCs |
+| Veículos (carro, táxi, ônibus) | `src/traffic/TrafficSystem.ts` (procedural) | este projeto | idem | trânsito; cores genéricas, sem marcas reais |
 | Mostrador do relógio | canvas 2D em `central.ts` | este projeto | idem | landmark |
 | Ícone (favicon) | SVG inline em `index.html` | este projeto | idem | UI |
 

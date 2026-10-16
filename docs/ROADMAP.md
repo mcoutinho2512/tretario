@@ -11,13 +11,13 @@ Legenda: ✅ feito · 🔨 em andamento · ⏳ planejado · 🔒 depende de deci
 ## Fase 0: Cenário (MVP) ✅
 Corredor Central → Candelária com dados reais, landmarks, LOD, colisão, câmera, presets, horário real.
 
-## Fase 1: Personagens e vida na avenida 🔨
+## Fase 1: Personagens e vida na avenida 🔨 (1.1–1.4 entregues)
 | Passo | Entrega | Status |
 |---|---|---|
-| 1.1 | Personagem com **esqueleto real** (SkinnedMesh, 1 draw call), 4 tipos: homem, mulher, idoso, idosa; roupas e tons de pele variáveis | 🔨 |
-| 1.2 | Escolha de avatar na tela inicial | 🔨 |
-| 1.3 | **Pedestres NPC** nas calçadas e canteiros, densidade por preset, LOD de atualização | 🔨 |
-| 1.4 | **Trânsito** na Pres. Vargas: carros, táxis amarelos, ônibus; seguem as faixas reais do OSM no sentido correto | 🔨 |
+| 1.1 | Personagem com **esqueleto real** (SkinnedMesh, 1 draw call), 4 tipos: homem, mulher, idoso, idosa; roupas e tons de pele variáveis | ✅ |
+| 1.2 | Escolha de avatar na tela inicial | ✅ |
+| 1.3 | **Pedestres NPC** nas calçadas e canteiros, densidade por preset, LOD de atualização | ✅ |
+| 1.4 | **Trânsito** na Pres. Vargas: carros, táxis amarelos, ônibus; seguem as faixas reais do OSM no sentido correto | ✅ |
 | 1.5 | Semáforos com ciclo; veículos param no vermelho | ⏳ |
 | 1.6 | Bicicletas e patinetes (NPC e montáveis) | ⏳ |
 

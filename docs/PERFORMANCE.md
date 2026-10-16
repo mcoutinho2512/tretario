@@ -40,6 +40,13 @@ Texturas: 30 (BAIXO), 31 (MÉDIO), 43 (ALTO, inclui alvos de pós-processamento)
 Mobile (emulação de iPhone 14 no Chrome, preset automático = BAIXO): 60 FPS, 119 draw calls e 127 k
 triângulos. O joystick funcionou e não houve erros. Isso **não** substitui o teste em Safari/iPhone real.
 
+### Com NPCs e trânsito (Fase 1)
+| Preset | Pedestres | Veículos | Frame sem vsync | Draw calls | Triângulos |
+|---|---|---|---|---|---|
+| BAIXO | 14 | 24 | 1,6–1,9 ms | 113–286 | 180–272 k |
+| MÉDIO | 32 | 48 | 1,9–2,1 ms | 171–379 | 440–526 k |
+| ALTO | 56 | 80 | 4,3–4,7 ms | 394–792 | 1,24–1,38 M |
+
 ## Presets (`src/core/settings.ts`)
 
 | | BAIXO | MÉDIO | ALTO |
@@ -52,6 +59,7 @@ triângulos. O joystick funcionou e não houve erros. Isso **não** substitui o 
 | Oclusão ambiente (GTAO) | — | — | sim |
 | Anti-aliasing | — | MSAA nativo | SMAA |
 | Neblina / far | 1500 / 1800 m | 2200 / 2600 m | 3000 / 3400 m |
+| Pedestres / veículos | 14 / 24 | 32 / 48 | 56 / 80 |
 
 Detecção automática: dispositivo de toque vira BAIXO; GPU por `WEBGL_debug_renderer_info`
 (Apple M, RTX, RX 6/7 → ALTO; Intel HD/UHD, Mali, Adreno → MÉDIO ou BAIXO); software renderer vira BAIXO.

@@ -85,6 +85,15 @@ persianas, janelas acesas à noite e **anti-moiré** (o padrão vira média à d
 Para um `RemotePlayer`, basta preencher o `PlayerState` com snapshots da rede e reutilizar o
 `AvatarVisual`. Um `NPC` usa o mesmo `stepPlayer` com uma intenção gerada por IA.
 
+## Personagens, NPCs e trânsito
+- `src/characters/`: `bodyTypes` (homem/mulher/idoso/idosa, aparência serializável), `CharacterMesh` (SkinnedMesh
+  procedural, 17 ossos com nomes humanoides, cores por região via uniforms) e `CharacterAnimator` (animação nos ossos,
+  a partir de `speed` e `grounded`). Serve ao jogador, aos NPCs e, no futuro, aos jogadores remotos.
+- `src/npc/PedestrianSystem`: pedestres de ambiente no cliente, com semente (ADR-003). O mapa de superfícies ganhou o código
+  `Building` para saber onde é calçada de verdade.
+- `src/traffic/TrafficSystem`: veículos instanciados sobre `public/world/traffic.<hash>.json` (faixas geradas no
+  `build_world` a partir de `lanes`/`oneway` do OSM, com conexões entre trechos). Seguimento por gap e frenagem para o jogador.
+
 ## Colisão (`src/physics/CollisionWorld.ts`)
 
 Sem engine de física pesada:
