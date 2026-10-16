@@ -17,6 +17,10 @@ export interface QualityPreset {
   postAA: boolean; // SMAA no composer
   fogFar: number;
   cameraFar: number;
+  /** pedestres NPC simultâneos ao redor da câmera */
+  pedestrians: number;
+  /** veículos NPC simultâneos */
+  vehicles: number;
 }
 
 export const PRESETS: Record<QualityLevel, QualityPreset> = {
@@ -24,16 +28,19 @@ export const PRESETS: Record<QualityLevel, QualityPreset> = {
     level: 'low', pixelRatio: 1, shadowMapSize: 0, shadowDistance: 0,
     lodDistances: [220, 520, 1400], vegetationDensity: 0.5, propsDistance: 140,
     ambientOcclusion: false, antialias: false, postAA: false, fogFar: 1500, cameraFar: 1800,
+    pedestrians: 14, vehicles: 24,
   },
   medium: {
     level: 'medium', pixelRatio: 1.5, shadowMapSize: 2048, shadowDistance: 110,
     lodDistances: [330, 750, 2200], vegetationDensity: 0.85, propsDistance: 230,
     ambientOcclusion: false, antialias: true, postAA: false, fogFar: 2200, cameraFar: 2600,
+    pedestrians: 32, vehicles: 48,
   },
   high: {
     level: 'high', pixelRatio: 2, shadowMapSize: 4096, shadowDistance: 170,
     lodDistances: [450, 1000, 3000], vegetationDensity: 1, propsDistance: 340,
     ambientOcclusion: true, antialias: false, postAA: true, fogFar: 3000, cameraFar: 3400,
+    pedestrians: 56, vehicles: 80,
   },
 };
 

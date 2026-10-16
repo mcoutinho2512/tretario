@@ -12,6 +12,7 @@ export interface DebugInfo {
   props: number;
   heading: number;
   locomotion: string;
+  npcs: string;
 }
 
 export class DebugPanel {
@@ -61,6 +62,7 @@ export class DebugPanel {
       draw calls ${fmt(r.render.calls)} · tris ${fmt(r.render.triangles)}<br>
       texturas ${r.memory.textures} · geometrias ${r.memory.geometries} · programas ${r.programs?.length ?? 0}<br>
       qualidade ${info.quality} · chunks ${info.chunks} · props ${fmt(info.props)}<br>
+      NPCs: ${info.npcs}<br>
       <hr>
       XYZ ${info.x.toFixed(1)}, ${info.y.toFixed(2)}, ${info.z.toFixed(1)} m<br>
       lat ${info.lat.toFixed(6)} · lon ${info.lon.toFixed(6)}<br>

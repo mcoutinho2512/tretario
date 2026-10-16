@@ -10,8 +10,8 @@ import { CURB_HEIGHT, PLATFORM_HEIGHT } from '../world/types';
 
 interface Seg { ax: number; az: number; bx: number; bz: number; bottom: number; top: number }
 
-export const enum Surface { Void = 0, Road = 1, Walk = 2, Platform = 3, Water = 4 }
-const SURFACE_HEIGHT = [0, 0, CURB_HEIGHT, PLATFORM_HEIGHT, -0.4];
+export const enum Surface { Void = 0, Road = 1, Walk = 2, Platform = 3, Water = 4, Building = 5 }
+const SURFACE_HEIGHT = [0, 0, CURB_HEIGHT, PLATFORM_HEIGHT, -0.4, CURB_HEIGHT];
 
 const CELL = 16;
 const HF_RES = 0.5;
@@ -88,6 +88,8 @@ export class CollisionWorld {
     fill(S.ballast, Surface.Road);
     fill(S.platform, Surface.Platform);
     fill(S.water, Surface.Water);
+    // edifícios (para NPCs saberem onde não podem nascer/andar; o jogador colide pelos segmentos)
+    fill(chunk.buildings.filter((b) => !b.canopy && b.minHeight < 2.2).map((b) => b.poly), Surface.Building);
     const img = ctx.getImageData(0, 0, n, n).data;
     const data = new Uint8Array(n * n);
     for (let i = 0; i < n * n; i++) data[i] = Math.round(img[i * 4] / 50);
@@ -112,6 +114,15 @@ export class CollisionWorld {
 
   groundHeight(x: number, z: number): number {
     return SURFACE_HEIGHT[this.surfaceAt(x, z)];
+  }
+
+  /** pedestres NPC: só calçadas, praças, canteiros e gramados (sem pista, prédio, água ou plataforma) */
+  isPedestrianWalkable(x: number, z: number): boolean {
+    return this.surfaceAt(x, z) === Surface.Walk;
+  }
+
+  isRoad(x: number, z: number): boolean {
+    return this.surfaceAt(x, z) === Surface.Road;
   }
 
   isBlockedSurface(x: number, z: number): boolean {
