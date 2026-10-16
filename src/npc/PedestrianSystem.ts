@@ -20,6 +20,7 @@ import { HumanCharacter } from '../characters/human/HumanCharacter';
 import type { Lod } from '../characters/human/HumanAssets';
 import { createAgent, type CrowdAgent } from '../characters/crowd/crowdBudget';
 import type { CrowdDirector } from '../characters/crowd/CrowdDirector';
+import { pushOutOfBox } from '../net/rules';
 import { DEFAULT_SOCIAL, SocialSchedule, pickProfile, rng, type SocialCrowdConfig } from '../social/crowdSocial';
 import { rallyPoints, RallyRegistry, type RallyPoint } from '../social/rally';
 import { ACTIONS } from '../social/actions';
@@ -161,6 +162,18 @@ export class PedestrianSystem {
     const out: { x: number; z: number }[] = [];
     for (const p of this.peds) if (p.active && Math.abs(p.x - x) < r && Math.abs(p.z - z) < r) out.push({ x: p.x, z: p.z });
     return out;
+  }
+
+  /**
+   * NPCs de ambiente abrem caminho para veículos de evento (trio, carro de som) em vez de travá-los: quem está
+   * dentro da carroceria (+ folga) é empurrado para fora. Jogadores de verdade continuam bloqueando (servidor).
+   */
+  yieldTo(v: { x: number; z: number; heading: number; kind: string }) {
+    for (const p of this.peds) {
+      if (!p.active || Math.abs(p.x - v.x) > 9 || Math.abs(p.z - v.z) > 9) continue;
+      const o = pushOutOfBox(p.x, p.z, v, 0.6);
+      if (o) { p.x = o.x; p.z = o.z; }
+    }
   }
 
   crossingPositions(): { x: number; z: number }[] {

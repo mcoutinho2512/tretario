@@ -816,8 +816,10 @@ export class Game {
         const kind = v.def.kind as VehicleKind;
         const blockers = [
           ...(this.net?.remotesForObstacles() ?? []).filter((r) => !r.vehicle && !r.platform && !((kind === 'car' || kind === 'moto') && impactAllowed(this.interaction.mode, r.interaction as Mode) && r.status === 0)),
-          ...this.peds.nearby(v.state.x, v.state.z, 8),
+          // NPCs de ambiente travariam o trio no meio da própria concentração: para veículos de evento eles abrem caminho
+          ...(EVENT_VEHICLE_KINDS.has(kind) ? [] : this.peds.nearby(v.state.x, v.state.z, 8)),
         ];
+        if (EVENT_VEHICLE_KINDS.has(kind)) this.peds.yieldTo({ x: v.state.x, z: v.state.z, heading: v.state.heading, kind });
         if (blockers.length) {
           const b = vehicleBlock(kind, prev, { x: v.state.x, z: v.state.z }, v.state.heading, blockers);
           if (b.blocked) { v.state.x = b.x; v.state.z = b.z; v.state.speed = 0; }
