@@ -241,6 +241,31 @@ function createImpostorMaterial(albedo: THREE.Texture, normal: THREE.Texture, ro
   return mat;
 }
 
+/**
+ * Passes com `scene.overrideMaterial` (ex.: normal/profundidade do GTAO) desenhariam os cartões de folha e os
+ * impostores como quadrados opacos (sem alphaTest nem billboard) → manchas escuras de AO na copa.
+ * Esses objetos ficam de fora desses passes (continuam projetando sombra pelo caminho normal).
+ */
+function skipOverridePasses(obj: THREE.Mesh | THREE.BatchedMesh) {
+  if ((obj as THREE.BatchedMesh).isBatchedMesh) {
+    const bm = obj as THREE.BatchedMesh & { _multiDrawCount: number };
+    const orig = bm.onBeforeRender.bind(bm);
+    bm.onBeforeRender = (renderer, scene, camera, geometry, material, group) => {
+      orig(renderer, scene, camera, geometry, material, group);
+      if ((scene as THREE.Scene | null)?.overrideMaterial) bm._multiDrawCount = 0;
+    };
+  } else {
+    const g = obj.geometry as THREE.InstancedBufferGeometry;
+    let saved = -1;
+    obj.onBeforeRender = (_r, scene) => {
+      if ((scene as THREE.Scene | null)?.overrideMaterial) { saved = g.instanceCount; g.instanceCount = 0; }
+    };
+    obj.onAfterRender = () => {
+      if (saved >= 0) { g.instanceCount = saved; saved = -1; }
+    };
+  }
+}
+
 // ------------------------------------------------------------------------------------------
 // sistema
 // ------------------------------------------------------------------------------------------
@@ -312,6 +337,7 @@ export class VegetationSystem {
         b.sortObjects = lod === 0 && b === leaves; // frente→trás reduz overdraw das folhas próximas
         this.group.add(b);
       }
+      skipOverridePasses(leaves);
       this.batches.push({ bark, leaves });
     }
     const quad = new THREE.PlaneGeometry(2, 2);
@@ -328,6 +354,7 @@ export class VegetationSystem {
     this.impostor.frustumCulled = false;
     this.impostor.castShadow = false;
     this.impostor.receiveShadow = false;
+    skipOverridePasses(this.impostor);
     this.group.add(this.impostor);
     // gancho de depuração/medição (tools/qa/veg_budget.mjs)
     (globalThis as unknown as { __pvVeg?: VegetationSystem }).__pvVeg = this;
