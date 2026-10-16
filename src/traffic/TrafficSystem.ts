@@ -2,7 +2,9 @@
  * Trânsito de ambiente (cliente, ADR-003): veículos seguem as faixas reais geradas do OSM
  * (sentido correto, mão direita), com seguimento do veículo da frente (modelo simplificado tipo IDM),
  * frenagem para o jogador, continuidade entre trechos e reposição fora da vista.
- * Modelos procedurais originais, desenhados por instancing (poucos draw calls para dezenas de veículos).
+ * Modelos: sedan/hatch/SUV/táxi/ônibus gerados no Blender (tools/vehicles, ver vehicleModels.ts), com dois LODs;
+ * cada modelo/LOD é UM InstancedMesh (material único com atributos por vértice) → ~10 draw calls para o trânsito.
+ * Os modelos de caixas abaixo (carModel/busModel) ficam como reserva quando o GLB não está disponível.
  */
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
@@ -10,8 +12,11 @@ import type { TrafficLane } from '../world/types';
 import type { SignalController } from './SignalController';
 import { TrafficSim, VTYPE_NAMES, type SimVehicle, type Obstacle } from './TrafficSim';
 import { timeUniforms } from '../renderer/timeOfDay';
+import { bake, carModelFor, getVehicleGeometry, setVehicleNight, vehicleMaterial, VEHICLE_MODELS, type VehicleModelName } from './vehicleModels';
 
 type VType = 'car' | 'taxi' | 'bus';
+/** distância (m) a partir da qual o veículo usa o LOD1 */
+export const VEHICLE_LOD_DISTANCE = 60;
 
 const CAR_COLORS = [0xe8e8e8, 0x1a1a1a, 0x8a8f96, 0xb5b9be, 0x7a1a1a, 0x1f3a63, 0x3d4a3a, 0xf4f4f0, 0x5a5f66, 0x2a2a30];
 // cores de ônibus municipais genéricas (sem marcas reais de consórcios)
@@ -64,7 +69,7 @@ export function carModel(taxi: boolean): ModelParts {
   return parts;
 }
 
-function busModel(): ModelParts {
+export function busModel(): ModelParts {
   const L = 12.2, W = 2.55;
   const body = mergeGeometries([box(W, 2.0, L, 0, 1.45, 0), box(W - 0.05, 0.25, L - 0.2, 0, 2.95, 0)])!;
   const glass = mergeGeometries([box(W + 0.02, 1.0, L - 1.6, 0, 1.95, -0.3), box(W - 0.2, 1.3, 0.05, 0, 1.75, L / 2 + 0.01)])!;
@@ -74,23 +79,32 @@ function busModel(): ModelParts {
   return { body, glass, dark, lights };
 }
 
+/** reserva: converte as caixas antigas para o formato de geometria única (color + aPbr) */
+export function legacyGeometry(name: VehicleModelName): THREE.BufferGeometry {
+  const m = name === 'bus' ? busModel() : carModel(name === 'taxi');
+  const parts = [{ geo: m.body, name: 'paint' }, { geo: m.glass, name: 'glass' }, { geo: m.dark, name: 'rubber', color: new THREE.Color(0x1a1a1a) }, { geo: m.lights, name: 'lamp_front', color: new THREE.Color(0xfff6e0) }];
+  if (m.stripe) parts.push({ geo: m.stripe, name: 'stripe', color: new THREE.Color(0x1f4fa8) });
+  return bake(parts)!;
+}
+
 // ---------------------------------------------------------------- sistema
-interface Slot { type: VType; slot: number; rx: number; rz: number; rh: number; ox: number; oz: number }
+interface Slot { type: VType; model: VehicleModelName; rx: number; rz: number; rh: number; ox: number; oz: number }
 
 export class TrafficSystem {
   readonly group = new THREE.Group();
   readonly sim: TrafficSim;
-  private meshes = new Map<VType, { body: THREE.InstancedMesh; parts: THREE.InstancedMesh[] }>();
-  private capacity: Record<VType, number>;
-  private free: Record<VType, number[]> = { car: [], taxi: [], bus: [] };
+  /** por modelo: [LOD0, LOD1] */
+  private meshes = new Map<VehicleModelName, THREE.InstancedMesh[]>();
   private slots = new Map<number, Slot>();
   private dummy = new THREE.Object3D();
-  private lightMat: THREE.MeshStandardMaterial;
   private colorTmp = new THREE.Color();
+  private frustum = new THREE.Frustum();
+  private projView = new THREE.Matrix4();
+  private sphere = new THREE.Sphere();
   radius = 320;
   /** 'local' = simula ao redor do jogador (singleplayer); 'remote' = estado vindo do servidor */
   mode: 'local' | 'remote' = 'local';
-  stats = { active: 0 };
+  stats = { active: 0, drawn: 0, lod0: 0 };
   stats2 = { stoppedAtRed: 0 };
   /** pontos que os veículos devem evitar (pedestres atravessando, carros de jogadores…) */
   obstacles: Obstacle[] = [];
@@ -101,37 +115,25 @@ export class TrafficSystem {
     this.group.name = 'traffic';
     this.sim = new TrafficSim(lanes, seed);
     this.sim.signals = (j, ph) => (this.signals ? this.signals.state(j, ph) : 'G');
-    const capFor = (n: number) => ({ car: Math.ceil(n * 0.7) + 4, taxi: Math.ceil(n * 0.5) + 2, bus: Math.ceil(n * 0.35) + 2 });
-    this.capacity = capFor(Math.max(max, 160));
-
-    const bodyMat = new THREE.MeshStandardMaterial({ roughness: 0.32, metalness: 0.55 });
-    const glassMat = new THREE.MeshStandardMaterial({ color: 0x1b2328, roughness: 0.06, metalness: 0.6 });
-    const darkMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.8, metalness: 0.1 });
-    this.lightMat = new THREE.MeshStandardMaterial({ color: 0xfff6e0, emissive: 0xfff0cc, emissiveIntensity: 0.2, roughness: 0.3 });
-    const stripeMat = new THREE.MeshStandardMaterial({ color: 0x1f4fa8, roughness: 0.4, metalness: 0.3 });
-    const models: Record<VType, ModelParts> = { car: carModel(false), taxi: carModel(true), bus: busModel() };
-    for (const t of ['car', 'taxi', 'bus'] as VType[]) {
-      const cap = this.capacity[t];
-      const m = models[t];
-      const mk = (g: THREE.BufferGeometry, mat: THREE.Material, shadow: boolean) => {
-        const im = new THREE.InstancedMesh(g, mat, cap);
+    const n = Math.max(max, 160);
+    // capacidade por modelo (pior caso: todos os carros de passeio do mesmo modelo)
+    const cap: Record<VehicleModelName, number> = { sedan: Math.ceil(n * 0.7) + 4, hatch: Math.ceil(n * 0.7) + 4, suv: Math.ceil(n * 0.7) + 4, taxi: Math.ceil(n * 0.5) + 2, bus: Math.ceil(n * 0.35) + 2 };
+    const mat = vehicleMaterial();
+    for (const name of VEHICLE_MODELS) {
+      const lods = ([0, 1] as const).map((lod) => {
+        const im = new THREE.InstancedMesh(getVehicleGeometry(name, lod, () => legacyGeometry(name)), mat, cap[name]);
+        im.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+        im.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(cap[name] * 3), 3);
+        im.instanceColor.setUsage(THREE.DynamicDrawUsage);
         im.count = 0;
-        im.castShadow = shadow;
+        im.castShadow = true;
         im.receiveShadow = true;
-        im.frustumCulled = false;
-        im.name = `traffic_${t}`;
+        im.frustumCulled = false; // culling por veículo feito na CPU (update)
+        im.name = `traffic_${name}_lod${lod}`;
         this.group.add(im);
         return im;
-      };
-      const body = mk(m.body, bodyMat, true);
-      body.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(cap * 3), 3);
-      const parts = [mk(m.glass, glassMat, false), mk(m.dark, darkMat, true), mk(m.lights, this.lightMat, false)];
-      if (m.stripe) parts.push(mk(m.stripe, stripeMat, false));
-      this.meshes.set(t, { body, parts });
-      for (let i = cap - 1; i >= 0; i--) this.free[t].push(i);
-      this.dummy.scale.setScalar(0);
-      this.dummy.updateMatrix();
-      for (const im of [body, ...parts]) { for (let i = 0; i < cap; i++) im.setMatrixAt(i, this.dummy.matrix); im.count = cap; }
+      });
+      this.meshes.set(name, lods);
     }
   }
 
@@ -143,26 +145,21 @@ export class TrafficSystem {
     return t === 'taxi' ? 0xf2c40f : t === 'bus' ? BUS_COLORS[v.color % BUS_COLORS.length] : CAR_COLORS[v.color % CAR_COLORS.length];
   }
 
-  private slotFor(v: SimVehicle): Slot | null {
+  private modelOf(v: SimVehicle): VehicleModelName {
+    const t = VTYPE_NAMES[v.type];
+    return t === 'car' ? carModelFor(v.id) : t;
+  }
+
+  private slotFor(v: SimVehicle): Slot {
     const existing = this.slots.get(v.id);
     const t = VTYPE_NAMES[v.type];
     if (existing && existing.type === t) return existing;
-    if (existing) this.releaseSlot(v.id);
-    const slot = this.free[t].pop();
-    if (slot === undefined) return null;
-    const s: Slot = { type: t, slot, rx: v.x, rz: v.z, rh: v.heading, ox: 0, oz: 0 };
+    const s: Slot = { type: t, model: this.modelOf(v), rx: v.x, rz: v.z, rh: v.heading, ox: 0, oz: 0 };
     this.slots.set(v.id, s);
     return s;
   }
 
   private releaseSlot(id: number) {
-    const s = this.slots.get(id);
-    if (!s) return;
-    this.free[s.type].push(s.slot);
-    this.dummy.scale.setScalar(0);
-    this.dummy.updateMatrix();
-    const m = this.meshes.get(s.type)!;
-    for (const im of [m.body, ...m.parts]) im.setMatrixAt(s.slot, this.dummy.matrix);
     this.slots.delete(id);
   }
 
@@ -195,29 +192,48 @@ export class TrafficSystem {
     // slots de veículos que saíram
     const alive = new Set(this.sim.vehicles.map((v) => v.id));
     for (const id of [...this.slots.keys()]) if (!alive.has(id)) this.releaseSlot(id);
-    let active = 0;
+    let active = 0, drawn = 0, near = 0;
     const decay = Math.exp(-dt / 0.35);
+    // culling por veículo (esfera ampliada para não perder sombras na borda da tela) + LOD por distância
+    this.projView.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+    this.frustum.setFromProjectionMatrix(this.projView);
+    const cam = camera.position;
+    const counts = new Map<THREE.InstancedMesh, number>();
+    for (const lods of this.meshes.values()) for (const im of lods) counts.set(im, 0);
     for (const v of this.sim.vehicles) {
       const s = this.slotFor(v);
-      if (!s) continue;
       active++;
       s.ox *= decay; s.oz *= decay;
       s.rx = v.x + s.ox; s.rz = v.z + s.oz; s.rh = v.heading;
-      const m = this.meshes.get(s.type)!;
+      this.sphere.center.set(s.rx, 1.2, s.rz);
+      this.sphere.radius = v.len / 2 + 5;
+      if (!this.frustum.intersectsSphere(this.sphere)) continue;
+      const d = Math.hypot(s.rx - cam.x, s.rz - cam.z);
+      const lod = d < VEHICLE_LOD_DISTANCE ? 0 : 1;
+      const im = this.meshes.get(s.model)![lod];
+      const i = counts.get(im)!;
+      if (i >= im.instanceMatrix.count) continue;
       this.dummy.position.set(s.rx, 0, s.rz);
       this.dummy.rotation.set(0, s.rh, 0);
-      this.dummy.scale.setScalar(1);
       this.dummy.updateMatrix();
-      for (const im of [m.body, ...m.parts]) im.setMatrixAt(s.slot, this.dummy.matrix);
-      m.body.setColorAt(s.slot, this.colorTmp.setHex(this.colorOf(v)));
+      im.setMatrixAt(i, this.dummy.matrix);
+      im.setColorAt(i, this.colorTmp.setHex(this.colorOf(v)));
+      counts.set(im, i + 1);
+      drawn++;
+      if (lod === 0) near++;
     }
-    for (const m of this.meshes.values()) {
-      for (const im of [m.body, ...m.parts]) im.instanceMatrix.needsUpdate = true;
-      if (m.body.instanceColor) m.body.instanceColor.needsUpdate = true;
+    for (const [im, c] of counts) {
+      im.count = c;
+      if (c) {
+        im.instanceMatrix.needsUpdate = true;
+        if (im.instanceColor) im.instanceColor.needsUpdate = true;
+      }
     }
-    this.lightMat.emissiveIntensity = 0.2 + timeUniforms.night.value * 3.5;
+    setVehicleNight(timeUniforms.night.value);
     this.stats2.stoppedAtRed = this.sim.stoppedAtRed;
     this.stats.active = active;
+    this.stats.drawn = drawn;
+    this.stats.lod0 = near;
     this.time += dt;
   }
 

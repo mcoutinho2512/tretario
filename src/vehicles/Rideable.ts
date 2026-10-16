@@ -11,7 +11,8 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { CollisionWorld } from '../physics/CollisionWorld';
-import { carModel } from '../traffic/TrafficSystem';
+import { legacyGeometry } from '../traffic/TrafficSystem';
+import { getVehicleGeometry, vehicleMaterial } from '../traffic/vehicleModels';
 import { distToVehicle } from '../net/rules';
 
 export type RideableKind = 'bicycle' | 'scooter' | 'car';
@@ -106,12 +107,12 @@ export function rideableModel(kind: RideableKind, color: number): THREE.Group {
     const seat = part(new THREE.BoxGeometry(0.14, 0.05, 0.26), 0, 0.94, -0.28);
     g.add(new THREE.Mesh(wheels, dark), new THREE.Mesh(frame, frameMat), new THREE.Mesh(seat, dark));
   } else if (kind === 'car') {
-    // automóvel dirigível: mesmo modelo dos carros de trânsito, cor de destaque
-    const m = carModel(false);
-    const body = new THREE.MeshStandardMaterial({ color, roughness: 0.3, metalness: 0.6 });
-    const glass = new THREE.MeshStandardMaterial({ color: 0x1b2328, roughness: 0.06, metalness: 0.6 });
-    const lights = new THREE.MeshStandardMaterial({ color: 0xfff6e0, emissive: 0xfff0cc, emissiveIntensity: 0.4 });
-    g.add(new THREE.Mesh(m.body, body), new THREE.Mesh(m.glass, glass), new THREE.Mesh(m.dark, dark), new THREE.Mesh(m.lights, lights));
+    // automóvel dirigível: mesmo sedan do trânsito (4,4 m × 1,8 m), cor de destaque via instanceColor
+    const car = new THREE.InstancedMesh(getVehicleGeometry('sedan', 0, () => legacyGeometry('sedan')), vehicleMaterial(), 1);
+    car.setMatrixAt(0, new THREE.Matrix4());
+    car.setColorAt(0, new THREE.Color(color));
+    car.name = 'car_body';
+    g.add(car);
   } else if (kind === 'scooter') {
     const wheels = mergeGeometries([
       part(new THREE.CylinderGeometry(0.1, 0.1, 0.05, 14), 0, 0.1, 0.42, 0, 0, Math.PI / 2),

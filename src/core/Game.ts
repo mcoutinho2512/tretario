@@ -31,6 +31,7 @@ import { buildCandelaria } from '../world/landmarks/candelaria';
 import { buildPalacioDuqueCaxias } from '../world/landmarks/palacioDuqueCaxias';
 import { PedestrianSystem } from '../npc/PedestrianSystem';
 import { TrafficSystem } from '../traffic/TrafficSystem';
+import { loadVehicleModels } from '../traffic/vehicleModels';
 import { SignalController } from '../traffic/SignalController';
 import { worldClock } from '../net/clock';
 import { MonumentSystem } from '../world/Monuments';
@@ -200,6 +201,7 @@ export class Game {
       } catch { /* trânsito é opcional */ }
     }
     this.signals = new SignalController(tdata.junctions);
+    await loadVehicleModels(); // modelos GLB dos veículos (reserva procedural se falhar)
     this.traffic = new TrafficSystem(tdata.lanes, this.preset.vehicles);
     this.traffic.signals = this.signals;
     this.peds.setCrossings(tdata.crossings, this.signals);
