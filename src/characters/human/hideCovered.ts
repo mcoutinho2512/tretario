@@ -23,7 +23,7 @@ const CELL = 0.03;
 const ck = (x: number, y: number, z: number) => `${Math.floor(x / CELL)},${Math.floor(y / CELL)},${Math.floor(z / CELL)}`;
 
 /** vértices de borda da roupa (arestas usadas por um só triângulo), soldando duplicatas de costura de UV (2 mm: a quantização do meshopt as separa) */
-function boundaryVerts(pos: ArrayLike<number>, idx: ArrayLike<number>): number[] {
+export function boundaryVerts(pos: ArrayLike<number>, idx: ArrayLike<number>): number[] {
   const n = pos.length / 3;
   const weld = new Int32Array(n);
   const seen = new Map<string, number>();
@@ -154,4 +154,22 @@ export function hideCoveredSkin(
     index.push(idx[t], idx[t + 1], idx[t + 2]);
   }
   return { index, hidden, stats, covered };
+}
+
+/**
+ * Índice sem os triângulos cobertos pela UNIÃO das máscaras (uma por peça vestida). Igual a recortar com todas as
+ * peças de uma vez (um vértice está coberto se alguma peça o cobre), mas cada máscara é calculada uma só vez por
+ * (corpo, peça) e a combinação por roupa custa só esta passada.
+ */
+export function indexWithout(index: ArrayLike<number> | null, count: number, masks: ArrayLike<number>[]): { index: Uint16Array | Uint32Array; hidden: number } {
+  const idx = index ?? Array.from({ length: count }, (_, i) => i);
+  const cov = new Uint8Array(count);
+  for (const m of masks) for (let i = 0; i < count; i++) if (m[i]) cov[i] = 1;
+  const out = count < 65536 ? new Uint16Array(idx.length) : new Uint32Array(idx.length);
+  let n = 0, hidden = 0;
+  for (let t = 0; t + 2 < idx.length; t += 3) {
+    if (cov[idx[t]] && cov[idx[t + 1]] && cov[idx[t + 2]]) { hidden++; continue; }
+    out[n++] = idx[t]; out[n++] = idx[t + 1]; out[n++] = idx[t + 2];
+  }
+  return { index: out.slice(0, n), hidden };
 }

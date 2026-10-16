@@ -14,7 +14,7 @@ import { Room, type Client } from '@colyseus/core';
 import { StateView } from '@colyseus/schema';
 import { WorldState, NetPlayer, NetVehicle } from './state.ts';
 import { loadWorld, type ServerWorld } from './world.ts';
-import { BODIES, NET_ACCESSORIES, MAX_SPEED, sanitizeColor, sanitizeName, type JoinOptions, type MoveMode } from '../../src/net/protocol.ts';
+import { BODIES, NET_ACCESSORIES, MAX_SPEED, sanitizeColor, sanitizeName, sanitizeShirtDesign, sanitizeStyle, type JoinOptions, type MoveMode } from '../../src/net/protocol.ts';
 import { validateMoveInWorld } from '../../src/net/authority.ts';
 import { RULES, STATUS, VEHICLE_BOX, VEHICLE_STATE, canPush, canEnter, impactAllowed, knockdownOutcome, shouldResetVehicle, vehicleBlock, vehicleImpact, unpackMove, type Actor, type Mode, type VehicleKind } from '../../src/net/rules.ts';
 import { metrics } from './metrics.ts';
@@ -314,6 +314,8 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     p.shoes = sanitizeColor(o.shoes, p.shoes || 0xe8e8e2);
     p.accessory = (NET_ACCESSORIES as readonly string[]).includes(o.accessory as string) ? (o.accessory as string) : (p.accessory || 'nenhum');
     p.acc = sanitizeColor(o.acc, p.acc || 0x222222);
+    for (const f of ['topStyle', 'bottomStyle', 'shoeStyle', 'hairStyle'] as const) p[f] = sanitizeStyle(f, o[f]);
+    p.shirtDesign = sanitizeShirtDesign(o.shirtDesign);
     if (o.name !== undefined) p.name = sanitizeName(o.name);
   }
 

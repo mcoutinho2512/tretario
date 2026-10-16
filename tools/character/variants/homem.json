@@ -31,5 +31,66 @@
     "elvs_sling_purse1.mhclo": "ACC_bolsa",
     "punkduck_shopping_bag01.mhclo": "ACC_mochila"
   },
-  "eyes": "low-poly.mhclo"
+  "eyes": "low-poly.mhclo",
+  "styles": {
+    "SHIRT": "camiseta",
+    "PANTS": "jeans",
+    "SHOES": "tenis",
+    "HAIR": "curto"
+  },
+  "variants": [
+    {
+      "layer": "SHIRT",
+      "style": "regata",
+      "derive": "sleeveless"
+    },
+    {
+      "layer": "SHIRT",
+      "style": "polo",
+      "file": "namuhekam_male_polo_shirt.mhclo"
+    },
+    {
+      "layer": "SHIRT",
+      "style": "camisa",
+      "file": "elvs_male_shirt_untucked_bd1.mhclo"
+    },
+    {
+      "layer": "PANTS",
+      "style": "bermuda",
+      "file": "elvs_male_trouser_short_2.mhclo"
+    },
+    {
+      "layer": "PANTS",
+      "style": "social",
+      "file": "elvs_male_trouser.mhclo"
+    },
+    {
+      "layer": "SHOES",
+      "style": "chinelo",
+      "file": "elvs_male_flip_flop_sandals1.mhclo"
+    },
+    {
+      "layer": "SHOES",
+      "style": "sapato",
+      "file": "mindfront_shoes_oxford_male.mhclo"
+    },
+    {
+      "layer": "HAIR",
+      "style": "raspado"
+    },
+    {
+      "layer": "HAIR",
+      "style": "afro",
+      "file": "afro01.mhclo",
+      "kind": "hair",
+      "texture": "afro_diffuse_light.png"
+    },
+    {
+      "layer": "HAIR",
+      "style": "curto2",
+      "file": "short02.mhclo",
+      "kind": "hair",
+      "texture": "short02_diffuse_light.png"
+    }
+  ]
 }

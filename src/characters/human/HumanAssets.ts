@@ -6,6 +6,7 @@
 import * as THREE from 'three';
 import type { GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import type { BodyType } from '../bodyTypes';
+import { pieceFile, type GarmentSlot } from '../garments';
 import { assetManager } from '../../core/AssetManager';
 
 export type Lod = 0 | 1 | 2 | 3;
@@ -22,6 +23,24 @@ export function loadLod(body: BodyType, lod: Lod): Promise<GLTF> {
   let p = cache.get(file);
   if (!p) {
     p = assetManager.loadGLTF(BASE + file, 'characters/assets');
+    cache.set(file, p);
+  }
+  return p;
+}
+
+/** peça de roupa/cabelo variante (garments.ts): GLB avulso com o mesmo esqueleto do corpo, só LOD0/LOD1 */
+export function loadPiece(body: BodyType, slot: GarmentSlot, style: string, lod: 0 | 1): Promise<GLTF> {
+  const file = pieceFile(body, slot, style, lod);
+  let p = cache.get(file);
+  if (!p) {
+    p = assetManager.loadGLTF(BASE + file, 'characters/assets').then((g) => {
+      // peças nunca são reenviadas à GPU nem lidas na CPU (cor média vem do build): solta os pixels após o upload
+      g.scene.traverse((o) => {
+        const m = (o as THREE.Mesh).material as THREE.MeshStandardMaterial | undefined;
+        for (const t of [m?.map, m?.normalMap]) if (t) assetManager.releaseCpuAfterUpload(t);
+      });
+      return g;
+    });
     cache.set(file, p);
   }
   return p;

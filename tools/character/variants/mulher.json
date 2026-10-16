@@ -30,5 +30,64 @@
     "elvs_sling_purse1.mhclo": "ACC_bolsa",
     "punkduck_shopping_bag01.mhclo": "ACC_mochila"
   },
-  "eyes": "low-poly.mhclo"
+  "eyes": "low-poly.mhclo",
+  "styles": {
+    "SHIRT": "camiseta",
+    "PANTS": "jeans",
+    "SHOES": "tenis",
+    "HAIR": "rabo"
+  },
+  "variants": [
+    {
+      "layer": "SHIRT",
+      "style": "regata",
+      "file": "toigo_camisole_top.mhclo"
+    },
+    {
+      "layer": "SHIRT",
+      "style": "camisa",
+      "file": "punkduck_lace_up_blouse.mhclo"
+    },
+    {
+      "layer": "PANTS",
+      "style": "bermuda",
+      "file": "punkduck_female_short_jeans.mhclo"
+    },
+    {
+      "layer": "PANTS",
+      "style": "social",
+      "file": "mindfront_female_trousers_1.mhclo"
+    },
+    {
+      "layer": "SHOES",
+      "style": "chinelo",
+      "file": "elvs_male_flip_flop_sandals1.mhclo"
+    },
+    {
+      "layer": "SHOES",
+      "style": "sapato",
+      "file": "toigo_flats.mhclo"
+    },
+    {
+      "layer": "HAIR",
+      "style": "afro",
+      "file": "afro01.mhclo",
+      "kind": "hair",
+      "texture": "afro_diffuse_light.png"
+    },
+    {
+      "layer": "HAIR",
+      "style": "chanel",
+      "file": "bob01.mhclo",
+      "kind": "hair",
+      "texture": "bob01_diffuse_light.png"
+    },
+    {
+      "layer": "HAIR",
+      "style": "longo",
+      "file": "long01.mhclo",
+      "kind": "hair",
+      "texture": "long01_diffuse_light.png"
+    }
+  ]
 }

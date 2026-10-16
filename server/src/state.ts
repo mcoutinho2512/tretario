@@ -13,6 +13,12 @@ export const NetPlayer = schema({
   shoes: t.uint32(),
   accessory: t.string(),
   acc: t.uint32(),
+  /** peças variantes (src/characters/garments.ts; '' = roupa base) e design da camisa (0 = lisa) */
+  topStyle: t.string(),
+  bottomStyle: t.string(),
+  shoeStyle: t.string(),
+  hairStyle: t.string(),
+  shirtDesign: t.uint16(),
   x: t.float32(),
   y: t.float32(),
   z: t.float32(),

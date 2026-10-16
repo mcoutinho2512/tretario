@@ -48,6 +48,8 @@ export interface CrowdAgent {
   scale: number;
   /** cores (hex) usadas na representação instanciada */
   skin: number; hair: number; top: number; bottom: number;
+  /** peças variantes empacotadas (garments.ts `packLook`) e design da camisa (designs.ts; 0 = lisa) */
+  look: number; shirt: number;
   /** 1 = só instanciado (multidão distante da rede, sem estado completo); 2 = pode ter esqueleto */
   maxTier: Tier;
   /** multiplicador de distância na disputa (< 1 = mais importante: caído, em veículo, interagindo) */
@@ -74,7 +76,7 @@ let nextId = 1;
 export function createAgent(init: Partial<CrowdAgent> = {}): CrowdAgent {
   return {
     id: nextId++, x: 0, y: 0, z: 0, heading: 0, speed: 0, body: 0, scale: 1,
-    skin: 0xc68b62, hair: 0x222222, top: 0x2f6f8f, bottom: 0x2c3a52,
+    skin: 0xc68b62, hair: 0x222222, top: 0x2f6f8f, bottom: 0x2c3a52, look: 0, shirt: 0,
     maxTier: 2, priority: 1, skinReady: false,
     tier: 1, lod: 3, animEvery: 1, inView: true, dist: 0, phase: Math.random(),
     act: 0, actAt: 0, prop: 0, design: 0,

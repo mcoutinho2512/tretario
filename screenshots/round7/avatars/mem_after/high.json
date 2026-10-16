@@ -1,0 +1,8780 @@
+{
+ "preset": "high",
+ "loadS": 2.456,
+ "errors": [
+  "THREE.WebGLProgram: Shader Error 0 - VALIDATE_STATUS false\n\nMaterial Name: \nMaterial Type: MeshStandardMaterial\n\nProgram Info Log: Too many attributes (aBottom)\n\n"
+ ],
+ "points": [
+  {
+   "name": "spawn",
+   "heapRaw": {
+    "usedMB": 133.3,
+    "totalMB": 199.6,
+    "backingStoreMB": 123.3,
+    "embedderMB": 5.4,
+    "perfMemMB": 256.6
+   },
+   "heapGC": {
+    "usedMB": 52.3,
+    "totalMB": 55.4,
+    "backingStoreMB": 78.7,
+    "embedderMB": 3.2,
+    "perfMemMB": 131
+   },
+   "report": {
+    "t": 10218,
+    "heap": {
+     "usedMB": 131.9,
+     "totalMB": 134.7
+    },
+    "renderer": {
+     "textures": 175,
+     "geometries": 617,
+     "programs": 108
+    },
+    "totals": {
+     "textures": 105,
+     "texGpuMB": 280.1,
+     "texCpuMB": 83.2,
+     "geometries": 844,
+     "geoMB": 102.3,
+     "geoCpuMB": 33.1,
+     "materials": 300,
+     "skeletons": 180,
+     "boneTexMB": 0.9,
+     "gpuEstMB": 383.3
+    },
+    "categories": {
+     "chunks/ground": {
+      "textures": 27,
+      "texGpuMB": 65.7,
+      "texCpuMB": 0,
+      "geometries": 419,
+      "geoMB": 5.4,
+      "geoCpuMB": 1,
+      "materials": 13,
+      "skeletons": 0,
+      "boneTexMB": 0,
+      "objects": 419
+     },
+     "shadows": {
+      "textures": 1,
+      "texGpuMB": 64,
+      "texCpuMB": 0,
+      "geometries": 0,
+      "geoMB": 0,
+      "geoCpuMB": 0,
+      "materials": 0,
+      "skeletons": 0,
+      "boneTexMB": 0,
+      "objects": 0
+     },
+     "landmarks": {
+      "textures": 5,
+      "texGpuMB": 17.7,
+      "texCpuMB": 13.3,
+      "geometries": 99,
+      "geoMB": 38,
+      "geoCpuMB": 15.8,
+      "materials": 9,
+      "skeletons": 0,
+      "boneTexMB": 0,
+      "objects": 99
+     },
+     "chunks/buildings": {
+      "textures": 1,
+      "texGpuMB": 2.7,
+      "texCpuMB": 0,
+      "geometries": 68,
+      "geoMB": 45.3,
+      "geoCpuMB": 2.8,
+      "materials": 1,
+      "skeletons": 0,
+      "boneTexMB": 0,
+      "objects": 68
+     },
+     "characters/player": {
+      "textures": 16,
+      "texGpuMB": 38,
+      "texCpuMB": 28.5,
+      "geometries": 14,
+      "geoMB": 1,
+      "geoCpuMB": 1,
+      "materials": 14,
+      "skeletons": 14,
+      "boneTexMB": 0.1,
+      "objects": 14
+     },
+     "characters/npc": {
+      "textures": 21,
+      "texGpuMB": 28,
+      "texCpuMB": 16,
+      "geometries": 47,
+      "geoMB": 2.4,
+      "geoCpuMB": 2.4,
+      "materials": 104,
+      "skeletons": 104,
+      "boneTexMB": 0.6,
+      "objects": 104
+     },
+     "vegetation": {
+      "textures": 17,
+      "texGpuMB": 24.2,
+      "texCpuMB": 8.2,
+      "geometries": 5,
+      "geoMB": 3.6,
+      "geoCpuMB": 3.6,
+      "materials": 3,
+      "skeletons": 0,
+      "boneTexMB": 0,
+      "objects": 5
+     },
+     "monuments": {
+      "textures": 2,
+      "texGpuMB": 24.3,
+      "texCpuMB": 0.3,
+      "geometries": 32,
+      "geoMB": 0.4,
+      "geoCpuMB": 0.4,
+      "materials": 9,
+      "skeletons": 0,
+      "boneTexMB": 0,
+      "objects": 32
+     },
+     "events": {
+      "textures": 5,
+      "texGpuMB": 9,
+      "texCpuMB": 9.4,
+      "geometries": 56,
+      "geoMB": 0,
+      "geoCpuMB": 0,
+      "materials": 29,
+      "skeletons": 0,
+      "boneTexMB": 0,
+      "objects": 56
+     },
+     "environment": {
+      "textures": 1,
+      "texGpuMB": 6,
+      "texCpuMB": 0,
+      "geometries": 2,
+      "geoMB": 0.1,
+      "geoCpuMB": 0.1,
+      "materials": 2,
+      "skeletons": 0,
+      "boneTexMB": 0,
+      "objects": 2
+     },
+     "other": {
+      "textures": 8,
+      "texGpuMB": 0,
+      "texCpuMB": 7.3,
+      "geometries": 8,
+      "geoMB": 2.1,
+      "geoCpuMB": 2.1,
+      "materials": 8,
+      "skeletons": 0,
+      "boneTexMB": 0,
+      "objects": 8
+     },
+     "vehicles/assets": {
+      "textures": 0,
+      "texGpuMB": 0,
+      "texCpuMB": 0,
+      "geometries": 8,
+      "geoMB": 1.6,
+      "geoCpuMB": 1.6,
+      "materials": 0,
+      "skeletons": 0,
+      "boneTexMB": 0,
+      "objects": 0
+     },
+     "props": {
+      "textures": 0,
+      "texGpuMB": 0,
+      "texCpuMB": 0,
+      "geometries": 34,
+      "geoMB": 1,
+      "geoCpuMB": 1,
+      "materials": 7,
+      "skeletons": 0,
+      "boneTexMB": 0,
+      "objects": 34
+     },
+     "world/closure": {
+      "textures": 1,
+      "texGpuMB": 0.5,
+      "texCpuMB": 0.4,
+      "geometries": 7,
+      "geoMB": 0.3,
+      "geoCpuMB": 0.3,
+      "materials": 5,
+      "skeletons": 0,
+      "boneTexMB": 0,
+      "objects": 8
+     },
+     "vehicles/rideables": {
+      "textures": 0,
+      "texGpuMB": 0,
+      "texCpuMB": 0,
+      "geometries": 36,
+      "geoMB": 0.6,
+      "geoCpuMB": 0.6,
+      "materials": 34,
+      "skeletons": 0,
+      "boneTexMB": 0,
+      "objects": 250
+     },
+     "characters/assets": {
+      "textures": 0,
+      "texGpuMB": 0,
+      "texCpuMB": 0,
+      "geometries": 9,
+      "geoMB": 0.6,
+      "geoCpuMB": 0.6,
+      "materials": 62,
+      "skeletons": 62,
+      "boneTexMB": 0.2,
+      "objects": 62
+     }
+    },
+    "ledger": {
+     "texturesMB": 364.3,
+     "textureCount": 179,
+     "buffersMB": 79.3,
+     "bufferCount": 2765,
+     "renderbuffersMB": 97.7,
+     "renderbufferCount": 8,
+     "unattributedTexMB": 84.2,
+     "totalMB": 541.3
+    },
+    "wasm": [
+     {
+      "label": "meshopt",
+      "MB": 0.4
+     }
+    ],
+    "animation": {
+     "clips": 14,
+     "tracks": 2226,
+     "MB": 0.3
+    },
+    "assets": {
+     "textureHits": 0,
+     "textureLoads": 6,
+     "gltfHits": 0,
+     "gltfLoads": 19,
+     "imagesDeduped": 29,
+     "imagesDecoded": 37,
+     "cpuReleasedMB": 143.5,
+     "materialHits": 0,
+     "textures": [
+      {
+       "key": "leaves.webp",
+       "refs": 1
+      },
+      {
+       "key": "bark.jpg",
+       "refs": 1
+      },
+      {
+       "key": "bark_n.jpg",
+       "refs": 1
+      },
+      {
+       "key": "plaster_detail.jpg",
+       "refs": 1
+      },
+      {
+       "key": "concrete_detail.jpg",
+       "refs": 1
+      },
+      {
+       "key": "granite_detail.jpg",
+       "refs": 1
+      }
+     ],
+     "gltfs": [
+      {
+       "url": "homem_lod3.glb",
+       "refs": 1
+      },
+      {
+       "url": "anims.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher_lod3.glb",
+       "refs": 1
+      },
+      {
+       "url": "idoso_lod3.glb",
+       "refs": 1
+      },
+      {
+       "url": "idosa_lod3.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem_lod2.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher_lod2.glb",
+       "refs": 1
+      },
+      {
+       "url": "idoso_lod2.glb",
+       "refs": 1
+      },
+      {
+       "url": "idosa_lod2.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "idoso_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "idoso-shirt-camisa_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "idoso-pants-bermuda_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "idoso-shoes-chinelo_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem-shirt-polo_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem-hair-afro_lod1.glb",
+       "refs": 1
+      }
+     ],
+     "materials": 0,
+     "imageSources": 37
+    },
+    "duplicates": {
+     "textures": [
+      {
+       "key": "d48x48:370758381",
+       "count": 4,
+       "wastedMB": 0.1,
+       "names": [
+        "?"
+       ],
+       "cats": [
+        "vegetation"
+       ]
+      },
+      {
+       "key": "d23x23:503046067",
+       "count": 2,
+       "wastedMB": 0,
+       "names": [
+        "?"
+       ],
+       "cats": [
+        "vegetation"
+       ]
+      },
+      {
+       "key": "d23x23:3979747127",
+       "count": 2,
+       "wastedMB": 0,
+       "names": [
+        "?"
+       ],
+       "cats": [
+        "vegetation"
+       ]
+      }
+     ],
+     "materials": [
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=true|opacity=1|transparent=false|alphaHash=false|ble",
+       "count": 64,
+       "cats": [
+        "characters/player",
+        "characters/npc"
+       ],
+       "names": [
+        "PV_LOD"
+       ]
+      },
+      {
+       "key": "MeshBasicMaterial|isMaterial=true|blending=1|side=0|vertexColors=false|opacity=1|transparent=false|alphaHash=false|blend",
+       "count": 9,
+       "cats": [
+        "events"
+       ],
+       "names": [
+        "MeshBasicMaterial"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 8,
+       "cats": [
+        "characters/player",
+        "characters/npc",
+        "characters/assets"
+       ],
+       "names": [
+        "PV_ACC_bolsa"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 8,
+       "cats": [
+        "characters/player",
+        "characters/npc",
+        "characters/assets"
+       ],
+       "names": [
+        "PV_ACC_bone"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 8,
+       "cats": [
+        "characters/player",
+        "characters/npc",
+        "characters/assets"
+       ],
+       "names": [
+        "PV_ACC_mochila"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 8,
+       "cats": [
+        "characters/player",
+        "characters/npc",
+        "characters/assets"
+       ],
+       "names": [
+        "PV_EYES"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=0|vertexColors=true|opacity=1|transparent=false|alphaHash=false|ble",
+       "count": 8,
+       "cats": [
+        "other"
+       ],
+       "names": [
+        "MeshStandardMaterial"
+       ]
+      },
+      {
+       "key": "MeshBasicMaterial|isMaterial=true|blending=1|side=0|vertexColors=false|opacity=1|transparent=false|alphaHash=false|blend",
+       "count": 8,
+       "cats": [
+        "events"
+       ],
+       "names": [
+        "MeshBasicMaterial"
+       ]
+      },
+      {
+       "key": "MeshBasicMaterial|isMaterial=true|blending=1|side=0|vertexColors=false|opacity=1|transparent=false|alphaHash=false|blend",
+       "count": 8,
+       "cats": [
+        "events"
+       ],
+       "names": [
+        "MeshBasicMaterial"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=true|opacity=1|transparent=false|alphaHash=false|ble",
+       "count": 8,
+       "cats": [
+        "characters/assets"
+       ],
+       "names": [
+        "PV_LOD"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 7,
+       "cats": [
+        "characters/player",
+        "characters/npc",
+        "characters/assets"
+       ],
+       "names": [
+        "PV_ACC_chapeu"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=0|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 7,
+       "cats": [
+        "vehicles/rideables"
+       ],
+       "names": [
+        "MeshStandardMaterial"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=0|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 5,
+       "cats": [
+        "vehicles/rideables"
+       ],
+       "names": [
+        "MeshStandardMaterial"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=0|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 5,
+       "cats": [
+        "vehicles/rideables"
+       ],
+       "names": [
+        "MeshStandardMaterial"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=0|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 5,
+       "cats": [
+        "vehicles/rideables"
+       ],
+       "names": [
+        "MeshStandardMaterial"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=0|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 5,
+       "cats": [
+        "vehicles/rideables"
+       ],
+       "names": [
+        "MeshStandardMaterial"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 4,
+       "cats": [
+        "characters/player",
+        "characters/npc"
+       ],
+       "names": [
+        "PV_ACC_oculos"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 4,
+       "cats": [
+        "characters/player",
+        "characters/npc"
+       ],
+       "names": [
+        "PV_EYEBROWS"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 4,
+       "cats": [
+        "characters/player",
+        "characters/npc",
+        "characters/assets"
+       ],
+       "names": [
+        "PV_SHOES"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=true|alphaHash=false|ble",
+       "count": 4,
+       "cats": [
+        "characters/assets"
+       ],
+       "names": [
+        "PV_ACC_oculos"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=true|alphaHash=false|ble",
+       "count": 4,
+       "cats": [
+        "characters/assets"
+       ],
+       "names": [
+        "PV_EYEBROWS"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=0|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 2,
+       "cats": [
+        "world/closure"
+       ],
+       "names": [
+        "MeshStandardMaterial"
+       ]
+      },
+      {
+       "key": "MeshBasicMaterial|isMaterial=true|blending=1|side=0|vertexColors=false|opacity=1|transparent=false|alphaHash=false|blend",
+       "count": 2,
+       "cats": [
+        "events"
+       ],
+       "names": [
+        "MeshBasicMaterial"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=true|alphaHash=false|ble",
+       "count": 2,
+       "cats": [
+        "characters/assets"
+       ],
+       "names": [
+        "PV_HAIR"
+       ]
+      }
+     ],
+     "geometries": [
+      {
+       "count": 4,
+       "wastedMB": 0.1,
+       "cats": [
+        "landmarks"
+       ],
+       "names": [
+        "TorusGeometry"
+       ]
+      },
+      {
+       "count": 5,
+       "wastedMB": 0.1,
+       "cats": [
+        "vehicles/rideables"
+       ],
+       "names": [
+        "BufferGeometry"
+       ]
+      },
+      {
+       "count": 5,
+       "wastedMB": 0.1,
+       "cats": [
+        "vehicles/rideables"
+       ],
+       "names": [
+        "BufferGeometry"
+       ]
+      },
+      {
+       "count": 2,
+       "wastedMB": 0,
+       "cats": [
+        "props"
+       ],
+       "names": [
+        "SphereGeometry"
+       ]
+      },
+      {
+       "count": 2,
+       "wastedMB": 0,
+       "cats": [
+        "props"
+       ],
+       "names": [
+        "SphereGeometry"
+       ]
+      },
+      {
+       "count": 2,
+       "wastedMB": 0,
+       "cats": [
+        "props"
+       ],
+       "names": [
+        "SphereGeometry"
+       ]
+      },
+      {
+       "count": 2,
+       "wastedMB": 0,
+       "cats": [
+        "props"
+       ],
+       "names": [
+        "BufferGeometry"
+       ]
+      },
+      {
+       "count": 2,
+       "wastedMB": 0,
+       "cats": [
+        "props"
+       ],
+       "names": [
+        "BufferGeometry"
+       ]
+      },
+      {
+       "count": 4,
+       "wastedMB": 0,
+       "cats": [
+        "landmarks"
+       ],
+       "names": [
+        "CircleGeometry"
+       ]
+      },
+      {
+       "count": 4,
+       "wastedMB": 0,
+       "cats": [
+        "landmarks"
+       ],
+       "names": [
+        "BoxGeometry"
+       ]
+      },
+      {
+       "count": 4,
+       "wastedMB": 0,
+       "cats": [
+        "landmarks"
+       ],
+       "names": [
+        "BoxGeometry"
+       ]
+      },
+      {
+       "count": 2,
+       "wastedMB": 0,
+       "cats": [
+        "characters/player",
+        "characters/npc"
+       ],
+       "names": [
+        "BufferGeometry"
+       ]
+      },
+      {
+       "count": 4,
+       "wastedMB": 0,
+       "cats": [
+        "world/closure"
+       ],
+       "names": [
+        "BoxGeometry"
+       ]
+      },
+      {
+       "count": 3,
+       "wastedMB": 0,
+       "cats": [
+        "monuments"
+       ],
+       "names": [
+        "BufferGeometry"
+       ]
+      },
+      {
+       "count": 2,
+       "wastedMB": 0,
+       "cats": [
+        "monuments"
+       ],
+       "names": [
+        "CylinderGeometry"
+       ]
+      },
+      {
+       "count": 4,
+       "wastedMB": 0,
+       "cats": [
+        "monuments"
+       ],
+       "names": [
+        "CircleGeometry"
+       ]
+      },
+      {
+       "count": 4,
+       "wastedMB": 0,
+       "cats": [
+        "monuments"
+       ],
+       "names": [
+        "BoxGeometry"
+       ]
+      },
+      {
+       "count": 4,
+       "wastedMB": 0,
+       "cats": [
+        "monuments"
+       ],
+       "names": [
+        "BoxGeometry"
+       ]
+      },
+      {
+       "count": 2,
+       "wastedMB": 0,
+       "cats": [
+        "monuments"
+       ],
+       "names": [
+        "BoxGeometry"
+       ]
+      },
+      {
+       "count": 2,
+       "wastedMB": 0,
+       "cats": [
+        "monuments"
+       ],
+       "names": [
+        "BufferGeometry"
+       ]
+      },
+      {
+       "count": 4,
+       "wastedMB": 0,
+       "cats": [
+        "events"
+       ],
+       "names": [
+        "BoxGeometry"
+       ]
+      },
+      {
+       "count": 4,
+       "wastedMB": 0,
+       "cats": [
+        "events"
+       ],
+       "names": [
+        "PlaneGeometry"
+       ]
+      },
+      {
+       "count": 5,
+       "wastedMB": 0,
+       "cats": [
+        "vehicles/rideables"
+       ],
+       "names": [
+        "BufferGeometry"
+       ]
+      },
+      {
+       "count": 5,
+       "wastedMB": 0,
+       "cats": [
+        "vehicles/rideables"
+       ],
+       "names": [
+        "BufferGeometry"
+       ]
+      },
+      {
+       "count": 5,
+       "wastedMB": 0,
+       "cats": [
+        "vehicles/rideables"
+       ],
+       "names": [
+        "CylinderGeometry"
+       ]
+      },
+      {
+       "count": 5,
+       "wastedMB": 0,
+       "cats": [
+        "vehicles/rideables"
+       ],
+       "names": [
+        "BoxGeometry"
+       ]
+      }
+     ],
+     "counts": {
+      "textures": 3,
+      "texWastedMB": 0.1,
+      "materials": 173,
+      "geometries": 65,
+      "geoWastedMB": 0.3
+     }
+    },
+    "topTextures": [
+     {
+      "name": "sun.shadowMap",
+      "cat": "shadows",
+      "size": "4096x4096",
+      "gpuMB": 64,
+      "cpuMB": 0,
+      "mip": false
+     },
+     {
+      "name": "street_signs_atlas",
+      "cat": "monuments",
+      "size": "1024x4608",
+      "gpuMB": 24,
+      "cpuMB": 0,
+      "mip": true
+     },
+     {
+      "name": "_Texture",
+      "cat": "vegetation",
+      "size": "1024x1280",
+      "gpuMB": 6.7,
+      "cpuMB": 0,
+      "mip": true
+     },
+     {
+      "name": "_Texture",
+      "cat": "vegetation",
+      "size": "1024x1280",
+      "gpuMB": 6.7,
+      "cpuMB": 0,
+      "mip": true
+     },
+     {
+      "name": "PMREM.cubeUv",
+      "cat": "environment",
+      "size": "768x1024",
+      "gpuMB": 6,
+      "cpuMB": 0,
+      "mip": false
+     },
+     {
+      "name": "leaves.webp",
+      "cat": "vegetation",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 4,
+      "mip": true
+     },
+     {
+      "name": "DataTexture",
+      "cat": "chunks/ground",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 0,
+      "mip": true
+     },
+     {
+      "name": "DataTexture",
+      "cat": "chunks/ground",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 0,
+      "mip": true
+     },
+     {
+      "name": "DataTexture",
+      "cat": "chunks/ground",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 0,
+      "mip": true
+     },
+     {
+      "name": "DataTexture",
+      "cat": "chunks/ground",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 0,
+      "mip": true
+     },
+     {
+      "name": "DataTexture",
+      "cat": "chunks/ground",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 0,
+      "mip": true
+     },
+     {
+      "name": "DataTexture",
+      "cat": "chunks/ground",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 0,
+      "mip": true
+     },
+     {
+      "name": "DataTexture",
+      "cat": "chunks/ground",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 0,
+      "mip": true
+     },
+     {
+      "name": "DataTexture",
+      "cat": "chunks/ground",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 0,
+      "mip": true
+     },
+     {
+      "name": "DataTexture",
+      "cat": "chunks/ground",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 0,
+      "mip": true
+     },
+     {
+      "name": "concrete_detail.jpg",
+      "cat": "landmarks",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 4,
+      "mip": true
+     },
+     {
+      "name": "granite_detail.jpg",
+      "cat": "landmarks",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 4,
+      "mip": true
+     },
+     {
+      "name": "plaster_detail.jpg",
+      "cat": "landmarks",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 4,
+      "mip": true
+     },
+     {
+      "name": "homem_BODY_albedo",
+      "cat": "characters/player",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 4,
+      "mip": true
+     },
+     {
+      "name": "homem_HAIR_albedo",
+      "cat": "characters/player",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 4,
+      "mip": true
+     },
+     {
+      "name": "homem_PANTS_albedo",
+      "cat": "characters/player",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 4,
+      "mip": true
+     },
+     {
+      "name": "homem_PANTS_normal",
+      "cat": "characters/player",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 4,
+      "mip": true
+     },
+     {
+      "name": "homem_SHIRT_albedo",
+      "cat": "characters/player",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 4,
+      "mip": true
+     },
+     {
+      "name": "CanvasTexture",
+      "cat": "events",
+      "size": "1024x577",
+      "gpuMB": 3,
+      "cpuMB": 2.3,
+      "mip": true
+     },
+     {
+      "name": "CanvasTexture",
+      "cat": "events",
+      "size": "1024x576",
+      "gpuMB": 3,
+      "cpuMB": 2.3,
+      "mip": true
+     }
+    ],
+    "topGeometries": [
+     {
+      "name": "BufferGeometry",
+      "cat": "landmarks",
+      "MB": 8.4,
+      "verts": 245880
+     },
+     {
+      "name": "BufferGeometry",
+      "cat": "chunks/buildings",
+      "MB": 2.6,
+      "verts": 40668
+     },
+     {
+      "name": "BufferGeometry",
+      "cat": "landmarks",
+      "MB": 2.4,
+      "verts": 70416
+     },
+     {
+      "name": "BufferGeometry",
+      "cat": "chunks/buildings",
+      "MB": 2.3,
+      "verts": 36605
+     },
+     {
+      "name": "BufferGeometry",
+      "cat": "chunks/buildings",
+      "MB": 2.3,
+      "verts": 35626
+     },
+     {
+      "name": "BufferGeometry",
+      "cat": "chunks/buildings",
+      "MB": 2.3,
+      "verts": 35376
+     },
+     {
+      "name": "BufferGeometry",
+      "cat": "chunks/buildings",
+      "MB": 2.2,
+      "verts": 33625
+     },
+     {
+      "name": "BufferGeometry",
+      "cat": "landmarks",
+      "MB": 2.1,
+      "verts": 61236
+     },
+     {
+      "name": "BufferGeometry",
+      "cat": "landmarks",
+      "MB": 2.1,
+      "verts": 60876
+     },
+     {
+      "name": "BufferGeometry",
+      "cat": "vegetation",
+      "MB": 2.1,
+      "verts": 56888
+     },
+     {
+      "name": "BufferGeometry",
+      "cat": "landmarks",
+      "MB": 2,
+      "verts": 57492
+     },
+     {
+      "name": "BufferGeometry",
+      "cat": "chunks/buildings",
+      "MB": 1.9,
+      "verts": 30419
+     },
+     {
+      "name": "BufferGeometry",
+      "cat": "chunks/buildings",
+      "MB": 1.9,
+      "verts": 30153
+     },
+     {
+      "name": "BufferGeometry",
+      "cat": "landmarks",
+      "MB": 1.9,
+      "verts": 55776
+     },
+     {
+      "name": "BufferGeometry",
+      "cat": "chunks/buildings",
+      "MB": 1.9,
+      "verts": 29713
+     }
+    ]
+   },
+   "fps": 56.279898696497,
+   "chunks": {
+    "visible": 70,
+    "full": 18,
+    "medium": 30,
+    "far": 22,
+    "loaded": 70
+   }
+  },
+  {
+   "name": "central",
+   "heapRaw": {
+    "usedMB": 61.3,
+    "totalMB": 79.4,
+    "backingStoreMB": 83.1,
+    "embedderMB": 3.3,
+    "perfMemMB": 144.4
+   },
+   "heapGC": {
+    "usedMB": 55.4,
+    "totalMB": 59.1,
+    "backingStoreMB": 83.1,
+    "embedderMB": 3.3,
+    "perfMemMB": 138.5
+   },
+   "report": {
+    "t": 17955,
+    "heap": {
+     "usedMB": 139.4,
+     "totalMB": 142.4
+    },
+    "renderer": {
+     "textures": 194,
+     "geometries": 613,
+     "programs": 107
+    },
+    "totals": {
+     "textures": 127,
+     "texGpuMB": 313.4,
+     "texCpuMB": 127.2,
+     "geometries": 908,
+     "geoMB": 105.9,
+     "geoCpuMB": 35.5,
+     "materials": 480,
+     "skeletons": 360,
+     "boneTexMB": 1.5,
+     "gpuEstMB": 420.8
+    },
+    "categories": {
+     "chunks/ground": {
+      "textures": 27,
+      "texGpuMB": 65.7,
+      "texCpuMB": 0,
+      "geometries": 423,
+      "geoMB": 5.4,
+      "geoCpuMB": 1.2,
+      "materials": 13,
+      "skeletons": 0,
+      "boneTexMB": 0,
+      "objects": 423
+     },
+     "shadows": {
+      "textures": 1,
+      "texGpuMB": 64,
+      "texCpuMB": 0,
+      "geometries": 0,
+      "geoMB": 0,
+      "geoCpuMB": 0,
+      "materials": 0,
+      "skeletons": 0,
+      "boneTexMB": 0,
+      "objects": 0
+     },
+     "characters/npc": {
+      "textures": 40,
+      "texGpuMB": 58.7,
+      "texCpuMB": 59,
+      "geometries": 97,
+      "geoMB": 4.9,
+      "geoCpuMB": 4.9,
+      "materials": 241,
+      "skeletons": 241,
+      "boneTexMB": 1.1,
+      "objects": 241
+     },
+     "landmarks": {
+      "textures": 5,
+      "texGpuMB": 17.7,
+      "texCpuMB": 13.3,
+      "geometries": 99,
+      "geoMB": 38,
+      "geoCpuMB": 15.1,
+      "materials": 9,
+      "skeletons": 0,
+      "boneTexMB": 0,
+      "objects": 99
+     },
+     "chunks/buildings": {
+      "textures": 1,
+      "texGpuMB": 2.7,
+      "texCpuMB": 0,
+      "geometries": 69,
+      "geoMB": 46,
+      "geoCpuMB": 2.8,
+      "materials": 1,
+      "skeletons": 0,
+      "boneTexMB": 0,
+      "objects": 69
+     },
+     "characters/player": {
+      "textures": 16,
+      "texGpuMB": 38,
+      "texCpuMB": 28.5,
+      "geometries": 14,
+      "geoMB": 1,
+      "geoCpuMB": 1,
+      "materials": 14,
+      "skeletons": 14,
+      "boneTexMB": 0.1,
+      "objects": 14
+     },
+     "vegetation": {
+      "textures": 17,
+      "texGpuMB": 24.2,
+      "texCpuMB": 8.2,
+      "geometries": 5,
+      "geoMB": 3.6,
+      "geoCpuMB": 3.6,
+      "materials": 3,
+      "skeletons": 0,
+      "boneTexMB": 0,
+      "objects": 5
+     },
+     "monuments": {
+      "textures": 2,
+      "texGpuMB": 24.3,
+      "texCpuMB": 0.3,
+      "geometries": 32,
+      "geoMB": 0.4,
+      "geoCpuMB": 0.4,
+      "materials": 9,
+      "skeletons": 0,
+      "boneTexMB": 0,
+      "objects": 32
+     },
+     "events": {
+      "textures": 5,
+      "texGpuMB": 9,
+      "texCpuMB": 9.4,
+      "geometries": 56,
+      "geoMB": 0,
+      "geoCpuMB": 0,
+      "materials": 29,
+      "skeletons": 0,
+      "boneTexMB": 0,
+      "objects": 56
+     },
+     "environment": {
+      "textures": 1,
+      "texGpuMB": 6,
+      "texCpuMB": 0,
+      "geometries": 2,
+      "geoMB": 0.1,
+      "geoCpuMB": 0.1,
+      "materials": 2,
+      "skeletons": 0,
+      "boneTexMB": 0,
+      "objects": 2
+     },
+     "characters/assets": {
+      "textures": 3,
+      "texGpuMB": 2.7,
+      "texCpuMB": 1,
+      "geometries": 18,
+      "geoMB": 0.8,
+      "geoCpuMB": 0.8,
+      "materials": 105,
+      "skeletons": 105,
+      "boneTexMB": 0.3,
+      "objects": 105
+     },
+     "other": {
+      "textures": 8,
+      "texGpuMB": 0,
+      "texCpuMB": 7.3,
+      "geometries": 8,
+      "geoMB": 2.1,
+      "geoCpuMB": 2.1,
+      "materials": 8,
+      "skeletons": 0,
+      "boneTexMB": 0,
+      "objects": 8
+     },
+     "vehicles/assets": {
+      "textures": 0,
+      "texGpuMB": 0,
+      "texCpuMB": 0,
+      "geometries": 8,
+      "geoMB": 1.6,
+      "geoCpuMB": 1.6,
+      "materials": 0,
+      "skeletons": 0,
+      "boneTexMB": 0,
+      "objects": 0
+     },
+     "props": {
+      "textures": 0,
+      "texGpuMB": 0,
+      "texCpuMB": 0,
+      "geometries": 34,
+      "geoMB": 1,
+      "geoCpuMB": 1,
+      "materials": 7,
+      "skeletons": 0,
+      "boneTexMB": 0,
+      "objects": 34
+     },
+     "world/closure": {
+      "textures": 1,
+      "texGpuMB": 0.5,
+      "texCpuMB": 0.4,
+      "geometries": 7,
+      "geoMB": 0.3,
+      "geoCpuMB": 0.3,
+      "materials": 5,
+      "skeletons": 0,
+      "boneTexMB": 0,
+      "objects": 8
+     },
+     "vehicles/rideables": {
+      "textures": 0,
+      "texGpuMB": 0,
+      "texCpuMB": 0,
+      "geometries": 36,
+      "geoMB": 0.6,
+      "geoCpuMB": 0.6,
+      "materials": 34,
+      "skeletons": 0,
+      "boneTexMB": 0,
+      "objects": 250
+     }
+    },
+    "ledger": {
+     "texturesMB": 397.6,
+     "textureCount": 198,
+     "buffersMB": 81.1,
+     "bufferCount": 2763,
+     "renderbuffersMB": 97.7,
+     "renderbufferCount": 8,
+     "unattributedTexMB": 84.2,
+     "totalMB": 576.4
+    },
+    "wasm": [
+     {
+      "label": "meshopt",
+      "MB": 0.4
+     }
+    ],
+    "animation": {
+     "clips": 14,
+     "tracks": 2226,
+     "MB": 0.3
+    },
+    "assets": {
+     "textureHits": 0,
+     "textureLoads": 6,
+     "gltfHits": 0,
+     "gltfLoads": 39,
+     "imagesDeduped": 54,
+     "imagesDecoded": 59,
+     "cpuReleasedMB": 150.1,
+     "materialHits": 0,
+     "textures": [
+      {
+       "key": "leaves.webp",
+       "refs": 1
+      },
+      {
+       "key": "bark.jpg",
+       "refs": 1
+      },
+      {
+       "key": "bark_n.jpg",
+       "refs": 1
+      },
+      {
+       "key": "plaster_detail.jpg",
+       "refs": 1
+      },
+      {
+       "key": "concrete_detail.jpg",
+       "refs": 1
+      },
+      {
+       "key": "granite_detail.jpg",
+       "refs": 1
+      }
+     ],
+     "gltfs": [
+      {
+       "url": "homem_lod3.glb",
+       "refs": 1
+      },
+      {
+       "url": "anims.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher_lod3.glb",
+       "refs": 1
+      },
+      {
+       "url": "idoso_lod3.glb",
+       "refs": 1
+      },
+      {
+       "url": "idosa_lod3.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem_lod2.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher_lod2.glb",
+       "refs": 1
+      },
+      {
+       "url": "idoso_lod2.glb",
+       "refs": 1
+      },
+      {
+       "url": "idosa_lod2.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "idoso_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "idoso-shirt-camisa_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "idoso-pants-bermuda_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "idoso-shoes-chinelo_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem-shirt-polo_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem-hair-afro_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem-shirt-camisa_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem-pants-social_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem-hair-curto2_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher-shoes-sapato_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher-hair-longo_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "idoso-shirt-camiseta_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "idoso-shoes-tenis_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher-pants-social_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "idosa.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher-pants-bermuda_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher-shoes-chinelo_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem-shoes-sapato_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem-shirt-polo.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem-pants-social.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem-shoes-sapato.glb",
+       "refs": 1
+      },
+      {
+       "url": "idosa_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "idosa-shirt-camisa.glb",
+       "refs": 1
+      },
+      {
+       "url": "idosa-pants-jeans.glb",
+       "refs": 1
+      },
+      {
+       "url": "idosa-hair-curto.glb",
+       "refs": 1
+      },
+      {
+       "url": "idosa-pants-jeans_lod1.glb",
+       "refs": 1
+      }
+     ],
+     "materials": 0,
+     "imageSources": 59
+    },
+    "duplicates": {
+     "textures": [
+      {
+       "key": "d48x48:1786658689",
+       "count": 4,
+       "wastedMB": 0.1,
+       "names": [
+        "?"
+       ],
+       "cats": [
+        "vegetation"
+       ]
+      },
+      {
+       "key": "d23x23:3079460946",
+       "count": 2,
+       "wastedMB": 0,
+       "names": [
+        "?"
+       ],
+       "cats": [
+        "vegetation"
+       ]
+      },
+      {
+       "key": "d23x23:166283452",
+       "count": 2,
+       "wastedMB": 0,
+       "names": [
+        "?"
+       ],
+       "cats": [
+        "vegetation"
+       ]
+      }
+     ],
+     "materials": [
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=true|opacity=1|transparent=false|alphaHash=false|ble",
+       "count": 70,
+       "cats": [
+        "characters/player",
+        "characters/npc"
+       ],
+       "names": [
+        "PV_LOD"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 19,
+       "cats": [
+        "characters/player",
+        "characters/npc",
+        "characters/assets"
+       ],
+       "names": [
+        "PV_ACC_bolsa"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 19,
+       "cats": [
+        "characters/player",
+        "characters/npc",
+        "characters/assets"
+       ],
+       "names": [
+        "PV_EYES"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 18,
+       "cats": [
+        "characters/player",
+        "characters/npc",
+        "characters/assets"
+       ],
+       "names": [
+        "PV_ACC_bone"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 18,
+       "cats": [
+        "characters/player",
+        "characters/npc",
+        "characters/assets"
+       ],
+       "names": [
+        "PV_ACC_chapeu"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 15,
+       "cats": [
+        "characters/player",
+        "characters/npc",
+        "characters/assets"
+       ],
+       "names": [
+        "PV_ACC_mochila"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 13,
+       "cats": [
+        "characters/player",
+        "characters/npc"
+       ],
+       "names": [
+        "PV_ACC_oculos"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 13,
+       "cats": [
+        "characters/player",
+        "characters/npc"
+       ],
+       "names": [
+        "PV_EYEBROWS"
+       ]
+      },
+      {
+       "key": "MeshBasicMaterial|isMaterial=true|blending=1|side=0|vertexColors=false|opacity=1|transparent=false|alphaHash=false|blend",
+       "count": 9,
+       "cats": [
+        "events"
+       ],
+       "names": [
+        "MeshBasicMaterial"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=0|vertexColors=true|opacity=1|transparent=false|alphaHash=false|ble",
+       "count": 8,
+       "cats": [
+        "other"
+       ],
+       "names": [
+        "MeshStandardMaterial"
+       ]
+      },
+      {
+       "key": "MeshBasicMaterial|isMaterial=true|blending=1|side=0|vertexColors=false|opacity=1|transparent=false|alphaHash=false|blend",
+       "count": 8,
+       "cats": [
+        "events"
+       ],
+       "names": [
+        "MeshBasicMaterial"
+       ]
+      },
+      {
+       "key": "MeshBasicMaterial|isMaterial=true|blending=1|side=0|vertexColors=false|opacity=1|transparent=false|alphaHash=false|blend",
+       "count": 8,
+       "cats": [
+        "events"
+       ],
+       "names": [
+        "MeshBasicMaterial"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=true|opacity=1|transparent=false|alphaHash=false|ble",
+       "count": 8,
+       "cats": [
+        "characters/assets"
+       ],
+       "names": [
+        "PV_LOD"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=0|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 7,
+       "cats": [
+        "vehicles/rideables"
+       ],
+       "names": [
+        "MeshStandardMaterial"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 6,
+       "cats": [
+        "characters/player",
+        "characters/npc",
+        "characters/assets"
+       ],
+       "names": [
+        "PV_SHOES"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=true|alphaHash=false|ble",
+       "count": 6,
+       "cats": [
+        "characters/assets"
+       ],
+       "names": [
+        "PV_ACC_oculos"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=true|alphaHash=false|ble",
+       "count": 6,
+       "cats": [
+        "characters/assets"
+       ],
+       "names": [
+        "PV_EYEBROWS"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 5,
+       "cats": [
+        "characters/player",
+        "characters/npc"
+       ],
+       "names": [
+        "PV_EYELASHES"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 5,
+       "cats": [
+        "characters/npc",
+        "characters/assets"
+       ],
+       "names": [
+        "PV_SHOES_sapato"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=0|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 5,
+       "cats": [
+        "vehicles/rideables"
+       ],
+       "names": [
+        "MeshStandardMaterial"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=0|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 5,
+       "cats": [
+        "vehicles/rideables"
+       ],
+       "names": [
+        "MeshStandardMaterial"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=0|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 5,
+       "cats": [
+        "vehicles/rideables"
+       ],
+       "names": [
+        "MeshStandardMaterial"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=0|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 5,
+       "cats": [
+        "vehicles/rideables"
+       ],
+       "names": [
+        "MeshStandardMaterial"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 4,
+       "cats": [
+        "characters/npc",
+        "characters/assets"
+       ],
+       "names": [
+        "PV_SHOES"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 3,
+       "cats": [
+        "characters/npc",
+        "characters/assets"
+       ],
+       "names": [
+        "PV_SHOES"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 2,
+       "cats": [
+        "characters/player",
+        "characters/npc"
+       ],
+       "names": [
+        "PV_SHIRT"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 2,
+       "cats": [
+        "characters/npc"
+       ],
+       "names": [
+        "PV_ACC_mochila"
+       ]
+      },
+      {
+       "key": "MeshPhysicalMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 2,
+       "cats": [
+        "characters/npc"
+       ],
+       "names": [
+        "PV_BODY"
+       ]
+      },
+      {
+       "key": "MeshPhysicalMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 2,
+       "cats": [
+        "characters/npc"
+       ],
+       "names": [
+        "PV_BODY"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 2,
+       "cats": [
+        "characters/npc",
+        "characters/assets"
+       ],
+       "names": [
+        "PV_PANTS"
+       ]
+      }
+     ],
+     "geometries": [
+      {
+       "count": 4,
+       "wastedMB": 0.1,
+       "cats": [
+        "landmarks"
+       ],
+       "names": [
+        "TorusGeometry"
+       ]
+      },
+      {
+       "count": 5,
+       "wastedMB": 0.1,
+       "cats": [
+        "vehicles/rideables"
+       ],
+       "names": [
+        "BufferGeometry"
+       ]
+      },
+      {
+       "count": 5,
+       "wastedMB": 0.1,
+       "cats": [
+        "vehicles/rideables"
+       ],
+       "names": [
+        "BufferGeometry"
+       ]
+      },
+      {
+       "count": 2,
+       "wastedMB": 0,
+       "cats": [
+        "props"
+       ],
+       "names": [
+        "SphereGeometry"
+       ]
+      },
+      {
+       "count": 2,
+       "wastedMB": 0,
+       "cats": [
+        "props"
+       ],
+       "names": [
+        "SphereGeometry"
+       ]
+      },
+      {
+       "count": 2,
+       "wastedMB": 0,
+       "cats": [
+        "props"
+       ],
+       "names": [
+        "SphereGeometry"
+       ]
+      },
+      {
+       "count": 2,
+       "wastedMB": 0,
+       "cats": [
+        "props"
+       ],
+       "names": [
+        "BufferGeometry"
+       ]
+      },
+      {
+       "count": 2,
+       "wastedMB": 0,
+       "cats": [
+        "props"
+       ],
+       "names": [
+        "BufferGeometry"
+       ]
+      },
+      {
+       "count": 4,
+       "wastedMB": 0,
+       "cats": [
+        "landmarks"
+       ],
+       "names": [
+        "CircleGeometry"
+       ]
+      },
+      {
+       "count": 4,
+       "wastedMB": 0,
+       "cats": [
+        "landmarks"
+       ],
+       "names": [
+        "BoxGeometry"
+       ]
+      },
+      {
+       "count": 4,
+       "wastedMB": 0,
+       "cats": [
+        "landmarks"
+       ],
+       "names": [
+        "BoxGeometry"
+       ]
+      },
+      {
+       "count": 2,
+       "wastedMB": 0,
+       "cats": [
+        "characters/player",
+        "characters/npc"
+       ],
+       "names": [
+        "BufferGeometry"
+       ]
+      },
+      {
+       "count": 2,
+       "wastedMB": 0,
+       "cats": [
+        "characters/npc"
+       ],
+       "names": [
+        "BufferGeometry"
+       ]
+      },
+      {
+       "count": 4,
+       "wastedMB": 0,
+       "cats": [
+        "world/closure"
+       ],
+       "names": [
+        "BoxGeometry"
+       ]
+      },
+      {
+       "count": 3,
+       "wastedMB": 0,
+       "cats": [
+        "monuments"
+       ],
+       "names": [
+        "BufferGeometry"
+       ]
+      },
+      {
+       "count": 2,
+       "wastedMB": 0,
+       "cats": [
+        "monuments"
+       ],
+       "names": [
+        "CylinderGeometry"
+       ]
+      },
+      {
+       "count": 4,
+       "wastedMB": 0,
+       "cats": [
+        "monuments"
+       ],
+       "names": [
+        "CircleGeometry"
+       ]
+      },
+      {
+       "count": 4,
+       "wastedMB": 0,
+       "cats": [
+        "monuments"
+       ],
+       "names": [
+        "BoxGeometry"
+       ]
+      },
+      {
+       "count": 4,
+       "wastedMB": 0,
+       "cats": [
+        "monuments"
+       ],
+       "names": [
+        "BoxGeometry"
+       ]
+      },
+      {
+       "count": 2,
+       "wastedMB": 0,
+       "cats": [
+        "monuments"
+       ],
+       "names": [
+        "BoxGeometry"
+       ]
+      },
+      {
+       "count": 2,
+       "wastedMB": 0,
+       "cats": [
+        "monuments"
+       ],
+       "names": [
+        "BufferGeometry"
+       ]
+      },
+      {
+       "count": 4,
+       "wastedMB": 0,
+       "cats": [
+        "events"
+       ],
+       "names": [
+        "BoxGeometry"
+       ]
+      },
+      {
+       "count": 4,
+       "wastedMB": 0,
+       "cats": [
+        "events"
+       ],
+       "names": [
+        "PlaneGeometry"
+       ]
+      },
+      {
+       "count": 5,
+       "wastedMB": 0,
+       "cats": [
+        "vehicles/rideables"
+       ],
+       "names": [
+        "BufferGeometry"
+       ]
+      },
+      {
+       "count": 5,
+       "wastedMB": 0,
+       "cats": [
+        "vehicles/rideables"
+       ],
+       "names": [
+        "BufferGeometry"
+       ]
+      },
+      {
+       "count": 5,
+       "wastedMB": 0,
+       "cats": [
+        "vehicles/rideables"
+       ],
+       "names": [
+        "CylinderGeometry"
+       ]
+      },
+      {
+       "count": 5,
+       "wastedMB": 0,
+       "cats": [
+        "vehicles/rideables"
+       ],
+       "names": [
+        "BoxGeometry"
+       ]
+      }
+     ],
+     "counts": {
+      "textures": 3,
+      "texWastedMB": 0.1,
+      "materials": 280,
+      "geometries": 66,
+      "geoWastedMB": 0.3
+     }
+    },
+    "topTextures": [
+     {
+      "name": "sun.shadowMap",
+      "cat": "shadows",
+      "size": "4096x4096",
+      "gpuMB": 64,
+      "cpuMB": 0,
+      "mip": false
+     },
+     {
+      "name": "street_signs_atlas",
+      "cat": "monuments",
+      "size": "1024x4608",
+      "gpuMB": 24,
+      "cpuMB": 0,
+      "mip": true
+     },
+     {
+      "name": "_Texture",
+      "cat": "vegetation",
+      "size": "1024x1280",
+      "gpuMB": 6.7,
+      "cpuMB": 0,
+      "mip": true
+     },
+     {
+      "name": "_Texture",
+      "cat": "vegetation",
+      "size": "1024x1280",
+      "gpuMB": 6.7,
+      "cpuMB": 0,
+      "mip": true
+     },
+     {
+      "name": "PMREM.cubeUv",
+      "cat": "environment",
+      "size": "768x1024",
+      "gpuMB": 6,
+      "cpuMB": 0,
+      "mip": false
+     },
+     {
+      "name": "leaves.webp",
+      "cat": "vegetation",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 4,
+      "mip": true
+     },
+     {
+      "name": "DataTexture",
+      "cat": "chunks/ground",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 0,
+      "mip": true
+     },
+     {
+      "name": "DataTexture",
+      "cat": "chunks/ground",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 0,
+      "mip": true
+     },
+     {
+      "name": "DataTexture",
+      "cat": "chunks/ground",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 0,
+      "mip": true
+     },
+     {
+      "name": "DataTexture",
+      "cat": "chunks/ground",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 0,
+      "mip": true
+     },
+     {
+      "name": "DataTexture",
+      "cat": "chunks/ground",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 0,
+      "mip": true
+     },
+     {
+      "name": "DataTexture",
+      "cat": "chunks/ground",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 0,
+      "mip": true
+     },
+     {
+      "name": "DataTexture",
+      "cat": "chunks/ground",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 0,
+      "mip": true
+     },
+     {
+      "name": "DataTexture",
+      "cat": "chunks/ground",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 0,
+      "mip": true
+     },
+     {
+      "name": "DataTexture",
+      "cat": "chunks/ground",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 0,
+      "mip": true
+     },
+     {
+      "name": "concrete_detail.jpg",
+      "cat": "landmarks",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 4,
+      "mip": true
+     },
+     {
+      "name": "granite_detail.jpg",
+      "cat": "landmarks",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 4,
+      "mip": true
+     },
+     {
+      "name": "plaster_detail.jpg",
+      "cat": "landmarks",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 4,
+      "mip": true
+     },
+     {
+      "name": "homem_BODY_albedo",
+      "cat": "characters/player",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 4,
+      "mip": true
+     },
+     {
+      "name": "homem_HAIR_albedo",
+      "cat": "characters/player",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 4,
+      "mip": true
+     },
+     {
+      "name": "homem_PANTS_albedo",
+      "cat": "characters/player",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 4,
+      "mip": true
+     },
+     {
+      "name": "homem_PANTS_normal",
+      "cat": "characters/player",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 4,
+      "mip": true
+     },
+     {
+      "name": "homem_SHIRT_albedo",
+      "cat": "characters/player",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 4,
+      "mip": true
+     },
+     {
+      "name": "idosa_BODY_albedo",
+      "cat": "characters/npc",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 4,
+      "mip": true
+     },
+     {
+      "name": "idosa_HAIR_albedo",
+      "cat": "characters/npc",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 4,
+      "mip": true
+     }
+    ],
+    "topGeometries": [
+     {
+      "name": "BufferGeometry",
+      "cat": "landmarks",
+      "MB": 8.4,
+      "verts": 245880
+     },
+     {
+      "name": "BufferGeometry",
+      "cat": "chunks/buildings",
+      "MB": 2.6,
+      "verts": 40668
+     },
+     {
+      "name": "BufferGeometry",
+      "cat": "landmarks",
+      "MB": 2.4,
+      "verts": 70416
+     },
+     {
+      "name": "BufferGeometry",
+      "cat": "chunks/buildings",
+      "MB": 2.3,
+      "verts": 36605
+     },
+     {
+      "name": "BufferGeometry",
+      "cat": "chunks/buildings",
+      "MB": 2.3,
+      "verts": 35626
+     },
+     {
+      "name": "BufferGeometry",
+      "cat": "chunks/buildings",
+      "MB": 2.3,
+      "verts": 35376
+     },
+     {
+      "name": "BufferGeometry",
+      "cat": "chunks/buildings",
+      "MB": 2.2,
+      "verts": 33625
+     },
+     {
+      "name": "BufferGeometry",
+      "cat": "landmarks",
+      "MB": 2.1,
+      "verts": 61236
+     },
+     {
+      "name": "BufferGeometry",
+      "cat": "landmarks",
+      "MB": 2.1,
+      "verts": 60876
+     },
+     {
+      "name": "BufferGeometry",
+      "cat": "vegetation",
+      "MB": 2.1,
+      "verts": 56888
+     },
+     {
+      "name": "BufferGeometry",
+      "cat": "landmarks",
+      "MB": 2,
+      "verts": 57492
+     },
+     {
+      "name": "BufferGeometry",
+      "cat": "chunks/buildings",
+      "MB": 1.9,
+      "verts": 30419
+     },
+     {
+      "name": "BufferGeometry",
+      "cat": "chunks/buildings",
+      "MB": 1.9,
+      "verts": 30153
+     },
+     {
+      "name": "BufferGeometry",
+      "cat": "landmarks",
+      "MB": 1.9,
+      "verts": 55776
+     },
+     {
+      "name": "BufferGeometry",
+      "cat": "chunks/buildings",
+      "MB": 1.9,
+      "verts": 29713
+     }
+    ]
+   },
+   "fps": 57.06405440171217,
+   "chunks": {
+    "visible": 70,
+    "full": 21,
+    "medium": 28,
+    "far": 21,
+    "loaded": 70
+   }
+  },
+  {
+   "name": "meio",
+   "heapRaw": {
+    "usedMB": 172.4,
+    "totalMB": 229.9,
+    "backingStoreMB": 91.4,
+    "embedderMB": 6.8,
+    "perfMemMB": 263.9
+   },
+   "heapGC": {
+    "usedMB": 60.1,
+    "totalMB": 63.6,
+    "backingStoreMB": 83.9,
+    "embedderMB": 3.5,
+    "perfMemMB": 143.9
+   },
+   "report": {
+    "t": 25680,
+    "heap": {
+     "usedMB": 145.1,
+     "totalMB": 147.7
+    },
+    "renderer": {
+     "textures": 269,
+     "geometries": 647,
+     "programs": 110
+    },
+    "totals": {
+     "textures": 147,
+     "texGpuMB": 381,
+     "texCpuMB": 176.3,
+     "geometries": 987,
+     "geoMB": 122.3,
+     "geoCpuMB": 32.5,
+     "materials": 789,
+     "skeletons": 669,
+     "boneTexMB": 2.8,
+     "gpuEstMB": 506.1
+    },
+    "categories": {
+     "characters/npc": {
+      "textures": 57,
+      "texGpuMB": 117.3,
+      "texCpuMB": 103,
+      "geometries": 161,
+      "geoMB": 9.2,
+      "geoCpuMB": 9.2,
+      "materials": 503,
+      "skeletons": 503,
+      "boneTexMB": 2.2,
+      "objects": 503
+     },
+     "chunks/ground": {
+      "textures": 26,
+      "texGpuMB": 65.4,
+      "texCpuMB": 0,
+      "geometries": 414,
+      "geoMB": 5.1,
+      "geoCpuMB": 1.5,
+      "materials": 13,
+      "skeletons": 0,
+      "boneTexMB": 0,
+      "objects": 414
+     },
+     "shadows": {
+      "textures": 1,
+      "texGpuMB": 64,
+      "texCpuMB": 0,
+      "geometries": 0,
+      "geoMB": 0,
+      "geoCpuMB": 0,
+      "materials": 0,
+      "skeletons": 0,
+      "boneTexMB": 0,
+      "objects": 0
+     },
+     "chunks/buildings": {
+      "textures": 2,
+      "texGpuMB": 3,
+      "texCpuMB": 0,
+      "geometries": 84,
+      "geoMB": 57.8,
+      "geoCpuMB": 2.4,
+      "materials": 1,
+      "skeletons": 0,
+      "boneTexMB": 0,
+      "objects": 84
+     },
+     "landmarks": {
+      "textures": 5,
+      "texGpuMB": 17.7,
+      "texCpuMB": 13.3,
+      "geometries": 99,
+      "geoMB": 38,
+      "geoCpuMB": 7.3,
+      "materials": 9,
+      "skeletons": 0,
+      "boneTexMB": 0,
+      "objects": 99
+     },
+     "characters/player": {
+      "textures": 16,
+      "texGpuMB": 38,
+      "texCpuMB": 28.5,
+      "geometries": 14,
+      "geoMB": 1,
+      "geoCpuMB": 1,
+      "materials": 14,
+      "skeletons": 14,
+      "boneTexMB": 0.1,
+      "objects": 14
+     },
+     "vegetation": {
+      "textures": 17,
+      "texGpuMB": 24.3,
+      "texCpuMB": 8.3,
+      "geometries": 5,
+      "geoMB": 3.6,
+      "geoCpuMB": 3.6,
+      "materials": 3,
+      "skeletons": 0,
+      "boneTexMB": 0,
+      "objects": 5
+     },
+     "monuments": {
+      "textures": 2,
+      "texGpuMB": 24.3,
+      "texCpuMB": 0.3,
+      "geometries": 32,
+      "geoMB": 0.4,
+      "geoCpuMB": 0.4,
+      "materials": 9,
+      "skeletons": 0,
+      "boneTexMB": 0,
+      "objects": 32
+     },
+     "events": {
+      "textures": 5,
+      "texGpuMB": 12.5,
+      "texCpuMB": 9.4,
+      "geometries": 56,
+      "geoMB": 0,
+      "geoCpuMB": 0,
+      "materials": 29,
+      "skeletons": 0,
+      "boneTexMB": 0,
+      "objects": 56
+     },
+     "characters/assets": {
+      "textures": 6,
+      "texGpuMB": 8,
+      "texCpuMB": 6,
+      "geometries": 27,
+      "geoMB": 1.4,
+      "geoCpuMB": 1.4,
+      "materials": 152,
+      "skeletons": 152,
+      "boneTexMB": 0.5,
+      "objects": 152
+     },
+     "environment": {
+      "textures": 1,
+      "texGpuMB": 6,
+      "texCpuMB": 0,
+      "geometries": 2,
+      "geoMB": 0.1,
+      "geoCpuMB": 0.1,
+      "materials": 2,
+      "skeletons": 0,
+      "boneTexMB": 0,
+      "objects": 2
+     },
+     "other": {
+      "textures": 8,
+      "texGpuMB": 0,
+      "texCpuMB": 7.3,
+      "geometries": 8,
+      "geoMB": 2.1,
+      "geoCpuMB": 2.1,
+      "materials": 8,
+      "skeletons": 0,
+      "boneTexMB": 0,
+      "objects": 8
+     },
+     "vehicles/assets": {
+      "textures": 0,
+      "texGpuMB": 0,
+      "texCpuMB": 0,
+      "geometries": 8,
+      "geoMB": 1.6,
+      "geoCpuMB": 1.6,
+      "materials": 0,
+      "skeletons": 0,
+      "boneTexMB": 0,
+      "objects": 0
+     },
+     "props": {
+      "textures": 0,
+      "texGpuMB": 0,
+      "texCpuMB": 0,
+      "geometries": 34,
+      "geoMB": 1,
+      "geoCpuMB": 1,
+      "materials": 7,
+      "skeletons": 0,
+      "boneTexMB": 0,
+      "objects": 34
+     },
+     "world/closure": {
+      "textures": 1,
+      "texGpuMB": 0.5,
+      "texCpuMB": 0.4,
+      "geometries": 7,
+      "geoMB": 0.3,
+      "geoCpuMB": 0.3,
+      "materials": 5,
+      "skeletons": 0,
+      "boneTexMB": 0,
+      "objects": 8
+     },
+     "vehicles/rideables": {
+      "textures": 0,
+      "texGpuMB": 0,
+      "texCpuMB": 0,
+      "geometries": 36,
+      "geoMB": 0.6,
+      "geoCpuMB": 0.6,
+      "materials": 34,
+      "skeletons": 0,
+      "boneTexMB": 0,
+      "objects": 250
+     }
+    },
+    "ledger": {
+     "texturesMB": 465.4,
+     "textureCount": 273,
+     "buffersMB": 101,
+     "bufferCount": 2918,
+     "renderbuffersMB": 97.7,
+     "renderbufferCount": 8,
+     "unattributedTexMB": 84.4,
+     "totalMB": 664.1
+    },
+    "wasm": [
+     {
+      "label": "meshopt",
+      "MB": 0.4
+     }
+    ],
+    "animation": {
+     "clips": 14,
+     "tracks": 2226,
+     "MB": 0.3
+    },
+    "assets": {
+     "textureHits": 0,
+     "textureLoads": 6,
+     "gltfHits": 0,
+     "gltfLoads": 62,
+     "imagesDeduped": 87,
+     "imagesDecoded": 79,
+     "cpuReleasedMB": 187.4,
+     "materialHits": 0,
+     "textures": [
+      {
+       "key": "leaves.webp",
+       "refs": 1
+      },
+      {
+       "key": "bark.jpg",
+       "refs": 1
+      },
+      {
+       "key": "bark_n.jpg",
+       "refs": 1
+      },
+      {
+       "key": "plaster_detail.jpg",
+       "refs": 1
+      },
+      {
+       "key": "concrete_detail.jpg",
+       "refs": 1
+      },
+      {
+       "key": "granite_detail.jpg",
+       "refs": 1
+      }
+     ],
+     "gltfs": [
+      {
+       "url": "homem_lod3.glb",
+       "refs": 1
+      },
+      {
+       "url": "anims.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher_lod3.glb",
+       "refs": 1
+      },
+      {
+       "url": "idoso_lod3.glb",
+       "refs": 1
+      },
+      {
+       "url": "idosa_lod3.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem_lod2.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher_lod2.glb",
+       "refs": 1
+      },
+      {
+       "url": "idoso_lod2.glb",
+       "refs": 1
+      },
+      {
+       "url": "idosa_lod2.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "idoso_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "idoso-shirt-camisa_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "idoso-pants-bermuda_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "idoso-shoes-chinelo_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem-shirt-polo_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem-hair-afro_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem-shirt-camisa_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem-pants-social_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem-hair-curto2_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher-shoes-sapato_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher-hair-longo_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "idoso-shirt-camiseta_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "idoso-shoes-tenis_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher-pants-social_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "idosa.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher-pants-bermuda_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher-shoes-chinelo_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem-shoes-sapato_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem-shirt-polo.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem-pants-social.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem-shoes-sapato.glb",
+       "refs": 1
+      },
+      {
+       "url": "idosa_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "idosa-shirt-camisa.glb",
+       "refs": 1
+      },
+      {
+       "url": "idosa-pants-jeans.glb",
+       "refs": 1
+      },
+      {
+       "url": "idosa-hair-curto.glb",
+       "refs": 1
+      },
+      {
+       "url": "idosa-pants-jeans_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem-pants-bermuda_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem-hair-curto2.glb",
+       "refs": 1
+      },
+      {
+       "url": "idosa-shoes-tenis.glb",
+       "refs": 1
+      },
+      {
+       "url": "idosa-shoes-tenis_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "idosa-hair-curto_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher-hair-chanel_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "idoso.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher-shirt-regata_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "idosa-shirt-camisa_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem-shirt-camisa.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem-shirt-regata_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher-shirt-camisa_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem-shirt-regata.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem-pants-bermuda.glb",
+       "refs": 1
+      },
+      {
+       "url": "idoso-shirt-camisa.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher-shirt-regata.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher-pants-bermuda.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher-hair-chanel.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher-shirt-camisa.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher-pants-social.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher-shoes-sapato.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher-hair-longo.glb",
+       "refs": 1
+      }
+     ],
+     "materials": 0,
+     "imageSources": 79
+    },
+    "duplicates": {
+     "textures": [
+      {
+       "key": "d60x60:1306081629",
+       "count": 4,
+       "wastedMB": 0.2,
+       "names": [
+        "?"
+       ],
+       "cats": [
+        "vegetation"
+       ]
+      },
+      {
+       "key": "d30x30:1874591340",
+       "count": 2,
+       "wastedMB": 0,
+       "names": [
+        "?"
+       ],
+       "cats": [
+        "vegetation"
+       ]
+      },
+      {
+       "key": "d30x30:3428216397",
+       "count": 2,
+       "wastedMB": 0,
+       "names": [
+        "?"
+       ],
+       "cats": [
+        "vegetation"
+       ]
+      }
+     ],
+     "materials": [
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=true|opacity=1|transparent=false|alphaHash=false|ble",
+       "count": 81,
+       "cats": [
+        "characters/player",
+        "characters/npc"
+       ],
+       "names": [
+        "PV_LOD"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 39,
+       "cats": [
+        "characters/player",
+        "characters/npc",
+        "characters/assets"
+       ],
+       "names": [
+        "PV_EYES"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 38,
+       "cats": [
+        "characters/player",
+        "characters/npc",
+        "characters/assets"
+       ],
+       "names": [
+        "PV_ACC_chapeu"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 37,
+       "cats": [
+        "characters/player",
+        "characters/npc",
+        "characters/assets"
+       ],
+       "names": [
+        "PV_ACC_bone"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 35,
+       "cats": [
+        "characters/player",
+        "characters/npc",
+        "characters/assets"
+       ],
+       "names": [
+        "PV_ACC_bolsa"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 31,
+       "cats": [
+        "characters/player",
+        "characters/npc"
+       ],
+       "names": [
+        "PV_ACC_oculos"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 31,
+       "cats": [
+        "characters/player",
+        "characters/npc"
+       ],
+       "names": [
+        "PV_EYEBROWS"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 26,
+       "cats": [
+        "characters/player",
+        "characters/npc",
+        "characters/assets"
+       ],
+       "names": [
+        "PV_ACC_mochila"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 13,
+       "cats": [
+        "characters/player",
+        "characters/npc"
+       ],
+       "names": [
+        "PV_EYELASHES"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 9,
+       "cats": [
+        "characters/player",
+        "characters/npc",
+        "characters/assets"
+       ],
+       "names": [
+        "PV_SHOES"
+       ]
+      },
+      {
+       "key": "MeshBasicMaterial|isMaterial=true|blending=1|side=0|vertexColors=false|opacity=1|transparent=false|alphaHash=false|blend",
+       "count": 9,
+       "cats": [
+        "events"
+       ],
+       "names": [
+        "MeshBasicMaterial"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=0|vertexColors=true|opacity=1|transparent=false|alphaHash=false|ble",
+       "count": 8,
+       "cats": [
+        "other"
+       ],
+       "names": [
+        "MeshStandardMaterial"
+       ]
+      },
+      {
+       "key": "MeshBasicMaterial|isMaterial=true|blending=1|side=0|vertexColors=false|opacity=1|transparent=false|alphaHash=false|blend",
+       "count": 8,
+       "cats": [
+        "events"
+       ],
+       "names": [
+        "MeshBasicMaterial"
+       ]
+      },
+      {
+       "key": "MeshBasicMaterial|isMaterial=true|blending=1|side=0|vertexColors=false|opacity=1|transparent=false|alphaHash=false|blend",
+       "count": 8,
+       "cats": [
+        "events"
+       ],
+       "names": [
+        "MeshBasicMaterial"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=true|opacity=1|transparent=false|alphaHash=false|ble",
+       "count": 8,
+       "cats": [
+        "characters/assets"
+       ],
+       "names": [
+        "PV_LOD"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=true|alphaHash=false|ble",
+       "count": 8,
+       "cats": [
+        "characters/assets"
+       ],
+       "names": [
+        "PV_ACC_oculos"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=true|alphaHash=false|ble",
+       "count": 8,
+       "cats": [
+        "characters/assets"
+       ],
+       "names": [
+        "PV_EYEBROWS"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=0|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 7,
+       "cats": [
+        "vehicles/rideables"
+       ],
+       "names": [
+        "MeshStandardMaterial"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 6,
+       "cats": [
+        "characters/npc"
+       ],
+       "names": [
+        "PV_SHOES"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 5,
+       "cats": [
+        "characters/npc"
+       ],
+       "names": [
+        "PV_ACC_mochila"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 5,
+       "cats": [
+        "characters/npc",
+        "characters/assets"
+       ],
+       "names": [
+        "PV_SHOES"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=0|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 5,
+       "cats": [
+        "vehicles/rideables"
+       ],
+       "names": [
+        "MeshStandardMaterial"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=0|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 5,
+       "cats": [
+        "vehicles/rideables"
+       ],
+       "names": [
+        "MeshStandardMaterial"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=0|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 5,
+       "cats": [
+        "vehicles/rideables"
+       ],
+       "names": [
+        "MeshStandardMaterial"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=0|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 5,
+       "cats": [
+        "vehicles/rideables"
+       ],
+       "names": [
+        "MeshStandardMaterial"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 4,
+       "cats": [
+        "characters/player",
+        "characters/npc"
+       ],
+       "names": [
+        "PV_PANTS"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 4,
+       "cats": [
+        "characters/npc"
+       ],
+       "names": [
+        "PV_SHIRT"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 4,
+       "cats": [
+        "characters/npc"
+       ],
+       "names": [
+        "PV_PANTS"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 4,
+       "cats": [
+        "characters/npc",
+        "characters/assets"
+       ],
+       "names": [
+        "PV_SHOES"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=true|alphaHash=false|ble",
+       "count": 4,
+       "cats": [
+        "characters/assets"
+       ],
+       "names": [
+        "PV_EYELASHES"
+       ]
+      }
+     ],
+     "geometries": [
+      {
+       "count": 4,
+       "wastedMB": 0.1,
+       "cats": [
+        "landmarks"
+       ],
+       "names": [
+        "TorusGeometry"
+       ]
+      },
+      {
+       "count": 5,
+       "wastedMB": 0.1,
+       "cats": [
+        "vehicles/rideables"
+       ],
+       "names": [
+        "BufferGeometry"
+       ]
+      },
+      {
+       "count": 5,
+       "wastedMB": 0.1,
+       "cats": [
+        "vehicles/rideables"
+       ],
+       "names": [
+        "BufferGeometry"
+       ]
+      },
+      {
+       "count": 2,
+       "wastedMB": 0,
+       "cats": [
+        "props"
+       ],
+       "names": [
+        "SphereGeometry"
+       ]
+      },
+      {
+       "count": 2,
+       "wastedMB": 0,
+       "cats": [
+        "props"
+       ],
+       "names": [
+        "SphereGeometry"
+       ]
+      },
+      {
+       "count": 2,
+       "wastedMB": 0,
+       "cats": [
+        "props"
+       ],
+       "names": [
+        "SphereGeometry"
+       ]
+      },
+      {
+       "count": 2,
+       "wastedMB": 0,
+       "cats": [
+        "props"
+       ],
+       "names": [
+        "BufferGeometry"
+       ]
+      },
+      {
+       "count": 2,
+       "wastedMB": 0,
+       "cats": [
+        "props"
+       ],
+       "names": [
+        "BufferGeometry"
+       ]
+      },
+      {
+       "count": 4,
+       "wastedMB": 0,
+       "cats": [
+        "landmarks"
+       ],
+       "names": [
+        "CircleGeometry"
+       ]
+      },
+      {
+       "count": 4,
+       "wastedMB": 0,
+       "cats": [
+        "landmarks"
+       ],
+       "names": [
+        "BoxGeometry"
+       ]
+      },
+      {
+       "count": 4,
+       "wastedMB": 0,
+       "cats": [
+        "landmarks"
+       ],
+       "names": [
+        "BoxGeometry"
+       ]
+      },
+      {
+       "count": 2,
+       "wastedMB": 0,
+       "cats": [
+        "characters/player",
+        "characters/npc"
+       ],
+       "names": [
+        "BufferGeometry"
+       ]
+      },
+      {
+       "count": 2,
+       "wastedMB": 0,
+       "cats": [
+        "characters/npc"
+       ],
+       "names": [
+        "BufferGeometry"
+       ]
+      },
+      {
+       "count": 2,
+       "wastedMB": 0,
+       "cats": [
+        "characters/npc"
+       ],
+       "names": [
+        "BufferGeometry"
+       ]
+      },
+      {
+       "count": 2,
+       "wastedMB": 0,
+       "cats": [
+        "characters/npc"
+       ],
+       "names": [
+        "BufferGeometry"
+       ]
+      },
+      {
+       "count": 2,
+       "wastedMB": 0,
+       "cats": [
+        "characters/npc"
+       ],
+       "names": [
+        "BufferGeometry"
+       ]
+      },
+      {
+       "count": 4,
+       "wastedMB": 0,
+       "cats": [
+        "world/closure"
+       ],
+       "names": [
+        "BoxGeometry"
+       ]
+      },
+      {
+       "count": 3,
+       "wastedMB": 0,
+       "cats": [
+        "monuments"
+       ],
+       "names": [
+        "BufferGeometry"
+       ]
+      },
+      {
+       "count": 2,
+       "wastedMB": 0,
+       "cats": [
+        "monuments"
+       ],
+       "names": [
+        "CylinderGeometry"
+       ]
+      },
+      {
+       "count": 4,
+       "wastedMB": 0,
+       "cats": [
+        "monuments"
+       ],
+       "names": [
+        "CircleGeometry"
+       ]
+      },
+      {
+       "count": 4,
+       "wastedMB": 0,
+       "cats": [
+        "monuments"
+       ],
+       "names": [
+        "BoxGeometry"
+       ]
+      },
+      {
+       "count": 4,
+       "wastedMB": 0,
+       "cats": [
+        "monuments"
+       ],
+       "names": [
+        "BoxGeometry"
+       ]
+      },
+      {
+       "count": 2,
+       "wastedMB": 0,
+       "cats": [
+        "monuments"
+       ],
+       "names": [
+        "BoxGeometry"
+       ]
+      },
+      {
+       "count": 2,
+       "wastedMB": 0,
+       "cats": [
+        "monuments"
+       ],
+       "names": [
+        "BufferGeometry"
+       ]
+      },
+      {
+       "count": 4,
+       "wastedMB": 0,
+       "cats": [
+        "events"
+       ],
+       "names": [
+        "BoxGeometry"
+       ]
+      },
+      {
+       "count": 4,
+       "wastedMB": 0,
+       "cats": [
+        "events"
+       ],
+       "names": [
+        "PlaneGeometry"
+       ]
+      },
+      {
+       "count": 5,
+       "wastedMB": 0,
+       "cats": [
+        "vehicles/rideables"
+       ],
+       "names": [
+        "BufferGeometry"
+       ]
+      },
+      {
+       "count": 5,
+       "wastedMB": 0,
+       "cats": [
+        "vehicles/rideables"
+       ],
+       "names": [
+        "BufferGeometry"
+       ]
+      },
+      {
+       "count": 5,
+       "wastedMB": 0,
+       "cats": [
+        "vehicles/rideables"
+       ],
+       "names": [
+        "CylinderGeometry"
+       ]
+      },
+      {
+       "count": 5,
+       "wastedMB": 0,
+       "cats": [
+        "vehicles/rideables"
+       ],
+       "names": [
+        "BoxGeometry"
+       ]
+      }
+     ],
+     "counts": {
+      "textures": 3,
+      "texWastedMB": 0.2,
+      "materials": 496,
+      "geometries": 69,
+      "geoWastedMB": 0.3
+     }
+    },
+    "topTextures": [
+     {
+      "name": "sun.shadowMap",
+      "cat": "shadows",
+      "size": "4096x4096",
+      "gpuMB": 64,
+      "cpuMB": 0,
+      "mip": false
+     },
+     {
+      "name": "street_signs_atlas",
+      "cat": "monuments",
+      "size": "1024x4608",
+      "gpuMB": 24,
+      "cpuMB": 0,
+      "mip": true
+     },
+     {
+      "name": "_Texture",
+      "cat": "vegetation",
+      "size": "1024x1280",
+      "gpuMB": 6.7,
+      "cpuMB": 0,
+      "mip": true
+     },
+     {
+      "name": "_Texture",
+      "cat": "vegetation",
+      "size": "1024x1280",
+      "gpuMB": 6.7,
+      "cpuMB": 0,
+      "mip": true
+     },
+     {
+      "name": "PMREM.cubeUv",
+      "cat": "environment",
+      "size": "768x1024",
+      "gpuMB": 6,
+      "cpuMB": 0,
+      "mip": false
+     },
+     {
+      "name": "leaves.webp",
+      "cat": "vegetation",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 4,
+      "mip": true
+     },
+     {
+      "name": "DataTexture",
+      "cat": "chunks/ground",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 0,
+      "mip": true
+     },
+     {
+      "name": "DataTexture",
+      "cat": "chunks/ground",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 0,
+      "mip": true
+     },
+     {
+      "name": "DataTexture",
+      "cat": "chunks/ground",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 0,
+      "mip": true
+     },
+     {
+      "name": "DataTexture",
+      "cat": "chunks/ground",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 0,
+      "mip": true
+     },
+     {
+      "name": "DataTexture",
+      "cat": "chunks/ground",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 0,
+      "mip": true
+     },
+     {
+      "name": "DataTexture",
+      "cat": "chunks/ground",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 0,
+      "mip": true
+     },
+     {
+      "name": "DataTexture",
+      "cat": "chunks/ground",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 0,
+      "mip": true
+     },
+     {
+      "name": "DataTexture",
+      "cat": "chunks/ground",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 0,
+      "mip": true
+     },
+     {
+      "name": "DataTexture",
+      "cat": "chunks/ground",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 0,
+      "mip": true
+     },
+     {
+      "name": "concrete_detail.jpg",
+      "cat": "landmarks",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 4,
+      "mip": true
+     },
+     {
+      "name": "granite_detail.jpg",
+      "cat": "landmarks",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 4,
+      "mip": true
+     },
+     {
+      "name": "plaster_detail.jpg",
+      "cat": "landmarks",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 4,
+      "mip": true
+     },
+     {
+      "name": "homem_BODY_albedo",
+      "cat": "characters/player",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 4,
+      "mip": true
+     },
+     {
+      "name": "idoso_HAIR_albedo",
+      "cat": "characters/player",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 4,
+      "mip": true
+     },
+     {
+      "name": "homem_PANTS_albedo",
+      "cat": "characters/player",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 4,
+      "mip": true
+     },
+     {
+      "name": "homem_PANTS_normal",
+      "cat": "characters/player",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 4,
+      "mip": true
+     },
+     {
+      "name": "homem_SHIRT_albedo",
+      "cat": "characters/player",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 4,
+      "mip": true
+     },
+     {
+      "name": "mulher_BODY_albedo",
+      "cat": "characters/npc",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 4,
+      "mip": true
+     },
+     {
+      "name": "mulher_HAIR_albedo",
+      "cat": "characters/npc",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 4,
+      "mip": true
+     }
+    ],
+    "topGeometries": [
+     {
+      "name": "BufferGeometry",
+      "cat": "landmarks",
+      "MB": 8.4,
+      "verts": 245880
+     },
+     {
+      "name": "BufferGeometry",
+      "cat": "chunks/buildings",
+      "MB": 2.6,
+      "verts": 40668
+     },
+     {
+      "name": "BufferGeometry",
+      "cat": "chunks/buildings",
+      "MB": 2.5,
+      "verts": 39006
+     },
+     {
+      "name": "BufferGeometry",
+      "cat": "landmarks",
+      "MB": 2.4,
+      "verts": 70416
+     },
+     {
+      "name": "BufferGeometry",
+      "cat": "chunks/buildings",
+      "MB": 2.3,
+      "verts": 36605
+     },
+     {
+      "name": "BufferGeometry",
+      "cat": "chunks/buildings",
+      "MB": 2.3,
+      "verts": 35626
+     },
+     {
+      "name": "BufferGeometry",
+      "cat": "chunks/buildings",
+      "MB": 2.3,
+      "verts": 35376
+     },
+     {
+      "name": "BufferGeometry",
+      "cat": "chunks/buildings",
+      "MB": 2.2,
+      "verts": 33625
+     },
+     {
+      "name": "BufferGeometry",
+      "cat": "landmarks",
+      "MB": 2.1,
+      "verts": 61236
+     },
+     {
+      "name": "BufferGeometry",
+      "cat": "landmarks",
+      "MB": 2.1,
+      "verts": 60876
+     },
+     {
+      "name": "BufferGeometry",
+      "cat": "vegetation",
+      "MB": 2.1,
+      "verts": 56888
+     },
+     {
+      "name": "BufferGeometry",
+      "cat": "chunks/buildings",
+      "MB": 2,
+      "verts": 30866
+     },
+     {
+      "name": "BufferGeometry",
+      "cat": "landmarks",
+      "MB": 2,
+      "verts": 57492
+     },
+     {
+      "name": "BufferGeometry",
+      "cat": "chunks/buildings",
+      "MB": 1.9,
+      "verts": 30419
+     },
+     {
+      "name": "BufferGeometry",
+      "cat": "chunks/buildings",
+      "MB": 1.9,
+      "verts": 30153
+     }
+    ]
+   },
+   "fps": 59.02897338673272,
+   "chunks": {
+    "visible": 70,
+    "full": 16,
+    "medium": 46,
+    "far": 8,
+    "loaded": 70
+   }
+  },
+  {
+   "name": "candelaria",
+   "heapRaw": {
+    "usedMB": 70.8,
+    "totalMB": 85.6,
+    "backingStoreMB": 80.3,
+    "embedderMB": 3.4,
+    "perfMemMB": 151.2
+   },
+   "heapGC": {
+    "usedMB": 61.9,
+    "totalMB": 64.9,
+    "backingStoreMB": 80.3,
+    "embedderMB": 3.3,
+    "perfMemMB": 142.3
+   },
+   "report": {
+    "t": 33397,
+    "heap": {
+     "usedMB": 143.2,
+     "totalMB": 145.6
+    },
+    "renderer": {
+     "textures": 310,
+     "geometries": 607,
+     "programs": 110
+    },
+    "totals": {
+     "textures": 151,
+     "texGpuMB": 392.1,
+     "texCpuMB": 178.6,
+     "geometries": 1014,
+     "geoMB": 116,
+     "geoCpuMB": 27.1,
+     "materials": 869,
+     "skeletons": 749,
+     "boneTexMB": 3.2,
+     "gpuEstMB": 511.2
+    },
+    "categories": {
+     "characters/npc": {
+      "textures": 60,
+      "texGpuMB": 128,
+      "texCpuMB": 98,
+      "geometries": 170,
+      "geoMB": 9.6,
+      "geoCpuMB": 9.6,
+      "materials": 575,
+      "skeletons": 575,
+      "boneTexMB": 2.6,
+      "objects": 575
+     },
+     "chunks/ground": {
+      "textures": 26,
+      "texGpuMB": 65.4,
+      "texCpuMB": 0,
+      "geometries": 424,
+      "geoMB": 5.2,
+      "geoCpuMB": 2.5,
+      "materials": 13,
+      "skeletons": 0,
+      "boneTexMB": 0,
+      "objects": 424
+     },
+     "shadows": {
+      "textures": 1,
+      "texGpuMB": 64,
+      "texCpuMB": 0,
+      "geometries": 0,
+      "geoMB": 0,
+      "geoCpuMB": 0,
+      "materials": 0,
+      "skeletons": 0,
+      "boneTexMB": 0,
+      "objects": 0
+     },
+     "landmarks": {
+      "textures": 5,
+      "texGpuMB": 17.7,
+      "texCpuMB": 13.3,
+      "geometries": 99,
+      "geoMB": 38,
+      "geoCpuMB": 1.1,
+      "materials": 9,
+      "skeletons": 0,
+      "boneTexMB": 0,
+      "objects": 99
+     },
+     "chunks/buildings": {
+      "textures": 2,
+      "texGpuMB": 3,
+      "texCpuMB": 0,
+      "geometries": 87,
+      "geoMB": 50.6,
+      "geoCpuMB": 1.4,
+      "materials": 1,
+      "skeletons": 0,
+      "boneTexMB": 0,
+      "objects": 87
+     },
+     "characters/player": {
+      "textures": 16,
+      "texGpuMB": 38,
+      "texCpuMB": 28.5,
+      "geometries": 14,
+      "geoMB": 1,
+      "geoCpuMB": 1,
+      "materials": 14,
+      "skeletons": 14,
+      "boneTexMB": 0.1,
+      "objects": 14
+     },
+     "vegetation": {
+      "textures": 18,
+      "texGpuMB": 24.3,
+      "texCpuMB": 8.3,
+      "geometries": 5,
+      "geoMB": 3.6,
+      "geoCpuMB": 3.6,
+      "materials": 3,
+      "skeletons": 0,
+      "boneTexMB": 0,
+      "objects": 5
+     },
+     "monuments": {
+      "textures": 2,
+      "texGpuMB": 24.3,
+      "texCpuMB": 0.3,
+      "geometries": 32,
+      "geoMB": 0.4,
+      "geoCpuMB": 0.4,
+      "materials": 9,
+      "skeletons": 0,
+      "boneTexMB": 0,
+      "objects": 32
+     },
+     "events": {
+      "textures": 6,
+      "texGpuMB": 14.2,
+      "texCpuMB": 10.7,
+      "geometries": 56,
+      "geoMB": 0,
+      "geoCpuMB": 0,
+      "materials": 29,
+      "skeletons": 0,
+      "boneTexMB": 0,
+      "objects": 56
+     },
+     "characters/assets": {
+      "textures": 5,
+      "texGpuMB": 6.7,
+      "texCpuMB": 12,
+      "geometries": 32,
+      "geoMB": 1.9,
+      "geoCpuMB": 1.9,
+      "materials": 160,
+      "skeletons": 160,
+      "boneTexMB": 0.5,
+      "objects": 160
+     },
+     "environment": {
+      "textures": 1,
+      "texGpuMB": 6,
+      "texCpuMB": 0,
+      "geometries": 2,
+      "geoMB": 0.1,
+      "geoCpuMB": 0.1,
+      "materials": 2,
+      "skeletons": 0,
+      "boneTexMB": 0,
+      "objects": 2
+     },
+     "other": {
+      "textures": 8,
+      "texGpuMB": 0,
+      "texCpuMB": 7.3,
+      "geometries": 8,
+      "geoMB": 2.1,
+      "geoCpuMB": 2.1,
+      "materials": 8,
+      "skeletons": 0,
+      "boneTexMB": 0,
+      "objects": 8
+     },
+     "vehicles/assets": {
+      "textures": 0,
+      "texGpuMB": 0,
+      "texCpuMB": 0,
+      "geometries": 8,
+      "geoMB": 1.6,
+      "geoCpuMB": 1.6,
+      "materials": 0,
+      "skeletons": 0,
+      "boneTexMB": 0,
+      "objects": 0
+     },
+     "props": {
+      "textures": 0,
+      "texGpuMB": 0,
+      "texCpuMB": 0,
+      "geometries": 34,
+      "geoMB": 1,
+      "geoCpuMB": 1,
+      "materials": 7,
+      "skeletons": 0,
+      "boneTexMB": 0,
+      "objects": 34
+     },
+     "world/closure": {
+      "textures": 1,
+      "texGpuMB": 0.5,
+      "texCpuMB": 0.4,
+      "geometries": 7,
+      "geoMB": 0.3,
+      "geoCpuMB": 0.3,
+      "materials": 5,
+      "skeletons": 0,
+      "boneTexMB": 0,
+      "objects": 8
+     },
+     "vehicles/rideables": {
+      "textures": 0,
+      "texGpuMB": 0,
+      "texCpuMB": 0,
+      "geometries": 36,
+      "geoMB": 0.6,
+      "geoCpuMB": 0.6,
+      "materials": 34,
+      "skeletons": 0,
+      "boneTexMB": 0,
+      "objects": 250
+     }
+    },
+    "ledger": {
+     "texturesMB": 476.6,
+     "textureCount": 314,
+     "buffersMB": 101.3,
+     "bufferCount": 2745,
+     "renderbuffersMB": 97.7,
+     "renderbufferCount": 8,
+     "unattributedTexMB": 84.6,
+     "totalMB": 675.6
+    },
+    "wasm": [
+     {
+      "label": "meshopt",
+      "MB": 0.4
+     }
+    ],
+    "animation": {
+     "clips": 14,
+     "tracks": 2226,
+     "MB": 0.3
+    },
+    "assets": {
+     "textureHits": 0,
+     "textureLoads": 6,
+     "gltfHits": 0,
+     "gltfLoads": 70,
+     "imagesDeduped": 93,
+     "imagesDecoded": 81,
+     "cpuReleasedMB": 201.9,
+     "materialHits": 0,
+     "textures": [
+      {
+       "key": "leaves.webp",
+       "refs": 1
+      },
+      {
+       "key": "bark.jpg",
+       "refs": 1
+      },
+      {
+       "key": "bark_n.jpg",
+       "refs": 1
+      },
+      {
+       "key": "plaster_detail.jpg",
+       "refs": 1
+      },
+      {
+       "key": "concrete_detail.jpg",
+       "refs": 1
+      },
+      {
+       "key": "granite_detail.jpg",
+       "refs": 1
+      }
+     ],
+     "gltfs": [
+      {
+       "url": "homem_lod3.glb",
+       "refs": 1
+      },
+      {
+       "url": "anims.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher_lod3.glb",
+       "refs": 1
+      },
+      {
+       "url": "idoso_lod3.glb",
+       "refs": 1
+      },
+      {
+       "url": "idosa_lod3.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem_lod2.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher_lod2.glb",
+       "refs": 1
+      },
+      {
+       "url": "idoso_lod2.glb",
+       "refs": 1
+      },
+      {
+       "url": "idosa_lod2.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "idoso_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "idoso-shirt-camisa_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "idoso-pants-bermuda_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "idoso-shoes-chinelo_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem-shirt-polo_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem-hair-afro_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem-shirt-camisa_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem-pants-social_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem-hair-curto2_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher-shoes-sapato_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher-hair-longo_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "idoso-shirt-camiseta_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "idoso-shoes-tenis_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher-pants-social_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "idosa.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher-pants-bermuda_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher-shoes-chinelo_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem-shoes-sapato_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem-shirt-polo.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem-pants-social.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem-shoes-sapato.glb",
+       "refs": 1
+      },
+      {
+       "url": "idosa_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "idosa-shirt-camisa.glb",
+       "refs": 1
+      },
+      {
+       "url": "idosa-pants-jeans.glb",
+       "refs": 1
+      },
+      {
+       "url": "idosa-hair-curto.glb",
+       "refs": 1
+      },
+      {
+       "url": "idosa-pants-jeans_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem-pants-bermuda_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem-hair-curto2.glb",
+       "refs": 1
+      },
+      {
+       "url": "idosa-shoes-tenis.glb",
+       "refs": 1
+      },
+      {
+       "url": "idosa-shoes-tenis_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "idosa-hair-curto_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher-hair-chanel_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "idoso.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher-shirt-regata_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "idosa-shirt-camisa_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem-shirt-camisa.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem-shirt-regata_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher-shirt-camisa_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem-shirt-regata.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem-pants-bermuda.glb",
+       "refs": 1
+      },
+      {
+       "url": "idoso-shirt-camisa.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher-shirt-regata.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher-pants-bermuda.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher-hair-chanel.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher-shirt-camisa.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher-pants-social.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher-shoes-sapato.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher-hair-longo.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher-hair-afro.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher-hair-afro_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "idoso-shirt-camiseta.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem-shoes-chinelo.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem-hair-afro.glb",
+       "refs": 1
+      },
+      {
+       "url": "idosa-shirt-regata.glb",
+       "refs": 1
+      },
+      {
+       "url": "idosa-shirt-regata_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem-shoes-chinelo_lod1.glb",
+       "refs": 1
+      }
+     ],
+     "materials": 0,
+     "imageSources": 81
+    },
+    "duplicates": {
+     "textures": [
+      {
+       "key": "d60x60:1062226132",
+       "count": 4,
+       "wastedMB": 0.2,
+       "names": [
+        "?"
+       ],
+       "cats": [
+        "vegetation"
+       ]
+      },
+      {
+       "key": "d30x30:1415688477",
+       "count": 2,
+       "wastedMB": 0,
+       "names": [
+        "?"
+       ],
+       "cats": [
+        "vegetation"
+       ]
+      },
+      {
+       "key": "d30x30:2795104976",
+       "count": 2,
+       "wastedMB": 0,
+       "names": [
+        "?"
+       ],
+       "cats": [
+        "vegetation"
+       ]
+      }
+     ],
+     "materials": [
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=true|opacity=1|transparent=false|alphaHash=false|ble",
+       "count": 90,
+       "cats": [
+        "characters/player",
+        "characters/npc"
+       ],
+       "names": [
+        "PV_LOD"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 43,
+       "cats": [
+        "characters/player",
+        "characters/npc",
+        "characters/assets"
+       ],
+       "names": [
+        "PV_EYES"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 42,
+       "cats": [
+        "characters/player",
+        "characters/npc",
+        "characters/assets"
+       ],
+       "names": [
+        "PV_ACC_chapeu"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 40,
+       "cats": [
+        "characters/player",
+        "characters/npc",
+        "characters/assets"
+       ],
+       "names": [
+        "PV_ACC_bone"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 38,
+       "cats": [
+        "characters/player",
+        "characters/npc",
+        "characters/assets"
+       ],
+       "names": [
+        "PV_ACC_bolsa"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 35,
+       "cats": [
+        "characters/player",
+        "characters/npc"
+       ],
+       "names": [
+        "PV_ACC_oculos"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 35,
+       "cats": [
+        "characters/player",
+        "characters/npc"
+       ],
+       "names": [
+        "PV_EYEBROWS"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 25,
+       "cats": [
+        "characters/player",
+        "characters/npc",
+        "characters/assets"
+       ],
+       "names": [
+        "PV_ACC_mochila"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 15,
+       "cats": [
+        "characters/player",
+        "characters/npc"
+       ],
+       "names": [
+        "PV_EYELASHES"
+       ]
+      },
+      {
+       "key": "MeshBasicMaterial|isMaterial=true|blending=1|side=0|vertexColors=false|opacity=1|transparent=false|alphaHash=false|blend",
+       "count": 9,
+       "cats": [
+        "events"
+       ],
+       "names": [
+        "MeshBasicMaterial"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 8,
+       "cats": [
+        "characters/player",
+        "characters/npc",
+        "characters/assets"
+       ],
+       "names": [
+        "PV_SHOES"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=0|vertexColors=true|opacity=1|transparent=false|alphaHash=false|ble",
+       "count": 8,
+       "cats": [
+        "other"
+       ],
+       "names": [
+        "MeshStandardMaterial"
+       ]
+      },
+      {
+       "key": "MeshBasicMaterial|isMaterial=true|blending=1|side=0|vertexColors=false|opacity=1|transparent=false|alphaHash=false|blend",
+       "count": 8,
+       "cats": [
+        "events"
+       ],
+       "names": [
+        "MeshBasicMaterial"
+       ]
+      },
+      {
+       "key": "MeshBasicMaterial|isMaterial=true|blending=1|side=0|vertexColors=false|opacity=1|transparent=false|alphaHash=false|blend",
+       "count": 8,
+       "cats": [
+        "events"
+       ],
+       "names": [
+        "MeshBasicMaterial"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=true|opacity=1|transparent=false|alphaHash=false|ble",
+       "count": 8,
+       "cats": [
+        "characters/assets"
+       ],
+       "names": [
+        "PV_LOD"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=true|alphaHash=false|ble",
+       "count": 8,
+       "cats": [
+        "characters/assets"
+       ],
+       "names": [
+        "PV_ACC_oculos"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=true|alphaHash=false|ble",
+       "count": 8,
+       "cats": [
+        "characters/assets"
+       ],
+       "names": [
+        "PV_EYEBROWS"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 7,
+       "cats": [
+        "characters/npc"
+       ],
+       "names": [
+        "PV_SHOES"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 7,
+       "cats": [
+        "characters/npc",
+        "characters/assets"
+       ],
+       "names": [
+        "PV_SHOES"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=0|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 7,
+       "cats": [
+        "vehicles/rideables"
+       ],
+       "names": [
+        "MeshStandardMaterial"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 5,
+       "cats": [
+        "characters/npc",
+        "characters/assets"
+       ],
+       "names": [
+        "PV_SHOES_chinelo"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 5,
+       "cats": [
+        "characters/npc"
+       ],
+       "names": [
+        "PV_PANTS"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=0|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 5,
+       "cats": [
+        "vehicles/rideables"
+       ],
+       "names": [
+        "MeshStandardMaterial"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=0|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 5,
+       "cats": [
+        "vehicles/rideables"
+       ],
+       "names": [
+        "MeshStandardMaterial"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=0|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 5,
+       "cats": [
+        "vehicles/rideables"
+       ],
+       "names": [
+        "MeshStandardMaterial"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=0|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 5,
+       "cats": [
+        "vehicles/rideables"
+       ],
+       "names": [
+        "MeshStandardMaterial"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 4,
+       "cats": [
+        "characters/npc"
+       ],
+       "names": [
+        "PV_ACC_mochila"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 4,
+       "cats": [
+        "characters/npc",
+        "characters/assets"
+       ],
+       "names": [
+        "PV_SHOES"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 4,
+       "cats": [
+        "characters/npc"
+       ],
+       "names": [
+        "PV_SHIRT"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 4,
+       "cats": [
+        "characters/npc",
+        "characters/assets"
+       ],
+       "names": [
+        "PV_PANTS"
+       ]
+      }
+     ],
+     "geometries": [
+      {
+       "count": 4,
+       "wastedMB": 0.1,
+       "cats": [
+        "landmarks"
+       ],
+       "names": [
+        "TorusGeometry"
+       ]
+      },
+      {
+       "count": 5,
+       "wastedMB": 0.1,
+       "cats": [
+        "vehicles/rideables"
+       ],
+       "names": [
+        "BufferGeometry"
+       ]
+      },
+      {
+       "count": 5,
+       "wastedMB": 0.1,
+       "cats": [
+        "vehicles/rideables"
+       ],
+       "names": [
+        "BufferGeometry"
+       ]
+      },
+      {
+       "count": 2,
+       "wastedMB": 0,
+       "cats": [
+        "props"
+       ],
+       "names": [
+        "SphereGeometry"
+       ]
+      },
+      {
+       "count": 2,
+       "wastedMB": 0,
+       "cats": [
+        "props"
+       ],
+       "names": [
+        "SphereGeometry"
+       ]
+      },
+      {
+       "count": 2,
+       "wastedMB": 0,
+       "cats": [
+        "props"
+       ],
+       "names": [
+        "SphereGeometry"
+       ]
+      },
+      {
+       "count": 2,
+       "wastedMB": 0,
+       "cats": [
+        "props"
+       ],
+       "names": [
+        "BufferGeometry"
+       ]
+      },
+      {
+       "count": 2,
+       "wastedMB": 0,
+       "cats": [
+        "props"
+       ],
+       "names": [
+        "BufferGeometry"
+       ]
+      },
+      {
+       "count": 4,
+       "wastedMB": 0,
+       "cats": [
+        "landmarks"
+       ],
+       "names": [
+        "CircleGeometry"
+       ]
+      },
+      {
+       "count": 4,
+       "wastedMB": 0,
+       "cats": [
+        "landmarks"
+       ],
+       "names": [
+        "BoxGeometry"
+       ]
+      },
+      {
+       "count": 4,
+       "wastedMB": 0,
+       "cats": [
+        "landmarks"
+       ],
+       "names": [
+        "BoxGeometry"
+       ]
+      },
+      {
+       "count": 2,
+       "wastedMB": 0,
+       "cats": [
+        "characters/player",
+        "characters/npc"
+       ],
+       "names": [
+        "BufferGeometry"
+       ]
+      },
+      {
+       "count": 2,
+       "wastedMB": 0,
+       "cats": [
+        "characters/player",
+        "characters/npc"
+       ],
+       "names": [
+        "BufferGeometry"
+       ]
+      },
+      {
+       "count": 2,
+       "wastedMB": 0,
+       "cats": [
+        "characters/npc"
+       ],
+       "names": [
+        "BufferGeometry"
+       ]
+      },
+      {
+       "count": 2,
+       "wastedMB": 0,
+       "cats": [
+        "characters/npc"
+       ],
+       "names": [
+        "BufferGeometry"
+       ]
+      },
+      {
+       "count": 2,
+       "wastedMB": 0,
+       "cats": [
+        "characters/npc"
+       ],
+       "names": [
+        "BufferGeometry"
+       ]
+      },
+      {
+       "count": 2,
+       "wastedMB": 0,
+       "cats": [
+        "characters/npc"
+       ],
+       "names": [
+        "BufferGeometry"
+       ]
+      },
+      {
+       "count": 2,
+       "wastedMB": 0,
+       "cats": [
+        "characters/npc"
+       ],
+       "names": [
+        "BufferGeometry"
+       ]
+      },
+      {
+       "count": 2,
+       "wastedMB": 0,
+       "cats": [
+        "characters/npc",
+        "characters/assets"
+       ],
+       "names": [
+        "BufferGeometry"
+       ]
+      },
+      {
+       "count": 4,
+       "wastedMB": 0,
+       "cats": [
+        "world/closure"
+       ],
+       "names": [
+        "BoxGeometry"
+       ]
+      },
+      {
+       "count": 3,
+       "wastedMB": 0,
+       "cats": [
+        "monuments"
+       ],
+       "names": [
+        "BufferGeometry"
+       ]
+      },
+      {
+       "count": 2,
+       "wastedMB": 0,
+       "cats": [
+        "monuments"
+       ],
+       "names": [
+        "CylinderGeometry"
+       ]
+      },
+      {
+       "count": 4,
+       "wastedMB": 0,
+       "cats": [
+        "monuments"
+       ],
+       "names": [
+        "CircleGeometry"
+       ]
+      },
+      {
+       "count": 4,
+       "wastedMB": 0,
+       "cats": [
+        "monuments"
+       ],
+       "names": [
+        "BoxGeometry"
+       ]
+      },
+      {
+       "count": 4,
+       "wastedMB": 0,
+       "cats": [
+        "monuments"
+       ],
+       "names": [
+        "BoxGeometry"
+       ]
+      },
+      {
+       "count": 2,
+       "wastedMB": 0,
+       "cats": [
+        "monuments"
+       ],
+       "names": [
+        "BoxGeometry"
+       ]
+      },
+      {
+       "count": 2,
+       "wastedMB": 0,
+       "cats": [
+        "monuments"
+       ],
+       "names": [
+        "BufferGeometry"
+       ]
+      },
+      {
+       "count": 4,
+       "wastedMB": 0,
+       "cats": [
+        "events"
+       ],
+       "names": [
+        "BoxGeometry"
+       ]
+      },
+      {
+       "count": 4,
+       "wastedMB": 0,
+       "cats": [
+        "events"
+       ],
+       "names": [
+        "PlaneGeometry"
+       ]
+      },
+      {
+       "count": 5,
+       "wastedMB": 0,
+       "cats": [
+        "vehicles/rideables"
+       ],
+       "names": [
+        "BufferGeometry"
+       ]
+      }
+     ],
+     "counts": {
+      "textures": 3,
+      "texWastedMB": 0.2,
+      "materials": 554,
+      "geometries": 72,
+      "geoWastedMB": 0.3
+     }
+    },
+    "topTextures": [
+     {
+      "name": "sun.shadowMap",
+      "cat": "shadows",
+      "size": "4096x4096",
+      "gpuMB": 64,
+      "cpuMB": 0,
+      "mip": false
+     },
+     {
+      "name": "street_signs_atlas",
+      "cat": "monuments",
+      "size": "1024x4608",
+      "gpuMB": 24,
+      "cpuMB": 0,
+      "mip": true
+     },
+     {
+      "name": "_Texture",
+      "cat": "vegetation",
+      "size": "1024x1280",
+      "gpuMB": 6.7,
+      "cpuMB": 0,
+      "mip": true
+     },
+     {
+      "name": "_Texture",
+      "cat": "vegetation",
+      "size": "1024x1280",
+      "gpuMB": 6.7,
+      "cpuMB": 0,
+      "mip": true
+     },
+     {
+      "name": "PMREM.cubeUv",
+      "cat": "environment",
+      "size": "768x1024",
+      "gpuMB": 6,
+      "cpuMB": 0,
+      "mip": false
+     },
+     {
+      "name": "leaves.webp",
+      "cat": "vegetation",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 4,
+      "mip": true
+     },
+     {
+      "name": "DataTexture",
+      "cat": "chunks/ground",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 0,
+      "mip": true
+     },
+     {
+      "name": "DataTexture",
+      "cat": "chunks/ground",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 0,
+      "mip": true
+     },
+     {
+      "name": "DataTexture",
+      "cat": "chunks/ground",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 0,
+      "mip": true
+     },
+     {
+      "name": "DataTexture",
+      "cat": "chunks/ground",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 0,
+      "mip": true
+     },
+     {
+      "name": "DataTexture",
+      "cat": "chunks/ground",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 0,
+      "mip": true
+     },
+     {
+      "name": "DataTexture",
+      "cat": "chunks/ground",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 0,
+      "mip": true
+     },
+     {
+      "name": "DataTexture",
+      "cat": "chunks/ground",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 0,
+      "mip": true
+     },
+     {
+      "name": "DataTexture",
+      "cat": "chunks/ground",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 0,
+      "mip": true
+     },
+     {
+      "name": "DataTexture",
+      "cat": "chunks/ground",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 0,
+      "mip": true
+     },
+     {
+      "name": "concrete_detail.jpg",
+      "cat": "landmarks",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 4,
+      "mip": true
+     },
+     {
+      "name": "granite_detail.jpg",
+      "cat": "landmarks",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 4,
+      "mip": true
+     },
+     {
+      "name": "plaster_detail.jpg",
+      "cat": "landmarks",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 4,
+      "mip": true
+     },
+     {
+      "name": "homem_BODY_albedo",
+      "cat": "characters/player",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 4,
+      "mip": true
+     },
+     {
+      "name": "idoso_HAIR_albedo",
+      "cat": "characters/player",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 4,
+      "mip": true
+     },
+     {
+      "name": "homem_PANTS_albedo",
+      "cat": "characters/player",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 4,
+      "mip": true
+     },
+     {
+      "name": "homem_PANTS_normal",
+      "cat": "characters/player",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 4,
+      "mip": true
+     },
+     {
+      "name": "homem_SHIRT_albedo",
+      "cat": "characters/player",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 4,
+      "mip": true
+     },
+     {
+      "name": "mulher_BODY_albedo",
+      "cat": "characters/npc",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 4,
+      "mip": true
+     },
+     {
+      "name": "mulher_HAIR_albedo",
+      "cat": "characters/npc",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 4,
+      "mip": true
+     }
+    ],
+    "topGeometries": [
+     {
+      "name": "BufferGeometry",
+      "cat": "landmarks",
+      "MB": 8.4,
+      "verts": 245880
+     },
+     {
+      "name": "BufferGeometry",
+      "cat": "chunks/buildings",
+      "MB": 2.6,
+      "verts": 40668
+     },
+     {
+      "name": "BufferGeometry",
+      "cat": "chunks/buildings",
+      "MB": 2.5,
+      "verts": 39006
+     },
+     {
+      "name": "BufferGeometry",
+      "cat": "landmarks",
+      "MB": 2.4,
+      "verts": 70416
+     },
+     {
+      "name": "BufferGeometry",
+      "cat": "chunks/buildings",
+      "MB": 2.3,
+      "verts": 36605
+     },
+     {
+      "name": "BufferGeometry",
+      "cat": "chunks/buildings",
+      "MB": 2.3,
+      "verts": 35626
+     },
+     {
+      "name": "BufferGeometry",
+      "cat": "chunks/buildings",
+      "MB": 2.3,
+      "verts": 35376
+     },
+     {
+      "name": "BufferGeometry",
+      "cat": "chunks/buildings",
+      "MB": 2.2,
+      "verts": 33625
+     },
+     {
+      "name": "BufferGeometry",
+      "cat": "landmarks",
+      "MB": 2.1,
+      "verts": 61236
+     },
+     {
+      "name": "BufferGeometry",
+      "cat": "landmarks",
+      "MB": 2.1,
+      "verts": 60876
+     },
+     {
+      "name": "BufferGeometry",
+      "cat": "vegetation",
+      "MB": 2.1,
+      "verts": 56888
+     },
+     {
+      "name": "BufferGeometry",
+      "cat": "chunks/buildings",
+      "MB": 2,
+      "verts": 30866
+     },
+     {
+      "name": "BufferGeometry",
+      "cat": "landmarks",
+      "MB": 2,
+      "verts": 57492
+     },
+     {
+      "name": "BufferGeometry",
+      "cat": "chunks/buildings",
+      "MB": 1.9,
+      "verts": 30419
+     },
+     {
+      "name": "BufferGeometry",
+      "cat": "chunks/buildings",
+      "MB": 1.9,
+      "verts": 30153
+     }
+    ]
+   },
+   "fps": 59.00575306126931,
+   "chunks": {
+    "visible": 70,
+    "full": 22,
+    "medium": 29,
+    "far": 19,
+    "loaded": 70
+   }
+  },
+  {
+   "name": "meio_volta",
+   "heapRaw": {
+    "usedMB": 61.9,
+    "totalMB": 87.1,
+    "backingStoreMB": 89.3,
+    "embedderMB": 3.4,
+    "perfMemMB": 151.2
+   },
+   "heapGC": {
+    "usedMB": 61.9,
+    "totalMB": 65.4,
+    "backingStoreMB": 89.3,
+    "embedderMB": 3.4,
+    "perfMemMB": 151.2
+   },
+   "report": {
+    "t": 41120,
+    "heap": {
+     "usedMB": 152.7,
+     "totalMB": 155.3
+    },
+    "renderer": {
+     "textures": 317,
+     "geometries": 628,
+     "programs": 111
+    },
+    "totals": {
+     "textures": 150,
+     "texGpuMB": 390.3,
+     "texCpuMB": 177.3,
+     "geometries": 1030,
+     "geoMB": 124,
+     "geoCpuMB": 34.8,
+     "materials": 910,
+     "skeletons": 790,
+     "boneTexMB": 3.4,
+     "gpuEstMB": 517.7
+    },
+    "categories": {
+     "characters/npc": {
+      "textures": 56,
+      "texGpuMB": 121.3,
+      "texCpuMB": 96,
+      "geometries": 176,
+      "geoMB": 9.8,
+      "geoCpuMB": 9.8,
+      "materials": 616,
+      "skeletons": 616,
+      "boneTexMB": 2.7,
+      "objects": 616
+     },
+     "chunks/ground": {
+      "textures": 27,
+      "texGpuMB": 65.4,
+      "texCpuMB": 0,
+      "geometries": 420,
+      "geoMB": 5.2,
+      "geoCpuMB": 2.4,
+      "materials": 13,
+      "skeletons": 0,
+      "boneTexMB": 0,
+      "objects": 420
+     },
+     "shadows": {
+      "textures": 1,
+      "texGpuMB": 64,
+      "texCpuMB": 0,
+      "geometries": 0,
+      "geoMB": 0,
+      "geoCpuMB": 0,
+      "materials": 0,
+      "skeletons": 0,
+      "boneTexMB": 0,
+      "objects": 0
+     },
+     "chunks/buildings": {
+      "textures": 2,
+      "texGpuMB": 3,
+      "texCpuMB": 0,
+      "geometries": 97,
+      "geoMB": 58.2,
+      "geoCpuMB": 8.8,
+      "materials": 1,
+      "skeletons": 0,
+      "boneTexMB": 0,
+      "objects": 97
+     },
+     "landmarks": {
+      "textures": 5,
+      "texGpuMB": 17.7,
+      "texCpuMB": 13.3,
+      "geometries": 99,
+      "geoMB": 38,
+      "geoCpuMB": 1.1,
+      "materials": 9,
+      "skeletons": 0,
+      "boneTexMB": 0,
+      "objects": 99
+     },
+     "characters/player": {
+      "textures": 16,
+      "texGpuMB": 38,
+      "texCpuMB": 28.5,
+      "geometries": 14,
+      "geoMB": 1,
+      "geoCpuMB": 1,
+      "materials": 14,
+      "skeletons": 14,
+      "boneTexMB": 0.1,
+      "objects": 14
+     },
+     "vegetation": {
+      "textures": 17,
+      "texGpuMB": 24.3,
+      "texCpuMB": 8.3,
+      "geometries": 5,
+      "geoMB": 3.6,
+      "geoCpuMB": 3.6,
+      "materials": 3,
+      "skeletons": 0,
+      "boneTexMB": 0,
+      "objects": 5
+     },
+     "monuments": {
+      "textures": 2,
+      "texGpuMB": 24.3,
+      "texCpuMB": 0.3,
+      "geometries": 32,
+      "geoMB": 0.4,
+      "geoCpuMB": 0.4,
+      "materials": 9,
+      "skeletons": 0,
+      "boneTexMB": 0,
+      "objects": 32
+     },
+     "characters/assets": {
+      "textures": 9,
+      "texGpuMB": 13.3,
+      "texCpuMB": 14,
+      "geometries": 36,
+      "geoMB": 2.1,
+      "geoCpuMB": 2.1,
+      "materials": 160,
+      "skeletons": 160,
+      "boneTexMB": 0.5,
+      "objects": 160
+     },
+     "events": {
+      "textures": 5,
+      "texGpuMB": 12.5,
+      "texCpuMB": 9.4,
+      "geometries": 56,
+      "geoMB": 0,
+      "geoCpuMB": 0,
+      "materials": 29,
+      "skeletons": 0,
+      "boneTexMB": 0,
+      "objects": 56
+     },
+     "environment": {
+      "textures": 1,
+      "texGpuMB": 6,
+      "texCpuMB": 0,
+      "geometries": 2,
+      "geoMB": 0.1,
+      "geoCpuMB": 0.1,
+      "materials": 2,
+      "skeletons": 0,
+      "boneTexMB": 0,
+      "objects": 2
+     },
+     "other": {
+      "textures": 8,
+      "texGpuMB": 0,
+      "texCpuMB": 7.3,
+      "geometries": 8,
+      "geoMB": 2.1,
+      "geoCpuMB": 2.1,
+      "materials": 8,
+      "skeletons": 0,
+      "boneTexMB": 0,
+      "objects": 8
+     },
+     "vehicles/assets": {
+      "textures": 0,
+      "texGpuMB": 0,
+      "texCpuMB": 0,
+      "geometries": 8,
+      "geoMB": 1.6,
+      "geoCpuMB": 1.6,
+      "materials": 0,
+      "skeletons": 0,
+      "boneTexMB": 0,
+      "objects": 0
+     },
+     "props": {
+      "textures": 0,
+      "texGpuMB": 0,
+      "texCpuMB": 0,
+      "geometries": 34,
+      "geoMB": 1,
+      "geoCpuMB": 1,
+      "materials": 7,
+      "skeletons": 0,
+      "boneTexMB": 0,
+      "objects": 34
+     },
+     "world/closure": {
+      "textures": 1,
+      "texGpuMB": 0.5,
+      "texCpuMB": 0.4,
+      "geometries": 7,
+      "geoMB": 0.3,
+      "geoCpuMB": 0.3,
+      "materials": 5,
+      "skeletons": 0,
+      "boneTexMB": 0,
+      "objects": 8
+     },
+     "vehicles/rideables": {
+      "textures": 0,
+      "texGpuMB": 0,
+      "texCpuMB": 0,
+      "geometries": 36,
+      "geoMB": 0.6,
+      "geoCpuMB": 0.6,
+      "materials": 34,
+      "skeletons": 0,
+      "boneTexMB": 0,
+      "objects": 250
+     }
+    },
+    "ledger": {
+     "texturesMB": 476.7,
+     "textureCount": 321,
+     "buffersMB": 101.9,
+     "bufferCount": 2813,
+     "renderbuffersMB": 97.7,
+     "renderbufferCount": 8,
+     "unattributedTexMB": 86.3,
+     "totalMB": 676.2
+    },
+    "wasm": [
+     {
+      "label": "meshopt",
+      "MB": 0.4
+     }
+    ],
+    "animation": {
+     "clips": 14,
+     "tracks": 2226,
+     "MB": 0.3
+    },
+    "assets": {
+     "textureHits": 0,
+     "textureLoads": 6,
+     "gltfHits": 0,
+     "gltfLoads": 70,
+     "imagesDeduped": 93,
+     "imagesDecoded": 81,
+     "cpuReleasedMB": 203.1,
+     "materialHits": 0,
+     "textures": [
+      {
+       "key": "leaves.webp",
+       "refs": 1
+      },
+      {
+       "key": "bark.jpg",
+       "refs": 1
+      },
+      {
+       "key": "bark_n.jpg",
+       "refs": 1
+      },
+      {
+       "key": "plaster_detail.jpg",
+       "refs": 1
+      },
+      {
+       "key": "concrete_detail.jpg",
+       "refs": 1
+      },
+      {
+       "key": "granite_detail.jpg",
+       "refs": 1
+      }
+     ],
+     "gltfs": [
+      {
+       "url": "homem_lod3.glb",
+       "refs": 1
+      },
+      {
+       "url": "anims.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher_lod3.glb",
+       "refs": 1
+      },
+      {
+       "url": "idoso_lod3.glb",
+       "refs": 1
+      },
+      {
+       "url": "idosa_lod3.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem_lod2.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher_lod2.glb",
+       "refs": 1
+      },
+      {
+       "url": "idoso_lod2.glb",
+       "refs": 1
+      },
+      {
+       "url": "idosa_lod2.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "idoso_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "idoso-shirt-camisa_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "idoso-pants-bermuda_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "idoso-shoes-chinelo_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem-shirt-polo_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem-hair-afro_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem-shirt-camisa_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem-pants-social_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem-hair-curto2_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher-shoes-sapato_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher-hair-longo_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "idoso-shirt-camiseta_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "idoso-shoes-tenis_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher-pants-social_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "idosa.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher-pants-bermuda_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher-shoes-chinelo_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem-shoes-sapato_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem-shirt-polo.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem-pants-social.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem-shoes-sapato.glb",
+       "refs": 1
+      },
+      {
+       "url": "idosa_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "idosa-shirt-camisa.glb",
+       "refs": 1
+      },
+      {
+       "url": "idosa-pants-jeans.glb",
+       "refs": 1
+      },
+      {
+       "url": "idosa-hair-curto.glb",
+       "refs": 1
+      },
+      {
+       "url": "idosa-pants-jeans_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem-pants-bermuda_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem-hair-curto2.glb",
+       "refs": 1
+      },
+      {
+       "url": "idosa-shoes-tenis.glb",
+       "refs": 1
+      },
+      {
+       "url": "idosa-shoes-tenis_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "idosa-hair-curto_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher-hair-chanel_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "idoso.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher-shirt-regata_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "idosa-shirt-camisa_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem-shirt-camisa.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem-shirt-regata_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher-shirt-camisa_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem-shirt-regata.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem-pants-bermuda.glb",
+       "refs": 1
+      },
+      {
+       "url": "idoso-shirt-camisa.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher-shirt-regata.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher-pants-bermuda.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher-hair-chanel.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher-shirt-camisa.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher-pants-social.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher-shoes-sapato.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher-hair-longo.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher-hair-afro.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher-hair-afro_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "idoso-shirt-camiseta.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem-shoes-chinelo.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem-hair-afro.glb",
+       "refs": 1
+      },
+      {
+       "url": "idosa-shirt-regata.glb",
+       "refs": 1
+      },
+      {
+       "url": "idosa-shirt-regata_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem-shoes-chinelo_lod1.glb",
+       "refs": 1
+      }
+     ],
+     "materials": 0,
+     "imageSources": 81
+    },
+    "duplicates": {
+     "textures": [
+      {
+       "key": "d60x60:1354909517",
+       "count": 4,
+       "wastedMB": 0.2,
+       "names": [
+        "?"
+       ],
+       "cats": [
+        "vegetation"
+       ]
+      },
+      {
+       "key": "d30x30:3710160271",
+       "count": 2,
+       "wastedMB": 0,
+       "names": [
+        "?"
+       ],
+       "cats": [
+        "vegetation"
+       ]
+      },
+      {
+       "key": "d30x30:686577957",
+       "count": 2,
+       "wastedMB": 0,
+       "names": [
+        "?"
+       ],
+       "cats": [
+        "vegetation"
+       ]
+      }
+     ],
+     "materials": [
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=true|opacity=1|transparent=false|alphaHash=false|ble",
+       "count": 95,
+       "cats": [
+        "characters/player",
+        "characters/npc"
+       ],
+       "names": [
+        "PV_LOD"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 46,
+       "cats": [
+        "characters/player",
+        "characters/npc",
+        "characters/assets"
+       ],
+       "names": [
+        "PV_EYES"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 45,
+       "cats": [
+        "characters/player",
+        "characters/npc",
+        "characters/assets"
+       ],
+       "names": [
+        "PV_ACC_chapeu"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 38,
+       "cats": [
+        "characters/player",
+        "characters/npc",
+        "characters/assets"
+       ],
+       "names": [
+        "PV_ACC_bone"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 38,
+       "cats": [
+        "characters/player",
+        "characters/npc"
+       ],
+       "names": [
+        "PV_ACC_oculos"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 38,
+       "cats": [
+        "characters/player",
+        "characters/npc"
+       ],
+       "names": [
+        "PV_EYEBROWS"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 34,
+       "cats": [
+        "characters/player",
+        "characters/npc",
+        "characters/assets"
+       ],
+       "names": [
+        "PV_ACC_bolsa"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 27,
+       "cats": [
+        "characters/player",
+        "characters/npc",
+        "characters/assets"
+       ],
+       "names": [
+        "PV_ACC_mochila"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 16,
+       "cats": [
+        "characters/player",
+        "characters/npc"
+       ],
+       "names": [
+        "PV_EYELASHES"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 10,
+       "cats": [
+        "characters/player",
+        "characters/npc",
+        "characters/assets"
+       ],
+       "names": [
+        "PV_SHOES"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 9,
+       "cats": [
+        "characters/npc",
+        "characters/assets"
+       ],
+       "names": [
+        "PV_SHOES"
+       ]
+      },
+      {
+       "key": "MeshBasicMaterial|isMaterial=true|blending=1|side=0|vertexColors=false|opacity=1|transparent=false|alphaHash=false|blend",
+       "count": 9,
+       "cats": [
+        "events"
+       ],
+       "names": [
+        "MeshBasicMaterial"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=0|vertexColors=true|opacity=1|transparent=false|alphaHash=false|ble",
+       "count": 8,
+       "cats": [
+        "other"
+       ],
+       "names": [
+        "MeshStandardMaterial"
+       ]
+      },
+      {
+       "key": "MeshBasicMaterial|isMaterial=true|blending=1|side=0|vertexColors=false|opacity=1|transparent=false|alphaHash=false|blend",
+       "count": 8,
+       "cats": [
+        "events"
+       ],
+       "names": [
+        "MeshBasicMaterial"
+       ]
+      },
+      {
+       "key": "MeshBasicMaterial|isMaterial=true|blending=1|side=0|vertexColors=false|opacity=1|transparent=false|alphaHash=false|blend",
+       "count": 8,
+       "cats": [
+        "events"
+       ],
+       "names": [
+        "MeshBasicMaterial"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=true|opacity=1|transparent=false|alphaHash=false|ble",
+       "count": 8,
+       "cats": [
+        "characters/assets"
+       ],
+       "names": [
+        "PV_LOD"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=true|alphaHash=false|ble",
+       "count": 8,
+       "cats": [
+        "characters/assets"
+       ],
+       "names": [
+        "PV_ACC_oculos"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=true|alphaHash=false|ble",
+       "count": 8,
+       "cats": [
+        "characters/assets"
+       ],
+       "names": [
+        "PV_EYEBROWS"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=0|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 7,
+       "cats": [
+        "vehicles/rideables"
+       ],
+       "names": [
+        "MeshStandardMaterial"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 6,
+       "cats": [
+        "characters/npc",
+        "characters/assets"
+       ],
+       "names": [
+        "PV_SHOES_sapato"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 5,
+       "cats": [
+        "characters/npc"
+       ],
+       "names": [
+        "PV_PANTS"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 5,
+       "cats": [
+        "characters/npc",
+        "characters/assets"
+       ],
+       "names": [
+        "PV_SHOES"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=0|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 5,
+       "cats": [
+        "vehicles/rideables"
+       ],
+       "names": [
+        "MeshStandardMaterial"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=0|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 5,
+       "cats": [
+        "vehicles/rideables"
+       ],
+       "names": [
+        "MeshStandardMaterial"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=0|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 5,
+       "cats": [
+        "vehicles/rideables"
+       ],
+       "names": [
+        "MeshStandardMaterial"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=0|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 5,
+       "cats": [
+        "vehicles/rideables"
+       ],
+       "names": [
+        "MeshStandardMaterial"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 4,
+       "cats": [
+        "characters/npc"
+       ],
+       "names": [
+        "PV_SHOES"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 4,
+       "cats": [
+        "characters/npc"
+       ],
+       "names": [
+        "PV_ACC_bolsa"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 4,
+       "cats": [
+        "characters/npc"
+       ],
+       "names": [
+        "PV_ACC_mochila"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 4,
+       "cats": [
+        "characters/npc"
+       ],
+       "names": [
+        "PV_PANTS"
+       ]
+      }
+     ],
+     "geometries": [
+      {
+       "count": 4,
+       "wastedMB": 0.1,
+       "cats": [
+        "landmarks"
+       ],
+       "names": [
+        "TorusGeometry"
+       ]
+      },
+      {
+       "count": 5,
+       "wastedMB": 0.1,
+       "cats": [
+        "vehicles/rideables"
+       ],
+       "names": [
+        "BufferGeometry"
+       ]
+      },
+      {
+       "count": 5,
+       "wastedMB": 0.1,
+       "cats": [
+        "vehicles/rideables"
+       ],
+       "names": [
+        "BufferGeometry"
+       ]
+      },
+      {
+       "count": 2,
+       "wastedMB": 0,
+       "cats": [
+        "props"
+       ],
+       "names": [
+        "SphereGeometry"
+       ]
+      },
+      {
+       "count": 2,
+       "wastedMB": 0,
+       "cats": [
+        "props"
+       ],
+       "names": [
+        "SphereGeometry"
+       ]
+      },
+      {
+       "count": 2,
+       "wastedMB": 0,
+       "cats": [
+        "props"
+       ],
+       "names": [
+        "SphereGeometry"
+       ]
+      },
+      {
+       "count": 2,
+       "wastedMB": 0,
+       "cats": [
+        "props"
+       ],
+       "names": [
+        "BufferGeometry"
+       ]
+      },
+      {
+       "count": 2,
+       "wastedMB": 0,
+       "cats": [
+        "props"
+       ],
+       "names": [
+        "BufferGeometry"
+       ]
+      },
+      {
+       "count": 4,
+       "wastedMB": 0,
+       "cats": [
+        "landmarks"
+       ],
+       "names": [
+        "CircleGeometry"
+       ]
+      },
+      {
+       "count": 4,
+       "wastedMB": 0,
+       "cats": [
+        "landmarks"
+       ],
+       "names": [
+        "BoxGeometry"
+       ]
+      },
+      {
+       "count": 4,
+       "wastedMB": 0,
+       "cats": [
+        "landmarks"
+       ],
+       "names": [
+        "BoxGeometry"
+       ]
+      },
+      {
+       "count": 2,
+       "wastedMB": 0,
+       "cats": [
+        "characters/player",
+        "characters/npc"
+       ],
+       "names": [
+        "BufferGeometry"
+       ]
+      },
+      {
+       "count": 2,
+       "wastedMB": 0,
+       "cats": [
+        "characters/player",
+        "characters/npc"
+       ],
+       "names": [
+        "BufferGeometry"
+       ]
+      },
+      {
+       "count": 2,
+       "wastedMB": 0,
+       "cats": [
+        "characters/npc"
+       ],
+       "names": [
+        "BufferGeometry"
+       ]
+      },
+      {
+       "count": 2,
+       "wastedMB": 0,
+       "cats": [
+        "characters/npc"
+       ],
+       "names": [
+        "BufferGeometry"
+       ]
+      },
+      {
+       "count": 2,
+       "wastedMB": 0,
+       "cats": [
+        "characters/npc"
+       ],
+       "names": [
+        "BufferGeometry"
+       ]
+      },
+      {
+       "count": 2,
+       "wastedMB": 0,
+       "cats": [
+        "characters/npc"
+       ],
+       "names": [
+        "BufferGeometry"
+       ]
+      },
+      {
+       "count": 2,
+       "wastedMB": 0,
+       "cats": [
+        "characters/npc"
+       ],
+       "names": [
+        "BufferGeometry"
+       ]
+      },
+      {
+       "count": 2,
+       "wastedMB": 0,
+       "cats": [
+        "characters/npc"
+       ],
+       "names": [
+        "BufferGeometry"
+       ]
+      },
+      {
+       "count": 4,
+       "wastedMB": 0,
+       "cats": [
+        "world/closure"
+       ],
+       "names": [
+        "BoxGeometry"
+       ]
+      },
+      {
+       "count": 3,
+       "wastedMB": 0,
+       "cats": [
+        "monuments"
+       ],
+       "names": [
+        "BufferGeometry"
+       ]
+      },
+      {
+       "count": 2,
+       "wastedMB": 0,
+       "cats": [
+        "monuments"
+       ],
+       "names": [
+        "CylinderGeometry"
+       ]
+      },
+      {
+       "count": 4,
+       "wastedMB": 0,
+       "cats": [
+        "monuments"
+       ],
+       "names": [
+        "CircleGeometry"
+       ]
+      },
+      {
+       "count": 4,
+       "wastedMB": 0,
+       "cats": [
+        "monuments"
+       ],
+       "names": [
+        "BoxGeometry"
+       ]
+      },
+      {
+       "count": 4,
+       "wastedMB": 0,
+       "cats": [
+        "monuments"
+       ],
+       "names": [
+        "BoxGeometry"
+       ]
+      },
+      {
+       "count": 2,
+       "wastedMB": 0,
+       "cats": [
+        "monuments"
+       ],
+       "names": [
+        "BoxGeometry"
+       ]
+      },
+      {
+       "count": 2,
+       "wastedMB": 0,
+       "cats": [
+        "monuments"
+       ],
+       "names": [
+        "BufferGeometry"
+       ]
+      },
+      {
+       "count": 4,
+       "wastedMB": 0,
+       "cats": [
+        "events"
+       ],
+       "names": [
+        "BoxGeometry"
+       ]
+      },
+      {
+       "count": 4,
+       "wastedMB": 0,
+       "cats": [
+        "events"
+       ],
+       "names": [
+        "PlaneGeometry"
+       ]
+      },
+      {
+       "count": 5,
+       "wastedMB": 0,
+       "cats": [
+        "vehicles/rideables"
+       ],
+       "names": [
+        "BufferGeometry"
+       ]
+      }
+     ],
+     "counts": {
+      "textures": 3,
+      "texWastedMB": 0.2,
+      "materials": 591,
+      "geometries": 72,
+      "geoWastedMB": 0.3
+     }
+    },
+    "topTextures": [
+     {
+      "name": "sun.shadowMap",
+      "cat": "shadows",
+      "size": "4096x4096",
+      "gpuMB": 64,
+      "cpuMB": 0,
+      "mip": false
+     },
+     {
+      "name": "street_signs_atlas",
+      "cat": "monuments",
+      "size": "1024x4608",
+      "gpuMB": 24,
+      "cpuMB": 0,
+      "mip": true
+     },
+     {
+      "name": "_Texture",
+      "cat": "vegetation",
+      "size": "1024x1280",
+      "gpuMB": 6.7,
+      "cpuMB": 0,
+      "mip": true
+     },
+     {
+      "name": "_Texture",
+      "cat": "vegetation",
+      "size": "1024x1280",
+      "gpuMB": 6.7,
+      "cpuMB": 0,
+      "mip": true
+     },
+     {
+      "name": "PMREM.cubeUv",
+      "cat": "environment",
+      "size": "768x1024",
+      "gpuMB": 6,
+      "cpuMB": 0,
+      "mip": false
+     },
+     {
+      "name": "leaves.webp",
+      "cat": "vegetation",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 4,
+      "mip": true
+     },
+     {
+      "name": "DataTexture",
+      "cat": "chunks/ground",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 0,
+      "mip": true
+     },
+     {
+      "name": "DataTexture",
+      "cat": "chunks/ground",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 0,
+      "mip": true
+     },
+     {
+      "name": "DataTexture",
+      "cat": "chunks/ground",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 0,
+      "mip": true
+     },
+     {
+      "name": "DataTexture",
+      "cat": "chunks/ground",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 0,
+      "mip": true
+     },
+     {
+      "name": "DataTexture",
+      "cat": "chunks/ground",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 0,
+      "mip": true
+     },
+     {
+      "name": "DataTexture",
+      "cat": "chunks/ground",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 0,
+      "mip": true
+     },
+     {
+      "name": "DataTexture",
+      "cat": "chunks/ground",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 0,
+      "mip": true
+     },
+     {
+      "name": "DataTexture",
+      "cat": "chunks/ground",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 0,
+      "mip": true
+     },
+     {
+      "name": "DataTexture",
+      "cat": "chunks/ground",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 0,
+      "mip": true
+     },
+     {
+      "name": "concrete_detail.jpg",
+      "cat": "landmarks",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 4,
+      "mip": true
+     },
+     {
+      "name": "granite_detail.jpg",
+      "cat": "landmarks",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 4,
+      "mip": true
+     },
+     {
+      "name": "plaster_detail.jpg",
+      "cat": "landmarks",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 4,
+      "mip": true
+     },
+     {
+      "name": "homem_BODY_albedo",
+      "cat": "characters/player",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 4,
+      "mip": true
+     },
+     {
+      "name": "idoso_HAIR_albedo",
+      "cat": "characters/player",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 4,
+      "mip": true
+     },
+     {
+      "name": "homem_PANTS_albedo",
+      "cat": "characters/player",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 4,
+      "mip": true
+     },
+     {
+      "name": "homem_PANTS_normal",
+      "cat": "characters/player",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 4,
+      "mip": true
+     },
+     {
+      "name": "homem_SHIRT_albedo",
+      "cat": "characters/player",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 4,
+      "mip": true
+     },
+     {
+      "name": "mulher_BODY_albedo",
+      "cat": "characters/npc",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 4,
+      "mip": true
+     },
+     {
+      "name": "mulher_HAIR_albedo",
+      "cat": "characters/npc",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 4,
+      "mip": true
+     }
+    ],
+    "topGeometries": [
+     {
+      "name": "BufferGeometry",
+      "cat": "landmarks",
+      "MB": 8.4,
+      "verts": 245880
+     },
+     {
+      "name": "BufferGeometry",
+      "cat": "chunks/buildings",
+      "MB": 2.6,
+      "verts": 40668
+     },
+     {
+      "name": "BufferGeometry",
+      "cat": "chunks/buildings",
+      "MB": 2.5,
+      "verts": 39006
+     },
+     {
+      "name": "BufferGeometry",
+      "cat": "landmarks",
+      "MB": 2.4,
+      "verts": 70416
+     },
+     {
+      "name": "BufferGeometry",
+      "cat": "chunks/buildings",
+      "MB": 2.3,
+      "verts": 36605
+     },
+     {
+      "name": "BufferGeometry",
+      "cat": "chunks/buildings",
+      "MB": 2.3,
+      "verts": 35626
+     },
+     {
+      "name": "BufferGeometry",
+      "cat": "chunks/buildings",
+      "MB": 2.3,
+      "verts": 35376
+     },
+     {
+      "name": "BufferGeometry",
+      "cat": "chunks/buildings",
+      "MB": 2.2,
+      "verts": 33625
+     },
+     {
+      "name": "BufferGeometry",
+      "cat": "landmarks",
+      "MB": 2.1,
+      "verts": 61236
+     },
+     {
+      "name": "BufferGeometry",
+      "cat": "landmarks",
+      "MB": 2.1,
+      "verts": 60876
+     },
+     {
+      "name": "BufferGeometry",
+      "cat": "vegetation",
+      "MB": 2.1,
+      "verts": 56888
+     },
+     {
+      "name": "BufferGeometry",
+      "cat": "chunks/buildings",
+      "MB": 2,
+      "verts": 30866
+     },
+     {
+      "name": "BufferGeometry",
+      "cat": "landmarks",
+      "MB": 2,
+      "verts": 57492
+     },
+     {
+      "name": "BufferGeometry",
+      "cat": "chunks/buildings",
+      "MB": 1.9,
+      "verts": 30419
+     },
+     {
+      "name": "BufferGeometry",
+      "cat": "chunks/buildings",
+      "MB": 1.9,
+      "verts": 30153
+     }
+    ]
+   },
+   "fps": 58.999950832336886,
+   "chunks": {
+    "visible": 70,
+    "full": 19,
+    "medium": 42,
+    "far": 9,
+    "loaded": 70
+   }
+  },
+  {
+   "name": "central_volta",
+   "heapRaw": {
+    "usedMB": 67.5,
+    "totalMB": 86.4,
+    "backingStoreMB": 90,
+    "embedderMB": 3.5,
+    "perfMemMB": 157.6
+   },
+   "heapGC": {
+    "usedMB": 62.7,
+    "totalMB": 65.6,
+    "backingStoreMB": 90,
+    "embedderMB": 3.4,
+    "perfMemMB": 152.8
+   },
+   "report": {
+    "t": 48837,
+    "heap": {
+     "usedMB": 153.6,
+     "totalMB": 156.3
+    },
+    "renderer": {
+     "textures": 319,
+     "geometries": 673,
+     "programs": 111
+    },
+    "totals": {
+     "textures": 151,
+     "texGpuMB": 390.3,
+     "texCpuMB": 178.3,
+     "geometries": 1020,
+     "geoMB": 119.3,
+     "geoCpuMB": 34.8,
+     "materials": 931,
+     "skeletons": 811,
+     "boneTexMB": 3.4,
+     "gpuEstMB": 513.1
+    },
+    "categories": {
+     "characters/npc": {
+      "textures": 61,
+      "texGpuMB": 129.3,
+      "texCpuMB": 98,
+      "geometries": 176,
+      "geoMB": 9.6,
+      "geoCpuMB": 9.6,
+      "materials": 636,
+      "skeletons": 636,
+      "boneTexMB": 2.8,
+      "objects": 636
+     },
+     "chunks/ground": {
+      "textures": 27,
+      "texGpuMB": 65.4,
+      "texCpuMB": 0,
+      "geometries": 419,
+      "geoMB": 5.3,
+      "geoCpuMB": 1.7,
+      "materials": 13,
+      "skeletons": 0,
+      "boneTexMB": 0,
+      "objects": 419
+     },
+     "shadows": {
+      "textures": 1,
+      "texGpuMB": 64,
+      "texCpuMB": 0,
+      "geometries": 0,
+      "geoMB": 0,
+      "geoCpuMB": 0,
+      "materials": 0,
+      "skeletons": 0,
+      "boneTexMB": 0,
+      "objects": 0
+     },
+     "chunks/buildings": {
+      "textures": 2,
+      "texGpuMB": 3,
+      "texCpuMB": 0,
+      "geometries": 89,
+      "geoMB": 53.5,
+      "geoCpuMB": 9.6,
+      "materials": 1,
+      "skeletons": 0,
+      "boneTexMB": 0,
+      "objects": 89
+     },
+     "landmarks": {
+      "textures": 5,
+      "texGpuMB": 17.7,
+      "texCpuMB": 13.3,
+      "geometries": 99,
+      "geoMB": 38,
+      "geoCpuMB": 1.1,
+      "materials": 9,
+      "skeletons": 0,
+      "boneTexMB": 0,
+      "objects": 99
+     },
+     "characters/player": {
+      "textures": 16,
+      "texGpuMB": 38,
+      "texCpuMB": 28.5,
+      "geometries": 14,
+      "geoMB": 1,
+      "geoCpuMB": 1,
+      "materials": 14,
+      "skeletons": 14,
+      "boneTexMB": 0.1,
+      "objects": 14
+     },
+     "vegetation": {
+      "textures": 17,
+      "texGpuMB": 24.3,
+      "texCpuMB": 8.3,
+      "geometries": 5,
+      "geoMB": 3.6,
+      "geoCpuMB": 3.6,
+      "materials": 3,
+      "skeletons": 0,
+      "boneTexMB": 0,
+      "objects": 5
+     },
+     "monuments": {
+      "textures": 2,
+      "texGpuMB": 24.3,
+      "texCpuMB": 0.3,
+      "geometries": 32,
+      "geoMB": 0.4,
+      "geoCpuMB": 0.4,
+      "materials": 9,
+      "skeletons": 0,
+      "boneTexMB": 0,
+      "objects": 32
+     },
+     "events": {
+      "textures": 5,
+      "texGpuMB": 12.5,
+      "texCpuMB": 9.4,
+      "geometries": 56,
+      "geoMB": 0,
+      "geoCpuMB": 0,
+      "materials": 29,
+      "skeletons": 0,
+      "boneTexMB": 0,
+      "objects": 56
+     },
+     "characters/assets": {
+      "textures": 5,
+      "texGpuMB": 5.3,
+      "texCpuMB": 13,
+      "geometries": 35,
+      "geoMB": 2.1,
+      "geoCpuMB": 2.1,
+      "materials": 161,
+      "skeletons": 161,
+      "boneTexMB": 0.5,
+      "objects": 161
+     },
+     "environment": {
+      "textures": 1,
+      "texGpuMB": 6,
+      "texCpuMB": 0,
+      "geometries": 2,
+      "geoMB": 0.1,
+      "geoCpuMB": 0.1,
+      "materials": 2,
+      "skeletons": 0,
+      "boneTexMB": 0,
+      "objects": 2
+     },
+     "other": {
+      "textures": 8,
+      "texGpuMB": 0,
+      "texCpuMB": 7.3,
+      "geometries": 8,
+      "geoMB": 2.1,
+      "geoCpuMB": 2.1,
+      "materials": 8,
+      "skeletons": 0,
+      "boneTexMB": 0,
+      "objects": 8
+     },
+     "vehicles/assets": {
+      "textures": 0,
+      "texGpuMB": 0,
+      "texCpuMB": 0,
+      "geometries": 8,
+      "geoMB": 1.6,
+      "geoCpuMB": 1.6,
+      "materials": 0,
+      "skeletons": 0,
+      "boneTexMB": 0,
+      "objects": 0
+     },
+     "props": {
+      "textures": 0,
+      "texGpuMB": 0,
+      "texCpuMB": 0,
+      "geometries": 34,
+      "geoMB": 1,
+      "geoCpuMB": 1,
+      "materials": 7,
+      "skeletons": 0,
+      "boneTexMB": 0,
+      "objects": 34
+     },
+     "world/closure": {
+      "textures": 1,
+      "texGpuMB": 0.5,
+      "texCpuMB": 0.4,
+      "geometries": 7,
+      "geoMB": 0.3,
+      "geoCpuMB": 0.3,
+      "materials": 5,
+      "skeletons": 0,
+      "boneTexMB": 0,
+      "objects": 8
+     },
+     "vehicles/rideables": {
+      "textures": 0,
+      "texGpuMB": 0,
+      "texCpuMB": 0,
+      "geometries": 36,
+      "geoMB": 0.6,
+      "geoCpuMB": 0.6,
+      "materials": 34,
+      "skeletons": 0,
+      "boneTexMB": 0,
+      "objects": 250
+     }
+    },
+    "ledger": {
+     "texturesMB": 476.7,
+     "textureCount": 323,
+     "buffersMB": 97.1,
+     "bufferCount": 2971,
+     "renderbuffersMB": 97.7,
+     "renderbufferCount": 8,
+     "unattributedTexMB": 86.3,
+     "totalMB": 671.5
+    },
+    "wasm": [
+     {
+      "label": "meshopt",
+      "MB": 0.4
+     }
+    ],
+    "animation": {
+     "clips": 14,
+     "tracks": 2226,
+     "MB": 0.3
+    },
+    "assets": {
+     "textureHits": 0,
+     "textureLoads": 6,
+     "gltfHits": 0,
+     "gltfLoads": 71,
+     "imagesDeduped": 93,
+     "imagesDecoded": 82,
+     "cpuReleasedMB": 206,
+     "materialHits": 0,
+     "textures": [
+      {
+       "key": "leaves.webp",
+       "refs": 1
+      },
+      {
+       "key": "bark.jpg",
+       "refs": 1
+      },
+      {
+       "key": "bark_n.jpg",
+       "refs": 1
+      },
+      {
+       "key": "plaster_detail.jpg",
+       "refs": 1
+      },
+      {
+       "key": "concrete_detail.jpg",
+       "refs": 1
+      },
+      {
+       "key": "granite_detail.jpg",
+       "refs": 1
+      }
+     ],
+     "gltfs": [
+      {
+       "url": "homem_lod3.glb",
+       "refs": 1
+      },
+      {
+       "url": "anims.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher_lod3.glb",
+       "refs": 1
+      },
+      {
+       "url": "idoso_lod3.glb",
+       "refs": 1
+      },
+      {
+       "url": "idosa_lod3.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem_lod2.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher_lod2.glb",
+       "refs": 1
+      },
+      {
+       "url": "idoso_lod2.glb",
+       "refs": 1
+      },
+      {
+       "url": "idosa_lod2.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "idoso_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "idoso-shirt-camisa_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "idoso-pants-bermuda_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "idoso-shoes-chinelo_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem-shirt-polo_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem-hair-afro_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem-shirt-camisa_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem-pants-social_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem-hair-curto2_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher-shoes-sapato_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher-hair-longo_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "idoso-shirt-camiseta_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "idoso-shoes-tenis_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher-pants-social_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "idosa.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher-pants-bermuda_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher-shoes-chinelo_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem-shoes-sapato_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem-shirt-polo.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem-pants-social.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem-shoes-sapato.glb",
+       "refs": 1
+      },
+      {
+       "url": "idosa_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "idosa-shirt-camisa.glb",
+       "refs": 1
+      },
+      {
+       "url": "idosa-pants-jeans.glb",
+       "refs": 1
+      },
+      {
+       "url": "idosa-hair-curto.glb",
+       "refs": 1
+      },
+      {
+       "url": "idosa-pants-jeans_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem-pants-bermuda_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem-hair-curto2.glb",
+       "refs": 1
+      },
+      {
+       "url": "idosa-shoes-tenis.glb",
+       "refs": 1
+      },
+      {
+       "url": "idosa-shoes-tenis_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "idosa-hair-curto_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher-hair-chanel_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "idoso.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher-shirt-regata_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "idosa-shirt-camisa_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem-shirt-camisa.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem-shirt-regata_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher-shirt-camisa_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem-shirt-regata.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem-pants-bermuda.glb",
+       "refs": 1
+      },
+      {
+       "url": "idoso-shirt-camisa.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher-shirt-regata.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher-pants-bermuda.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher-hair-chanel.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher-shirt-camisa.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher-pants-social.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher-shoes-sapato.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher-hair-longo.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher-hair-afro.glb",
+       "refs": 1
+      },
+      {
+       "url": "mulher-hair-afro_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "idoso-shirt-camiseta.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem-shoes-chinelo.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem-hair-afro.glb",
+       "refs": 1
+      },
+      {
+       "url": "idosa-shirt-regata.glb",
+       "refs": 1
+      },
+      {
+       "url": "idosa-shirt-regata_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "homem-shoes-chinelo_lod1.glb",
+       "refs": 1
+      },
+      {
+       "url": "idoso-pants-jeans_lod1.glb",
+       "refs": 1
+      }
+     ],
+     "materials": 0,
+     "imageSources": 82
+    },
+    "duplicates": {
+     "textures": [
+      {
+       "key": "d60x60:1255911832",
+       "count": 4,
+       "wastedMB": 0.2,
+       "names": [
+        "?"
+       ],
+       "cats": [
+        "vegetation"
+       ]
+      },
+      {
+       "key": "d30x30:3983003548",
+       "count": 2,
+       "wastedMB": 0,
+       "names": [
+        "?"
+       ],
+       "cats": [
+        "vegetation"
+       ]
+      },
+      {
+       "key": "d30x30:2175068979",
+       "count": 2,
+       "wastedMB": 0,
+       "names": [
+        "?"
+       ],
+       "cats": [
+        "vegetation"
+       ]
+      }
+     ],
+     "materials": [
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=true|opacity=1|transparent=false|alphaHash=false|ble",
+       "count": 96,
+       "cats": [
+        "characters/player",
+        "characters/npc"
+       ],
+       "names": [
+        "PV_LOD"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 47,
+       "cats": [
+        "characters/player",
+        "characters/npc",
+        "characters/assets"
+       ],
+       "names": [
+        "PV_EYES"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 46,
+       "cats": [
+        "characters/player",
+        "characters/npc",
+        "characters/assets"
+       ],
+       "names": [
+        "PV_ACC_chapeu"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 39,
+       "cats": [
+        "characters/player",
+        "characters/npc",
+        "characters/assets"
+       ],
+       "names": [
+        "PV_ACC_bone"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 39,
+       "cats": [
+        "characters/player",
+        "characters/npc"
+       ],
+       "names": [
+        "PV_ACC_oculos"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 39,
+       "cats": [
+        "characters/player",
+        "characters/npc"
+       ],
+       "names": [
+        "PV_EYEBROWS"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 28,
+       "cats": [
+        "characters/player",
+        "characters/npc",
+        "characters/assets"
+       ],
+       "names": [
+        "PV_ACC_mochila"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 26,
+       "cats": [
+        "characters/player",
+        "characters/npc",
+        "characters/assets"
+       ],
+       "names": [
+        "PV_ACC_bolsa"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 16,
+       "cats": [
+        "characters/player",
+        "characters/npc"
+       ],
+       "names": [
+        "PV_EYELASHES"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 9,
+       "cats": [
+        "characters/player",
+        "characters/npc",
+        "characters/assets"
+       ],
+       "names": [
+        "PV_SHOES"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 9,
+       "cats": [
+        "characters/npc"
+       ],
+       "names": [
+        "PV_ACC_bolsa"
+       ]
+      },
+      {
+       "key": "MeshBasicMaterial|isMaterial=true|blending=1|side=0|vertexColors=false|opacity=1|transparent=false|alphaHash=false|blend",
+       "count": 9,
+       "cats": [
+        "events"
+       ],
+       "names": [
+        "MeshBasicMaterial"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=0|vertexColors=true|opacity=1|transparent=false|alphaHash=false|ble",
+       "count": 8,
+       "cats": [
+        "other"
+       ],
+       "names": [
+        "MeshStandardMaterial"
+       ]
+      },
+      {
+       "key": "MeshBasicMaterial|isMaterial=true|blending=1|side=0|vertexColors=false|opacity=1|transparent=false|alphaHash=false|blend",
+       "count": 8,
+       "cats": [
+        "events"
+       ],
+       "names": [
+        "MeshBasicMaterial"
+       ]
+      },
+      {
+       "key": "MeshBasicMaterial|isMaterial=true|blending=1|side=0|vertexColors=false|opacity=1|transparent=false|alphaHash=false|blend",
+       "count": 8,
+       "cats": [
+        "events"
+       ],
+       "names": [
+        "MeshBasicMaterial"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=true|opacity=1|transparent=false|alphaHash=false|ble",
+       "count": 8,
+       "cats": [
+        "characters/assets"
+       ],
+       "names": [
+        "PV_LOD"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=true|alphaHash=false|ble",
+       "count": 8,
+       "cats": [
+        "characters/assets"
+       ],
+       "names": [
+        "PV_ACC_oculos"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=true|alphaHash=false|ble",
+       "count": 8,
+       "cats": [
+        "characters/assets"
+       ],
+       "names": [
+        "PV_EYEBROWS"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 7,
+       "cats": [
+        "characters/npc",
+        "characters/assets"
+       ],
+       "names": [
+        "PV_SHOES"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=0|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 7,
+       "cats": [
+        "vehicles/rideables"
+       ],
+       "names": [
+        "MeshStandardMaterial"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 6,
+       "cats": [
+        "characters/npc"
+       ],
+       "names": [
+        "PV_ACC_bolsa"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 5,
+       "cats": [
+        "characters/npc"
+       ],
+       "names": [
+        "PV_ACC_mochila"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 5,
+       "cats": [
+        "characters/npc"
+       ],
+       "names": [
+        "PV_PANTS"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 5,
+       "cats": [
+        "characters/npc"
+       ],
+       "names": [
+        "PV_SHOES"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 5,
+       "cats": [
+        "characters/npc",
+        "characters/assets"
+       ],
+       "names": [
+        "PV_SHOES"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 5,
+       "cats": [
+        "characters/npc",
+        "characters/assets"
+       ],
+       "names": [
+        "PV_PANTS"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 5,
+       "cats": [
+        "characters/npc"
+       ],
+       "names": [
+        "PV_PANTS"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 5,
+       "cats": [
+        "characters/npc"
+       ],
+       "names": [
+        "PV_SHIRT"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=2|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 5,
+       "cats": [
+        "characters/npc",
+        "characters/assets"
+       ],
+       "names": [
+        "PV_SHOES_chinelo"
+       ]
+      },
+      {
+       "key": "MeshStandardMaterial|isMaterial=true|blending=1|side=0|vertexColors=false|opacity=1|transparent=false|alphaHash=false|bl",
+       "count": 5,
+       "cats": [
+        "vehicles/rideables"
+       ],
+       "names": [
+        "MeshStandardMaterial"
+       ]
+      }
+     ],
+     "geometries": [
+      {
+       "count": 4,
+       "wastedMB": 0.1,
+       "cats": [
+        "landmarks"
+       ],
+       "names": [
+        "TorusGeometry"
+       ]
+      },
+      {
+       "count": 5,
+       "wastedMB": 0.1,
+       "cats": [
+        "vehicles/rideables"
+       ],
+       "names": [
+        "BufferGeometry"
+       ]
+      },
+      {
+       "count": 5,
+       "wastedMB": 0.1,
+       "cats": [
+        "vehicles/rideables"
+       ],
+       "names": [
+        "BufferGeometry"
+       ]
+      },
+      {
+       "count": 2,
+       "wastedMB": 0,
+       "cats": [
+        "props"
+       ],
+       "names": [
+        "SphereGeometry"
+       ]
+      },
+      {
+       "count": 2,
+       "wastedMB": 0,
+       "cats": [
+        "props"
+       ],
+       "names": [
+        "SphereGeometry"
+       ]
+      },
+      {
+       "count": 2,
+       "wastedMB": 0,
+       "cats": [
+        "props"
+       ],
+       "names": [
+        "SphereGeometry"
+       ]
+      },
+      {
+       "count": 2,
+       "wastedMB": 0,
+       "cats": [
+        "props"
+       ],
+       "names": [
+        "BufferGeometry"
+       ]
+      },
+      {
+       "count": 2,
+       "wastedMB": 0,
+       "cats": [
+        "props"
+       ],
+       "names": [
+        "BufferGeometry"
+       ]
+      },
+      {
+       "count": 4,
+       "wastedMB": 0,
+       "cats": [
+        "landmarks"
+       ],
+       "names": [
+        "CircleGeometry"
+       ]
+      },
+      {
+       "count": 4,
+       "wastedMB": 0,
+       "cats": [
+        "landmarks"
+       ],
+       "names": [
+        "BoxGeometry"
+       ]
+      },
+      {
+       "count": 4,
+       "wastedMB": 0,
+       "cats": [
+        "landmarks"
+       ],
+       "names": [
+        "BoxGeometry"
+       ]
+      },
+      {
+       "count": 2,
+       "wastedMB": 0,
+       "cats": [
+        "characters/player",
+        "characters/npc"
+       ],
+       "names": [
+        "BufferGeometry"
+       ]
+      },
+      {
+       "count": 2,
+       "wastedMB": 0,
+       "cats": [
+        "characters/npc"
+       ],
+       "names": [
+        "BufferGeometry"
+       ]
+      },
+      {
+       "count": 2,
+       "wastedMB": 0,
+       "cats": [
+        "characters/npc"
+       ],
+       "names": [
+        "BufferGeometry"
+       ]
+      },
+      {
+       "count": 2,
+       "wastedMB": 0,
+       "cats": [
+        "characters/npc"
+       ],
+       "names": [
+        "BufferGeometry"
+       ]
+      },
+      {
+       "count": 2,
+       "wastedMB": 0,
+       "cats": [
+        "characters/npc"
+       ],
+       "names": [
+        "BufferGeometry"
+       ]
+      },
+      {
+       "count": 2,
+       "wastedMB": 0,
+       "cats": [
+        "characters/npc"
+       ],
+       "names": [
+        "BufferGeometry"
+       ]
+      },
+      {
+       "count": 4,
+       "wastedMB": 0,
+       "cats": [
+        "world/closure"
+       ],
+       "names": [
+        "BoxGeometry"
+       ]
+      },
+      {
+       "count": 3,
+       "wastedMB": 0,
+       "cats": [
+        "monuments"
+       ],
+       "names": [
+        "BufferGeometry"
+       ]
+      },
+      {
+       "count": 2,
+       "wastedMB": 0,
+       "cats": [
+        "monuments"
+       ],
+       "names": [
+        "CylinderGeometry"
+       ]
+      },
+      {
+       "count": 4,
+       "wastedMB": 0,
+       "cats": [
+        "monuments"
+       ],
+       "names": [
+        "CircleGeometry"
+       ]
+      },
+      {
+       "count": 4,
+       "wastedMB": 0,
+       "cats": [
+        "monuments"
+       ],
+       "names": [
+        "BoxGeometry"
+       ]
+      },
+      {
+       "count": 4,
+       "wastedMB": 0,
+       "cats": [
+        "monuments"
+       ],
+       "names": [
+        "BoxGeometry"
+       ]
+      },
+      {
+       "count": 2,
+       "wastedMB": 0,
+       "cats": [
+        "monuments"
+       ],
+       "names": [
+        "BoxGeometry"
+       ]
+      },
+      {
+       "count": 2,
+       "wastedMB": 0,
+       "cats": [
+        "monuments"
+       ],
+       "names": [
+        "BufferGeometry"
+       ]
+      },
+      {
+       "count": 4,
+       "wastedMB": 0,
+       "cats": [
+        "events"
+       ],
+       "names": [
+        "BoxGeometry"
+       ]
+      },
+      {
+       "count": 4,
+       "wastedMB": 0,
+       "cats": [
+        "events"
+       ],
+       "names": [
+        "PlaneGeometry"
+       ]
+      },
+      {
+       "count": 5,
+       "wastedMB": 0,
+       "cats": [
+        "vehicles/rideables"
+       ],
+       "names": [
+        "BufferGeometry"
+       ]
+      },
+      {
+       "count": 5,
+       "wastedMB": 0,
+       "cats": [
+        "vehicles/rideables"
+       ],
+       "names": [
+        "BufferGeometry"
+       ]
+      },
+      {
+       "count": 5,
+       "wastedMB": 0,
+       "cats": [
+        "vehicles/rideables"
+       ],
+       "names": [
+        "CylinderGeometry"
+       ]
+      }
+     ],
+     "counts": {
+      "textures": 3,
+      "texWastedMB": 0.2,
+      "materials": 618,
+      "geometries": 70,
+      "geoWastedMB": 0.3
+     }
+    },
+    "topTextures": [
+     {
+      "name": "sun.shadowMap",
+      "cat": "shadows",
+      "size": "4096x4096",
+      "gpuMB": 64,
+      "cpuMB": 0,
+      "mip": false
+     },
+     {
+      "name": "street_signs_atlas",
+      "cat": "monuments",
+      "size": "1024x4608",
+      "gpuMB": 24,
+      "cpuMB": 0,
+      "mip": true
+     },
+     {
+      "name": "_Texture",
+      "cat": "vegetation",
+      "size": "1024x1280",
+      "gpuMB": 6.7,
+      "cpuMB": 0,
+      "mip": true
+     },
+     {
+      "name": "_Texture",
+      "cat": "vegetation",
+      "size": "1024x1280",
+      "gpuMB": 6.7,
+      "cpuMB": 0,
+      "mip": true
+     },
+     {
+      "name": "PMREM.cubeUv",
+      "cat": "environment",
+      "size": "768x1024",
+      "gpuMB": 6,
+      "cpuMB": 0,
+      "mip": false
+     },
+     {
+      "name": "leaves.webp",
+      "cat": "vegetation",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 4,
+      "mip": true
+     },
+     {
+      "name": "DataTexture",
+      "cat": "chunks/ground",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 0,
+      "mip": true
+     },
+     {
+      "name": "DataTexture",
+      "cat": "chunks/ground",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 0,
+      "mip": true
+     },
+     {
+      "name": "DataTexture",
+      "cat": "chunks/ground",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 0,
+      "mip": true
+     },
+     {
+      "name": "DataTexture",
+      "cat": "chunks/ground",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 0,
+      "mip": true
+     },
+     {
+      "name": "DataTexture",
+      "cat": "chunks/ground",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 0,
+      "mip": true
+     },
+     {
+      "name": "DataTexture",
+      "cat": "chunks/ground",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 0,
+      "mip": true
+     },
+     {
+      "name": "DataTexture",
+      "cat": "chunks/ground",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 0,
+      "mip": true
+     },
+     {
+      "name": "DataTexture",
+      "cat": "chunks/ground",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 0,
+      "mip": true
+     },
+     {
+      "name": "DataTexture",
+      "cat": "chunks/ground",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 0,
+      "mip": true
+     },
+     {
+      "name": "concrete_detail.jpg",
+      "cat": "landmarks",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 4,
+      "mip": true
+     },
+     {
+      "name": "granite_detail.jpg",
+      "cat": "landmarks",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 4,
+      "mip": true
+     },
+     {
+      "name": "plaster_detail.jpg",
+      "cat": "landmarks",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 4,
+      "mip": true
+     },
+     {
+      "name": "homem_BODY_albedo",
+      "cat": "characters/player",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 4,
+      "mip": true
+     },
+     {
+      "name": "idoso_HAIR_albedo",
+      "cat": "characters/player",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 4,
+      "mip": true
+     },
+     {
+      "name": "homem_PANTS_albedo",
+      "cat": "characters/player",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 4,
+      "mip": true
+     },
+     {
+      "name": "homem_PANTS_normal",
+      "cat": "characters/player",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 4,
+      "mip": true
+     },
+     {
+      "name": "homem_SHIRT_albedo",
+      "cat": "characters/player",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 4,
+      "mip": true
+     },
+     {
+      "name": "mulher_BODY_albedo",
+      "cat": "characters/npc",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 4,
+      "mip": true
+     },
+     {
+      "name": "mulher_HAIR_albedo",
+      "cat": "characters/npc",
+      "size": "1024x1024",
+      "gpuMB": 5.3,
+      "cpuMB": 4,
+      "mip": true
+     }
+    ],
+    "topGeometries": [
+     {
+      "name": "BufferGeometry",
+      "cat": "landmarks",
+      "MB": 8.4,
+      "verts": 245880
+     },
+     {
+      "name": "BufferGeometry",
+      "cat": "chunks/buildings",
+      "MB": 2.6,
+      "verts": 40668
+     },
+     {
+      "name": "BufferGeometry",
+      "cat": "chunks/buildings",
+      "MB": 2.5,
+      "verts": 39006
+     },
+     {
+      "name": "BufferGeometry",
+      "cat": "landmarks",
+      "MB": 2.4,
+      "verts": 70416
+     },
+     {
+      "name": "BufferGeometry",
+      "cat": "chunks/buildings",
+      "MB": 2.3,
+      "verts": 36605
+     },
+     {
+      "name": "BufferGeometry",
+      "cat": "chunks/buildings",
+      "MB": 2.3,
+      "verts": 35626
+     },
+     {
+      "name": "BufferGeometry",
+      "cat": "chunks/buildings",
+      "MB": 2.3,
+      "verts": 35376
+     },
+     {
+      "name": "BufferGeometry",
+      "cat": "chunks/buildings",
+      "MB": 2.2,
+      "verts": 33625
+     },
+     {
+      "name": "BufferGeometry",
+      "cat": "landmarks",
+      "MB": 2.1,
+      "verts": 61236
+     },
+     {
+      "name": "BufferGeometry",
+      "cat": "landmarks",
+      "MB": 2.1,
+      "verts": 60876
+     },
+     {
+      "name": "BufferGeometry",
+      "cat": "vegetation",
+      "MB": 2.1,
+      "verts": 56888
+     },
+     {
+      "name": "BufferGeometry",
+      "cat": "landmarks",
+      "MB": 2,
+      "verts": 57492
+     },
+     {
+      "name": "BufferGeometry",
+      "cat": "chunks/buildings",
+      "MB": 1.9,
+      "verts": 30419
+     },
+     {
+      "name": "BufferGeometry",
+      "cat": "chunks/buildings",
+      "MB": 1.9,
+      "verts": 30153
+     },
+     {
+      "name": "BufferGeometry",
+      "cat": "landmarks",
+      "MB": 1.9,
+      "verts": 55776
+     }
+    ]
+   },
+   "fps": 57.57604836256337,
+   "chunks": {
+    "visible": 70,
+    "full": 19,
+    "medium": 34,
+    "far": 17,
+    "loaded": 70
+   }
+  }
+ ],
+ "loop": null,
+ "sampling": null
+}
