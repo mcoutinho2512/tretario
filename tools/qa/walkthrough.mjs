@@ -18,7 +18,7 @@ import { readFileSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 
 const base = process.argv[2] ?? 'http://localhost:5173';
 const lag = Number(process.argv[3] ?? 0), jitter = Number(process.argv[4] ?? 0);
-const PORT = 2600;
+const PORT = Number(process.env.PV_WALKTHROUGH_PORT ?? 2600); // porta própria via env para não colidir com outro walkthrough
 const chrome = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const OUT = `screenshots/walkthrough${lag ? `_lag${lag}` : ''}`;
 rmSync(OUT, { recursive: true, force: true });
