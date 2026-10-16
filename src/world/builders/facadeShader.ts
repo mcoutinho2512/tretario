@@ -297,14 +297,14 @@ export const FACADE_FRAGMENT_MAIN = /* glsl */ `
       rough = 0.94;
     } else if (mat < 2.5) {
       // placas de pedra (granito/travertino) com juntas
-      vec2 ps = h3 < 0.5 ? vec2(0.6, 0.9) : vec2(1.2, 0.6);
+      vec2 ps = h3 < 0.5 ? vec2(0.9, 1.2) : vec2(1.2, 0.8);
       vec2 pid = floor(m / ps);
       float pv = pvH(pid + fSeed * 7.0);
       wallC *= 0.93 + pv * 0.1;
       wallC *= 0.92 + nHi * 0.14; // granulação
       vec2 jd = abs(fract(m / ps + 0.5) - 0.5) * ps;
       float joint = 1.0 - smoothstep(0.004, 0.004 + max(aa.x, aa.y), min(jd.x, jd.y));
-      wallC *= 1.0 - joint * 0.14 * detail;
+      wallC *= 1.0 - joint * 0.08 * detail;
       rough = 0.55 + h4 * 0.2;
     } else if (mat < 3.5) {
       // pastilhas (5 cm): mistura de 3 tons; vira cor média à distância
@@ -413,7 +413,7 @@ export const FACADE_FRAGMENT_MAIN = /* glsl */ `
     // interior: escuro com variação; cortinas/persianas por janela
     float curtainK = step(0.45, rW2) * step(rW2, 0.8);
     float blindK = step(0.8, rW2);
-    vec3 interior = pvLin(vec3(0.11, 0.105, 0.1)) * (0.7 + rW * 0.8) * (0.6 + 0.4 * g.y);
+    vec3 interior = pvLin(vec3(0.2, 0.19, 0.18)) * (0.6 + rW * 0.8) * (0.55 + 0.45 * g.y);
     vec3 curtC = pvLin(pvPick8(rW * 3.7, vec3(0.86,0.82,0.72), vec3(0.92,0.92,0.9), vec3(0.62,0.70,0.80), vec3(0.80,0.74,0.6),
                                          vec3(0.7,0.7,0.68), vec3(0.88,0.86,0.80), vec3(0.6,0.55,0.48), vec3(0.9,0.9,0.86)));
     float cDrop = 0.35 + rW * 0.65;
@@ -585,7 +585,7 @@ export const FACADE_FRAGMENT_MAIN = /* glsl */ `
         vec2 pIn = vec2(sx, yRel) - vt.xy / vt.z * 2.5 * uDetail;
         float shelf = floor(pIn.y / 0.42);
         float item = floor((pIn.x + shelf * 0.37) / (0.12 + pvH(vec2(shelf, shop)) * 0.22));
-        vec3 goods = pvLin(mix(vec3(0.62, 0.6, 0.56), vec3(pvH(vec2(item, shelf)), pvH(vec2(item, shelf + 3.1)), pvH(vec2(item + 1.7, shelf))), 0.22)) * 0.5;
+        vec3 goods = pvLin(mix(vec3(0.62, 0.6, 0.56), vec3(pvH(vec2(item, shelf)), pvH(vec2(item, shelf + 3.1)), pvH(vec2(item + 1.7, shelf))), 0.15)) * (0.3 + 0.3 * pvH(vec2(item * 2.3, shelf)));
         goods *= 0.55 + 0.45 * step(0.1, fract(pIn.y / 0.42)) * step(0.15, fract((pIn.x + shelf * 0.37) / (0.12 + pvH(vec2(shelf, shop)) * 0.22)));
         float hasGoods = step(0.25, rs2) * step(0.25, pIn.y) * step(pIn.y, 2.2);
         vec3 backW = pvLin(vec3(0.62, 0.6, 0.55)) * (0.55 + 0.45 * smoothstep(0.0, oTop, pIn.y));
@@ -638,9 +638,9 @@ export const FACADE_FRAGMENT_MAIN = /* glsl */ `
         // base rusticada (ecléticos/institucionais): fiadas de pedra + janelas gradeadas
         float course = pvLines(yRel, 0.5, 0.02, aa.y) + pvLines(m.x + floor(yRel / 0.5) * 0.6, 1.2, 0.015, aa.x);
         col = wallC * mix(0.85, 0.6, clamp(course, 0.0, 1.0)) * (0.9 + nLow * 0.15);
-        fHgt -= clamp(course, 0.0, 1.0) * 0.03;
+        fHgt -= clamp(course, 0.0, 1.0) * 0.008;
         float gw = pvBox(pl, vec2(-0.6, fGroundH * 0.25), vec2(0.6, fGroundH * 0.85), aa);
-        vec3 gwc = mix(pvLin(vec3(0.05)), pvLin(vec3(0.12, 0.13, 0.12)), pvLines(pl.x, 0.15, 0.015, aa.x));
+        vec3 gwc = mix(pvLin(vec3(0.17, 0.17, 0.16)), pvLin(vec3(0.1, 0.11, 0.1)), pvLines(pl.x, 0.15, 0.015, aa.x));
         col = mix(col, gwc, gw);
       }
       col *= 1.0 - 0.25 * (1.0 - smoothstep(0.0, 0.6, yRel));
