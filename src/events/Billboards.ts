@@ -17,6 +17,7 @@ export class BillboardSystem {
   private t = 0;
   private lastRotation = -1;
   private overrides = new Map<string, BillboardContent>();
+  drawDistance = 900;
 
   constructor(slots: BillboardSlot[]) {
     this.group.name = 'billboards';
@@ -101,7 +102,7 @@ export class BillboardSystem {
     if (period > 0 && Math.floor(this.t / period) !== this.lastRotation) this.refresh();
     for (const p of this.panels) {
       const d = Math.hypot(p.slot.p[0] - cam.x, p.slot.p[1] - cam.z);
-      p.group.visible = d < 900;
+      p.group.visible = d < this.drawDistance;
     }
   }
 }

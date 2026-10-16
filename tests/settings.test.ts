@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { PRESETS } from '../src/core/settings';
+import { PRESETS, mobileAdjust } from '../src/core/settings';
 
 describe('presets gráficos', () => {
   it('BAIXO ≤ MÉDIO ≤ ALTO em custo', () => {
@@ -13,6 +13,22 @@ describe('presets gráficos', () => {
       expect(medium.lodDistances[i]).toBeLessThanOrEqual(high.lodDistances[i]);
     }
     expect(high.ambientOcclusion).toBe(true);
+  });
+  it('ULTRA investe em alcance (sombra, LOD, NPCs) sem inflar resolução de sombra ou pixel ratio', () => {
+    const { high, ultra } = PRESETS;
+    expect(ultra.shadowMapSize).toBe(high.shadowMapSize);
+    expect(ultra.pixelRatio).toBe(high.pixelRatio);
+    expect(ultra.shadowDistance).toBeGreaterThan(high.shadowDistance);
+    expect(ultra.lodDistances[0]).toBeGreaterThan(high.lodDistances[0]);
+    expect(ultra.pedestrians).toBeGreaterThan(high.pedestrians);
+  });
+  it('ajuste mobile reduz NPCs, trânsito, sombras e distância de desenho', () => {
+    const m = mobileAdjust(PRESETS.ultra);
+    expect(m.pedestrians).toBeLessThanOrEqual(12);
+    expect(m.vehicles).toBeLessThanOrEqual(20);
+    expect(m.shadowMapSize).toBeLessThanOrEqual(1024);
+    expect(m.lodDistances[2]).toBeLessThanOrEqual(1400);
+    expect(m.ambientOcclusion).toBe(false);
   });
   it('distâncias de LOD crescentes e dentro do far da câmera', () => {
     for (const p of Object.values(PRESETS)) {

@@ -158,6 +158,8 @@ export class Game {
     this.player = createPlayerState('local', spawn.p[0], this.collision.groundHeight(spawn.p[0], spawn.p[1]), spawn.p[1], heading);
     this.scene.add(this.avatar.root);
     this.peds = new PedestrianSystem(this.collision, this.preset.pedestrians);
+    this.peds.radius = this.preset.pedestrianRadius;
+    this.peds.shadowDistance = this.preset.npcShadowDistance;
     this.scene.add(this.peds.group);
     let tdata: TrafficData = { lanes: [], junctions: [], crossings: [] };
     if (this.manifest.traffic) {
@@ -182,6 +184,7 @@ export class Game {
     }
     // painéis de LED + evento ativo (?event=id; padrão em public/events/index.json)
     this.billboards = new BillboardSystem(this.manifest.billboards ?? []);
+    this.billboards.drawDistance = this.preset.billboardDistance;
     this.scene.add(this.billboards.group);
     const pvAxis = this.manifest.pvAxis;
     (this as { events: EventManager }).events = new EventManager(

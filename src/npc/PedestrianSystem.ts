@@ -48,6 +48,7 @@ export class PedestrianSystem {
   private projScreen = new THREE.Matrix4();
   private tmp = new THREE.Vector3();
   radius = 95;
+  shadowDistance = 35;
   stats = { active: 0, visible: 0, crossing: 0, waiting: 0 };
   private crossings: PedCrossing[] = [];
   private crossGrid = new Map<string, number[]>();
@@ -325,7 +326,7 @@ export class PedestrianSystem {
       mesh.visible = inView;
       if (!inView) continue;
       visible++;
-      mesh.castShadow = d < 35;
+      mesh.castShadow = d < this.shadowDistance;
       const every = d < 25 ? 1 : d < 50 ? 2 : 4;
       p.animAcc += dt;
       if ((++p.frame) % every === 0) {

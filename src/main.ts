@@ -25,7 +25,7 @@ const chosenAvatar = (): Body => (avatarRadios.find((r) => r.checked)?.value as 
 const saved = loadQualityChoice();
 const radios = Array.from(document.querySelectorAll<HTMLInputElement>('input[name=q]'));
 radios.forEach((r) => { r.checked = r.value === saved; });
-$('detected').textContent = `Automático detectou: ${({ low: 'Baixo', medium: 'Médio', high: 'Alto' } as const)[detectQuality()]}`;
+$('detected').textContent = `Automático detectou: ${({ low: 'Baixo', medium: 'Médio', high: 'Alto', ultra: 'Ultra' } as const)[detectQuality()]}`;
 
 function showError(e: unknown) {
   console.error(e);
