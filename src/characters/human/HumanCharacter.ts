@@ -47,6 +47,8 @@ interface LodInst {
   /** roupa visível / pedida (estilos por camada) */
   dressed: string;
   dressing: string;
+  /** combinações recortadas em uso por este LOD (corpo, calça) — soltas ao trocar de roupa ou descartar */
+  cullKeys?: string[];
 }
 
 const clipsByBody = new Map<string, Promise<Map<string, THREE.AnimationClip>>>();
@@ -195,11 +197,26 @@ function coveredBy(target: THREE.SkinnedMesh, cloth: THREE.SkinnedMesh, opts?: H
  * pele que uma camiseta: nunca esconder pele que a peça vestida não cobre). Cache por combinação, compartilhada entre
  * personagens; os atributos são os mesmos objetos da original (um upload só na GPU), só o índice muda.
  */
-const combos = new Map<string, Promise<{ geo: THREE.BufferGeometry; hidden: number }>>();
+const combos = new Map<string, { p: Promise<{ geo: THREE.BufferGeometry; hidden: number }>; refs: number }>();
+/**
+ * referência a uma combinação recortada (quem veste chama `releaseCombo` ao trocar de roupa/sumir). Sem ninguém,
+ * o ÍNDICE é liberado da GPU (os atributos são os da geometria original, compartilhados — não são liberados):
+ * NPCs reciclados trocam de roupa o tempo todo e o cache crescia sem limite (~+4 MB/min no ALTO)
+ */
+function releaseCombo(key: string) {
+  const c = combos.get(key);
+  if (!c || --c.refs > 0) return;
+  combos.delete(key);
+  void c.p.then(({ geo }) => {
+    for (const k of Object.keys(geo.attributes)) geo.deleteAttribute(k);
+    geo.dispose();
+  });
+}
 function culled(target: THREE.SkinnedMesh, cloths: THREE.SkinnedMesh[], opts?: HideOptions) {
   const key = [target.geometry.uuid, ...cloths.map((c) => c.geometry.uuid).sort(), opts ? 'r' : ''].join('|');
-  let p = combos.get(key);
-  if (!p) {
+  let c = combos.get(key);
+  if (!c) {
+    let p: Promise<{ geo: THREE.BufferGeometry; hidden: number }>;
     p = Promise.all(cloths.map((c) => coveredBy(target, c, opts))).then((ms) => {
       const src = target.geometry;
       const { index, hidden } = indexWithout(src.index ? (src.index.array as ArrayLike<number>) : null, src.getAttribute('position').count, ms);
@@ -210,9 +227,11 @@ function culled(target: THREE.SkinnedMesh, cloths: THREE.SkinnedMesh[], opts?: H
       geo.boundingBox = src.boundingBox;
       return { geo, hidden };
     });
-    combos.set(key, p);
+    c = { p, refs: 0 };
+    combos.set(key, c);
   }
-  return p;
+  c.refs++;
+  return c.p.then((r) => ({ ...r, key }));
 }
 
 const WHITE = new THREE.Color(1, 1, 1);
@@ -441,6 +460,8 @@ export class HumanCharacter {
         const parts = this.bindMeshes(g.scene, l, inst.group, false);
         inst.parts.push(...parts);
         inst.meshes.push(...parts.map((x) => x.mesh));
+        // chegou tarde (a roupa já mudou de novo)? não fica pendurada
+        if (resolvedStyles(this.app)[slot] !== style) { for (const x of parts) this.releasePart(inst, x); return null; }
         this.applyAppearance();
         return parts.find((x) => x.layer === slot) ?? null;
       }).catch((e) => { console.warn(`[human] peça ${this.body} ${k} indisponível`, e); return null; });
@@ -453,10 +474,29 @@ export class HumanCharacter {
    * Veste a roupa da aparência num LOD com camadas: carrega as peças avulsas que faltam, recorta a pele (e a calça)
    * coberta por ESTA combinação e só então troca o que está visível (até lá, a roupa anterior continua).
    */
+  private releasePart(inst: LodInst, p: Part) {
+    p.mesh.removeFromParent();
+    (p.mesh.material as THREE.Material).dispose();
+    if (!inst.group.children.some((o) => (o as THREE.SkinnedMesh).skeleton === p.mesh.skeleton)) p.mesh.skeleton.dispose();
+    inst.parts.splice(inst.parts.indexOf(p), 1);
+    inst.meshes.splice(inst.meshes.indexOf(p.mesh), 1);
+    inst.pieceLoads.delete(`${p.layer}:${p.style}`);
+  }
+
+  /**
+   * solta peças avulsas OCULTAS que a roupa atual não pede: um NPC reciclado troca de roupa antes de a troca anterior
+   * terminar (o recorte no Worker demora) e as peças da troca abandonada ficavam para sempre (+20 malhas/NPC/min)
+   */
+  private prune(inst: LodInst) {
+    const want = resolvedStyles(this.app);
+    for (const p of inst.parts.filter((x) => !x.base && !x.mesh.visible && want[x.layer as GarmentSlot] !== x.style)) this.releasePart(inst, p);
+  }
+
   private async dress(inst: LodInst, l: Lod) {
     const want = resolvedStyles(this.app);
     const key = GARMENT_SLOTS.map((s) => want[s]).join('/');
     if (inst.dressed === key || inst.dressing === key) return;
+    this.prune(inst);
     inst.dressing = key;
     const baseOf = (slot: GarmentSlot) => inst.parts.find((p) => p.layer === slot && p.base) ?? null;
     const worn = new Map<GarmentSlot, Part | null>();
@@ -475,7 +515,9 @@ export class HumanCharacter {
           culled(body.src, [sh, pa, so].filter((x): x is Part => !!x).map((x) => x.src)),
           sh && pa ? culled(pa.src, [sh.src], PANTS_UNDER_SHIRT) : Promise.resolve(null),
         ]);
-        if (this.disposed || inst.dressing !== key) return;
+        if (this.disposed || inst.dressing !== key) { releaseCombo(b.key); if (pc) releaseCombo(pc.key); return; }
+        for (const k of inst.cullKeys ?? []) releaseCombo(k);
+        inst.cullKeys = pc ? [b.key, pc.key] : [b.key];
         body.mesh.geometry = b.geo;
         if (pa) pa.mesh.geometry = pc ? pc.geo : pa.src.geometry;
         lastCull = { hidden: b.hidden, pantsHidden: pc?.hidden ?? 0, mainMs: 0, totalMs: +(performance.now() - t0).toFixed(1) };
@@ -485,14 +527,7 @@ export class HumanCharacter {
     // peças avulsas que saíram do corpo são soltas (NPCs reciclados trocam de roupa: não acumular malhas/materiais;
     // geometria e texturas ficam no cache do GLB, compartilhadas)
     const wornSet = new Set(worn.values());
-    for (const p of inst.parts.filter((x) => !x.base && !wornSet.has(x))) {
-      p.mesh.removeFromParent();
-      (p.mesh.material as THREE.Material).dispose();
-      if (!inst.group.children.some((o) => (o as THREE.SkinnedMesh).skeleton === p.mesh.skeleton)) p.mesh.skeleton.dispose();
-      inst.parts.splice(inst.parts.indexOf(p), 1);
-      inst.meshes.splice(inst.meshes.indexOf(p.mesh), 1);
-      inst.pieceLoads.delete(`${p.layer}:${p.style}`);
-    }
+    for (const p of inst.parts.filter((x) => !x.base && !wornSet.has(x))) this.releasePart(inst, p);
     inst.dressed = key;
     inst.dressing = '';
     this.applyAppearance();
@@ -595,8 +630,22 @@ export class HumanCharacter {
 
   setAppearance(app: CharacterAppearance) {
     this.app = { ...app };
+    // NPC reciclado com outra roupa: níveis detalhados (camadas + peças) que não estão em uso saem — voltam do cache
+    // de GLB quando o LOD for pedido de novo. Sem isso cada NPC acumulava LOD0 + LOD1 com as peças de cada roupa
+    this.lods.forEach((inst, l) => { if (inst && !inst.single && l !== this.want && l !== this.shown) this.dropLod(l as Lod); });
     this.applyAppearance();
     this.lods.forEach((inst, l) => { if (inst && !inst.single) void this.dress(inst, l as Lod); });
+  }
+
+  private dropLod(l: Lod) {
+    const inst = this.lods[l];
+    if (!inst) return;
+    const skels = new Set<THREE.Skeleton>();
+    for (const m of inst.meshes) { (m.material as THREE.Material).dispose(); skels.add(m.skeleton); }
+    skels.forEach((k) => k.dispose());
+    for (const k of inst.cullKeys ?? []) releaseCombo(k);
+    inst.group.removeFromParent();
+    this.lods[l] = null;
   }
 
   private applyAppearance() {
@@ -644,7 +693,10 @@ export class HumanCharacter {
     this.animator?.dispose();
     this.propAttachment?.dispose();
     const skels = new Set<THREE.Skeleton>();
-    for (const inst of this.lods) inst?.meshes.forEach((m) => { (m.material as THREE.Material).dispose(); skels.add(m.skeleton); });
+    for (const inst of this.lods) {
+      inst?.meshes.forEach((m) => { (m.material as THREE.Material).dispose(); skels.add(m.skeleton); });
+      for (const k of inst?.cullKeys ?? []) releaseCombo(k);
+    }
     skels.forEach((k) => k.dispose());
     this.root.removeFromParent();
   }

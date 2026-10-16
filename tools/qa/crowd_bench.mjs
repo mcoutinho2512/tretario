@@ -78,7 +78,7 @@ for (const n of COUNTS) {
     try {
       const p = await br.newPage();
       p.on('pageerror', (e) => console.log(`[${q}/${n}] ERRO`, e.message));
-      await p.goto(`${BASE}/?autostart=1&quality=${q}&time=16:30&mp=ws://127.0.0.1:${PORT}&name=Bench&spawn=${C.x.toFixed(1)},${C.z.toFixed(1)}${EXTRA}`);
+      await p.goto(`${BASE}/?autostart=1&quality=${q}&time=16:30&mp=ws://127.0.0.1:${PORT}&uncapped=1&name=Bench&spawn=${C.x.toFixed(1)},${C.z.toFixed(1)}${EXTRA}`);
       await p.waitForFunction('window.__pvReady === true && window.__pv.mp()?.session', { timeout: 180000 });
       // câmera em 3ª pessoa olhando ao longo da avenida, por cima da multidão
       await p.evaluate((yaw) => window.__pv.camera(yaw, 0.22, 7), along);

@@ -15,13 +15,15 @@ export class FrameGovernor {
   private cooldown = 0;
   readonly budgetMs: number;
 
-  constructor(readonly targetFps: 30 | 60, readonly dynamic: boolean, readonly minScale = 0.55) {
+  /** `uncapped` (só bancada, sem vsync): renderiza em todo requestAnimationFrame para medir a vazão real */
+  constructor(readonly targetFps: 30 | 60, readonly dynamic: boolean, readonly minScale = 0.55, readonly uncapped = false) {
     this.budgetMs = 1000 / targetFps;
     this.emaInterval = this.budgetMs;
   }
 
   /** chamado a cada requestAnimationFrame; diz se este quadro deve ser renderizado */
   shouldRender(now: number): boolean {
+    if (this.uncapped) { this.lastRender = now; return true; }
     // tolerância (≤ 6 ms, ~35 % do orçamento): a 30 FPS numa tela de 60 Hz renderiza um quadro sim, outro não; a 60 FPS numa tela de
     // 120 Hz também — ritmo FIXO de 16,7 ms. Renderizar em todo quadro de 120 Hz alternava 8 e 17 ms (trancos)
     // sempre que um quadro passava de 8,3 ms. Em tela de 60 Hz a 60 FPS, todo quadro passa.

@@ -1,0 +1,455 @@
+{
+ "seconds": 180,
+ "cycles": 11,
+ "firstMB": 45.2,
+ "lastMB": 48.3,
+ "minMB": 45.2,
+ "maxMB": 48.3,
+ "slopeMBperMin": 0.98,
+ "gpuFirstMB": 283.3,
+ "gpuLastMB": 283.3,
+ "series": [
+  {
+   "t": 2.5,
+   "rawMB": 45.3,
+   "usedMB": 45.3,
+   "backingStoreMB": 64.4
+  },
+  {
+   "t": 5,
+   "rawMB": 63.5,
+   "usedMB": 63.5,
+   "backingStoreMB": 69.3
+  },
+  {
+   "t": 7.5,
+   "rawMB": 84.7,
+   "usedMB": 84.7,
+   "backingStoreMB": 73.8
+  },
+  {
+   "t": 10,
+   "rawMB": 87,
+   "usedMB": 87,
+   "backingStoreMB": 80.3
+  },
+  {
+   "t": 12.5,
+   "rawMB": 78.3,
+   "usedMB": 78.3,
+   "backingStoreMB": 92.5
+  },
+  {
+   "t": 15,
+   "rawMB": 80.6,
+   "usedMB": 45.2,
+   "backingStoreMB": 69.6,
+   "gc": true,
+   "gpuMB": 283.3
+  },
+  {
+   "t": 18.2,
+   "rawMB": 76,
+   "usedMB": 76,
+   "backingStoreMB": 74.3
+  },
+  {
+   "t": 20.7,
+   "rawMB": 75.4,
+   "usedMB": 75.4,
+   "backingStoreMB": 81.5
+  },
+  {
+   "t": 23.2,
+   "rawMB": 61.7,
+   "usedMB": 61.7,
+   "backingStoreMB": 66.2
+  },
+  {
+   "t": 25.7,
+   "rawMB": 66.8,
+   "usedMB": 66.8,
+   "backingStoreMB": 72.7
+  },
+  {
+   "t": 28.2,
+   "rawMB": 94.7,
+   "usedMB": 94.7,
+   "backingStoreMB": 84.9
+  },
+  {
+   "t": 30.7,
+   "rawMB": 95.9,
+   "usedMB": 46.2,
+   "backingStoreMB": 69.8,
+   "gc": true,
+   "gpuMB": 283.3
+  },
+  {
+   "t": 33.9,
+   "rawMB": 68.9,
+   "usedMB": 68.9,
+   "backingStoreMB": 74.6
+  },
+  {
+   "t": 36.4,
+   "rawMB": 72.9,
+   "usedMB": 72.9,
+   "backingStoreMB": 81.7
+  },
+  {
+   "t": 38.9,
+   "rawMB": 47.9,
+   "usedMB": 47.9,
+   "backingStoreMB": 60.4
+  },
+  {
+   "t": 41.4,
+   "rawMB": 59.9,
+   "usedMB": 59.9,
+   "backingStoreMB": 67
+  },
+  {
+   "t": 43.9,
+   "rawMB": 67.1,
+   "usedMB": 67.1,
+   "backingStoreMB": 69.7
+  },
+  {
+   "t": 46.4,
+   "rawMB": 81.3,
+   "usedMB": 46.4,
+   "backingStoreMB": 70.1,
+   "gc": true,
+   "gpuMB": 283.3
+  },
+  {
+   "t": 49.5,
+   "rawMB": 61,
+   "usedMB": 61,
+   "backingStoreMB": 74.8
+  },
+  {
+   "t": 52,
+   "rawMB": 70.4,
+   "usedMB": 70.4,
+   "backingStoreMB": 82
+  },
+  {
+   "t": 54.5,
+   "rawMB": 81.8,
+   "usedMB": 81.8,
+   "backingStoreMB": 95.8
+  },
+  {
+   "t": 57,
+   "rawMB": 61.1,
+   "usedMB": 61.1,
+   "backingStoreMB": 60.1
+  },
+  {
+   "t": 59.5,
+   "rawMB": 54.7,
+   "usedMB": 54.7,
+   "backingStoreMB": 72.1
+  },
+  {
+   "t": 62.1,
+   "rawMB": 79.6,
+   "usedMB": 46.8,
+   "backingStoreMB": 70.4,
+   "gc": true,
+   "gpuMB": 283.3
+  },
+  {
+   "t": 65.2,
+   "rawMB": 61,
+   "usedMB": 61,
+   "backingStoreMB": 75.1
+  },
+  {
+   "t": 67.7,
+   "rawMB": 68.5,
+   "usedMB": 68.5,
+   "backingStoreMB": 82.4
+  },
+  {
+   "t": 70.2,
+   "rawMB": 48.3,
+   "usedMB": 48.3,
+   "backingStoreMB": 65.8
+  },
+  {
+   "t": 72.7,
+   "rawMB": 71.2,
+   "usedMB": 71.2,
+   "backingStoreMB": 72.3
+  },
+  {
+   "t": 75.2,
+   "rawMB": 65,
+   "usedMB": 65,
+   "backingStoreMB": 84.3
+  },
+  {
+   "t": 77.7,
+   "rawMB": 78.6,
+   "usedMB": 46.5,
+   "backingStoreMB": 70.7,
+   "gc": true,
+   "gpuMB": 283.3
+  },
+  {
+   "t": 80.9,
+   "rawMB": 71.3,
+   "usedMB": 71.3,
+   "backingStoreMB": 75.4
+  },
+  {
+   "t": 83.4,
+   "rawMB": 68.9,
+   "usedMB": 68.9,
+   "backingStoreMB": 82.7
+  },
+  {
+   "t": 85.9,
+   "rawMB": 83.9,
+   "usedMB": 83.9,
+   "backingStoreMB": 96.4
+  },
+  {
+   "t": 88.4,
+   "rawMB": 62.6,
+   "usedMB": 62.6,
+   "backingStoreMB": 60.7
+  },
+  {
+   "t": 90.9,
+   "rawMB": 65.3,
+   "usedMB": 65.3,
+   "backingStoreMB": 72.8
+  },
+  {
+   "t": 93.4,
+   "rawMB": 46.7,
+   "usedMB": 46.2,
+   "backingStoreMB": 71,
+   "gc": true,
+   "gpuMB": 283.3
+  },
+  {
+   "t": 96.6,
+   "rawMB": 74.6,
+   "usedMB": 74.6,
+   "backingStoreMB": 75.7
+  },
+  {
+   "t": 99.1,
+   "rawMB": 74.9,
+   "usedMB": 74.9,
+   "backingStoreMB": 82.8
+  },
+  {
+   "t": 101.6,
+   "rawMB": 60.1,
+   "usedMB": 60.1,
+   "backingStoreMB": 67.5
+  },
+  {
+   "t": 104.1,
+   "rawMB": 62.2,
+   "usedMB": 62.2,
+   "backingStoreMB": 74.1
+  },
+  {
+   "t": 106.6,
+   "rawMB": 82.9,
+   "usedMB": 82.9,
+   "backingStoreMB": 86.1
+  },
+  {
+   "t": 109.1,
+   "rawMB": 74.9,
+   "usedMB": 46.9,
+   "backingStoreMB": 71.1,
+   "gc": true,
+   "gpuMB": 283.3
+  },
+  {
+   "t": 112.3,
+   "rawMB": 72.4,
+   "usedMB": 72.4,
+   "backingStoreMB": 75.7
+  },
+  {
+   "t": 114.8,
+   "rawMB": 73.1,
+   "usedMB": 73.1,
+   "backingStoreMB": 82.9
+  },
+  {
+   "t": 117.3,
+   "rawMB": 64,
+   "usedMB": 64,
+   "backingStoreMB": 64.2
+  },
+  {
+   "t": 119.8,
+   "rawMB": 65.6,
+   "usedMB": 65.6,
+   "backingStoreMB": 70.8
+  },
+  {
+   "t": 122.3,
+   "rawMB": 81.3,
+   "usedMB": 81.3,
+   "backingStoreMB": 82.8
+  },
+  {
+   "t": 124.8,
+   "rawMB": 72.1,
+   "usedMB": 48,
+   "backingStoreMB": 71.2,
+   "gc": true,
+   "gpuMB": 283.3
+  },
+  {
+   "t": 127.9,
+   "rawMB": 62.9,
+   "usedMB": 62.9,
+   "backingStoreMB": 75.9
+  },
+  {
+   "t": 130.4,
+   "rawMB": 80.5,
+   "usedMB": 80.5,
+   "backingStoreMB": 83
+  },
+  {
+   "t": 132.9,
+   "rawMB": 60.9,
+   "usedMB": 60.9,
+   "backingStoreMB": 67.7
+  },
+  {
+   "t": 135.4,
+   "rawMB": 79.8,
+   "usedMB": 79.8,
+   "backingStoreMB": 74.2
+  },
+  {
+   "t": 137.9,
+   "rawMB": 70.9,
+   "usedMB": 70.9,
+   "backingStoreMB": 86.3
+  },
+  {
+   "t": 140.4,
+   "rawMB": 88.7,
+   "usedMB": 47.7,
+   "backingStoreMB": 71.2,
+   "gc": true,
+   "gpuMB": 283.3
+  },
+  {
+   "t": 143.6,
+   "rawMB": 73.1,
+   "usedMB": 73.1,
+   "backingStoreMB": 75.9
+  },
+  {
+   "t": 146.1,
+   "rawMB": 77.2,
+   "usedMB": 77.2,
+   "backingStoreMB": 83
+  },
+  {
+   "t": 148.6,
+   "rawMB": 77.3,
+   "usedMB": 77.3,
+   "backingStoreMB": 96.8
+  },
+  {
+   "t": 151.1,
+   "rawMB": 71.5,
+   "usedMB": 71.5,
+   "backingStoreMB": 63
+  },
+  {
+   "t": 153.6,
+   "rawMB": 88.4,
+   "usedMB": 88.4,
+   "backingStoreMB": 75
+  },
+  {
+   "t": 156.1,
+   "rawMB": 81.5,
+   "usedMB": 47.7,
+   "backingStoreMB": 71.3,
+   "gc": true,
+   "gpuMB": 283.3
+  },
+  {
+   "t": 159.3,
+   "rawMB": 72.8,
+   "usedMB": 72.8,
+   "backingStoreMB": 76
+  },
+  {
+   "t": 161.8,
+   "rawMB": 70.8,
+   "usedMB": 70.8,
+   "backingStoreMB": 83.1
+  },
+  {
+   "t": 164.3,
+   "rawMB": 75.4,
+   "usedMB": 75.4,
+   "backingStoreMB": 96.8
+  },
+  {
+   "t": 166.8,
+   "rawMB": 50.2,
+   "usedMB": 50.2,
+   "backingStoreMB": 60.9
+  },
+  {
+   "t": 169.3,
+   "rawMB": 72,
+   "usedMB": 72,
+   "backingStoreMB": 73
+  },
+  {
+   "t": 171.8,
+   "rawMB": 69.7,
+   "usedMB": 48.3,
+   "backingStoreMB": 71.4,
+   "gc": true,
+   "gpuMB": 283.3
+  },
+  {
+   "t": 175,
+   "rawMB": 73.4,
+   "usedMB": 73.4,
+   "backingStoreMB": 76.1
+  },
+  {
+   "t": 177.5,
+   "rawMB": 71.2,
+   "usedMB": 71.2,
+   "backingStoreMB": 83.2
+  },
+  {
+   "t": 180,
+   "rawMB": 50.2,
+   "usedMB": 50.2,
+   "backingStoreMB": 66.5
+  },
+  {
+   "t": 182.5,
+   "rawMB": 68.9,
+   "usedMB": 68.9,
+   "backingStoreMB": 73
+  }
+ ]
+}

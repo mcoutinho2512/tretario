@@ -492,7 +492,7 @@ export class Game {
   start() {
     this.running = true;
     this.clock.start();
-    this.governor = new FrameGovernor(this.preset.targetFps ?? 60, this.preset.dynamicResolution ?? false);
+    this.governor = new FrameGovernor(this.preset.targetFps ?? 60, this.preset.dynamicResolution ?? false, 0.55, new URLSearchParams(location.search).get('uncapped') === '1');
     let last = performance.now(), first = true;
     const loop = () => {
       if (!this.running) return;
@@ -512,6 +512,7 @@ export class Game {
     setTimeout(() => { this.avatar.setDetail(0); preloadCrowd(['homem', 'mulher', 'idoso', 'idosa']); }, 1500);
     setTimeout(() => { this.peds.maxDetail = this.deferredDetail; AvatarVisual.maxRemoteDetail = this.deferredDetail; this.crowd.detailFloor = this.deferredDetail; }, 6000);
     (window as any).__pvReady = true;
+    if (new URLSearchParams(location.search).has('mem') || import.meta.env.DEV) (window as any).__pvScene = this.scene; // QA de memória
   }
 
   private cpuMs = 0;
