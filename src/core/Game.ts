@@ -292,7 +292,22 @@ export class Game {
     this.gr.setup(this.scene, this.camera);
     try {
       await this.gr.renderer.compileAsync(this.scene, this.camera);
-      HumanCharacter.warmup = (obj) => this.gr.renderer.compileAsync(obj, this.camera, this.scene).then(() => undefined);
+      // personagem detalhado novo: compila os shaders E sobe as texturas para a GPU, UMA por quadro, antes de aparecer.
+      // Sem isso as 12–14 texturas de um corpo subiam todas no 1º quadro visível (travada de 50–100 ms correndo)
+      const uploaded = new WeakSet<THREE.Texture>();
+      const nextFrame = () => new Promise<void>((r) => requestAnimationFrame(() => r()));
+      HumanCharacter.warmup = async (obj) => {
+        await this.gr.renderer.compileAsync(obj, this.camera, this.scene);
+        const texs = new Set<THREE.Texture>();
+        obj.traverse((o) => {
+          const mats = (o as THREE.Mesh).material;
+          if (!mats) return;
+          for (const m of Array.isArray(mats) ? mats : [mats]) {
+            for (const v of Object.values(m)) if ((v as THREE.Texture)?.isTexture && !uploaded.has(v as THREE.Texture)) texs.add(v as THREE.Texture);
+          }
+        });
+        for (const t of texs) { uploaded.add(t); this.gr.renderer.initTexture(t); await nextFrame(); }
+      };
     } catch { /* compileAsync opcional */ }
     progress(1, 'Pronto');
     this.mountHud();
@@ -455,6 +470,8 @@ export class Game {
   }
 
   private cpuMs = 0;
+  /** quadros longos (> 34 ms de CPU) com a divisão por etapa */
+  private hitchLog: { t: number; ms: number; parts: Record<string, number>; novos: Record<string, number> }[] = [];
 
   private frame() {
     const tCpu = performance.now();
@@ -489,8 +506,11 @@ export class Game {
       }
     }
 
+    const T: [string, number][] = [['início', performance.now()]];
+    const mark = (n: string) => T.push([n, performance.now()]);
     this.updateInteraction(dt);
     this.updateMovement(dt);
+    mark('movimento');
     const ppos = this.avatar.root.position;
     this.cam.update(ppos, dt);
     if (this.freeCam) { this.camera.position.set(...this.freeCam.p); this.camera.lookAt(...this.freeCam.t); }
@@ -499,14 +519,18 @@ export class Game {
       this.net.update(dt, this.player, this.riding ? this.riding.state.id : null, this.camera, { w: this.canvas.clientWidth, h: this.canvas.clientHeight });
       this.rideables.smooth(dt, this.net.sessionId);
     }
+    mark('rede');
     this.peds.update(dt, this.camera, this.player);
+    mark('pedestres');
     this.crowd.end(this.camera, dt);
+    mark('multidão');
     this.closure.update(this.camera.position);
     this.props.updateSignals((j, ph) => this.signals.state(j, ph));
 
     // mundo
     const camXZ = new THREE.Vector2(this.camera.position.x, this.camera.position.z);
     this.chunks.update(camXZ, 5);
+    mark('chunks');
     this.props.update(this.time, this.camera.position);
     this.props.updateNightLights(this.camera.position, this.env.night);
     const sim = this.simTime;
@@ -519,8 +543,17 @@ export class Game {
       this.env.setTime(sim, WORLD_ORIGIN.lat, WORLD_ORIGIN.lon);
     }
     this.env.update(this.camera, ppos, this.time);
+    mark('mundo');
 
+    const ri = this.gr.renderer.info, before = { p: ri.programs?.length ?? 0, g: ri.memory.geometries, t: ri.memory.textures };
     this.gr.render(this.scene, this.camera);
+    mark('render');
+    if (T[T.length - 1][1] - tCpu > 34 && this.hitchLog.length < 200) {
+      // quadro longo: guarda a divisão por etapa (QA de travadas: __pv.hitches())
+      const parts: Record<string, number> = { antes: +(T[0][1] - tCpu).toFixed(1) };
+      for (let i = 1; i < T.length; i++) parts[T[i][0]] = +(T[i][1] - T[i - 1][1]).toFixed(1);
+      this.hitchLog.push({ t: +this.time.toFixed(2), ms: +(T[T.length - 1][1] - tCpu).toFixed(1), parts, novos: { programas: (ri.programs?.length ?? 0) - before.p, geometrias: ri.memory.geometries - before.g, texturas: ri.memory.textures - before.t } });
+    }
     this.cpuMs = this.cpuMs * 0.9 + (performance.now() - tCpu) * 0.1;
 
     // HUD
@@ -813,6 +846,7 @@ export class Game {
       ridingId: () => this.riding?.state.id ?? null,
       carHeading: () => this.riding?.state.heading ?? null,
       /** anda até (x,z) usando o movimento normal (aceito pelo servidor) */
+      hitches: () => this.hitchLog.slice(),
       walkTo: (x: number, z: number, run = true) => { this.autopilot = { x, z }; this.autopilotRun = run; this.intro.active = false; },
       arrived: () => !this.autopilot,
       stopWalk: () => { this.autopilot = null; },

@@ -1,6 +1,7 @@
 /**
  * Governador de quadros (puro, testável):
- *  - limita a 30 FPS quando o aparelho pede (celular: estável, menos calor e bateria);
+ *  - limita a 30 FPS quando o aparelho pede (celular: estável, menos calor e bateria) e a 60 FPS constantes nas
+ *    telas de 120 Hz (ritmo regular em vez de alternar 8/17 ms);
  *  - resolução dinâmica: reduz a escala quando o intervalo entre quadros renderizados (ou o tempo de GPU,
  *    se o navegador medir) passa do orçamento; volta a subir devagar quando sobra folga.
  */
@@ -21,9 +22,10 @@ export class FrameGovernor {
 
   /** chamado a cada requestAnimationFrame; diz se este quadro deve ser renderizado */
   shouldRender(now: number): boolean {
-    if (this.targetFps === 60) { this.lastRender = now; return true; }
-    // tolerância de ~4 ms: em tela de 60 Hz, renderiza um quadro sim, outro não
-    if (now - this.lastRender < this.budgetMs - 4) return false;
+    // tolerância (≤ 6 ms, ~35 % do orçamento): a 30 FPS numa tela de 60 Hz renderiza um quadro sim, outro não; a 60 FPS numa tela de
+    // 120 Hz também — ritmo FIXO de 16,7 ms. Renderizar em todo quadro de 120 Hz alternava 8 e 17 ms (trancos)
+    // sempre que um quadro passava de 8,3 ms. Em tela de 60 Hz a 60 FPS, todo quadro passa.
+    if (now - this.lastRender < this.budgetMs - Math.min(6, this.budgetMs * 0.35)) return false;
     this.lastRender = now;
     return true;
   }

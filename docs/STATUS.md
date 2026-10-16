@@ -29,6 +29,11 @@ jogadores, ficam estacionados e só se movem quando alguém os usa.
 **Cliente** (`tools/qa/crowd_bench.mjs`, sem vsync): 50 bots — LOW 474 FPS, MEDIUM 315, HIGH 125;
 500 bots — LOW 466, MEDIUM 262, HIGH **100 FPS** (antes 82; 1431 draw calls, heap 270 MB).
 
+**Corrida fluida** (`tools/qa/run_hitch.mjs`, Chrome com janela real, tela de 120 Hz, 40 s correndo em multiplayer):
+corrida a 5,8 m/s (~21 km/h; servidor valida até 6,4 m/s a pé); jogo em 60 FPS constantes (antes alternava 8/17 ms);
+nenhum quadro longo (antes 50–100 ms quando um pedestre próximo ganhava o modelo detalhado: as texturas 2048²
+subiam todas num quadro — agora limitadas a 1024 px e enviadas à GPU uma por quadro antes de aparecer).
+
 **Notas honestas**
 - Os carros estacionam **sobre a calçada, encostados no meio-fio** (as vagas são amostradas ao longo das fachadas).
   Funciona e não bloqueia a passagem, mas o ideal seria uma faixa de estacionamento no asfalto.

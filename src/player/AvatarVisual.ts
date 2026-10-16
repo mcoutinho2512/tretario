@@ -113,7 +113,7 @@ export class AvatarVisual {
     const y = (n: string) => { const b = h.bones.get(n); return b ? +b.getWorldPosition(v).y.toFixed(4) : null; };
     return {
       root: +this.root.position.y.toFixed(4), armY: +h.armature.position.y.toFixed(4), lod: h.lod,
-      pelvis: y('pelvis'), head: y('head'), ballL: y('ball_l'), ballR: y('ball_r'), footL: y('foot_l'), footR: y('foot_r'),
+      pelvis: y('pelvis'), head: y('head'), pelvisXZ: (() => { const b = h.bones.get('pelvis'); if (!b) return null; b.getWorldPosition(v); return [+(v.x - this.root.position.x).toFixed(3), +(v.z - this.root.position.z).toFixed(3)]; })(), ballL: y('ball_l'), ballR: y('ball_r'), footL: y('foot_l'), footR: y('foot_r'),
       pelvisLocal: h.bones.get('pelvis')?.position.toArray().map((x) => +x.toFixed(3)),
       w: Object.fromEntries(Object.entries((h.animator as any)?.w ?? {}).filter(([, x]) => (x as number) > 0.001).map(([k, x]) => [k, +(x as number).toFixed(3)])),
       clipGround: (h.animator as any)?.ground,
