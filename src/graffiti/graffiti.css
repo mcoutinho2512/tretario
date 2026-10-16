@@ -1,0 +1,39 @@
+/* Editor de pichação/grafite (src/graffiti/GraffitiEditor.ts) — simples, legível no celular, fecha com Esc/✕ */
+.gf-editor { position: fixed; inset: 0; z-index: 40; display: none; align-items: center; justify-content: center; background: rgba(8, 10, 12, 0.55); touch-action: none; }
+.gf-editor.open { display: flex; }
+.gf-panel { width: min(96vw, 760px); max-height: 96vh; overflow: auto; background: rgba(18, 21, 24, 0.94); border-radius: 12px; padding: 10px 12px 12px; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5); color: var(--fg, #ece8de); font: 14px system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; }
+.gf-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.gf-head b { flex: 1; letter-spacing: 0.04em; }
+.gf-head small { color: var(--muted, #9aa3ab); }
+.gf-close { width: 36px; height: 36px; border-radius: 50%; border: 0; background: rgba(255, 255, 255, 0.1); color: #fff; font-size: 18px; cursor: pointer; }
+.gf-canvas { display: block; width: min(100%, 92vh); margin: 0 auto; aspect-ratio: 2 / 1; border-radius: 6px; touch-action: none; cursor: crosshair; background: #b9b3a6; }
+.gf-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; }
+.gf-row .lbl { color: var(--muted, #9aa3ab); font-size: 12px; min-width: 52px; }
+.gf-btn { min-width: 38px; height: 36px; padding: 0 10px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.14); background: rgba(255, 255, 255, 0.06); color: #fff; font: 600 14px system-ui, sans-serif; cursor: pointer; }
+.gf-btn.on { background: rgba(255, 204, 51, 0.22); border-color: var(--gold, #ffcc33); }
+.gf-btn:disabled { opacity: 0.4; cursor: default; }
+.gf-sw { width: 30px; height: 30px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.25); cursor: pointer; padding: 0; }
+.gf-sw.on { border-color: #fff; box-shadow: 0 0 0 2px var(--gold, #ffcc33); }
+.gf-text { flex: 1; min-width: 140px; height: 36px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.2); background: rgba(0, 0, 0, 0.3); color: #fff; padding: 0 10px; font-size: 15px; }
+.gf-send { margin-left: auto; background: var(--accent, #e0483c); border-color: transparent; padding: 0 18px; }
+.gf-msg { min-height: 1.3em; margin-top: 6px; font-size: 13px; color: var(--gold, #ffcc33); }
+.gf-msg.err { color: #ff9c90; }
+.gf-report { position: absolute; z-index: 5; left: 50%; bottom: 150px; transform: translateX(-50%); display: none; gap: 6px; align-items: center; background: rgba(10, 12, 14, 0.72); color: #fff; padding: 5px 8px 5px 12px; border-radius: 8px; font-size: 13px; pointer-events: auto; }
+.gf-report.show { display: flex; }
+.gf-report .gf-btn { height: 28px; font-size: 12px; min-width: 0; }
+@media (max-width: 600px) {
+  .gf-panel { padding: 8px; border-radius: 0; width: 100vw; }
+  .gf-btn { height: 40px; }
+  .gf-sw { width: 34px; height: 34px; }
+}
+/* celular deitado (pouca altura): desenho limitado pela altura e barra compacta, tudo sem rolar */
+@media (max-height: 500px) {
+  .gf-panel { padding: 6px 10px; }
+  .gf-head { margin-bottom: 4px; }
+  .gf-row { margin-top: 4px; gap: 4px; }
+  .gf-row .lbl { display: none; }
+  .gf-btn { height: 32px; padding: 0 8px; }
+  .gf-sw { width: 26px; height: 26px; }
+  .gf-close { width: 30px; height: 30px; }
+  .gf-msg { margin-top: 2px; }
+}

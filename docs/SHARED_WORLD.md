@@ -20,6 +20,7 @@ Objetivo: dois jogadores olhando o mesmo cruzamento veem **essencialmente a mesm
 | **Jogadores** | servidor (posição validada) | estado da sala filtrado por AOI, 20 Hz | delta-encoded |
 | **Evento ativo** | servidor (`state.eventId`) | estado da sala → cliente carrega `public/events/<id>.json` | — |
 | Pedestres NPC de ambiente | **local** (cada cliente) | — | 0 |
+| **Grafites** (rodada 7) | servidor: valida, guarda e modera (`server/src/graffiti`) | `gf_add`/`gf_del` por **superfície na área de interesse** (120 m); quem entra recebe os próximos | 80–400 B por grafite, uma vez |
 
 ## Veículos dos jogadores (rodada 7)
 
@@ -79,6 +80,15 @@ Nada de ossos pela rede. Cada jogador tem, no estado da sala (só para quem est�
 - **Medido** (`tools/qa/social_mp.mjs`, 2 navegadores + 1 distante, 12/12): B vê a dança de A com a mesma fase
   (0,15 s × 0,15 s), braços, bandeira (item e design), andar balançando a bandeira, cartaz, megafone; andar encerra
   a dança dos dois lados; o jogador distante não recebe A detalhado.
+## Grafites (rodada 7)
+Detalhes em `docs/GRAFFITI.md`. Todos que estão perto de uma superfície autorizada veem os mesmos grafites:
+- o desenho em andamento é **local**; só o grafite pronto (vetor compacto, ≤ 4 KB) vai ao servidor, que valida superfície,
+  alcance (≤ 3 m, do lado pintável), conteúdo, texto, cota e limites antes de distribuir;
+- distribuição por **interesse**: grade espacial estática das superfícies + conjunto de grafites conhecidos por cliente,
+  fatiado no tick, lotes com orçamento de bytes; ao sair da área o cliente descarta;
+- moderação (denúncia → oculto; admin), expiração (TTL dos temporários) e remoção propagam `gf_del` só para quem tinha;
+- persistência local (JSON) atrás de `GraffitiStore`: os grafites sobrevivem a reinício do servidor;
+- medido com 4 navegadores reais (`tools/qa/graffiti_mp.mjs`): 26/26.
 
 ## Pedestres (ainda locais)
 Os pedestres usam o mapa de superfícies rasterizado no navegador (canvas) e o comportamento de travessia. Hoje

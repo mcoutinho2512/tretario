@@ -9,6 +9,7 @@ import { WallGrid, decodeSegments } from '../../src/physics/walls.ts';
 import type { WorldManifest } from '../../src/world/types.ts';
 import type { EventDef } from '../../src/events/types.ts';
 import { registerCampaigns } from '../../src/social/designs.ts';
+import { parseSurfaceFile, solidRing, type GraffitiSurface } from '../../src/graffiti/surfaces.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const PUBLIC = resolve(here, '../../public');
@@ -18,6 +19,8 @@ export interface ServerWorld {
   walls: WallGrid;
   events: Map<string, EventDef>;
   defaultEvent: string;
+  /** superfícies autorizadas de grafite (mesmo arquivo do cliente) */
+  graffitiSurfaces: GraffitiSurface[];
 }
 
 export function loadWorld(): ServerWorld {
@@ -37,6 +40,11 @@ export function loadWorld(): ServerWorld {
   const camp = `${PUBLIC}/designs/campaigns.json`;
   const nCamp = existsSync(camp) ? registerCampaigns(JSON.parse(readFileSync(camp, 'utf8'))) : 0;
   console.log(`[world] ${nCamp} designs de campanha`);
+  // grafite: superfícies autorizadas; tapumes são sólidos (mesma colisão que o cliente adiciona)
+  const gfFile = `${PUBLIC}/world/graffiti_surfaces.json`;
+  const gf = parseSurfaceFile(existsSync(gfFile) ? JSON.parse(readFileSync(gfFile, 'utf8')) : {});
+  for (const b of gf.solids) walls.addPolygon(solidRing(b), 0, b.height);
+  console.log(`[world] ${gf.surfaces.length} superfícies de grafite, ${gf.solids.length} tapumes`);
   console.log(`[world] ${walls.segmentCount} paredes, ${manifest.vehicleSpawns?.length ?? 0} veículos, ${events.size} eventos (${Date.now() - t0} ms)`);
-  return { manifest, walls, events, defaultEvent: idx.default };
+  return { manifest, walls, events, defaultEvent: idx.default, graffitiSurfaces: gf.surfaces };
 }

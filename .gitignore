@@ -17,3 +17,5 @@ screenshots/bg_*/
 screenshots/crowd_bench/
 screenshots/bench_results/
 screenshots/round7/
+# persistência local de desenvolvimento (grafites) — nunca no git
+server/data/
