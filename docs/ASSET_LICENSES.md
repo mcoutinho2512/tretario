@@ -41,3 +41,8 @@ nova implementação de `AvatarVisual` que leia o mesmo `PlayerState` (nada mais
 Dados do mapa © OpenStreetMap contributors, **ODbL 1.0**. Os arquivos em `public/world/` são um
 "Produced Work"/"Derivative Database" do OSM: precisam manter a atribuição e, se redistribuídos como
 banco de dados, a mesma licença. Detalhes em [DATA_SOURCES.md](DATA_SOURCES.md).
+
+## Texturas CC0 dos landmarks (rodada 5)
+
+Os landmarks usam três texturas de detalhe CC0 da Poly Haven (reboco, concreto, granito) em
+`public/landmarks/tex/`. Fonte, autores e URLs: [`docs/licenses/landmarks.md`](licenses/landmarks.md).

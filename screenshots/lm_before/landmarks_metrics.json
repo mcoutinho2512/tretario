@@ -1,0 +1,73 @@
+{
+  "quality": "high",
+  "time": "10:30",
+  "shots": {
+    "central1": {
+      "cpuMs": 2.81,
+      "gpuMs": 3.59,
+      "calls": 500,
+      "triangles": 1230642
+    },
+    "central2": {
+      "cpuMs": 3.47,
+      "gpuMs": 5.21,
+      "calls": 650,
+      "triangles": 1731042
+    },
+    "central3": {
+      "cpuMs": 2.58,
+      "gpuMs": 4.37,
+      "calls": 514,
+      "triangles": 1300192
+    },
+    "central4": {
+      "cpuMs": 2.43,
+      "gpuMs": 8.19,
+      "calls": 432,
+      "triangles": 1227574
+    },
+    "cand1": {
+      "cpuMs": 3.65,
+      "gpuMs": 10.72,
+      "calls": 1188,
+      "triangles": 1721754
+    },
+    "cand2": {
+      "cpuMs": 2.84,
+      "gpuMs": 8.16,
+      "calls": 430,
+      "triangles": 1332586
+    },
+    "cand3": {
+      "cpuMs": 3.34,
+      "gpuMs": 9.64,
+      "calls": 1144,
+      "triangles": 1612738
+    },
+    "palacio1": {
+      "cpuMs": 2.94,
+      "gpuMs": 8.23,
+      "calls": 550,
+      "triangles": 1404302
+    },
+    "palacio2": {
+      "cpuMs": 2.84,
+      "gpuMs": 8.56,
+      "calls": 590,
+      "triangles": 1301082
+    },
+    "ccbb1": {
+      "cpuMs": 2.6,
+      "gpuMs": 8.49,
+      "calls": 342,
+      "triangles": 1523210
+    },
+    "ccbb2": {
+      "cpuMs": 2.51,
+      "gpuMs": 10.79,
+      "calls": 368,
+      "triangles": 1345480
+    }
+  },
+  "errors": []
+}

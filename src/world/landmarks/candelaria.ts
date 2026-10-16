@@ -1,250 +1,346 @@
 /**
  * LANDMARK_CANDELARIA — Igreja de Nossa Senhora da Candelária (Praça Pio X).
  *
- * Referências usadas (ver docs/MAP_VALIDATION.md):
- *  - footprint real do OSM (way 30839484): ~80 m × 36–42 m, eixo alinhado à Pres. Vargas;
- *  - planta em cruz latina, 3 naves, cúpula sobre o transepto;
- *  - fachada principal na elevação LESTE (voltada à Rua 1º de Março / baía); abside voltada à avenida;
- *  - cúpula em pedra lioz: altura externa ~62,3 m, diâmetro externo ~16,8 m; 8 estátuas no tambor;
- *  - fachada barroca com frontão triangular; molduras em granito escuro sobre paredes caiadas;
- *  - duas torres na fachada com coroamento bulboso.
- * Alturas das torres, naves e escadaria são ESTIMATIVAS proporcionais a fotos — validar.
+ * Referências (medidas, fontes e confiança em docs/LANDMARKS.md):
+ *  - footprint real do OSM (way 30839484): ~72 × 37 m, braços do transepto salientes ~3 m;
+ *    fachada principal na extremidade LESTE (entrada principal no OSM; voltada à Rua 1º de Março);
+ *    fundos (capela-mor) voltados para a Pres. Vargas;
+ *  - cúpula em lioz: altura externa 62,3 m, diâmetro externo 16,8 m; 8 estátuas no tambor;
+ *  - fotos Wikimedia Commons (Halley Pacheco de Oliveira 2012, Rodrigojordy 2012, Andrevruas 2011):
+ *    fachada em duas ordens de pilastras pareadas de cantaria cinza-acastanhada sobre panos caiados;
+ *    7 tramos (torre, óculo, janela, central, janela, óculo, torre); portal central em arco (portas de
+ *    bronze), portas laterais com frontões curvos; frontão triangular com brasão e pináculos;
+ *    torres com relógio, sineira em arco, balaustrada com obeliscos, coruchéu bulboso branco com
+ *    nervuras, lanterna, esfera e cata-vento.
+ * Alturas das torres/ordens: ESTIMATIVAS por proporção nas fotos frontais (largura da fachada = OSM).
  */
 import * as THREE from 'three';
 import type { LandmarkRec } from '../types';
-import { ArchBuilder, type ArchMat } from './arch';
+import { ArchBuilder, updateDetailLod, type ArchMat } from './arch';
 import type { LandmarkInstance } from './central';
-import { CANDELARIA_PARAMS, candelariaColliders } from './colliders';
+import { CANDELARIA_PARAMS, candelariaColliders, candelariaFrame } from './colliders';
 export { CANDELARIA_PARAMS } from './colliders';
 
-const WALL = 0xe4ddcd; // caiado/levemente envelhecido
-const GRANITE = 0x7c766c; // cantaria
-const LIOZ = 0xc9c2b2; // cúpula de lioz
-const DARK = 0x2c2a28; // vãos/portas
-const BRONZE = 0x3b3226;
+const WALL = 0xebe5d8; // panos caiados
+const CANT = 0x8e8376; // cantaria (granito cinza-acastanhado)
+const CANT_DARK = 0x766c61;
+const LIOZ = 0xc4beb2; // cúpula em lioz
+const BULB = 0xe4e1da; // coruchéus
+const DARK = 0x24221f;
+const BRONZE = 0x4a3b28;
+const GLASS = 0x3a4045;
 
 export function buildCandelaria(lm: LandmarkRec, archMats: Record<ArchMat, THREE.Material>): LandmarkInstance {
   const P = CANDELARIA_PARAMS;
-  // eixo longo do OBB; fachada = extremidade LESTE (maior x)
-  let ax = Math.cos(lm.axis), az = Math.sin(lm.axis);
-  if (ax < 0) { ax = -ax; az = -az; } // +s aponta para leste (fachada)
-  const L = lm.length; // ~72 m
+  const { ang } = candelariaFrame(lm);
+  const L = lm.length;
   const half = L / 2;
   const ab = new ArchBuilder();
   // frame local: x = s (eixo, + = fachada/leste), z = lateral, y = cima
-  const ang = Math.atan2(az, ax);
   ab.frame.makeRotationY(-ang).setPosition(lm.center[0], 0, lm.center[1]);
 
   const y0 = P.plinth;
   const sF0 = half - P.facadeDepth; // início do bloco da fachada
   const sF1 = half; // plano da fachada
-  const sA0 = -half; // fundo da abside
+  const sA0 = -half; // fundos
+  const T = P.transept, N = P.nave, A = P.apse, TW = P.tower, D = P.dome;
+  const FW = P.facadeHalfW;
 
   // ---------- adro / embasamento + escadaria leste ----------
-  ab.box(L + 3, y0, P.transept.halfW * 2 + 3, 0, 0, 0, 0xb9b2a4);
+  ab.box(L + 3, y0, T.halfW * 2 + 3, 0, 0, 0, 0xb3ada1, 'granite');
   for (let i = 0; i < 5; i++) {
     const h = y0 - i * (y0 / 5);
-    ab.box(0.42, h, P.facadeHalfW * 2 + 2 - i * 0.2, sF1 + 1.5 + 0.21 + i * 0.42, 0, 0, 0xb3ac9e);
+    ab.box(0.42, h, FW * 2 + 2 - i * 0.2, sF1 + 1.5 + 0.21 + i * 0.42, 0, 0, 0xaaa395, 'granite');
   }
 
-  // ---------- abside / capela-mor (voltada para a Pres. Vargas) ----------
-  ab.box(P.transept.s0 - sA0, P.apse.h, P.apse.halfW * 2, (sA0 + P.transept.s0) / 2, y0, 0, WALL);
-  // ---------- transepto ----------
-  const T = P.transept;
-  ab.box(T.s1 - T.s0, T.h, T.halfW * 2, (T.s0 + T.s1) / 2, y0, 0, WALL);
-  // ---------- naves ----------
-  const N = P.nave;
-  ab.box(sF0 - T.s1, N.centralH, N.centralHalfW * 2, (T.s1 + sF0) / 2, y0, 0, WALL);
-  for (const sgn of [-1, 1]) ab.box(sF0 - T.s1, N.aisleH, N.halfW - N.centralHalfW, (T.s1 + sF0) / 2, y0, sgn * (N.centralHalfW + (N.halfW - N.centralHalfW) / 2), WALL);
-  // ---------- bloco da fachada ----------
-  ab.box(P.facadeDepth, P.facadeCornice, P.facadeHalfW * 2, (sF0 + sF1) / 2, y0, 0, WALL);
-  // frontispício central mais alto + frontão
-  const fw = (P.facadeHalfW - P.tower.half * 2) ;
-  ab.box(3.5, P.frontispieceTop - P.facadeCornice, fw * 2, sF1 - 1.75, y0 + P.facadeCornice, 0, WALL);
-  ab.pediment(fw * 2 + 1, P.pedimentH, 1.2, sF1 - 0.5, y0 + P.frontispieceTop + 0.6, 0, Math.PI / 2, WALL);
-  // moldura do frontão (granito)
-  ab.box(1.6, 0.6, fw * 2 + 1.6, sF1 - 0.4, y0 + P.frontispieceTop, 0, GRANITE);
-  ab.cyl(0.25, 0.25, 2.2, sF1 - 0.5, y0 + P.frontispieceTop + P.pedimentH + 0.6, 0, GRANITE, 8);
-  ab.box(0.2, 1.4, 0.9, sF1 - 0.5, y0 + P.frontispieceTop + P.pedimentH + 2.2, 0, GRANITE); // cruz
-  ab.box(0.2, 0.2, 0.2, sF1 - 0.5, y0 + P.frontispieceTop + P.pedimentH + 2.9, 0, GRANITE);
+  // ---------- massas ----------
+  const vol = (s0: number, s1: number, hw: number, h: number, c = WALL) => ab.box(s1 - s0, h, hw * 2, (s0 + s1) / 2, y0, 0, c, 'stone');
+  vol(sA0, T.s0, A.halfW, A.h); // sacristias laterais (fundos)
+  vol(sA0 + 1, T.s0, A.choirHalfW, A.choirH); // capela-mor
+  vol(T.s0, T.s1, T.halfW, T.h); // transepto
+  vol(T.s1, sF0, N.halfW, N.aisleH); // naves laterais
+  vol(T.s1, sF0, N.centralHalfW, N.centralH); // nave central
+  vol(sF0, sF1, FW, P.facadeCornice); // bloco da fachada
+  // telhados de duas águas (nave central, capela-mor, transepto) em telha cinza
+  const roof = (s0: number, s1: number, hw: number, y: number, h: number) => {
+    const shape = new THREE.Shape([new THREE.Vector2(-hw, 0), new THREE.Vector2(hw, 0), new THREE.Vector2(0, h)]);
+    const len = s1 - s0;
+    const ex = new THREE.ExtrudeGeometry(shape, { depth: len, bevelEnabled: false });
+    ex.translate(0, 0, -len / 2);
+    ex.rotateY(Math.PI / 2);
+    ex.translate((s0 + s1) / 2, y0 + y, 0);
+    ab.add(ex, 0x6f6c68, 'granite', 0.02);
+  };
+  roof(T.s1, sF0, N.centralHalfW, N.centralH, 3.2);
+  roof(sA0 + 1, T.s0, A.choirHalfW, A.choirH, 2.8);
+  // transepto: telhado ao longo de z
+  {
+    const shape = new THREE.Shape([new THREE.Vector2(-(T.s1 - T.s0) / 2, 0), new THREE.Vector2((T.s1 - T.s0) / 2, 0), new THREE.Vector2(0, 3.2)]);
+    const ex = new THREE.ExtrudeGeometry(shape, { depth: T.halfW * 2, bevelEnabled: false });
+    ex.translate((T.s0 + T.s1) / 2, y0 + T.h, -T.halfW);
+    ab.add(ex, 0x6f6c68, 'granite', 0.02);
+  }
 
-  // cornijas em granito ao redor dos volumes
-  const cornice = (s0: number, s1: number, hw: number, y: number, t = 0.7) => ab.box(s1 - s0 + t * 2, t, hw * 2 + t * 2, (s0 + s1) / 2, y0 + y - t, 0, GRANITE);
-  cornice(sA0, T.s0, P.apse.halfW, P.apse.h);
+  // cornijas de cantaria ao redor das massas
+  const cornice = (s0: number, s1: number, hw: number, y: number, t = 0.7) => ab.box(s1 - s0 + t * 2, t, hw * 2 + t * 2, (s0 + s1) / 2, y0 + y - t, 0, CANT, 'granite');
+  cornice(sA0, T.s0, A.halfW, A.h);
+  cornice(sA0 + 1, T.s0, A.choirHalfW, A.choirH);
   cornice(T.s0, T.s1, T.halfW, T.h);
+  cornice(T.s1, sF0, N.halfW, N.aisleH);
   cornice(T.s1, sF0, N.centralHalfW, N.centralH);
-  cornice(sF0, sF1, P.facadeHalfW, P.facadeCornice, 0.9);
-  // faixa intermediária (entablamento) da fachada
-  ab.box(0.5, 0.6, P.facadeHalfW * 2, sF1 + 0.2, y0 + 10.5, 0, GRANITE);
+  // embasamento de cantaria em todo o perímetro
+  ab.box(L - 0.2, 1.4, A.halfW * 2 + 0.4, 0, y0, 0, CANT, 'granite');
+  ab.box(T.s1 - T.s0 + 0.4, 1.4, T.halfW * 2 + 0.4, (T.s0 + T.s1) / 2, y0, 0, CANT, 'granite');
 
-  // balaustradas sobre as coberturas planas (como nas fotos)
+  // balaustradas sobre as coberturas planas
   for (const sgn of [-1, 1]) {
-    ab.balustrade(T.s1, sgn * N.halfW, sF0, sgn * N.halfW, y0 + N.aisleH, WALL);
-    ab.balustrade(sA0, sgn * P.apse.halfW, T.s0, sgn * P.apse.halfW, y0 + P.apse.h, WALL);
-    ab.balustrade(T.s0, sgn * T.halfW, T.s1, sgn * T.halfW, y0 + T.h, WALL);
+    ab.balustrade(T.s1, sgn * N.halfW, sF0, sgn * N.halfW, y0 + N.aisleH, WALL, 0.45, 'stone');
+    ab.balustrade(sA0, sgn * A.halfW, T.s0, sgn * A.halfW, y0 + A.h, WALL, 0.45, 'stone');
   }
-  ab.balustrade(sA0, -P.apse.halfW, sA0, P.apse.halfW, y0 + P.apse.h, WALL);
+  ab.balustrade(sA0, -A.halfW, sA0, A.halfW, y0 + A.h, WALL, 0.45, 'stone');
 
-  // pilastras de granito: cantos e ritmo nas laterais
-  const pil = (s: number, z: number, h: number, w = 1.1) => ab.box(w, h, w, s, y0, z, GRANITE);
+  // pilastras de cantaria: ritmo nas laterais e cantos
+  const pil = (s: number, z: number, h: number, w = 1.1, yb = 0) => ab.box(w, h, w, s, y0 + yb, z, CANT, 'granite');
   for (const sgn of [-1, 1]) {
-    for (let s = T.s1 + 4; s < sF0 - 1; s += 5.5) pil(s, sgn * N.halfW, N.aisleH - 0.6, 0.9);
-    for (let s = sA0 + 3; s < T.s0 - 1; s += 5.5) pil(s, sgn * P.apse.halfW, P.apse.h - 0.6, 0.9);
-    pil(T.s0, sgn * T.halfW, T.h - 0.6);
-    pil(T.s1, sgn * T.halfW, T.h - 0.6);
-    pil(sF1, sgn * P.facadeHalfW, P.facadeCornice - 0.8, 1.4);
-    pil(sF1, sgn * fw, P.facadeCornice - 0.8, 1.2);
-    pil(sA0, sgn * P.apse.halfW, P.apse.h - 0.6, 1.2);
+    for (let s = T.s1 + 2.5; s < sF0 - 1; s += 5) pil(s, sgn * N.halfW, N.aisleH - 0.6, 0.9);
+    for (let s = sA0 + 2.5; s < T.s0 - 1; s += 5) pil(s, sgn * A.halfW, A.h - 0.6, 0.9);
+    for (const s of [T.s0, T.s1]) pil(s, sgn * T.halfW, T.h - 0.6, 1.3);
+    pil(sA0, sgn * A.halfW, A.h - 0.6, 1.3);
+    for (let s = T.s1 + 2.5; s < sF0 - 1; s += 5) pil(s, sgn * N.centralHalfW, N.centralH - N.aisleH - 0.6, 0.7, N.aisleH);
   }
 
-  // janelas em arco nas laterais (naves, transepto, abside)
+  // janelas em arco nas laterais (naves, transepto, fundos)
   const sideWindows = (s0: number, s1: number, z: number, y: number, w: number, h: number, step: number, sgn: number) => {
     for (let s = s0 + step / 2; s < s1 - 1; s += step) {
-      ab.archFrame(w, h, 0.35, s, y, z + sgn * 0.02, sgn > 0 ? 0 : Math.PI, GRANITE, 0.18);
-      ab.archOpening(w, h, s, y, z + sgn * 0.08, sgn > 0 ? 0 : Math.PI, DARK);
+      ab.archFrame(w, h, 0.35, s, y, z + sgn * 0.02, sgn > 0 ? 0 : Math.PI, CANT, 0.18, 'granite');
+      ab.archOpening(w, h, s, y, z + sgn * 0.06, sgn > 0 ? 0 : Math.PI, GLASS, 0.06, 'glass');
     }
   };
   for (const sgn of [-1, 1]) {
-    sideWindows(T.s1, sF0, sgn * N.halfW, y0 + 6, 1.8, 4.2, 5.5, sgn);
-    sideWindows(sA0, T.s0, sgn * P.apse.halfW, y0 + 9, 1.8, 4.5, 5.5, sgn);
-    ab.archFrame(3.2, 7, 0.45, (T.s0 + T.s1) / 2, y0 + 11, sgn * T.halfW + sgn * 0.02, sgn > 0 ? 0 : Math.PI, GRANITE, 0.2);
-    ab.archOpening(3.2, 7, (T.s0 + T.s1) / 2, y0 + 11, sgn * T.halfW + sgn * 0.09, sgn > 0 ? 0 : Math.PI, DARK);
-    // clerestório da nave central
-    sideWindows(T.s1, sF0, sgn * N.centralHalfW, y0 + N.aisleH + 1.8, 1.5, 3.2, 5.5, sgn);
+    sideWindows(T.s1, sF0, sgn * N.halfW, y0 + 6, 1.8, 4.4, 5, sgn);
+    sideWindows(sA0, T.s0, sgn * A.halfW, y0 + 6, 1.8, 4.4, 5, sgn);
+    ab.archFrame(3.4, 7.2, 0.5, (T.s0 + T.s1) / 2, y0 + 10, sgn * T.halfW + sgn * 0.02, sgn > 0 ? 0 : Math.PI, CANT, 0.22, 'granite');
+    ab.archOpening(3.4, 7.2, (T.s0 + T.s1) / 2, y0 + 10, sgn * T.halfW + sgn * 0.08, sgn > 0 ? 0 : Math.PI, GLASS, 0.06, 'glass');
+    sideWindows(T.s1, sF0, sgn * N.centralHalfW, y0 + N.aisleH + 1.6, 1.5, 3.4, 5, sgn);
   }
-  // janelas da abside (fundo, voltadas para a avenida)
-  for (const z of [-6, 0, 6]) {
-    ab.archFrame(1.8, 4.8, 0.35, sA0 - 0.02, y0 + 9, z, -Math.PI / 2, GRANITE, 0.18);
-    ab.archOpening(1.8, 4.8, sA0 - 0.08, y0 + 9, z, -Math.PI / 2, DARK);
+  for (const z of [-5, 0, 5]) {
+    ab.archFrame(1.9, 5, 0.35, sA0 - 0.02, y0 + 8, z, -Math.PI / 2, CANT, 0.18, 'granite');
+    ab.archOpening(1.9, 5, sA0 - 0.06, y0 + 8, z, -Math.PI / 2, GLASS, 0.06, 'glass');
   }
 
-  // ---------- fachada leste: portais e janelas ----------
-  const facadeX = sF1 + 0.02;
-  // portal central (bronze, Teixeira Lopes) e laterais
-  const portals: [number, number, number][] = [[0, 4.2, 8.2], [-7.2, 2.8, 6.2], [7.2, 2.8, 6.2]];
-  for (const [z, w, h] of portals) {
-    ab.archFrame(w, h, 0.6, facadeX, y0, z, Math.PI / 2, GRANITE, 0.35);
-    ab.archOpening(w, h, facadeX + 0.05, y0, z, Math.PI / 2, BRONZE);
-  }
-  // janelas do 2º nível + óculo
-  for (const z of [-7.2, 0, 7.2]) {
-    ab.archFrame(2.2, 4.6, 0.4, facadeX, y0 + 12.5, z, Math.PI / 2, GRANITE, 0.3);
-    ab.archOpening(2.2, 4.6, facadeX + 0.05, y0 + 12.5, z, Math.PI / 2, DARK);
-  }
-  {
-    const ring = new THREE.TorusGeometry(1.5, 0.35, 8, 28);
-    ring.rotateY(Math.PI / 2);
-    ring.translate(sF1 - 1.65, y0 + 23.6, 0);
-    ab.add(ring, GRANITE);
-    const oc = new THREE.CircleGeometry(1.5, 24);
-    oc.rotateY(Math.PI / 2);
-    oc.translate(sF1 - 1.7 + 0.12, y0 + 23.6, 0);
-    ab.add(oc, DARK, 'dark');
-  }
+  // ---------- fachada leste (frame da fachada: x ao longo = −z, z para fora = +s) ----------
+  const facadeM = new THREE.Matrix4().makeBasis(new THREE.Vector3(0, 0, -1), new THREE.Vector3(0, 1, 0), new THREE.Vector3(1, 0, 0)).setPosition(sF1, y0, 0);
+  // tramos: [x0, x1] ao longo da fachada
+  const edges = [-FW, -9.2, -6.0, -2.6, 2.6, 6.0, 9.2, FW];
+  const O1 = 10.4; // topo da 1ª ordem (entablamento 10.4–11.4)
+  const O2 = P.facadeCornice - 1.2; // topo da 2ª ordem
+  ab.withFrame(facadeM, () => {
+    // pilastras pareadas (duas ordens) + entablamentos
+    const pilaster = (x: number, ya: number, yb: number, w = 0.8, d = 0.55) => {
+      ab.box(w, yb - ya, d, x, ya, d / 2, CANT, 'granite');
+      ab.box(w + 0.3, 0.45, d + 0.15, x, yb - 0.45, (d + 0.15) / 2, CANT_DARK, 'granite'); // capitel
+      ab.box(w + 0.25, 0.5, d + 0.12, x, ya, (d + 0.12) / 2, CANT_DARK, 'granite'); // base
+    };
+    for (const x of edges) {
+      const corner = Math.abs(x) > FW - 0.1;
+      const xs = corner ? [x - Math.sign(x) * 0.7] : Math.abs(x) === 6 ? [x] : [x - 0.55, x + 0.55];
+      for (const xx of xs) {
+        pilaster(xx, 1.2, O1, corner ? 1.4 : 0.8);
+        pilaster(xx, O1 + 1.0, O2, corner ? 1.4 : 0.8);
+      }
+    }
+    ab.box(FW * 2 + 0.6, 1.0, 0.8, 0, O1, 0.4, CANT, 'granite'); // entablamento 1
+    ab.box(FW * 2 + 0.8, 0.35, 1.0, 0, O1 + 0.65, 0.5, CANT_DARK, 'granite');
+    ab.box(FW * 2 + 1.0, 1.2, 1.1, 0, O2, 0.55, CANT, 'granite'); // cornija principal
+    ab.box(FW * 2 + 1.4, 0.4, 1.4, 0, O2 + 1.2, 0.7, CANT_DARK, 'granite');
+    ab.box(FW * 2, 1.2, 0.3, 0, 0, 0.15, CANT, 'granite'); // soco
+
+    // aberturas
+    const frameArch = (x: number, y: number, w: number, h: number, fill: number, mat: ArchMat, t = 0.45) => {
+      ab.archFrame(w, h, t, x, y, 0.02, 0, CANT, 0.32, 'granite');
+      ab.archOpening(w, h, x, y, 0.03, 0, fill, 0.06, mat);
+    };
+    const rectOpen = (x: number, y: number, w: number, h: number, fill: number, mat: ArchMat) => {
+      ab.box(w + 0.9, h + 0.45, 0.3, x, y - 0.05, 0.15, CANT, 'granite');
+      ab.box(w, h, 0.34, x, y, 0.17, fill, mat);
+    };
+    const segPed = (x: number, y: number, w: number) => ab.segmentalPediment(w, w * 0.22, 0.35, 0.5, x, y, 0.35, 0, CANT_DARK, 'granite');
+    // 1ª ordem
+    frameArch(0, 1.2, 4.0, 7.8, BRONZE, 'metal', 0.6); // portal central (portas de bronze)
+    ab.box(1.8, 1.2, 0.5, 0, 9.0, 0.3, CANT_DARK, 'granite'); // cartela sobre o portal
+    for (const sgn of [-1, 1]) {
+      rectOpen(sgn * 4.3, 1.2, 2.1, 4.8, BRONZE, 'metal'); // portas laterais
+      segPed(sgn * 4.3, 6.6, 3.2);
+      rectOpen(sgn * 7.6, 3.2, 1.3, 2.2, GLASS, 'glass'); // nichos/janelas pequenas
+      ab.box(1.9, 1.6, 0.25, sgn * 7.6, 6.4, 0.12, CANT, 'granite'); // painel
+      frameArch(sgn * 13.6, 1.2, 2.6, 6.2, BRONZE, 'metal', 0.5); // portas das torres
+      ab.add(new THREE.TorusGeometry(0.6, 0.14, 8, 20).translate(sgn * 13.6, 8.6, 0.3), CANT, 'granite');
+      ab.add(new THREE.CircleGeometry(0.58, 20).translate(sgn * 13.6, 8.6, 0.2), GLASS, 'glass');
+    }
+    // 2ª ordem
+    frameArch(0, 12.6, 2.6, 5.4, GLASS, 'glass');
+    segPed(0, 18.6, 3.8);
+    for (const sgn of [-1, 1]) {
+      frameArch(sgn * 4.3, 12.8, 2.0, 4.6, GLASS, 'glass', 0.4);
+      segPed(sgn * 4.3, 17.9, 3.0);
+      ab.add(new THREE.TorusGeometry(0.85, 0.22, 8, 24).translate(sgn * 7.6, 15.2, 0.25), CANT, 'granite'); // óculos
+      ab.add(new THREE.CircleGeometry(0.82, 24).translate(sgn * 7.6, 15.2, 0.12), GLASS, 'glass');
+      frameArch(sgn * 13.6, 12.8, 2.2, 4.6, GLASS, 'glass', 0.4);
+      segPed(sgn * 13.6, 17.9, 3.2);
+    }
+    // painéis emoldurados (detalhe)
+    ab.detail(() => {
+      for (const x of [-7.6, -4.3, 0, 4.3, 7.6, -13.6, 13.6]) {
+        const w = Math.abs(x) === 7.6 ? 1.8 : 2.4;
+        for (const y of [O1 - 2.2]) if (Math.abs(x) !== 0 && Math.abs(x) !== 4.3) ab.box(w, 1.2, 0.12, x, y, 0.06, CANT, 'granite');
+        ab.box(w, 1.3, 0.12, x, O2 - 1.6, 0.06, CANT, 'granite');
+      }
+    });
+
+    // frontispício + frontão com brasão, cruz e pináculos
+    const fw = 9.2;
+    ab.box(fw * 2, P.frontispieceTop - P.facadeCornice, 1.6, 0, P.facadeCornice, -0.6, WALL, 'stone');
+    for (const s of [-1, 1]) ab.box(0.9, P.frontispieceTop - P.facadeCornice, 0.5, s * (fw - 0.5), P.facadeCornice, 0.4, CANT, 'granite');
+    ab.box(fw * 2 + 0.6, 0.6, 1.4, 0, P.frontispieceTop, -0.1, CANT, 'granite');
+    ab.pediment(fw * 2 + 0.4, P.pedimentH, 1.2, 0, P.frontispieceTop + 0.6, -0.2, 0, WALL, 'stone');
+    // moldura do frontão (duas águas)
+    const slope = Math.atan2(P.pedimentH, fw);
+    for (const s of [-1, 1]) {
+      const g = new THREE.BoxGeometry(Math.hypot(fw, P.pedimentH) + 0.6, 0.55, 1.5);
+      g.rotateZ(-s * slope);
+      g.translate(s * fw / 2, P.frontispieceTop + 0.6 + P.pedimentH / 2 + 0.2, -0.1);
+      ab.add(g, CANT, 'granite');
+    }
+    ab.box(2.4, 2.2, 0.4, 0, P.frontispieceTop + 1.2, 0.5, CANT_DARK, 'granite'); // brasão
+    ab.add(new THREE.SphereGeometry(0.6, 10, 8).scale(1, 1.2, 0.4).translate(0, P.frontispieceTop + 2.3, 0.75), CANT_DARK, 'granite');
+    const apex = P.frontispieceTop + 0.6 + P.pedimentH;
+    ab.box(0.9, 1.4, 0.9, 0, apex, -0.2, CANT, 'granite');
+    ab.box(0.22, 3.2, 0.22, 0, apex + 1.4, -0.2, 0x3e4a44, 'metal'); // cruz
+    ab.box(1.6, 0.22, 0.22, 0, apex + 3.4, -0.2, 0x3e4a44, 'metal');
+    for (const x of [-8.2, -6.6, 6.6, 8.2]) ab.finial(x, P.frontispieceTop + 0.6, 0.2, 3.4, CANT, 'granite');
+  });
 
   // ---------- torres ----------
-  const TW = P.tower;
   for (const sgn of [-1, 1]) {
-    const tz = sgn * (P.facadeHalfW - TW.half);
-    const ts = sF1 - TW.half - 0.2;
-    ab.box(TW.half * 2, TW.body - P.facadeCornice, TW.half * 2, ts, y0 + P.facadeCornice, tz, WALL);
-    ab.box(TW.half * 2 + 1.2, 0.8, TW.half * 2 + 1.2, ts, y0 + TW.body - 0.8, tz, GRANITE);
-    // campanário com aberturas em arco nas 4 faces
-    const bw = TW.half * 2 - 0.6;
-    ab.box(bw, TW.belfry - TW.body, bw, ts, y0 + TW.body, tz, WALL);
+    const tz = sgn * (FW - TW.half);
+    const ts = sF1 - TW.half;
+    const w = TW.half * 2;
+    const bodyH = TW.body - P.facadeCornice;
+    const yb = y0 + P.facadeCornice;
+    ab.box(w, bodyH, w, ts, yb, tz, WALL, 'stone');
+    // pilastras de canto + cornijas
+    for (const cx of [-1, 1]) for (const cz of [-1, 1]) ab.box(1.0, bodyH, 1.0, ts + cx * (w / 2 - 0.3), yb, tz + cz * (w / 2 - 0.3), CANT, 'granite');
+    ab.box(w + 1.4, 0.9, w + 1.4, ts, y0 + TW.body - 0.9, tz, CANT, 'granite');
+    ab.box(w + 1.8, 0.35, w + 1.8, ts, y0 + TW.body - 0.2, tz, CANT_DARK, 'granite');
+    // relógio (frente e laterais) e sineira em arco nas 4 faces
+    const faces: [number, number, number][] = [[w / 2 + 0.02, 0, Math.PI / 2], [-w / 2 - 0.02, 0, -Math.PI / 2], [0, w / 2 + 0.02, 0], [0, -w / 2 - 0.02, Math.PI]];
+    for (const [dx, dz, ry] of faces) {
+      ab.archFrame(2.0, 4.0, 0.4, ts + dx, yb + 4.2, tz + dz, ry, CANT, 0.22, 'granite');
+      ab.archOpening(2.0, 4.0, ts + dx * 1.004, yb + 4.2, tz + dz * 1.004, ry, DARK, 0.1, 'dark');
+      const n = new THREE.Vector3(Math.sin(ry), 0, Math.cos(ry));
+      ab.add(new THREE.TorusGeometry(1.15, 0.2, 8, 28).rotateY(ry).translate(ts + dx + n.x * 0.1, yb + 2.0, tz + dz + n.z * 0.1), CANT, 'granite');
+      ab.add(new THREE.CircleGeometry(1.12, 28).rotateY(ry).translate(ts + dx + n.x * 0.05, yb + 2.0, tz + dz + n.z * 0.05), 0xf2f0ea, 'stone');
+      ab.detail(() => {
+        // ponteiros fixos e sino
+        ab.add(new THREE.BoxGeometry(0.08, 0.9, 0.04).translate(0, 0.35, 0).rotateZ(0.9).rotateY(ry).translate(ts + dx + n.x * 0.12, yb + 2.0, tz + dz + n.z * 0.12), 0x1e1e1e, 'metal');
+        ab.add(new THREE.BoxGeometry(0.1, 0.6, 0.04).translate(0, 0.25, 0).rotateZ(-2.2).rotateY(ry).translate(ts + dx + n.x * 0.12, yb + 2.0, tz + dz + n.z * 0.12), 0x1e1e1e, 'metal');
+      });
+    }
+    ab.detail(() => ab.lathe([[0.05, 0], [0.7, 0.1], [0.65, 0.5], [0.45, 1.1], [0.15, 1.3], [0, 1.35]], ts, yb + 5.0, tz, 0x5a4a30, 12, 'metal'));
+    // estágio superior: balaustrada + obeliscos nos cantos + sineira menor
+    const bw = w - 2.0;
+    const y1 = y0 + TW.body;
+    for (const cx of [-1, 1]) {
+      ab.balustrade(ts + cx * (w / 2 + 0.3), tz - w / 2 - 0.3, ts + cx * (w / 2 + 0.3), tz + w / 2 + 0.3, y1, CANT, 0.4, 'granite');
+      ab.balustrade(ts - w / 2 - 0.3, tz + cx * (w / 2 + 0.3), ts + w / 2 + 0.3, tz + cx * (w / 2 + 0.3), y1, CANT, 0.4, 'granite');
+    }
+    for (const cx of [-1, 1]) for (const cz of [-1, 1]) ab.finial(ts + cx * (w / 2 + 0.1), y1, tz + cz * (w / 2 + 0.1), 3.6, CANT, 'granite');
+    ab.box(bw, TW.belfry - TW.body, bw, ts, y1, tz, WALL, 'stone');
+    for (const cx of [-1, 1]) for (const cz of [-1, 1]) ab.box(0.7, TW.belfry - TW.body, 0.7, ts + cx * (bw / 2 - 0.2), y1, tz + cz * (bw / 2 - 0.2), CANT, 'granite');
     for (const [dx, dz, ry] of [[bw / 2 + 0.02, 0, Math.PI / 2], [-bw / 2 - 0.02, 0, -Math.PI / 2], [0, bw / 2 + 0.02, 0], [0, -bw / 2 - 0.02, Math.PI]] as const) {
-      ab.archFrame(2.2, 4.4, 0.35, ts + dx, y0 + TW.body + 1.2, tz + dz, ry, GRANITE, 0.2);
-      ab.archOpening(2.2, 4.4, ts + dx * 1.004, y0 + TW.body + 1.2, tz + dz * 1.004, ry, DARK);
+      ab.archFrame(1.4, 3.2, 0.3, ts + dx, y1 + 1.1, tz + dz, ry, CANT, 0.18, 'granite');
+      ab.archOpening(1.4, 3.2, ts + dx * 1.004, y1 + 1.1, tz + dz * 1.004, ry, DARK, 0.08, 'dark');
     }
-    // pináculos nos cantos
-    for (const cx of [-1, 1]) for (const cz of [-1, 1]) {
-      ab.cyl(0.15, 0.4, 2.6, ts + cx * (bw / 2), y0 + TW.belfry, tz + cz * (bw / 2), GRANITE, 8);
-      ab.add(new THREE.SphereGeometry(0.3, 8, 6).translate(ts + cx * (bw / 2), y0 + TW.belfry + 2.8, tz + cz * (bw / 2)), GRANITE);
+    ab.box(bw + 1.0, 0.6, bw + 1.0, ts, y0 + TW.belfry - 0.6, tz, CANT, 'granite');
+    for (const cx of [-1, 1]) for (const cz of [-1, 1]) ab.finial(ts + cx * (bw / 2 + 0.2), y0 + TW.belfry, tz + cz * (bw / 2 + 0.2), 2.4, CANT, 'granite');
+    // coruchéu bulboso (branco, nervuras escuras) + lanterna + esfera + cata-vento
+    const bulb: [number, number][] = [[2.6, 0], [2.75, 0.5], [2.55, 1.6], [1.9, 2.9], [1.1, 4.0], [0.6, 4.8], [0.5, 5.6], [0, 5.65]];
+    const by = y0 + TW.belfry;
+    ab.lathe(bulb, ts, by, tz, BULB, 24, 'stone');
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2;
+      const pts = bulb.slice(0, 7).map(([r, y]) => new THREE.Vector3(ts + Math.cos(a) * (r + 0.06), by + y, tz + Math.sin(a) * (r + 0.06)));
+      ab.add(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 10, 0.09, 4, false), 0x8a8d8f, 'metal');
     }
-    ab.box(bw + 0.8, 0.7, bw + 0.8, ts, y0 + TW.belfry - 0.7, tz, GRANITE);
-    // cúpula bulbosa + lanterna + cruz
-    const bulb: [number, number][] = [
-      [3.4, 0], [3.6, 0.6], [3.3, 1.8], [2.4, 3.2], [1.3, 4.3], [0.7, 5.0], [0.55, 5.6], [0, 6.0],
-    ];
-    ab.lathe(bulb, ts, y0 + TW.belfry, tz, 0x9a968c, 20);
-    ab.cyl(0.6, 0.7, TW.lantern - TW.bulbTop, ts, y0 + TW.bulbTop, tz, LIOZ, 10);
-    ab.add(new THREE.SphereGeometry(0.75, 10, 8, 0, Math.PI * 2, 0, Math.PI / 2).translate(ts, y0 + TW.lantern, tz), 0x9a968c);
-    ab.box(0.16, TW.cross - TW.lantern - 0.6, 0.16, ts, y0 + TW.lantern + 0.6, tz, 0x4a4844, 'metal');
-    ab.box(0.16, 0.16, 1.0, ts, y0 + TW.cross - 1.0, tz, 0x4a4844, 'metal');
+    ab.cyl(0.5, 0.6, TW.lantern - TW.bulbTop, ts, y0 + TW.bulbTop, tz, BULB, 10, 'stone');
+    ab.add(new THREE.SphereGeometry(0.42, 12, 10).translate(ts, y0 + TW.lantern + 0.4, tz), 0x8f7a3c, 'metal');
+    ab.box(0.12, TW.cross - TW.lantern - 0.8, 0.12, ts, y0 + TW.lantern + 0.8, tz, 0x3e4a44, 'metal');
+    ab.box(0.12, 0.12, 1.1, ts, y0 + TW.cross - 1.2, tz, 0x3e4a44, 'metal');
+    ab.box(1.0, 0.35, 0.04, ts + 0.5, y0 + TW.cross - 2.0, tz, 0x3e4a44, 'metal'); // cata-vento
   }
 
   // ---------- cúpula sobre o cruzeiro ----------
-  const D = P.dome;
-  // tambor
-  ab.cyl(D.drumR, D.drumR + 0.3, D.drumTop - D.drumBase, D.s, y0 + D.drumBase - y0 + 0, 0, LIOZ, 32);
-  // pilastras e janelas do tambor (8 lados)
+  const ds = D.s;
+  ab.cyl(D.drumR + 1.2, D.drumR + 1.2, D.drumBase - (y0 + T.h) + 0.5, ds, y0 + T.h - 0.5, 0, LIOZ, 32, 'stone'); // base do tambor
+  ab.cyl(D.drumR, D.drumR + 0.3, D.drumTop - D.drumBase, ds, D.drumBase, 0, LIOZ, 32, 'stone');
   for (let i = 0; i < 16; i++) {
     const a = (i / 16) * Math.PI * 2;
-    const cx = D.s + Math.cos(a) * (D.drumR + 0.25), cz = Math.sin(a) * (D.drumR + 0.25);
+    const cx = ds + Math.cos(a) * (D.drumR + 0.25), cz = Math.sin(a) * (D.drumR + 0.25);
     if (i % 2 === 0) {
       const g = new THREE.BoxGeometry(0.9, D.drumTop - D.drumBase - 1, 0.6);
       g.rotateY(-a);
       g.translate(cx, D.drumBase + (D.drumTop - D.drumBase - 1) / 2, cz);
-      ab.add(g, 0xb4ad9e);
+      ab.add(g, 0xaea79a, 'stone');
     } else {
       const ry = Math.PI / 2 - a;
-      ab.archOpening(1.9, 5.2, D.s + Math.cos(a) * (D.drumR + 0.1), D.drumBase + 2.2, Math.sin(a) * (D.drumR + 0.1), ry, DARK, 0.25);
+      ab.archOpening(1.9, 5.2, ds + Math.cos(a) * (D.drumR + 0.1), D.drumBase + 2.2, Math.sin(a) * (D.drumR + 0.1), ry, GLASS, 0.25, 'glass');
     }
   }
-  // anel/cornija + balaustrada + 8 estátuas
-  ab.cyl(D.drumR + 1.0, D.drumR + 1.0, 0.8, D.s, D.drumTop - 0.8, 0, 0xa9a293, 32);
+  ab.cyl(D.drumR + 1.0, D.drumR + 1.0, 0.8, ds, D.drumTop - 0.8, 0, 0xa9a293, 32, 'stone');
   for (let i = 0; i < 24; i++) {
     const a0 = (i / 24) * Math.PI * 2, a1 = ((i + 1) / 24) * Math.PI * 2;
     const r = D.drumR + 0.7;
-    ab.balustrade(D.s + Math.cos(a0) * r, Math.sin(a0) * r, D.s + Math.cos(a1) * r, Math.sin(a1) * r, D.drumTop, LIOZ, 0.5);
+    ab.balustrade(ds + Math.cos(a0) * r, Math.sin(a0) * r, ds + Math.cos(a1) * r, Math.sin(a1) * r, D.drumTop, LIOZ, 0.5, 'stone');
   }
   for (let i = 0; i < 8; i++) {
     const a = (i / 8) * Math.PI * 2 + Math.PI / 8;
-    ab.statue(D.s + Math.cos(a) * (D.drumR + 0.7), D.drumTop + 0.9, Math.sin(a) * (D.drumR + 0.7), 0xd2ccbe, 1.05);
+    ab.statue(ds + Math.cos(a) * (D.drumR + 0.7), D.drumTop + 0.9, Math.sin(a) * (D.drumR + 0.7), 0xd2ccbe, 1.05);
   }
-  // casca da cúpula (perfil levemente alteado) com nervuras
+  // casca (perfil levemente alteado) com nervuras
   const shell: [number, number][] = [];
-  const H = D.domeTop - D.drumTop;
+  const Hd = D.domeTop - D.drumTop;
   for (let i = 0; i <= 16; i++) {
-    const t = i / 16;
-    const a = t * Math.PI / 2;
-    const r = Math.cos(a) * (D.drumR - 0.2);
-    const y = Math.sin(a) * H;
-    shell.push([Math.max(r, 1.6), y]);
+    const a = (i / 16) * Math.PI / 2;
+    shell.push([Math.max(Math.cos(a) * (D.drumR - 0.2), 1.6), Math.sin(a) * Hd]);
   }
-  ab.lathe([[D.drumR + 0.2, 0], ...shell], D.s, D.drumTop + 0.2, 0, LIOZ, 48);
+  ab.lathe([[D.drumR + 0.2, 0], ...shell], ds, D.drumTop + 0.2, 0, LIOZ, 48, 'stone');
   for (let i = 0; i < 16; i++) {
     const a = (i / 16) * Math.PI * 2;
     const pts: THREE.Vector3[] = [];
     for (let k = 0; k <= 12; k++) {
       const t = k / 12, aa = t * Math.PI / 2;
       const r = Math.max(Math.cos(aa) * (D.drumR - 0.2), 1.6) + 0.12;
-      pts.push(new THREE.Vector3(D.s + Math.cos(a) * r, D.drumTop + 0.2 + Math.sin(aa) * H, Math.sin(a) * r));
+      pts.push(new THREE.Vector3(ds + Math.cos(a) * r, D.drumTop + 0.2 + Math.sin(aa) * Hd, Math.sin(a) * r));
     }
-    const tube = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 12, 0.22, 5, false);
-    ab.add(tube, 0xa8a090);
+    ab.add(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 12, 0.24, 5, false), 0x9f988b, 'stone');
   }
-  // óculos (lucarnas) na cúpula
   for (let i = 0; i < 8; i++) {
     const a = (i / 8) * Math.PI * 2;
     const r = Math.cos(0.42) * (D.drumR - 0.2) + 0.3;
-    const g = new THREE.SphereGeometry(0.65, 8, 6);
-    g.translate(D.s + Math.cos(a) * r, D.drumTop + 0.2 + Math.sin(0.42) * H, Math.sin(a) * r);
-    ab.add(g, DARK, 'dark');
+    ab.add(new THREE.SphereGeometry(0.65, 8, 6).translate(ds + Math.cos(a) * r, D.drumTop + 0.2 + Math.sin(0.42) * Hd, Math.sin(a) * r), DARK, 'dark');
   }
   // lanterna + bola + cruz
-  ab.cyl(1.7, 1.9, D.lanternTop - D.domeTop - 1.4, D.s, D.domeTop, 0, LIOZ, 16);
+  ab.cyl(1.7, 1.9, D.lanternTop - D.domeTop - 1.4, ds, D.domeTop, 0, LIOZ, 16, 'stone');
   for (let i = 0; i < 8; i++) {
     const a = (i / 8) * Math.PI * 2;
-    ab.archOpening(0.7, 2.2, D.s + Math.cos(a) * 1.75, D.domeTop + 1.0, Math.sin(a) * 1.75, Math.PI / 2 - a, DARK, 0.1);
+    ab.archOpening(0.7, 2.2, ds + Math.cos(a) * 1.75, D.domeTop + 1.0, Math.sin(a) * 1.75, Math.PI / 2 - a, DARK, 0.1);
   }
-  ab.lathe([[2.0, 0], [1.9, 0.5], [1.2, 1.2], [0.5, 1.6], [0, 1.7]], D.s, D.lanternTop - 1.4, 0, LIOZ, 16);
-  ab.add(new THREE.SphereGeometry(0.55, 12, 8).translate(D.s, D.lanternTop + 1.0, 0), 0x6f8f6a, 'metal');
-  ab.box(0.2, D.crossTop - D.lanternTop - 1.5, 0.2, D.s, D.lanternTop + 1.5, 0, 0x4a4844, 'metal');
-  ab.box(0.2, 0.2, 1.4, D.s, D.crossTop - 1.4, 0, 0x4a4844, 'metal');
+  ab.lathe([[2.0, 0], [1.9, 0.5], [1.2, 1.2], [0.5, 1.6], [0, 1.7]], ds, D.lanternTop - 1.4, 0, LIOZ, 16, 'stone');
+  ab.add(new THREE.SphereGeometry(0.55, 12, 8).translate(ds, D.lanternTop + 1.0, 0), 0x6f8f6a, 'metal');
+  ab.box(0.2, D.crossTop - D.lanternTop - 1.5, 0.2, ds, D.lanternTop + 1.5, 0, 0x4a4844, 'metal');
+  ab.box(0.2, 0.2, 1.4, ds, D.crossTop - 1.4, 0, 0x4a4844, 'metal');
 
   const group = ab.build(archMats, 'LANDMARK_CANDELARIA');
-
-  const colliders: LandmarkInstance['colliders'] = candelariaColliders(lm);
-  return { group, colliders, update() { /* estático */ } };
+  const c = new THREE.Vector3(lm.center[0], 25, lm.center[1]);
+  return { group, colliders: candelariaColliders(lm), update(_t: Date, cam: THREE.Vector3) { if (cam) updateDetailLod(group, c, cam); } };
 }

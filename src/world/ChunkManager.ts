@@ -39,6 +39,9 @@ export class ChunkManager {
   private propsDirty = true;
   private lastPropsCenter = new THREE.Vector2(1e9, 1e9);
   stats = { visible: 0, full: 0, medium: 0, far: 0, loaded: 0 };
+  /** chamado uma vez por edifício com modelo dedicado quando seu chunk é carregado (após a carga inicial) */
+  onModelBuilding: ((b: BuildingRec) => void) | null = null;
+  private modelsSeen = new Set<number>();
 
   constructor(
     private manifest: WorldManifest,
@@ -95,6 +98,7 @@ export class ChunkManager {
     this.collision.addChunkSurfaces(c.data);
     this.collision.addChunkBarriers(c.data);
     this.stats.loaded++;
+    if (this.onModelBuilding) for (const b of c.data.buildings) if (b.model && !this.modelsSeen.has(b.id)) { this.modelsSeen.add(b.id); this.onModelBuilding(b); }
   }
 
   chunkDistance(c: ChunkRuntime, p: THREE.Vector2): number {
@@ -254,10 +258,10 @@ export class ChunkManager {
     g.removeFromParent();
   }
 
-  /** edifícios com modelo dedicado (construídos uma vez pelo jogo) */
+  /** edifícios com modelo dedicado ainda não entregues (construídos uma vez pelo jogo) */
   modelBuildings(): BuildingRec[] {
     const out: BuildingRec[] = [];
-    for (const c of this.chunks.values()) if (c.data) for (const b of c.data.buildings) if (b.model) out.push(b);
+    for (const c of this.chunks.values()) if (c.data) for (const b of c.data.buildings) if (b.model && !this.modelsSeen.has(b.id)) { this.modelsSeen.add(b.id); out.push(b); }
     return out;
   }
 

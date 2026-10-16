@@ -24,10 +24,10 @@ import { InputManager } from '../input/InputManager';
 import { TouchControls } from '../ui/TouchControls';
 import { DebugPanel } from '../debug/DebugPanel';
 import { Minimap } from '../debug/Minimap';
-import { createLandmarkMaterials } from '../world/landmarks/arch';
+import { createLandmarkMaterials, loadLandmarkTextures } from '../world/landmarks/arch';
 import { buildCentral, type LandmarkInstance } from '../world/landmarks/central';
 import { buildCandelaria } from '../world/landmarks/candelaria';
-import { buildPalacioDuqueCaxias } from '../world/landmarks/palacioDuqueCaxias';
+import { buildModelBuilding } from '../world/landmarks/models';
 import { PedestrianSystem } from '../npc/PedestrianSystem';
 import { TrafficSystem } from '../traffic/TrafficSystem';
 import { SignalController } from '../traffic/SignalController';
@@ -40,7 +40,7 @@ import { InteractionController } from '../interaction/InteractionMode';
 import type { KnockMsg } from '../net/NetworkClient';
 import { preloadRagdoll } from '../physics/Ragdoll';
 import type { NetworkClient } from '../net/NetworkClient';
-import type { PropRec } from '../world/types';
+import type { PropRec, BuildingRec } from '../world/types';
 import { distToPolyline } from '../geo/polyline';
 import type { TrafficData } from '../world/types';
 
@@ -66,6 +66,8 @@ export class Game {
   private collision!: CollisionWorld;
   private props!: PropSystem;
   private landmarks: LandmarkInstance[] = [];
+  /** câmera livre só para automação (capturas de landmarks): posição + alvo */
+  private freeCam: { p: [number, number, number]; t: [number, number, number] } | null = null;
   private peds!: PedestrianSystem;
   private traffic!: TrafficSystem;
   private signals!: SignalController;
@@ -156,23 +158,21 @@ export class Game {
 
     progress(0.68, 'Construindo Central do Brasil e Candelária');
     await nextFrame();
-    const archMats = createLandmarkMaterials(lib.noise);
+    const lmTex = await loadLandmarkTextures(`${import.meta.env.BASE_URL}landmarks/tex/`).catch(() => undefined);
+    const archMats = createLandmarkMaterials(lib.noise, lmTex);
     for (const lm of this.manifest.landmarks) {
-      const inst = lm.key === 'LANDMARK_CENTRAL' ? buildCentral(lm, buildingMat, archMats) : buildCandelaria(lm, archMats);
+      const inst = lm.key === 'LANDMARK_CENTRAL' ? buildCentral(lm, archMats) : buildCandelaria(lm, archMats);
       this.scene.add(inst.group);
       for (const c of inst.colliders) this.collision.addPolygon(c.poly, c.minHeight ?? 0, c.height);
       this.landmarks.push(inst);
     }
-    // edifícios com modelo dedicado (via data/overrides/buildings.json → campo `model`)
-    for (const b of this.chunks.modelBuildings()) {
-      if (b.model === 'palacio_duque_caxias') {
-        const ax = this.manifest.pvAxis;
-        let near = ax[0], bd = Infinity;
-        const c = b.poly.outer[0];
-        for (const p of ax) { const d = Math.hypot(p[0] - c[0], p[1] - c[1]); if (d < bd) { bd = d; near = p; } }
-        this.scene.add(buildPalacioDuqueCaxias(b, buildingMat, archMats, near));
-      }
-    }
+    // edifícios com modelo dedicado (data/overrides/buildings.json → campo `model`), também os de chunks carregados depois
+    const addModel = (b: BuildingRec) => {
+      const inst = buildModelBuilding(b, archMats, this.manifest.pvAxis);
+      if (inst) { this.scene.add(inst.group); this.landmarks.push(inst); }
+    };
+    for (const b of this.chunks.modelBuildings()) addModel(b);
+    this.chunks.onModelBuilding = addModel;
 
     // jogador
     const heading = Math.atan2(Math.cos(spawn.yaw), Math.sin(spawn.yaw));
@@ -435,6 +435,7 @@ export class Game {
     this.updateMovement(dt);
     const ppos = this.avatar.root.position;
     this.cam.update(ppos, dt);
+    if (this.freeCam) { this.camera.position.set(...this.freeCam.p); this.camera.lookAt(...this.freeCam.t); }
     this.signals.setTime(worldClock.seconds());
     if (this.net) {
       this.net.update(dt, this.player, this.riding ? this.riding.state.id : null, this.camera, { w: this.canvas.clientWidth, h: this.canvas.clientHeight });
@@ -738,6 +739,8 @@ export class Game {
         this.intro.active = false;
       },
       camera: (yaw: number, pitch: number, dist: number) => { this.cam.maxDistance = Math.max(16, dist); this.cam.yaw = yaw; this.cam.pitch = pitch; this.cam.zoom(Math.log(dist / this.cam.distance)); this.intro.active = false; },
+      /** QA: câmera livre (x,y,z) olhando para (tx,ty,tz); sem argumentos volta à câmera do jogador */
+      lookFrom: (x?: number, y?: number, z?: number, tx = 0, ty = 0, tz = 0) => { this.freeCam = x === undefined ? null : { p: [x, y!, z!], t: [tx, ty, tz] }; this.intro.active = false; },
       portrait: (dist = 3) => { this.cam.yaw = this.player.heading + Math.PI; this.cam.pitch = 0.08; this.cam.zoom(Math.log(dist / this.cam.distance)); this.intro.active = false; },
       /** teste: vai até a estação de bicicleta mais próxima e monta */
       ride: () => {

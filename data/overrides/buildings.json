@@ -3,9 +3,10 @@
   "byName": {
     "Centro Cultural Banco do Brasil": {
       "height": 31,
+      "model": "ccbb",
       "style": "eclectic",
       "tint": 0.18,
-      "source": "Fotos Wikimedia Commons (CCBB-Rio 2017-07-10, CC BY-SA): ~6 pavimentos + ático sobre base rusticada; altura OSM ausente (estimativa 9 m)",
+      "source": "Fotos Wikimedia Commons (CCBB-Rio 2017-07-10 domínio público; Rio-CCBB 2007 CC BY; maquete do CCBB 2007 domínio público): embasamento de 2 níveis + piano nobile de 2 pavimentos + 5º pavimento + ático (~31 m); modelo dedicado src/world/landmarks/ccbb.ts. Altura OSM ausente (estimativa 9 m)",
       "confidence": "media"
     },
     "Centro Cultural Correios": {
@@ -38,11 +39,11 @@
       "confidence": "media"
     },
     "Palácio Duque de Caxias": {
-      "height": 38,
+      "height": 44,
       "model": "palacio_duque_caxias",
       "style": "artdeco",
       "tint": 0.62,
-      "source": "Fotos Wikimedia Commons (Palácio Duque de Caxias 2022, CC BY-SA, só consulta) + SKYDB (82 m, 21 andares, art déco, 1941 — não oficial). Bloco ~10 pavimentos (38 m) estimado por foto; OSM só tinha estimativa de 9 m.",
+      "source": "Fotos Wikimedia Commons (Palácio Duque de Caxias 2022, CC BY-SA, só consulta) + SKYDB (82 m, 21 andares, art déco, 1941 — não oficial). Bloco ~11 pavimentos + platibanda (44 m) estimado por proporção com a torre de 82 m nas fotos frontais (rodada 5; antes 38 m); OSM só tinha estimativa de 9 m.",
       "confidence": "media"
     },
     "Pantheon de Caxias": {
