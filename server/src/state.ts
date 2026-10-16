@@ -9,6 +9,8 @@ export const NetPlayer = schema({
   top: t.uint32(),
   bottom: t.uint32(),
   shoes: t.uint32(),
+  accessory: t.string(),
+  acc: t.uint32(),
   x: t.float32(),
   y: t.float32(),
   z: t.float32(),
