@@ -329,6 +329,22 @@ export class VegetationSystem {
     this.impostor.castShadow = false;
     this.impostor.receiveShadow = false;
     this.group.add(this.impostor);
+    // gancho de depuração/medição (tools/qa/veg_budget.mjs)
+    (globalThis as unknown as { __pvVeg?: VegetationSystem }).__pvVeg = this;
+  }
+
+  /** triângulos (passe principal, antes do frustum culling) por faixa de LOD — para medição de orçamento */
+  budget() {
+    const out = { trisNear: 0, trisMid: 0, trisImpostor: 0, trees: this.trees.length, nNear: this.stats.near, nMid: this.stats.mid, nFar: this.stats.far };
+    const tri = (g: THREE.BufferGeometry) => (g.index ? g.index.count : g.attributes.position.count) / 3;
+    for (let i = 0; i < this.trees.length; i++) {
+      const v = this.assets.variants[this.trees[i].variant];
+      const l = this.lod[i];
+      if (l === 0) out.trisNear += tri(v.lods[0].bark) + tri(v.lods[0].leaves);
+      else if (l === 1) out.trisMid += tri(v.lods[1].bark) + tri(v.lods[1].leaves);
+      else out.trisImpostor += 2;
+    }
+    return out;
   }
 
   /** escolhe uma variante para a espécie (determinística por posição) */

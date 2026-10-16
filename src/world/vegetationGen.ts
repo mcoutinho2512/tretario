@@ -309,7 +309,7 @@ function palm(lod: 0 | 1) {
   const fronds = lod === 0 ? 15 : 9, segs = lod === 0 ? 7 : 4;
   for (let f = 0; f < fronds; f++) {
     const yaw = (f / fronds) * Math.PI * 2 + rnd() * 0.3;
-    const len = 4.4 + rnd() * 0.8;
+    const len = 5.0 + rnd() * 0.9;
     const lift = 0.25 + (f % 3) * 0.28 + rnd() * 0.2; // ângulo inicial acima da horizontal
     const width = 1.9;
     const dirH = new THREE.Vector3(Math.cos(yaw), 0, Math.sin(yaw));
@@ -321,7 +321,7 @@ function palm(lod: 0 | 1) {
       pts.push({ p: p.clone(), ang });
       const step = len / segs;
       p.add(dirH.clone().multiplyScalar(Math.cos(ang) * step)).add(new THREE.Vector3(0, Math.sin(ang) * step, 0));
-      ang -= 0.32 + rnd() * 0.08; // arqueia para baixo
+      ang -= 0.22 + rnd() * 0.06; // arqueia para baixo
     }
     const start = leaves.vc;
     for (let s = 0; s <= segs; s++) {
