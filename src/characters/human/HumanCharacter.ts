@@ -262,8 +262,10 @@ export class HumanCharacter {
     const all = await clipsFor(this.body, pelvis ? pelvis.position.clone() : new THREE.Vector3(0, 1, 0));
     if (this.disposed) return;
     const clips = this.clipFilter ? new Map([...all].filter(([k]) => this.clipFilter!.includes(k))) : all;
-    this.animator = new HumanAnimator(this.armature, clips, this.body, BODY_TYPES[this.body].speedFactor);
+    this.animator = new HumanAnimator(this.armature, clips, this.body, BODY_TYPES[this.body].speedFactor, all);
     this.animator.detail = this.want <= 1;
+    // estado social recebido antes de o esqueleto carregar
+    if (this.social !== EMPTY_SOCIAL) this.animator.setSocial(this.social);
   }
 
   /** recria as malhas do GLB ligadas ao esqueleto deste personagem */

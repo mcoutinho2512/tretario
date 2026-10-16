@@ -16,19 +16,44 @@ import { BODY_TYPES, type BodyType } from '../bodyTypes';
 import { loadLod, LAYER_INDEX } from '../human/HumanAssets';
 import { clipsFor, tint } from '../human/HumanCharacter';
 import { measureNatural, groundOffsets } from '../human/HumanAnimator';
+import { clipFloor, proceduralClip, withBase } from '../human/proceduralClips';
+import { ACTIONS, ACTION_BY_ID } from '../../social/actions';
 import type { CrowdAgent } from './crowdBudget';
+
+/** pé mais baixo na pose atual (repouso), no espaço do esqueleto */
+function restFootMin(armature: THREE.Object3D): number {
+  const inv = new THREE.Matrix4().copy(armature.matrixWorld).invert(), v = new THREE.Vector3();
+  let m = Infinity;
+  for (const n of ['ball_l', 'ball_r', 'foot_l', 'foot_r']) {
+    const b = armature.getObjectByName(n);
+    if (b) m = Math.min(m, b.getWorldPosition(v).applyMatrix4(inv).y);
+  }
+  return Number.isFinite(m) ? m : 0;
+}
 
 export const CROWD_BODIES: BodyType[] = ['homem', 'mulher', 'idoso', 'idosa'];
 /** quadros assados por ciclo (interpolados no shader) */
 const CLIP_FRAMES: Record<'idle' | 'walk' | 'jog', number> = { idle: 8, walk: 16, jog: 12 };
+/**
+ * ações sociais da multidão distante (ACTIONS[].crowdClip): [quadros no LOD2, quadros no LOD3]. Gestos lentos com
+ * poucos quadros; palmas com quadros nos extremos (aberta/fechada); danças com 1,5 quadro por tempo no LOD2 e 1 no
+ * LOD3 (além de 45 m o quique some e fica o balanço). Só a pose: o item na mão é desenhado à parte, e quem se move
+ * volta para a locomoção.
+ */
+export const CROWD_ACTION_FRAMES: Record<string, [number, number]> = {
+  emote_wave: [8, 6], emote_clap: [10, 10], emote_arms_up: [4, 4], emote_arm_up: [4, 4],
+  dance_simple: [12, 8], dance_lively: [12, 8], dance_arms: [12, 8], dance_party: [12, 8], dance: [12, 8],
+};
 const TEX_W = 1024;
 
-interface ClipRows { row0: number; n: number; dur: number }
+interface ClipRows { row0: number; n: number; dur: number; once?: boolean }
 interface VatSet {
   body: number;
   lod: 2 | 3;
   mesh: THREE.InstancedMesh;
   clips: Record<'idle' | 'walk' | 'jog', ClipRows>;
+  /** ações assadas por nome do clipe (crowdClip) */
+  acts: Map<string, ClipRows>;
   natural: { walk: number; jog: number };
   layerAvg: THREE.Color[];
   aAnim: THREE.InstancedBufferAttribute;
@@ -54,7 +79,7 @@ export class CrowdRenderer {
   /** [corpo][0 = LOD2, 1 = LOD3] */
   private sets: (VatSet | null)[][] = CROWD_BODIES.map(() => [null, null]);
   ready = false;
-  readonly stats = { drawn: 0, lod2: 0, lod3: 0, calls: 0, bakeMs: 0 };
+  readonly stats = { drawn: 0, lod2: 0, lod3: 0, calls: 0, bakeMs: 0, vatBytes: 0, acting: 0, vat: [] as { body: string; lod: number; verts: number; frames: number; kb: number }[] };
 
   constructor(private capacity: number, private withLod2: boolean) {
     this.group.name = 'crowd_instanced';
@@ -95,30 +120,46 @@ export class CrowdRenderer {
     };
     // mesma correção de contato com o chão dos personagens com esqueleto (proporções do corpo ≠ origem da animação)
     const ground = groundOffsets(body, armature, clips, ['idle', 'walk', 'jog']);
+    // ações: clipes procedurais (camada superior completada com as pernas do idle) ou da biblioteca (dança)
+    const idle = clips.get('idle')!;
+    armature.updateMatrixWorld(true);
+    const restFloor = restFootMin(armature);
+    const bakeList: { name: string; clip: THREE.AnimationClip; n: number; ground: number; once?: boolean }[] =
+      (['idle', 'walk', 'jog'] as const).map((name) => ({ name, clip: clips.get(name) ?? idle, n: CLIP_FRAMES[name], ground: ground[name] ?? 0 }));
+    for (const [name, frames] of Object.entries(CROWD_ACTION_FRAMES)) {
+      const n = frames[lod === 2 ? 0 : 1];
+      const src = clips.get(name) ?? proceduralClip(name, armature, idle);
+      if (!src) continue;
+      const clip = clips.has(name) ? src : withBase(src, idle);
+      const floor = clipFloor(armature, clip);
+      const once = ACTIONS.some((a) => a.crowdClip === name && a.clip === name && a.mode === 'once');
+      bakeList.push({ name, clip, n, ground: floor === null ? 0 : restFloor - floor, once });
+    }
     const V = sm.geometry.getAttribute('position').count;
-    const rowsPerFrame = Math.ceil(V / TEX_W);
-    const names = ['idle', 'walk', 'jog'] as const;
-    const totalFrames = names.reduce((s, n) => s + CLIP_FRAMES[n], 0);
-    const data = new Uint16Array(TEX_W * rowsPerFrame * totalFrames * 4);
+    const totalFrames = bakeList.reduce((s, c) => s + c.n, 0);
+    // quadros contíguos (frame × V + vértice): sem sobra de linha por quadro
+    const rows = Math.ceil((totalFrames * V) / TEX_W);
+    const data = new Uint16Array(TEX_W * rows * 4);
     const mixer = new THREE.AnimationMixer(armature);
     const v = new THREE.Vector3();
     const clipRows = {} as Record<'idle' | 'walk' | 'jog', ClipRows>;
+    const acts = new Map<string, ClipRows>();
     let frame = 0;
-    for (const name of names) {
-      const clip = clips.get(name) ?? clips.get('idle')!;
-      const n = CLIP_FRAMES[name];
-      clipRows[name] = { row0: frame, n, dur: clip.duration };
+    for (const { name, clip, n, ground: gy, once } of bakeList) {
+      const rowsOf: ClipRows = { row0: frame, n, dur: clip.duration, once };
+      if (name === 'idle' || name === 'walk' || name === 'jog') clipRows[name] = rowsOf; else acts.set(name, rowsOf);
       const act = mixer.clipAction(clip);
       act.play();
       for (let f = 0; f < n; f++, frame++) {
-        mixer.setTime((f / n) * clip.duration);
+        // `once`: do começo ao fim (sem voltar ao quadro 0); loops: n quadros por ciclo
+        mixer.setTime(once ? (f / Math.max(1, n - 1)) * clip.duration * 0.999 : (f / n) * clip.duration);
         scene.updateMatrixWorld(true);
         for (let i = 0; i < V; i++) {
           sm.getVertexPosition(i, v);
           v.applyMatrix4(sm.matrixWorld);
-          const o = ((frame * rowsPerFrame + Math.floor(i / TEX_W)) * TEX_W + (i % TEX_W)) * 4;
+          const o = (frame * V + i) * 4;
           data[o] = THREE.DataUtils.toHalfFloat(v.x);
-          data[o + 1] = THREE.DataUtils.toHalfFloat(v.y + (ground[name] ?? 0));
+          data[o + 1] = THREE.DataUtils.toHalfFloat(v.y + gy);
           data[o + 2] = THREE.DataUtils.toHalfFloat(v.z);
           data[o + 3] = THREE.DataUtils.toHalfFloat(1);
         }
@@ -126,10 +167,14 @@ export class CrowdRenderer {
       act.stop();
     }
     mixer.uncacheRoot(armature);
-    const tex = new THREE.DataTexture(data, TEX_W, rowsPerFrame * totalFrames, THREE.RGBAFormat, THREE.HalfFloatType);
+    this.stats.vatBytes += data.byteLength;
+    this.stats.vat.push({ body, lod, verts: V, frames: totalFrames, kb: Math.round(data.byteLength / 1024) });
+    const tex = new THREE.DataTexture(data, TEX_W, rows, THREE.RGBAFormat, THREE.HalfFloatType);
     tex.minFilter = tex.magFilter = THREE.NearestFilter;
     tex.generateMipmaps = false;
     tex.needsUpdate = true;
+    // depois do envio à GPU a cópia na CPU não serve mais (mesma política das texturas procedurais, docs/MEMORY.md)
+    tex.onUpdate = () => { (tex.image as unknown as { data: Uint16Array | null }).data = null; };
 
     // geometria estática (sem pesos de osso): posição de repouso só para bounding; a real vem da textura
     const g = new THREE.BufferGeometry();
@@ -155,14 +200,14 @@ export class CrowdRenderer {
 
     const src = sm.material as THREE.MeshStandardMaterial;
     const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: src.roughness ?? 0.8, metalness: 0, color: 0xffffff });
-    const uniforms = { uVat: { value: tex }, uVatW: { value: TEX_W }, uRowsPerFrame: { value: rowsPerFrame } };
+    const uniforms = { uVat: { value: tex }, uVatW: { value: TEX_W }, uVerts: { value: V } };
     mat.onBeforeCompile = (sh) => {
       Object.assign(sh.uniforms, uniforms);
       sh.vertexShader = sh.vertexShader
         .replace('#include <common>', `#include <common>
 uniform highp sampler2D uVat;
 uniform int uVatW;
-uniform int uRowsPerFrame;
+uniform int uVerts;
 attribute vec3 aAnim;
 attribute float _layer;
 attribute vec3 aSkin;
@@ -171,8 +216,8 @@ attribute vec3 aTop;
 attribute vec3 aBottom;
 varying vec3 vTint;
 vec3 vatFetch(int frame) {
-  int vid = gl_VertexID;
-  return texelFetch(uVat, ivec2(vid % uVatW, frame * uRowsPerFrame + vid / uVatW), 0).xyz;
+  int idx = frame * uVerts + gl_VertexID;
+  return texelFetch(uVat, ivec2(idx % uVatW, idx / uVatW), 0).xyz;
 }`)
         .replace('#include <begin_vertex>', `vec3 transformed = mix(vatFetch(int(aAnim.x)), vatFetch(int(aAnim.y)), aAnim.z);
 int li = int(clamp(_layer + 0.5, 0.0, 4.0));
@@ -190,7 +235,7 @@ vTint = li == 0 ? aSkin : li == 1 ? aHair : li == 2 ? aTop : li == 3 ? aBottom :
     mesh.receiveShadow = true;
     mesh.count = 0;
     void bi;
-    return { body: bi, lod, mesh, clips: clipRows, natural, layerAvg, aAnim, aSkin, aHair, aTop, aBottom, tex, count: 0 };
+    return { body: bi, lod, mesh, clips: clipRows, acts, natural, layerAvg, aAnim, aSkin, aHair, aTop, aBottom, tex, count: 0 };
   }
 
   private setFor(a: CrowdAgent): VatSet | null {
@@ -199,8 +244,13 @@ vTint = li == 0 ? aSkin : li == 1 ? aHair : li == 2 ? aTop : li == 3 ? aBottom :
   }
 
   /** desenha os agentes recebidos (já filtrados por tier/visibilidade); `dt` avança a animação de cada um */
-  draw(agents: readonly CrowdAgent[], dt: number) {
+  /**
+   * `now` (s): relógio de `CrowdAgent.actAt` (padrão performance.now()/1000) — a fase da ação é now − actAt,
+   * com deslocamento por agente nos loops (40 pessoas batendo palmas não ficam em sincronia)
+   */
+  draw(agents: readonly CrowdAgent[], dt: number, now = performance.now() / 1000) {
     for (const row of this.sets) for (const s of row) if (s) s.count = 0;
+    this.stats.acting = 0;
     let lod2 = 0, lod3 = 0;
     if (this.ready) {
       for (const a of agents) {
@@ -225,6 +275,21 @@ vTint = li == 0 ? aSkin : li == 1 ? aHair : li == 2 ? aTop : li == 3 ? aBottom :
         an[i * 3] = clip.row0 + (f0 % clip.n);
         an[i * 3 + 1] = clip.row0 + ((f0 + 1) % clip.n);
         an[i * 3 + 2] = f - f0;
+        // ação social (parado): clipe assado da ação; entrada/saída misturando o quadro do idle com o da ação
+        const act = a.act && a.speed < 0.15 ? s.acts.get(ACTION_BY_ID.get(a.act)?.crowdClip ?? '') : undefined;
+        if (act) {
+          const t = now - a.actAt;
+          if (t >= 0 && (!act.once || t < act.dur)) {
+            let g: number, g1: number;
+            if (act.once) { const x = (t / act.dur) * (act.n - 1); g = Math.floor(x); g1 = Math.min(g + 1, act.n - 1); g = x; }
+            else { const x = (((t + ((a.id * 0.618034) % 1) * act.dur) / act.dur) % 1) * act.n; g = x; g1 = (Math.floor(x) + 1) % act.n; }
+            const g0 = Math.floor(g), k = g - g0;
+            const fade = Math.min(1, t / 0.3, act.once ? (act.dur - t) / 0.3 : 1);
+            if (fade >= 1) { an[i * 3] = act.row0 + g0; an[i * 3 + 1] = act.row0 + g1; an[i * 3 + 2] = k; }
+            else { an[i * 3 + 1] = act.row0 + (k < 0.5 ? g0 : g1); an[i * 3 + 2] = fade; }
+            this.stats.acting++;
+          }
+        }
         this.writeTint(s.aSkin, i, a.skin, s.layerAvg[LAYER_INDEX.BODY], 'BODY');
         this.writeTint(s.aHair, i, a.hair, s.layerAvg[LAYER_INDEX.HAIR], 'HAIR');
         this.writeTint(s.aTop, i, a.top, s.layerAvg[LAYER_INDEX.SHIRT], 'SHIRT');

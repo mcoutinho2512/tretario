@@ -6,11 +6,40 @@
  */
 import * as THREE from 'three';
 import { EMPTY_SOCIAL, type SocialState } from '../../social/types';
+import { ACTION_BY_ID, type ActionDefinition } from '../../social/actions';
+import { PROP_BY_ID } from '../../social/props';
+import { MIRROR_SUFFIX, UPPER_MOVING_WEIGHT, clipFloor, ease, proceduralClip, specFor } from './proceduralClips';
 
 const LOCO = ['idle', 'walk', 'jog', 'sprint'] as const;
 type Loco = (typeof LOCO)[number];
 export type RidePose = 'sit-pedal' | 'stand' | 'drive' | 'ride';
 export type ShowPose = 'parado' | 'andando' | 'acenando' | 'dancando';
+
+/** duração do crossfade de entrada/saída da camada de ação (s) */
+const ACT_FADE = 0.32;
+
+/** uma camada de ação/pose de carregar: trilhas amostradas direto (sem mixer) e misturadas osso a osso */
+interface ActLayer {
+  kind: 'act' | 'carry';
+  /** id da ação (ACTIONS) ou do item (PROPS) */
+  id: number;
+  variation: number;
+  full: boolean;
+  loop: boolean;
+  dur: number;
+  /** segundos desde o início (fase comum entre clientes) */
+  phase: number;
+  offset: number;
+  rate: number;
+  /** peso linear 0..1 (aplicado suavizado) */
+  w: number;
+  target: number;
+  /** correção vertical (corpo inteiro) */
+  ground: number;
+  /** duração do crossfade (s) */
+  fade: number;
+  tracks: { b: THREE.Object3D; pos: boolean; it: THREE.Interpolant; spine: number }[];
+}
 
 /** pose de repouso de todos os ossos (o mixer não reescreve ossos sem trilha: medições e jogo partem do repouso) */
 function snapshotRest(root: THREE.Object3D) {
@@ -145,8 +174,14 @@ export class HumanAnimator {
   private ground: Record<string, number> = {};
   private baseY: number;
 
-  constructor(private root: THREE.Object3D, clips: Map<string, THREE.AnimationClip>, bodyKey: string, speedFactor = 1) {
+  /**
+   * `library`: todos os clipes da biblioteca deste corpo (os NPCs tocam só um subconjunto no mixer, mas uma ação
+   * como a dança da biblioteca precisa do clipe completo)
+   */
+  constructor(private root: THREE.Object3D, clips: Map<string, THREE.AnimationClip>, private bodyKey: string, speedFactor = 1, library: Map<string, THREE.AnimationClip> = clips) {
     this.mixer = new THREE.AnimationMixer(root);
+    this.library = library;
+    this.baseClip = clips.get('idle') ?? library.get('idle') ?? null;
     // ossos que NENHUM clipe anima (canais constantes removidos no export): só esses voltam ao repouso por quadro
     const animated = new Set<string>();
     for (const c of clips.values()) for (const t of c.tracks) animated.add(`${t.name.split('.')[0]}.${t.name.split('.').pop()}`);
@@ -158,6 +193,12 @@ export class HumanAnimator {
     });
     this.baseY = root.position.y;
     // pés na pose de repouso = chão (o MakeHuman exporta com os pés no chão)
+    root.updateMatrixWorld(true);
+    const inv = new THREE.Matrix4().copy(root.matrixWorld).invert(), v = new THREE.Vector3();
+    for (const n of ['ball_l', 'ball_r', 'foot_l', 'foot_r']) {
+      const b = root.getObjectByName(n);
+      if (b) this.restFootMin = Math.min(this.restFootMin, b.getWorldPosition(v).applyMatrix4(inv).y);
+    }
     this.ground = groundOffsets(bodyKey, root, clips, ['idle', 'walk', 'jog', 'sprint', 'dance', 'talk']);
     const fallback = { idle: 0, walk: 1.2 * speedFactor, jog: 3.2 * speedFactor, sprint: 5.5 * speedFactor };
     for (const [name, clip] of clips) {
@@ -180,9 +221,151 @@ export class HumanAnimator {
     this.act.get('idle')?.setEffectiveWeight(1);
   }
 
-  /** ação social / item (ver src/social): a camada de ação é tocada sobre a locomoção (implementação: animações) */
+  private library: Map<string, THREE.AnimationClip>;
+  /** pose base dos clipes procedurais (idle deste corpo) */
+  private baseClip: THREE.AnimationClip | null;
+  private restFootMin = Infinity;
+  private layers: ActLayer[] = [];
+  private layerGround = new Map<string, number>();
+
+  /** ação social / item (ver src/social) */
   social: SocialState = EMPTY_SOCIAL;
-  setSocial(s: SocialState) { this.social = s; }
+  /**
+   * Ação social + item na mão. Pode ser chamado a cada quadro ou só quando muda: `phase` (s desde o início da ação,
+   * relógio comum) só ressincroniza quando chega um valor novo; entre chamadas a fase avança com o `dt` do update.
+   * A camada entra/sai com crossfade (ACT_FADE); `upper` mistura só tronco/braços/cabeça sobre a locomoção,
+   * `full` substitui o corpo inteiro. Sem ação e com item: pose de carregar do item (PROPS[].carryClip).
+   */
+  setSocial(s: SocialState) {
+    this.social = s;
+    const def = s.act ? ACTION_BY_ID.get(s.act) : undefined;
+    const rec = this.actRec;
+    if (def && rec && rec.id === def.id && rec.variation === s.variation) {
+      // mesma ação: reenvio do mesmo estado não faz nada (uma ação `once` que já terminou não recomeça)
+      if (s.phase !== rec.phaseIn) {
+        const cur = this.layers.find((l) => l.kind === 'act' && l.target > 0);
+        // fase voltou ao começo → a ação foi disparada de novo; senão só acerta a fase
+        if (s.phase < 0.5 && this.t - rec.t0 > s.phase + 0.5) this.startAct(def, s);
+        else { rec.t0 = this.t - s.phase; rec.phaseIn = s.phase; if (cur) cur.phase = s.phase; }
+      }
+    } else if (def) this.startAct(def, s);
+    else {
+      this.actRec = null;
+      for (const l of this.layers) if (l.kind === 'act') l.target = 0;
+    }
+    // pose de carregar do item
+    const carry = this.layers.find((l) => l.kind === 'carry' && l.target > 0);
+    if (!carry || carry.id !== s.prop) {
+      if (carry) carry.target = 0;
+      const p = s.prop ? PROP_BY_ID.get(s.prop) : undefined;
+      const l = p ? this.makeLayer('carry', p.id, p.carryClip, false, s.variation) : null;
+      if (l) { l.phase = this.t; this.layers.unshift(l); }
+    }
+  }
+
+  /** ação recebida por último: id, variação, último `phase` recebido e início estimado no relógio local */
+  private actRec: { id: number; variation: number; phaseIn: number; t0: number } | null = null;
+
+  private startAct(def: ActionDefinition, s: SocialState) {
+    for (const l of this.layers) if (l.kind === 'act') l.target = 0;
+    this.actRec = { id: def.id, variation: s.variation, phaseIn: s.phase, t0: this.t - s.phase };
+    const l = this.makeLayer('act', def.id, def.clip, def.layer === 'full', s.variation, def.mode === 'once' ? def.duration ?? 2 : undefined);
+    if (!l) return;
+    l.phase = s.phase;
+    this.layers.push(l);
+  }
+
+  /** clipe da ação: biblioteca (ex.: dança) ou procedural (gerado sob demanda para este esqueleto) */
+  private clipFor(name: string): THREE.AnimationClip | null {
+    const lib = this.library.get(name);
+    if (lib) return lib;
+    return this.baseClip ? proceduralClip(name, this.root, this.baseClip) : null;
+  }
+
+  private makeLayer(kind: 'act' | 'carry', id: number, name: string, full: boolean, variation: number, onceDur?: number): ActLayer | null {
+    const spec = specFor(name);
+    // variação (NPCs): espelho nos gestos assimétricos, deslocamento de fase e andamento ±3 % nos loops
+    const clip = this.clipFor(spec?.mirror && variation & 1 ? name + MIRROR_SUFFIX : name);
+    if (!clip) return null;
+    full = full || spec?.layer === 'full';
+    const loop = onceDur === undefined;
+    const tracks: ActLayer['tracks'] = [];
+    for (const tr of clip.tracks) {
+      const dot = tr.name.lastIndexOf('.');
+      const bn = tr.name.slice(0, dot), prop = tr.name.slice(dot + 1);
+      if (bn === 'Root' || prop === 'scale' || (prop === 'position' && !(full && bn === 'pelvis'))) continue;
+      const b = this.bones.get(bn);
+      if (!b) continue;
+      tracks.push({ b, pos: prop === 'position', it: tr.createInterpolant(), spine: full ? 1 : UPPER_MOVING_WEIGHT[bn] ?? 1 });
+    }
+    let ground = 0;
+    if (full) {
+      const key = `${this.bodyKey}:${clip.name}`;
+      if (!this.layerGround.has(key)) {
+        const m = Number.isFinite(this.restFootMin) ? clipFloor(this.root, clip) : null;
+        this.layerGround.set(key, m === null ? 0 : this.restFootMin - m);
+      }
+      ground = this.layerGround.get(key)!;
+    }
+    const v = variation & 7;
+    return {
+      kind, id, variation, full, loop, dur: onceDur ?? clip.duration, phase: 0,
+      offset: loop && v ? ((v * 0.381966) % 1) * clip.duration : 0,
+      rate: loop && v ? 1 + (((v * 5) % 8) - 3.5) * 0.008 : 1,
+      w: 0, target: 1, ground, tracks, fade: spec?.fade ?? ACT_FADE,
+    };
+  }
+
+  /** peso atual (suavizado) das camadas de corpo inteiro e superior */
+  private actWeights() {
+    let full = 0, upper = 0;
+    for (const l of this.layers) { const e = ease(l.w); if (l.full) full = Math.max(full, e); else upper = Math.max(upper, e); }
+    return { full, upper };
+  }
+
+  /** avança fases/pesos e mistura as camadas sobre a pose da locomoção (depois do mixer) */
+  private applyLayers(dt: number) {
+    if (!this.layers.length) return;
+    const busy = this.layers.some((l) => l.kind === 'act' && l.target > 0);
+    for (const l of this.layers) {
+      l.phase += dt;
+      // pose de carregar só sem ação ativa; ação `once` sai sozinha no fim da duração
+      const want = l.target > 0 && (l.kind === 'carry' ? !busy : l.loop || l.phase < l.dur - l.fade);
+      l.w = want ? Math.min(1, l.w + dt / l.fade) : Math.max(0, l.w - dt / l.fade);
+      if (l.kind === 'act' && !l.loop && l.phase >= l.dur) l.target = 0;
+    }
+    this.layers = this.layers.filter((l) => l.w > 0 || l.target > 0);
+    // parado: a camada superior controla a coluna inteira; andando, a coluna baixa segue a passada
+    const moving = THREE.MathUtils.clamp(1 - (this.w.idle ?? 0), 0, 1);
+    for (const l of this.layers) {
+      const ew = ease(l.w);
+      if (ew <= 0) continue;
+      const time = l.loop ? (((l.phase * l.rate + l.offset) % l.dur) + l.dur) % l.dur : Math.min(l.phase, l.dur);
+      for (const tr of l.tracks) {
+        const v = tr.it.evaluate(time);
+        const w = ew * (1 + (tr.spine - 1) * moving);
+        if (tr.pos) {
+          this.adjustedP ??= { o: tr.b, p: tr.b.position.clone() };
+          tr.b.position.lerp(this.tmpV.set(v[0], v[1], v[2]), w);
+        } else {
+          if (!this.adjusted.some((r) => r.o === tr.b)) this.adjusted.push({ o: tr.b, q: tr.b.quaternion.clone() });
+          tr.b.quaternion.slerp(this.tmpQ.set(v[0], v[1], v[2], v[3]), w);
+        }
+      }
+    }
+  }
+  /** posição da pelve antes da camada de corpo inteiro (restaurada no próximo quadro) */
+  private adjustedP: { o: THREE.Object3D; p: THREE.Vector3 } | null = null;
+
+  /** QA (folha de contato): congela as camadas no instante `t` com peso cheio */
+  seekSocial(t: number) {
+    for (const l of this.layers) { l.phase = t; l.w = l.target > 0 ? 1 : 0; }
+  }
+
+  /** camadas ativas (QA) */
+  get socialDebug() {
+    return this.layers.map((l) => ({ kind: l.kind, id: l.id, full: l.full, w: +l.w.toFixed(2), phase: +l.phase.toFixed(2), ground: +l.ground.toFixed(3) }));
+  }
 
   get naturalSpeeds() { return { ...this.natural }; }
 
@@ -273,11 +456,14 @@ export class HumanAnimator {
       }
     }
     this.applyOneShot(dt);
-    this.applyGround(dt);
-    const runW = (this.w.jog ?? 0) + (this.w.sprint ?? 0);
+    this.applyLayers(dt);
+    const aw = this.actWeights();
+    this.applyGround(dt, aw.full);
+    // os ajustes procedurais da locomoção cedem à camada de ação (a dança tem pernas próprias; o tronco da ação já é ereto)
+    const runW = ((this.w.jog ?? 0) + (this.w.sprint ?? 0)) * (1 - aw.full) * (1 - 0.7 * aw.upper);
     if (this.detail && ((this.w.idle ?? 0) > 0.01 || runW > 0.01 || this.show === 'acenando')) {
       this.root.updateMatrixWorld(true);
-      this.narrowStance();
+      this.narrowStance(1 - aw.full);
       this.uprightRun(runW);
       if (this.show === 'acenando') this.wave();
     }
@@ -302,6 +488,7 @@ export class HumanAnimator {
     // com chaves constantes num trecho), e o ajuste se acumulava — o tronco girava até dar "cambalhota" na corrida
     for (let i = this.adjusted.length - 1; i >= 0; i--) this.adjusted[i].o.quaternion.copy(this.adjusted[i].q);
     this.adjusted.length = 0;
+    if (this.adjustedP) { this.adjustedP.o.position.copy(this.adjustedP.p); this.adjustedP = null; }
   }
   /** ossos ajustados neste quadro, com a pose ANTES do ajuste (restaurada no início do próximo quadro) */
   private adjusted: { o: THREE.Object3D; q: THREE.Quaternion }[] = [];
@@ -316,15 +503,23 @@ export class HumanAnimator {
    * contato com o chão: base = soma ponderada das correções medidas por clipe; de perto, uma TRAVA por quadro
    * mede o pé mais baixo depois da animação e levanta o corpo se ele estiver abaixo do chão (nunca atravessa).
    */
-  private applyGround(dt = 1 / 60) {
+  private applyGround(dt = 1 / 60, full = 0) {
     let off = 0, wsum = 0;
     for (const [name, d] of Object.entries(this.ground)) {
       const w = this.w[name] ?? 0;
       if (w > 0) { off += d * w; wsum += w; }
     }
-    const base = this.baseY + (wsum > 0 ? off / Math.max(1, wsum) : 0);
+    let corr = wsum > 0 ? off / Math.max(1, wsum) : 0;
+    // camada de corpo inteiro (dança, sentar, pulo): a correção dela substitui a da locomoção na proporção do peso
+    if (full > 0) {
+      let g = 0, gw = 0;
+      for (const l of this.layers) if (l.full) { const e = ease(l.w); g += l.ground * e; gw += e; }
+      if (gw > 0) corr = corr * (1 - full) + (g / gw) * full;
+    }
+    const base = this.baseY + corr;
     this.root.position.y = base;
-    if (!this.detail || !this.root.parent) { this.lift = 0; return; }
+    // de longe a trava só vale durante uma ação de corpo inteiro (a transição para sentar/dançar afundava os pés)
+    if ((!this.detail && full <= 0) || !this.root.parent) { this.lift = 0; return; }
     this.feet ??= ['ball_l', 'ball_r', 'foot_l', 'foot_r'].map((n) => this.bones.get(n)).filter(Boolean) as THREE.Object3D[];
     this.root.updateMatrixWorld(true);
     let min = Infinity;
@@ -383,8 +578,8 @@ export class HumanAnimator {
     this.rot('head', 1, 0, 0, -0.08 * k);
   }
 
-  private narrowStance() {
-    const k = this.w.idle ?? 0;
+  private narrowStance(scale = 1) {
+    const k = (this.w.idle ?? 0) * scale;
     if (k < 0.01) return;
     this.rot('thigh_l', 0, 0, 1, -0.085 * k);
     this.rot('thigh_r', 0, 0, 1, 0.085 * k);
