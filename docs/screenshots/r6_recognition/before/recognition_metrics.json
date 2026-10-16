@@ -1,0 +1,97 @@
+{
+  "quality": "high",
+  "time": "10:30",
+  "shots": {
+    "p1_santana": {
+      "cpuMs": 7.18,
+      "gpuMs": 5.7,
+      "calls": 1031,
+      "triangles": 1650365
+    },
+    "p2_central_leste": {
+      "cpuMs": 5.86,
+      "gpuMs": 7.13,
+      "calls": 971,
+      "triangles": 2206688
+    },
+    "p3_campo_santana": {
+      "cpuMs": 6.92,
+      "gpuMs": 6.03,
+      "calls": 883,
+      "triangles": 2050852
+    },
+    "p4_meio": {
+      "cpuMs": 6.98,
+      "gpuMs": 6.79,
+      "calls": 696,
+      "triangles": 1517255
+    },
+    "p5_portal_candelaria": {
+      "cpuMs": 6.14,
+      "gpuMs": 7.04,
+      "calls": 585,
+      "triangles": 1549632
+    },
+    "p6_oeste": {
+      "cpuMs": 7.06,
+      "gpuMs": 21.99,
+      "calls": 1098,
+      "triangles": 1930512
+    },
+    "c1_banco_central": {
+      "cpuMs": 7.51,
+      "gpuMs": 16.34,
+      "calls": 691,
+      "triangles": 1495208
+    },
+    "c2_embratel": {
+      "cpuMs": 5.21,
+      "gpuMs": 6.08,
+      "calls": 696,
+      "triangles": 1636312
+    },
+    "c3_kennedy": {
+      "cpuMs": 8.85,
+      "gpuMs": 10.88,
+      "calls": 684,
+      "triangles": 1522330
+    },
+    "c4_biblioteca": {
+      "cpuMs": 13.71,
+      "gpuMs": 10.91,
+      "calls": 608,
+      "triangles": 1251968
+    },
+    "c5_rio_branco": {
+      "cpuMs": 13.27,
+      "gpuMs": 36.9,
+      "calls": 1067,
+      "triangles": 1907168
+    },
+    "c6_paulo_frontin": {
+      "cpuMs": 11.72,
+      "gpuMs": 6.25,
+      "calls": 1079,
+      "triangles": 1436887
+    },
+    "a1_meio": {
+      "cpuMs": 8.03,
+      "gpuMs": 7.4,
+      "calls": 651,
+      "triangles": 1328766
+    },
+    "a2_oeste": {
+      "cpuMs": 8.51,
+      "gpuMs": 7.81,
+      "calls": 977,
+      "triangles": 1342422
+    },
+    "a3_candelaria": {
+      "cpuMs": 6.15,
+      "gpuMs": 7.24,
+      "calls": 520,
+      "triangles": 1108140
+    }
+  },
+  "errors": []
+}
