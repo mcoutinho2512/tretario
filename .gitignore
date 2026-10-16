@@ -10,3 +10,5 @@ screenshots/tmp/
 screenshots/*.png
 screenshots/*.json
 server/node_modules/
+screenshots/walkthrough*/
+screenshots/loadtest.json
