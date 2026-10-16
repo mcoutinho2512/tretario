@@ -8,33 +8,10 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { TrafficLane } from '../world/types';
 import type { SignalController } from './SignalController';
+import { TrafficSim, VTYPE_NAMES, type SimVehicle, type Obstacle } from './TrafficSim';
 import { timeUniforms } from '../renderer/timeOfDay';
 
 type VType = 'car' | 'taxi' | 'bus';
-
-interface LaneRT extends TrafficLane { cum: number[]; length: number }
-
-interface Vehicle {
-  type: VType;
-  lane: LaneRT;
-  /** próxima faixa planejada (escolhida ao entrar na faixa atual) */
-  next: LaneRT | null;
-  s: number;
-  v: number;
-  v0: number;
-  len: number;
-  width: number;
-  x: number; z: number; heading: number;
-  slot: number; // índice da instância no tipo
-  color: THREE.Color;
-  active: boolean;
-}
-
-const DIMS: Record<VType, { len: number; width: number }> = {
-  car: { len: 4.4, width: 1.8 },
-  taxi: { len: 4.4, width: 1.8 },
-  bus: { len: 12.2, width: 2.55 },
-};
 
 const CAR_COLORS = [0xe8e8e8, 0x1a1a1a, 0x8a8f96, 0xb5b9be, 0x7a1a1a, 0x1f3a63, 0x3d4a3a, 0xf4f4f0, 0x5a5f66, 0x2a2a30];
 // cores de ônibus municipais genéricas (sem marcas reais de consórcios)
@@ -71,9 +48,9 @@ function cabin(w: number, h: number, d: number, y: number, z: number, taper = 0.
   return g;
 }
 
-interface ModelParts { body: THREE.BufferGeometry; glass: THREE.BufferGeometry; dark: THREE.BufferGeometry; lights: THREE.BufferGeometry; stripe?: THREE.BufferGeometry }
+export interface ModelParts { body: THREE.BufferGeometry; glass: THREE.BufferGeometry; dark: THREE.BufferGeometry; lights: THREE.BufferGeometry; stripe?: THREE.BufferGeometry }
 
-function carModel(taxi: boolean): ModelParts {
+export function carModel(taxi: boolean): ModelParts {
   const L = 4.4, W = 1.8;
   const body = mergeGeometries([box(W, 0.62, L, 0, 0.62, 0), box(W - 0.06, 0.12, L - 0.3, 0, 0.98, 0)])!;
   const glass = cabin(W - 0.12, 0.5, 2.2, 1.0, -0.15);
@@ -98,34 +75,34 @@ function busModel(): ModelParts {
 }
 
 // ---------------------------------------------------------------- sistema
+interface Slot { type: VType; slot: number; rx: number; rz: number; rh: number; ox: number; oz: number }
+
 export class TrafficSystem {
   readonly group = new THREE.Group();
-  private lanes: LaneRT[] = [];
-  private pvLanes: LaneRT[] = [];
-  private vehicles: Vehicle[] = [];
+  readonly sim: TrafficSim;
   private meshes = new Map<VType, { body: THREE.InstancedMesh; parts: THREE.InstancedMesh[] }>();
   private capacity: Record<VType, number>;
   private free: Record<VType, number[]> = { car: [], taxi: [], bus: [] };
-  private seed = 7;
+  private slots = new Map<number, Slot>();
   private dummy = new THREE.Object3D();
   private lightMat: THREE.MeshStandardMaterial;
+  private colorTmp = new THREE.Color();
   radius = 320;
+  /** 'local' = simula ao redor do jogador (singleplayer); 'remote' = estado vindo do servidor */
+  mode: 'local' | 'remote' = 'local';
   stats = { active: 0 };
-
-  /** pontos que os veículos devem evitar (pedestres atravessando) */
-  obstacles: { x: number; z: number }[] = [];
-  signals: SignalController | null = null;
   stats2 = { stoppedAtRed: 0 };
+  /** pontos que os veículos devem evitar (pedestres atravessando, carros de jogadores…) */
+  obstacles: Obstacle[] = [];
+  signals: SignalController | null = null;
+  private time = 0;
 
-  constructor(lanes: TrafficLane[], private max: number) {
+  constructor(lanes: TrafficLane[], private max: number, seed = 7) {
     this.group.name = 'traffic';
-    for (const l of lanes) {
-      const cum = [0];
-      for (let i = 1; i < l.pts.length; i++) cum.push(cum[i - 1] + Math.hypot(l.pts[i][0] - l.pts[i - 1][0], l.pts[i][1] - l.pts[i - 1][1]));
-      this.lanes.push({ ...l, cum, length: cum[cum.length - 1] });
-    }
-    this.pvLanes = this.lanes.filter((l) => l.pv);
-    this.capacity = { car: Math.ceil(max * 0.7) + 4, taxi: Math.ceil(max * 0.25) + 2, bus: Math.ceil(max * 0.3) + 2 };
+    this.sim = new TrafficSim(lanes, seed);
+    this.sim.signals = (j, ph) => (this.signals ? this.signals.state(j, ph) : 'G');
+    const capFor = (n: number) => ({ car: Math.ceil(n * 0.7) + 4, taxi: Math.ceil(n * 0.5) + 2, bus: Math.ceil(n * 0.35) + 2 });
+    this.capacity = capFor(Math.max(max, 160));
 
     const bodyMat = new THREE.MeshStandardMaterial({ roughness: 0.32, metalness: 0.55 });
     const glassMat = new THREE.MeshStandardMaterial({ color: 0x1b2328, roughness: 0.06, metalness: 0.6 });
@@ -151,165 +128,102 @@ export class TrafficSystem {
       const parts = [mk(m.glass, glassMat, false), mk(m.dark, darkMat, true), mk(m.lights, this.lightMat, false)];
       if (m.stripe) parts.push(mk(m.stripe, stripeMat, false));
       this.meshes.set(t, { body, parts });
-      // todas as instâncias começam escondidas (escala 0)
-      for (let i = 0; i < cap; i++) this.free[t].push(i);
+      for (let i = cap - 1; i >= 0; i--) this.free[t].push(i);
       this.dummy.scale.setScalar(0);
       this.dummy.updateMatrix();
       for (const im of [body, ...parts]) { for (let i = 0; i < cap; i++) im.setMatrixAt(i, this.dummy.matrix); im.count = cap; }
     }
   }
 
-  private rnd() {
-    this.seed = (this.seed * 1664525 + 1013904223) >>> 0;
-    return this.seed / 4294967296;
+  /** veículos ativos (para o carro dirigível, impactos, etc.) */
+  get vehicles(): SimVehicle[] { return this.sim.vehicles; }
+
+  private colorOf(v: SimVehicle): number {
+    const t = VTYPE_NAMES[v.type];
+    return t === 'taxi' ? 0xf2c40f : t === 'bus' ? BUS_COLORS[v.color % BUS_COLORS.length] : CAR_COLORS[v.color % CAR_COLORS.length];
   }
 
-  private pickNext(l: LaneRT): LaneRT | null {
-    const nexts = l.next;
-    if (!nexts.length) return null;
-    const pvNext = nexts.filter((id) => this.lanes[id].pv);
-    const pool = pvNext.length && l.pv ? pvNext : nexts;
-    return this.lanes[pool[Math.floor(this.rnd() * pool.length)]];
+  private slotFor(v: SimVehicle): Slot | null {
+    const existing = this.slots.get(v.id);
+    const t = VTYPE_NAMES[v.type];
+    if (existing && existing.type === t) return existing;
+    if (existing) this.releaseSlot(v.id);
+    const slot = this.free[t].pop();
+    if (slot === undefined) return null;
+    const s: Slot = { type: t, slot, rx: v.x, rz: v.z, rh: v.heading, ox: 0, oz: 0 };
+    this.slots.set(v.id, s);
+    return s;
   }
 
-  private posAt(l: LaneRT, s: number): { x: number; z: number; h: number } {
-    let i = 1;
-    while (i < l.cum.length - 1 && l.cum[i] < s) i++;
-    const a = l.pts[i - 1], b = l.pts[i];
-    const seg = l.cum[i] - l.cum[i - 1] || 1;
-    const t = Math.min(1, Math.max(0, (s - l.cum[i - 1]) / seg));
-    return { x: a[0] + (b[0] - a[0]) * t, z: a[1] + (b[1] - a[1]) * t, h: Math.atan2(b[0] - a[0], b[1] - a[1]) };
-  }
-
-  private spawn(px: number, pz: number, camFwd: THREE.Vector3, initial: boolean): Vehicle | null {
-    for (let attempt = 0; attempt < 30; attempt++) {
-      const pool = this.rnd() < 0.75 ? this.pvLanes : this.lanes;
-      const lane = pool[Math.floor(this.rnd() * pool.length)];
-      if (!lane || lane.length < 8) continue;
-      const s = this.rnd() * lane.length;
-      const p = this.posAt(lane, s);
-      const d = Math.hypot(p.x - px, p.z - pz);
-      if (d > this.radius || d < (initial ? 25 : 90)) continue;
-      if (!initial && d < 200 && (p.x - px) * camFwd.x + (p.z - pz) * camFwd.z > 0) continue;
-      // tipo: ônibus só em vias principais
-      const r = this.rnd();
-      const type: VType = lane.speed >= 12 && r < 0.24 ? 'bus' : r < 0.42 ? 'taxi' : 'car';
-      const dims = DIMS[type];
-      if (this.vehicles.some((o) => o.active && Math.hypot(o.x - p.x, o.z - p.z) < (o.len + dims.len) / 2 + 3)) continue;
-      const slot = this.free[type].pop();
-      if (slot === undefined) continue;
-      const color = new THREE.Color(type === 'taxi' ? 0xf2c40f : type === 'bus' ? BUS_COLORS[Math.floor(this.rnd() * BUS_COLORS.length)] : CAR_COLORS[Math.floor(this.rnd() * CAR_COLORS.length)]);
-      const v0 = lane.speed * (type === 'bus' ? 0.8 : 0.85 + this.rnd() * 0.3);
-      return { type, lane, next: this.pickNext(lane), s, v: v0 * 0.7, v0, len: dims.len, width: dims.width, x: p.x, z: p.z, heading: p.h, slot, color, active: true };
-    }
-    return null;
-  }
-
-  private release(v: Vehicle) {
-    v.active = false;
-    this.free[v.type].push(v.slot);
+  private releaseSlot(id: number) {
+    const s = this.slots.get(id);
+    if (!s) return;
+    this.free[s.type].push(s.slot);
     this.dummy.scale.setScalar(0);
     this.dummy.updateMatrix();
-    const m = this.meshes.get(v.type)!;
-    for (const im of [m.body, ...m.parts]) { im.setMatrixAt(v.slot, this.dummy.matrix); im.instanceMatrix.needsUpdate = true; }
+    const m = this.meshes.get(s.type)!;
+    for (const im of [m.body, ...m.parts]) im.setMatrixAt(s.slot, this.dummy.matrix);
+    this.slots.delete(id);
+  }
+
+  /** multiplayer: snapshot binário do servidor (área de interesse) */
+  applySnapshot(buf: Uint8Array) {
+    this.mode = 'remote';
+    // guarda a posição renderizada antes da correção para suavizar
+    const before = new Map<number, { x: number; z: number }>();
+    for (const [id, s] of this.slots) before.set(id, { x: s.rx, z: s.rz });
+    const r = this.sim.applySnapshot(buf);
+    for (const v of r.removed) this.releaseSlot(v.id);
+    for (const v of r.updated) {
+      const s = this.slots.get(v.id), b = before.get(v.id);
+      if (s && b) {
+        const ex = b.x - v.x, ez = b.z - v.z;
+        // correções pequenas são suavizadas; grandes (troca de faixa/respawn) aplicadas direto
+        if (Math.hypot(ex, ez) < 6) { s.ox = ex; s.oz = ez; } else { s.ox = s.oz = 0; }
+      }
+    }
   }
 
   update(dt: number, camera: THREE.Camera, player: { x: number; z: number }) {
-    if (!this.lanes.length) return;
-    const camFwd = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
-    // reposição
-    this.vehicles = this.vehicles.filter((v) => v.active);
-    let tries = 0;
-    while (this.vehicles.length < this.max && tries++ < 6) {
-      const v = this.spawn(player.x, player.z, camFwd, this.time < 1);
-      if (v) this.vehicles.push(v);
+    if (!this.sim.lanes.length) return;
+    if (this.mode === 'local') {
+      const camFwd = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+      this.sim.populateAround(this.max, player.x, player.z, this.radius, this.time < 1, { x: camFwd.x, z: camFwd.z });
     }
-    // seguimento (gap ao veículo da frente / jogador / pedestres / semáforo)
-    let stopped = 0;
-    for (const v of this.vehicles) {
-      const fx = Math.sin(v.heading), fz = Math.cos(v.heading);
-      let gap = 80;
-      for (const o of this.vehicles) {
-        if (o === v) continue;
-        const dx = o.x - v.x, dz = o.z - v.z;
-        if (Math.abs(dx) > 45 || Math.abs(dz) > 45) continue;
-        const ahead = dx * fx + dz * fz;
-        if (ahead <= 0) continue;
-        const lat = Math.abs(dx * fz - dz * fx);
-        if (lat > 1.7) continue;
-        if (Math.sin(o.heading) * fx + Math.cos(o.heading) * fz < 0.5) continue;
-        gap = Math.min(gap, ahead - (v.len + o.len) / 2);
-      }
-      for (const ob of [player, ...this.obstacles]) {
-        const dx = ob.x - v.x, dz = ob.z - v.z;
-        const ahead = dx * fx + dz * fz, lat = Math.abs(dx * fz - dz * fx);
-        if (ahead > 0 && ahead < 30 && lat < v.width / 2 + 0.9) gap = Math.min(gap, ahead - v.len / 2 - 0.6);
-      }
-      // semáforos: linha de retenção da faixa atual (e início da próxima)
-      if (this.signals) {
-        const checkStops = (lane: LaneRT, base: number) => {
-          for (const st of lane.stops ?? []) {
-            const d = base + st.s - v.s - v.len / 2;
-            if (d < -1 || d > 70) continue;
-            const light = this.signals!.state(st.j, st.ph);
-            if (light === 'G') continue;
-            // amarelo: só para se ainda dá para frear com conforto
-            if (light === 'Y' && d < (v.v * v.v) / (2 * 4.5)) continue;
-            gap = Math.min(gap, d + 2.4);
-            if (d < 6 && v.v < 0.5) stopped++;
-          }
-        };
-        checkStops(v.lane, 0);
-        if (v.next) checkStops(v.next, v.lane.length);
-      }
-      // velocidade desejada a partir do gap (distância mínima 3 m + 1,4 s de headway)
-      const safe = Math.max(0, (gap - 3) / 1.4);
-      const target = Math.min(v.v0, safe);
-      const acc = target > v.v ? 2.2 : 6.5;
-      v.v += Math.sign(target - v.v) * Math.min(Math.abs(target - v.v), acc * dt);
-    }
-    // movimento ao longo das faixas
+    this.sim.step(dt, [{ x: player.x, z: player.z }, ...this.obstacles], false);
+    if (this.mode === 'local') this.sim.cull(player.x, player.z, this.radius + 60);
+    // slots de veículos que saíram
+    const alive = new Set(this.sim.vehicles.map((v) => v.id));
+    for (const id of [...this.slots.keys()]) if (!alive.has(id)) this.releaseSlot(id);
     let active = 0;
-    for (const v of this.vehicles) {
-      v.s += v.v * dt;
-      while (v.s > v.lane.length) {
-        if (!v.next) { this.release(v); break; }
-        v.s -= v.lane.length;
-        v.lane = v.next;
-        v.next = this.pickNext(v.lane);
-      }
-      if (!v.active) continue;
-      const p = this.posAt(v.lane, v.s);
-      // suaviza o rumo nas emendas dos trechos
-      let dh = p.h - v.heading;
-      while (dh > Math.PI) dh -= Math.PI * 2;
-      while (dh < -Math.PI) dh += Math.PI * 2;
-      v.heading += dh * Math.min(1, dt * 8);
-      v.x = p.x; v.z = p.z;
-      if (Math.hypot(v.x - player.x, v.z - player.z) > this.radius + 60) { this.release(v); continue; }
+    const decay = Math.exp(-dt / 0.35);
+    for (const v of this.sim.vehicles) {
+      const s = this.slotFor(v);
+      if (!s) continue;
       active++;
-      const m = this.meshes.get(v.type)!;
-      this.dummy.position.set(v.x, 0, v.z);
-      this.dummy.rotation.set(0, v.heading, 0);
+      s.ox *= decay; s.oz *= decay;
+      s.rx = v.x + s.ox; s.rz = v.z + s.oz; s.rh = v.heading;
+      const m = this.meshes.get(s.type)!;
+      this.dummy.position.set(s.rx, 0, s.rz);
+      this.dummy.rotation.set(0, s.rh, 0);
       this.dummy.scale.setScalar(1);
       this.dummy.updateMatrix();
-      for (const im of [m.body, ...m.parts]) im.setMatrixAt(v.slot, this.dummy.matrix);
-      m.body.setColorAt(v.slot, v.color);
+      for (const im of [m.body, ...m.parts]) im.setMatrixAt(s.slot, this.dummy.matrix);
+      m.body.setColorAt(s.slot, this.colorTmp.setHex(this.colorOf(v)));
     }
     for (const m of this.meshes.values()) {
       for (const im of [m.body, ...m.parts]) im.instanceMatrix.needsUpdate = true;
       if (m.body.instanceColor) m.body.instanceColor.needsUpdate = true;
     }
     this.lightMat.emissiveIntensity = 0.2 + timeUniforms.night.value * 3.5;
-    this.stats2.stoppedAtRed = stopped;
-    this.vehicles = this.vehicles.filter((v) => v.active);
+    this.stats2.stoppedAtRed = this.sim.stoppedAtRed;
     this.stats.active = active;
     this.time += dt;
   }
 
   /** impede o jogador de atravessar veículos (empurra para fora da caixa do veículo) */
   pushOut(p: { x: number; z: number }, radius = 0.35) {
-    for (const v of this.vehicles) {
+    for (const v of this.sim.vehicles) {
       const dx = p.x - v.x, dz = p.z - v.z;
       if (Math.abs(dx) > 8 || Math.abs(dz) > 8) continue;
       const fx = Math.sin(v.heading), fz = Math.cos(v.heading);
@@ -325,6 +239,4 @@ export class TrafficSystem {
       }
     }
   }
-
-  private time = 0;
 }

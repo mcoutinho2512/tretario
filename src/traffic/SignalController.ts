@@ -18,8 +18,13 @@ export class SignalController {
     for (const j of junctions) this.offsets.set(j.id, j.offset);
   }
 
+  /** avança o tempo (s). Com relógio global, use setTime(clock.seconds()) */
   update(dt: number) {
     this.time += dt;
+  }
+
+  setTime(seconds: number) {
+    this.time = seconds;
   }
 
   /** estado da luz para os veículos da fase `ph` no cruzamento `j` */
