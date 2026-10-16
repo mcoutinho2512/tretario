@@ -1,5 +1,75 @@
 # STATUS — Presidente Vargas 3D
 
+_Atualizado em 2026-10-16 (rodada 5: overhaul visual — de protótipo low-poly para 3D urbano semi-realista)._
+
+## Rodada 5 — antes / depois (mesmas poses, 10:30, HIGH)
+| | |
+|---|---|
+| ![](screenshots/r5_compare/A.jpg) | A — personagem (antes: boneco de primitivas · depois: humano MakeHuman) |
+| ![](screenshots/r5_compare/B.jpg) | B — personagem na Presidente Vargas |
+| ![](screenshots/r5_compare/C.jpg) | C — Central do Brasil |
+| ![](screenshots/r5_compare/D.jpg) | D — avenida |
+| ![](screenshots/r5_compare/E.jpg) | E — Palácio Duque de Caxias |
+| ![](screenshots/r5_compare/F.jpg) | F — Candelária |
+| ![](screenshots/r5_compare/G.jpg) | G — veículos e pedestres |
+
+Noite (21:30): `screenshots/r5_after/noite/` · LOW: `screenshots/r5_after/low/` · detalhes por área:
+[CHARACTERS.md](CHARACTERS.md), [VEHICLES_VISUAL.md](VEHICLES_VISUAL.md), [VEGETATION.md](VEGETATION.md),
+[LANDMARKS.md](LANDMARKS.md), [BUILDINGS_LIGHTING.md](BUILDINGS_LIGHTING.md).
+
+### O que mudou
+- **Personagens**: boneco de primitivas removido (fica só como reserva invisível). Humanos MakeHuman (CC0/CC-BY) com rosto,
+  olhos, sobrancelhas, cílios, cabelo, camiseta/jeans/tênis como **camadas separadas** sobre um esqueleto de 53 ossos;
+  4 corpos; LOD0 32–37 k triângulos, LOD1 ~12 k, LOD2 2,5 k (1 draw call), LOD3 600; animação de captura (Quaternius,
+  CC0) retargetada; Idle↔Walk↔Jog↔Sprint com crossfade e passada casada com a velocidade; ragdoll no novo esqueleto.
+  Masculino reforçado a pedido (músculo, ombros, gola careca).
+- **Veículos**: sedã, hatch, SUV, táxi carioca e ônibus modelados (Blender procedural), vidros, faróis, rodas/pneus, 2 LODs,
+  1 draw call por modelo/LOD.
+- **Vegetação**: árvores ez-tree (MIT) com mistura de espécies do censo do Centro (oiti predominante, amendoeira, cássia,
+  ficus, munguba, ipê, palmeira), 3 LODs (malha, simplificada, impostor), BatchedMesh.
+- **Mobiliário**: postes de braço duplo, semáforos, abrigos, bancos, lixeiras Comlurb, bancas, balizadores refeitos.
+- **Landmarks**: Central (torre de 110 m + antenas, relógio de 10 m, alas), Candelária (massa conforme OSM, fachada em
+  duas ordens, torres, cúpula 62,3 m), Palácio Duque de Caxias (torre recentralizada — estava 28 m deslocada; granito
+  cinza-rosado; ritmo art déco), **CCBB** dedicado. Texturas CC0 Poly Haven.
+- **Prédios comuns**: fachadas por prédio (reboco, concreto, pedra, pastilhas, pele de vidro, azulejo), janelas variadas com
+  recesso (paralaxe), aparelhos de ar, brises, térreos comerciais com letreiros genéricos, parapeitos, marquises, caixas d'água.
+- **Chão**: rachaduras finas e esparsas, granito no meio-fio, pedra portuguesa, sinalização com medidas do manual brasileiro.
+- **Luz/céu**: céu próprio (azul saturado, horizonte úmido, cúmulos), IBL com silhueta de cidade, neblina na cor do
+  horizonte; data/hora reais preservadas.
+
+### Métricas (M5 Pro, Chrome headless 1280×720, multiplayer com 10 bots, `tools/qa/bench_presets.mjs`; todos a 60 FPS)
+| Preset | CPU ms (r4 → r5) | GPU ms (r4 → r5) | Draw calls | Triângulos | Heap JS |
+|---|---|---|---|---|---|
+| LOW | 1,5 → 1,9–2,3 | 2,9–3,2 → 3,3–4,4 | 131–346 | 269–566 k | 245–333 MB |
+| MEDIUM | 1,7–1,9 → 2,8–2,9 | 3,3–4,3 → 4,4–4,6 | 220–469 | 567–921 k | 282–309 MB |
+| HIGH | 3,0–3,3 → 5,1–5,4 | 11–13 → 9,1–11,9 | 617–1032 | 1,87–2,75 M | 429–485 MB |
+| ULTRA | 3,1–4,4 → 6,1–6,9 | 10–12 → 9,2–11,2 | 633–1135 | 1,94–2,87 M | 442–461 MB |
+
+Custo isolado dos 56 NPCs humanos (alternando 0↔56 na mesma sessão): +0,15 ms CPU, +43 draw calls, +57 k triângulos.
+Download novo: personagens 8,9 MB no total (inicial ~2,5 MB: animações + LOD0 do próprio avatar + LOD3 dos 4 corpos; resto
+em segundo plano), veículos 0,42 MB, vegetação 0,48 MB, texturas de landmarks 0,47 MB; código +40 KB gzip.
+
+### Validação
+- 71 testes automatizados; build de produção OK; walkthrough multiplayer com 3 clientes **28/28** (inclui empurrão,
+  ragdoll no esqueleto novo, levantar, impacto, carro, colisão no servidor, acessório sincronizado).
+
+### Teste crítico (respostas honestas)
+1. **O personagem ainda parece feito de primitivas?** Não. É uma malha humana com anatomia, rosto e roupas separadas.
+   Ainda sem animação facial; cabelos em "cards" com borda serrilhada de perto.
+2. **A cena ainda parece low-poly/Roblox?** Em grande parte não (árvores, carros, céu, personagens, landmarks). Ainda
+   abaixo de um jogo comercial: prédios comuns são volumes de caixa com fachada em shader (sem varandas reais), traseira
+   do ônibus simples, folhas de espécies temperadas recoloridas.
+3. **Quem conhece o Centro reconheceria a Presidente Vargas?** Pela Central (torre do relógio) e pela Candelária ao fundo
+   do eixo da avenida, com canteiros e pistas largas, provavelmente sim. Os prédios da avenida ainda não são os prédios
+   reais um a um (estilo atribuído por semente, OSM sem material/cor).
+
+### Riscos
+- **Heap JS dobrou** (≈150–250 → 245–485 MB): principal risco para celular. Precisa de perfil de memória (texturas
+  retidas, geração de vegetação, cópias de geometria) antes de testar em aparelho real.
+- CPU no HIGH/ULTRA subiu ~2 ms (animação de remotos/NPCs, vegetação, ajuste por LOD).
+- Personagens: 8,9 MB de GLBs; KTX2/Basis para texturas reduziria memória de GPU (não feito).
+- Safari/iPhone/Firefox/Windows continuam **não testados**.
+
 _Atualizado em 2026-10-16 (rodada 4: vertical slice multiplayer jogável — somente local, sem deploy)._
 
 ## Tela inicial — montagem do personagem

@@ -28,6 +28,8 @@ const useClassic = typeof location !== 'undefined' && new URLSearchParams(locati
 export interface AvatarOptions { lod?: Lod; castShadow?: boolean }
 
 export class AvatarVisual {
+  /** LOD mais detalhado para jogadores remotos (preset): 0 no HIGH/ULTRA, 1 no MEDIUM, 2 no LOW */
+  static maxRemoteDetail: Lod = 0;
   readonly root = new THREE.Group();
   private human: HumanCharacter | null = null;
   private legacy: { rig: CharacterRig; anim: CharacterAnimator } | null = null;
@@ -72,7 +74,7 @@ export class AvatarVisual {
   /** nível de detalhe pela distância à câmera (remotos); o jogador local fica no LOD0 */
   setDistance(d: number) {
     if (!this.human) return;
-    const lod: Lod = d < 14 ? 0 : d < 38 ? 1 : d < 90 ? 2 : 3;
+    const lod = Math.max(AvatarVisual.maxRemoteDetail, d < 10 ? 0 : d < 32 ? 1 : d < 90 ? 2 : 3) as Lod;
     this.human.setLod(lod);
     this.human.setShadow(d < 45);
   }

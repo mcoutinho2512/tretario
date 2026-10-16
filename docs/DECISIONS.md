@@ -110,3 +110,11 @@ Cada decisão: contexto → decisão → alternativas → consequências. As mar
   --include-untracked`), roda `npm run verify` (tsc do cliente, Vitest, build de produção e tsc do servidor) e restaura.
 - Motivo: na rodada 3, dois commits ficaram vermelhos porque a verificação via a árvore de trabalho, e não o que ia para o commit.
 - `--no-verify` continua possível, mas é proibido pela regra do projeto.
+
+## ADR-021: Assets externos com licença compatível + pipelines reproduzíveis (rodada 5)
+- Para sair do visual de protótipo, aceitamos assets **CC0/CC-BY/MIT** (nunca NC/ND/AGPL nem atrás de login), sempre
+  registrados em ASSET_LICENSES.md com autor, licença e URL; CC-BY com crédito em `public/CREDITS.txt`.
+- Personagens: MakeHuman (MPFB2 no Blender) + Universal Animation Library; build por script (`tools/character/`).
+- Veículos e mobiliário: modelagem procedural no Blender/TS (sem asset externo); vegetação: ez-tree (MIT) no navegador.
+- GLBs com meshopt; LOD obrigatório em tudo que se repete (personagens 4 níveis, veículos 2, árvores 3).
+- O boneco procedural antigo fica como reserva (falha de carregamento / `?avatar=classic`).

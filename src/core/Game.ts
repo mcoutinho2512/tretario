@@ -191,6 +191,7 @@ export class Game {
     this.peds.radius = this.preset.pedestrianRadius;
     this.peds.shadowDistance = this.preset.npcShadowDistance;
     this.peds.maxDetail = this.preset.level === 'low' ? 2 : this.preset.level === 'medium' ? 1 : 0;
+    AvatarVisual.maxRemoteDetail = this.peds.maxDetail;
     this.scene.add(this.peds.group);
     let tdata: TrafficData = { lanes: [], junctions: [], crossings: [] };
     if (this.manifest.traffic) {

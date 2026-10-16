@@ -1,0 +1,71 @@
+{
+  "quality": "high",
+  "time": "10:30",
+  "loadMs": 1778,
+  "shots": {
+    "A": {
+      "cpuMs": 3.96,
+      "gpuMs": 8.16,
+      "calls": 458,
+      "triangles": 1615272,
+      "heapMB": 362.6,
+      "textures": 121,
+      "geometries": 334
+    },
+    "B": {
+      "cpuMs": 4.18,
+      "gpuMs": 8.76,
+      "calls": 506,
+      "triangles": 1828189,
+      "heapMB": 443.9,
+      "textures": 130,
+      "geometries": 335
+    },
+    "C": {
+      "cpuMs": 4.3,
+      "gpuMs": 9.09,
+      "calls": 611,
+      "triangles": 2107705,
+      "heapMB": 307.7,
+      "textures": 152,
+      "geometries": 344
+    },
+    "D": {
+      "cpuMs": 4.56,
+      "gpuMs": 8.47,
+      "calls": 939,
+      "triangles": 2301533,
+      "heapMB": 344.9,
+      "textures": 161,
+      "geometries": 658
+    },
+    "E": {
+      "cpuMs": 4.37,
+      "gpuMs": 6.73,
+      "calls": 595,
+      "triangles": 2005404,
+      "heapMB": 354.4,
+      "textures": 183,
+      "geometries": 635
+    },
+    "F": {
+      "cpuMs": 4.57,
+      "gpuMs": 8.37,
+      "calls": 595,
+      "triangles": 1651423,
+      "heapMB": 317.5,
+      "textures": 199,
+      "geometries": 583
+    },
+    "G": {
+      "cpuMs": 4.9,
+      "gpuMs": 7.03,
+      "calls": 764,
+      "triangles": 1916021,
+      "heapMB": 338.8,
+      "textures": 201,
+      "geometries": 607
+    }
+  },
+  "errors": []
+}

@@ -1,0 +1,26 @@
+{
+  "quality": "high",
+  "time": "21:30",
+  "loadMs": 1781,
+  "shots": {
+    "D": {
+      "cpuMs": 4.5,
+      "gpuMs": 7.4,
+      "calls": 955,
+      "triangles": 2507794,
+      "heapMB": 350.7,
+      "textures": 113,
+      "geometries": 590
+    },
+    "G": {
+      "cpuMs": 4.56,
+      "gpuMs": 5.94,
+      "calls": 715,
+      "triangles": 1716163,
+      "heapMB": 466.9,
+      "textures": 154,
+      "geometries": 607
+    }
+  },
+  "errors": []
+}

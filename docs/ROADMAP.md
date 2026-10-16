@@ -45,8 +45,13 @@ Corredor Central → Candelária com dados reais, landmarks, LOD, colisão, câm
 - ✅ "Atropelamento" fictício pelo carro do jogador: queda por velocidade, sem dano, bloqueado no modo pacífico.
 - ⏳ Soco "cartoon", animações de reação, moderação (denúncia, mute, bloqueio), zonas pacíficas no servidor.
 
-## Próxima rodada recomendada (5)
-1. Teste manual em Safari macOS/iPhone, Firefox e um notebook Windows com GPU integrada (o maior risco hoje).
+## Rodada 5 (overhaul visual) ✅ — ver STATUS
+
+## Próxima rodada recomendada (6)
+1. Perfil de memória (heap dobrou) e teste em celular/notebook com GPU integrada; KTX2 nas texturas.
+2. Fachadas com geometria real (varandas, recuos) nos prédios da avenida; prédios-marco reais um a um.
+3. Animação facial simples (piscar), cabelos com melhor transparência, folhas de espécies tropicais CC0.
+4. Teste manual em Safari macOS/iPhone, Firefox e um notebook Windows com GPU integrada.
 2. Pedestres compartilhados + trânsito como obstáculo no servidor (fecha as diferenças entre clientes).
 3. Passada visual dedicada: granito/fachada do Palácio Duque de Caxias, CCBB, Central e Candelária (ver STATUS).
 4. Espectador + reconexão; teste com pessoas reais em rede local.
