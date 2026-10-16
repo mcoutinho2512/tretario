@@ -27,6 +27,7 @@ import { Minimap } from '../debug/Minimap';
 import { createLandmarkMaterials } from '../world/landmarks/arch';
 import { buildCentral, type LandmarkInstance } from '../world/landmarks/central';
 import { buildCandelaria } from '../world/landmarks/candelaria';
+import { buildPalacioDuqueCaxias } from '../world/landmarks/palacioDuqueCaxias';
 import { PedestrianSystem } from '../npc/PedestrianSystem';
 import { TrafficSystem } from '../traffic/TrafficSystem';
 import { SignalController } from '../traffic/SignalController';
@@ -159,6 +160,16 @@ export class Game {
       this.scene.add(inst.group);
       for (const c of inst.colliders) this.collision.addPolygon(c.poly, c.minHeight ?? 0, c.height);
       this.landmarks.push(inst);
+    }
+    // edifícios com modelo dedicado (via data/overrides/buildings.json → campo `model`)
+    for (const b of this.chunks.modelBuildings()) {
+      if (b.model === 'palacio_duque_caxias') {
+        const ax = this.manifest.pvAxis;
+        let near = ax[0], bd = Infinity;
+        const c = b.poly.outer[0];
+        for (const p of ax) { const d = Math.hypot(p[0] - c[0], p[1] - c[1]); if (d < bd) { bd = d; near = p; } }
+        this.scene.add(buildPalacioDuqueCaxias(b, buildingMat, archMats, near));
+      }
     }
 
     // jogador

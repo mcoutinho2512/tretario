@@ -9,7 +9,7 @@
  * Histerese de 12% evita "pipocar" na fronteira. Construção de malhas tem orçamento por frame.
  */
 import * as THREE from 'three';
-import type { ChunkData, WorldManifest, PropRec } from './types';
+import type { ChunkData, WorldManifest, PropRec, BuildingRec } from './types';
 import { buildBuildingsGeometry } from './builders/buildings';
 import { buildGroundMeshes } from './builders/ground';
 import type { MaterialLibrary } from '../renderer/materials';
@@ -181,7 +181,7 @@ export class ChunkManager {
     // edifícios
     if (lod <= 1) {
       if (!c.buildings) {
-        const geo = buildBuildingsGeometry(data.buildings, { roofDetails: true });
+        const geo = buildBuildingsGeometry(data.buildings.filter((b) => !b.model), { roofDetails: true });
         if (geo) {
           c.buildings = new THREE.Mesh(geo, this.buildingMat);
           c.buildings.castShadow = true;
@@ -195,7 +195,7 @@ export class ChunkManager {
       if (c.buildingsFar) c.buildingsFar.visible = false;
     } else if (lod === 2) {
       if (!c.buildingsFar) {
-        const geo = buildBuildingsGeometry(data.buildings, { roofDetails: false, minHeight: 12 });
+        const geo = buildBuildingsGeometry(data.buildings.filter((b) => !b.model), { roofDetails: false, minHeight: 12 });
         if (geo) {
           c.buildingsFar = new THREE.Mesh(geo, this.buildingMat);
           c.buildingsFar.castShadow = false;
@@ -252,6 +252,13 @@ export class ChunkManager {
   private disposeGroup(g: THREE.Group) {
     g.traverse((o) => { if ((o as THREE.Mesh).isMesh) (o as THREE.Mesh).geometry.dispose(); });
     g.removeFromParent();
+  }
+
+  /** edifícios com modelo dedicado (construídos uma vez pelo jogo) */
+  modelBuildings(): BuildingRec[] {
+    const out: BuildingRec[] = [];
+    for (const c of this.chunks.values()) if (c.data) for (const b of c.data.buildings) if (b.model) out.push(b);
+    return out;
   }
 
   /** percorre os props de todos os chunks baixados (ex.: postes para decoração de eventos) */

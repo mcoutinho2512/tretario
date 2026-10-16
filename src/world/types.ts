@@ -40,6 +40,8 @@ export interface BuildingRec {
   arcade?: boolean;
   /** índices das arestas do anel externo com galeria (recuo real com colunata) */
   arcadeEdges?: number[];
+  /** modelo dedicado (substitui a malha procedural; colisão continua pelo contorno) */
+  model?: string;
   /** parede lisa sem janelas (monumentos, mausoléus, muros altos) */
   plain?: boolean;
   /** marquise/cobertura (building=roof): sem colisão, laje fina */

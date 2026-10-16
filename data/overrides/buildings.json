@@ -38,9 +38,11 @@
       "confidence": "media"
     },
     "Palácio Duque de Caxias": {
+      "height": 38,
+      "model": "palacio_duque_caxias",
       "style": "artdeco",
-      "tint": 0.5,
-      "source": "Edifício monumental dos anos 1930/40",
+      "tint": 0.62,
+      "source": "Fotos Wikimedia Commons (Palácio Duque de Caxias 2022, CC BY-SA, só consulta) + SKYDB (82 m, 21 andares, art déco, 1941 — não oficial). Bloco ~10 pavimentos (38 m) estimado por foto; OSM só tinha estimativa de 9 m.",
       "confidence": "media"
     },
     "Pantheon de Caxias": {

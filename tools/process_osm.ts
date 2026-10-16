@@ -372,7 +372,7 @@ for (const r of ds.rels.values()) {
 }
 // correções documentadas (data/overrides/buildings.json)
 {
-  const ov = JSON.parse(readFileSync('data/overrides/buildings.json', 'utf8')) as { byName: Record<string, { height?: number; style?: string; tint?: number; plain?: boolean }> };
+  const ov = JSON.parse(readFileSync('data/overrides/buildings.json', 'utf8')) as { byName: Record<string, { height?: number; style?: string; tint?: number; plain?: boolean; model?: string }> };
   const styleMap: Record<string, FacadeStyle> = { eclectic: FacadeStyle.Eclectic, institutional: FacadeStyle.Institutional, artdeco: FacadeStyle.ArtDecoPiers, office: FacadeStyle.ModernOffice, classic: FacadeStyle.ClassicPunched };
   let applied = 0;
   for (const b of buildings) {
@@ -382,6 +382,7 @@ for (const r of ds.rels.values()) {
     if (o.style) b.style = styleMap[o.style] ?? b.style;
     if (o.tint !== undefined) b.tint = o.tint;
     if (o.plain) b.plain = true;
+    if (o.model) b.model = o.model;
     if (b.cls === 'C' || b.cls === 'D') b.cls = 'B';
     b.arcade = undefined;
     applied++;
