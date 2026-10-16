@@ -1,6 +1,19 @@
 # STATUS — Presidente Vargas 3D
 
-_Atualizado em 2026-10-16 (rodada 5: overhaul visual — de protótipo low-poly para 3D urbano semi-realista)._
+_Atualizado em 2026-10-16 (rodada 6: produto web — memória, aparelhos, carregamento, multidões, prédios de reconhecimento)._
+
+## Rodada 6 — resumo (detalhes em [WEB_PRODUCT.md](WEB_PRODUCT.md))
+| Critério | Resultado |
+|---|---|
+| Memória | heap 320 → 140–183 MB no jogo (após GC 267 → 119 MB); sem crescimento contínuo em 5 min ([MEMORY.md](MEMORY.md)) |
+| Aparelho → preset seguro | iPhone → MÉDIO 30 FPS + resolução dinâmica; integrada → MÉDIO/BAIXO; resolução dinâmica em todos |
+| Safari (Mac, real) | 15–19 FPS → **58–60 FPS** no ALTO automático |
+| iPhone real / Windows integrado / Firefox | **pendentes** — dependem de aparelho/ambiente (instruções em WEB_PRODUCT.md) |
+| Carregamento 4G lento, 1ª visita | 27,6 s → 20,7 s até andar; 3,6 MB antes de jogar; 2ª visita 2,7 s |
+| 500 bots | servidor 33 % de um núcleo; cliente HIGH 82 FPS (antes 6) ([CROWDS.md](CROWDS.md)) |
+| Reconhecimento da avenida | 41 prédios com modelo próprio ([RECOGNITION_BUILDINGS.md](RECOGNITION_BUILDINGS.md)) |
+| Testes | 103 automatizados; walkthrough multiplayer 28/28; build OK |
+
 
 ## Rodada 5 — antes / depois (mesmas poses, 10:30, HIGH)
 | | |

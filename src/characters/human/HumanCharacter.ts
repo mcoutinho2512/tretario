@@ -59,7 +59,11 @@ export interface HumanOptions {
   clips?: string[];
 }
 
+const warmed = new Set<string>();
+
 export class HumanCharacter {
+  /** definido pelo jogo: pré-compila materiais de um objeto (renderer.compileAsync com as luzes da cena) */
+  static warmup: ((obj: THREE.Object3D) => Promise<void>) | null = null;
   readonly root = new THREE.Group();
   /** contêiner do esqueleto (pai do osso "Root") */
   armature: THREE.Object3D | null = null;
@@ -119,7 +123,16 @@ export class HumanCharacter {
     const gltf = await loadLod(this.body, l);
     if (this.disposed) return;
     if (!this.armature) await this.buildRig(gltf.scene);
-    this.lods[l] = this.bind(gltf.scene, l);
+    const inst = this.bind(gltf.scene, l);
+    // pré-compila os shaders deste LOD antes de mostrá-lo (evita engasgo de 100+ ms na primeira aparição)
+    if (HumanCharacter.warmup && !warmed.has(`${this.body}:${l}`)) {
+      warmed.add(`${this.body}:${l}`);
+      inst.group.visible = true;
+      try { await HumanCharacter.warmup(inst.group); } catch { /* opcional */ }
+      inst.group.visible = false;
+      if (this.disposed) return;
+    }
+    this.lods[l] = inst;
     this.loading.delete(l);
     this.applyAppearance();
     this.show();

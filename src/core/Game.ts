@@ -17,6 +17,7 @@ import { worldProjection, WORLD_ORIGIN } from '../geo/projection';
 import { createPlayerState, type PlayerState } from '../player/PlayerState';
 import { stepPlayer } from '../player/PlayerController';
 import { AvatarVisual } from '../player/AvatarVisual';
+import { HumanCharacter } from '../characters/human/HumanCharacter';
 import { FrameGovernor } from './frameGovernor';
 import { deviceProfile } from './settings';
 import { loadClips, loadLod, preloadCrowd } from '../characters/human/HumanAssets';
@@ -280,6 +281,7 @@ export class Game {
     this.gr.setup(this.scene, this.camera);
     try {
       await this.gr.renderer.compileAsync(this.scene, this.camera);
+      HumanCharacter.warmup = (obj) => this.gr.renderer.compileAsync(obj, this.camera, this.scene).then(() => undefined);
     } catch { /* compileAsync opcional */ }
     progress(1, 'Pronto');
     this.mountHud();

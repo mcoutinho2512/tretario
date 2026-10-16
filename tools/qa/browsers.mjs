@@ -19,7 +19,7 @@ const RUNS = [
   { name: 'Chrome (macOS)', type: chromium, launch: { executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', args: ['--use-angle=metal'] }, ctx: { viewport: { width: 1280, height: 720 } } },
   { name: 'WebKit / Safari (macOS)', type: webkit, launch: {}, ctx: { viewport: { width: 1280, height: 720 } } },
   { name: 'WebKit / Safari — iPhone 15 (emulado)', type: webkit, launch: {}, ctx: { ...devices['iPhone 15'] } },
-  { name: 'Firefox (macOS)', type: firefox, launch: { firefoxUserPrefs: { 'webgl.force-enabled': true } }, ctx: { viewport: { width: 1280, height: 720 } } },
+
 ];
 const out = [];
 for (const run of RUNS) {
