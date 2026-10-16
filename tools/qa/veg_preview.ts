@@ -3,7 +3,10 @@
  * Mostra todas as variantes lado a lado, para ajuste dos parâmetros do bake e comparação LOD0/LOD1/impostor.
  */
 import * as THREE from 'three';
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { loadVegetation, VegetationSystem, vegetationOptionsFor } from '../../src/world/vegetation';
+import { PropSystem } from '../../src/world/builders/props';
+import type { PropKind, PropRec } from '../../src/world/types';
 
 const q = new URLSearchParams(location.search);
 const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -28,6 +31,24 @@ ground.rotation.x = -Math.PI / 2;
 ground.receiveShadow = true;
 scene.add(ground);
 const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.3, 2000);
+scene.environment = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), 0.04).texture;
+scene.environmentIntensity = 0.4;
+
+if (q.has('props')) {
+  // mobiliário lado a lado (frente dos modelos para +Z = câmera)
+  const kinds: PropKind[] = q.get('only') ? [q.get('only') as PropKind] : ['lamp', 'signal', 'signal', 'signal', 'bus_stop', 'bus_pole', 'bench', 'waste', 'bollard', 'kiosk'];
+  ground.visible = !q.get('only');
+  const ps = new PropSystem(new THREE.Texture());
+  scene.add(ps.group);
+  const recs: PropRec[] = kinds.map((k, i) => ({ k, p: [(i - kinds.length / 2) * 3.4, 0], r: Math.PI / 2, j: k === 'signal' ? i : undefined, ph: 0 }));
+  ps.rebuild(recs, [], 1, () => 0);
+  ps.updateSignals((j) => (['R', 'Y', 'G'] as const)[j % 3]);
+  camera.position.set(Number(q.get('x') ?? 0), Number(q.get('h') ?? 2), Number(q.get('dist') ?? 18));
+  camera.lookAt(Number(q.get('x') ?? 0), Number(q.get('ly') ?? 2), 0);
+  renderer.render(scene, camera);
+  (window as unknown as { __vegReady: unknown }).__vegReady = { tris: renderer.info.render.triangles, calls: renderer.info.render.calls };
+  throw new Error('ok-props'); // encerra o módulo (prévia de mobiliário)
+}
 
 const assets = await loadVegetation('/vegetation/');
 const opts = vegetationOptionsFor(1);
