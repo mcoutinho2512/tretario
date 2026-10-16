@@ -9,6 +9,7 @@
  * uso (com o cliente rodando, p.ex. `npx vite --port 5192`):
  *   node tools/qa/crowd_bench.mjs [baseUrl=http://localhost:5192] [contagens=50,100,250,500] [presets=low,medium,high] [extra=]
  *   extra: parâmetros de URL adicionais (p.ex. "crowd=0" desliga o orçamento de multidão → comparação antes/depois)
+ *   BOTS_SOCIAL=0.6: 60 % dos bots dançando / com bandeira / com cartaz / gesticulando (cenário da manifestação)
  * saída: docs/screenshots/crowd_bench.json (+ CROWD_BENCH_TAG) e uma captura por cenário em screenshots/crowd_bench/
  */
 import puppeteer from 'puppeteer-core';
@@ -22,6 +23,8 @@ const PRESETS = (process.argv[4] ?? 'low,medium,high').split(',');
 const EXTRA = process.argv[5] ? `&${process.argv[5]}` : '';
 const PORT = Number(process.env.CROWD_BENCH_PORT ?? 2660);
 const TAG = process.env.CROWD_BENCH_TAG ? `_${process.env.CROWD_BENCH_TAG}` : '';
+/** fração dos bots com vida de manifestação (dança, bandeira, cartaz, gestos) — rodada 7 */
+const SOCIAL = Number(process.env.BOTS_SOCIAL ?? 0);
 const chrome = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const w = (ms) => new Promise((r) => setTimeout(r, ms));
 mkdirSync('screenshots/crowd_bench', { recursive: true });
@@ -57,7 +60,7 @@ async function startBots(n) {
   const ready = [];
   for (let k = 0; k * 100 < n; k++) {
     const cnt = Math.min(100, n - k * 100);
-    const p = start('npx', ['tsx', 'tools/bots.ts', String(cnt), '3600', `ws://127.0.0.1:${PORT}`, 'dense', `--offset=${k * 100}`, `--total=${n}`, '--wait-go'], {}, ['pipe', 'pipe', 'inherit']);
+    const p = start('npx', ['tsx', 'tools/bots.ts', String(cnt), '3600', `ws://127.0.0.1:${PORT}`, 'dense', `--offset=${k * 100}`, `--total=${n}`, '--wait-go', ...(SOCIAL ? [`--social=${SOCIAL}`] : [])], {}, ['pipe', 'pipe', 'inherit']);
     const rl = createInterface({ input: p.stdout });
     ready.push(new Promise((res) => rl.on('line', (l) => { if (l.trim() === 'READY') res(); })));
     list.push(p);

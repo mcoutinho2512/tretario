@@ -56,8 +56,34 @@ Objetivo: dois jogadores olhando o mesmo cruzamento veem **essencialmente a mesm
 Para carro, moto, bicicleta e patinete: estacionado e disponível → A entra → B **não** entra no mesmo → A anda →
 B vê o movimento (erro < 2,5 m) → A sai → veículo parado e disponível.
 
+## Ações sociais e itens (rodada 7)
+Nada de ossos pela rede. Cada jogador tem, no estado da sala (só para quem está na área de interesse):
+
+| Campo | Tipo | O quê |
+|---|---|---|
+| `act` | u8 | ação/emote (`src/social/actions.ts`; 0 = nenhuma) |
+| `actAt` | f64 | início no relógio do servidor (ms) → todos tocam a MESMA fase (relógio comum, `src/net/clock.ts`) |
+| `actVar` | u8 | variação 0..7 (desfasamento/espelho) |
+| `prop` | u8 | item na mão (`src/social/props.ts`) |
+| `design` | u16 | design do item (`src/social/designs.ts`; campanhas vêm de `public/designs/campaigns.json`) |
+
+- **Pedido → validação → estado.** O cliente envia `act {a, v}` / `prop {p, d}` (alguns bytes) e prevê localmente;
+  o servidor valida (`src/social/actionRules.ts`: id existe, não caído, não em veículo, item exigido, design compatível,
+  intervalo mínimo por tipo, 24 pedidos/10 s) e grava. Negado → `act_denied`/`prop_denied` e o cliente volta ao
+  estado do servidor.
+- **O servidor encerra:** andar (deslocamento > 0,12 m por mensagem) cancela ações que não permitem movimento
+  (dançar, sentar, pose…); `once` (acenar, comemorar…) expiram; cair ou entrar em veículo encerram. Ações de
+  "andar com bandeira/cartaz", palmas e megafone seguem andando.
+- **Multidão distante** (mensagem `crowd`, v2): bloco social opcional de **5 B** (ação, idade em ¼ s, item, design)
+  só para quem está fazendo algo — a multidão instanciada dança e levanta bandeira sem estado completo.
+- **Medido** (`tools/qa/social_mp.mjs`, 2 navegadores + 1 distante, 12/12): B vê a dança de A com a mesma fase
+  (0,15 s × 0,15 s), braços, bandeira (item e design), andar balançando a bandeira, cartaz, megafone; andar encerra
+  a dança dos dois lados; o jogador distante não recebe A detalhado.
+
 ## Pedestres (ainda locais)
 Os pedestres usam o mapa de superfícies rasterizado no navegador (canvas) e o comportamento de travessia. Hoje
-continuam **locais e diferentes** em cada cliente. Próximo passo: gerar no build uma grade de navegação
+continuam **locais e diferentes** em cada cliente. Desde a rodada 7 têm vida social determinística por semente
+(`src/social/crowdSocial.ts`: item/design pelos pesos do evento, ações irregulares desfasadas) e vão a pé para os
+pontos de concentração (trio, carro de som) registrados em `src/social/rally.ts`. Próximo passo: gerar no build uma grade de navegação
 (calçadas/faixas) usável pelo servidor e simular uma população global pequena perto dos jogadores, com o mesmo esquema
 de snapshot compacto (o mesmo formato que o antigo trânsito usava).
