@@ -16,8 +16,8 @@ describe('protocolo multiplayer — autoridade do servidor', () => {
     expect(r.x).toBeLessThan(MAX_SPEED.foot);
   });
   it('bicicleta pode ir mais rápido que a pé', () => {
-    const foot = validateMove({ x: 0, y: 0, z: 0, t: 0 }, msg(1.5, 0, 'foot'), 200);
-    const bike = validateMove({ x: 0, y: 0, z: 0, t: 0 }, msg(1.5, 0, 'bicycle'), 200);
+    const foot = validateMove({ x: 0, y: 0, z: 0, t: 0 }, msg(3, 0, 'foot'), 200);
+    const bike = validateMove({ x: 0, y: 0, z: 0, t: 0 }, msg(3, 0, 'bicycle'), 200);
     expect(foot.ok).toBe(false);
     expect(bike.ok).toBe(true);
   });
