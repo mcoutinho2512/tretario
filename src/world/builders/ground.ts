@@ -152,7 +152,8 @@ function addCrossing(acc: GeoAcc, c: CrossingRec, y: number) {
   if (len < 1) return;
   const ux = dx / len, uz = dz / len;
   // barras paralelas ao fluxo de veículos (perpendiculares ao trajeto do pedestre)
-  const bar = 0.45, gap = 0.5;
+  // MBST zebrada: faixas de 0,30–0,40 m com espaçamento de 0,30–0,80 m
+  const bar = 0.4, gap = 0.6;
   for (let t = 0.3; t + bar < len - 0.2; t += bar + gap) {
     const cc: XZ = [c.a[0] + ux * (t + bar / 2), c.a[1] + uz * (t + bar / 2)];
     addQuad(acc, cc, ux, uz, bar / 2, c.w / 2, y);
@@ -235,7 +236,8 @@ export function buildGroundMeshes(chunk: ChunkData, lib: MaterialLibrary, detail
   markings.name = `markings_${chunk.key}`;
   if (detailed) {
     const white = new GeoAcc(), yellow = new GeoAcc();
-    for (const l of chunk.markings.dashed) addDashes(white, l, 0.13, 3, 5, 0.012);
+    // MBST (sinalização horizontal): linha de divisão de fluxos 0,10–0,15 m; tracejado 1:2 (3 m / 6 m)
+    for (const l of chunk.markings.dashed) addDashes(white, l, 0.12, 3, 6, 0.012);
     for (const l of chunk.markings.solid) addRibbon(yellow, l, 0.11, 0.012, 0, false);
     for (const c of chunk.markings.crossings) addCrossing(white, c, 0.014);
     for (const [acc, mat] of [[white, lib.paintWhite], [yellow, lib.paintYellow]] as const) {
