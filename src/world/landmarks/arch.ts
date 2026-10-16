@@ -368,10 +368,24 @@ export class ArchBuilder {
 
   /** acrescenta as peças de outro builder (mesmas chaves material|tier) — para mesclar vários edifícios */
   absorb(other: ArchBuilder): this {
+    other.compact();
     for (const [k, list] of other.parts) {
       let mine = this.parts.get(k);
       if (!mine) this.parts.set(k, (mine = []));
       mine.push(...list);
+    }
+    return this;
+  }
+
+  /**
+   * Memória: funde as peças de cada chave (material|tier) numa geometria só. Builders mantidos vivos para
+   * reconstrução (clusters de edifícios de reconhecimento) guardariam milhares de BufferGeometry pequenas.
+   */
+  compact(): this {
+    for (const [k, list] of this.parts) {
+      if (list.length < 2) continue;
+      const m = mergeGeometries(list, false);
+      if (m) { for (const g of list) g.dispose(); this.parts.set(k, [m]); }
     }
     return this;
   }
