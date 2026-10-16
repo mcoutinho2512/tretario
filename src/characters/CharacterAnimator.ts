@@ -19,6 +19,42 @@ export class CharacterAnimator {
     this.baseHipsY = rig.bones.Hips.position.y;
   }
 
+  /** Pose montada: 'sit-pedal' (bicicleta), 'stand' (patinete), 'drive' (carro). */
+  updateRiding(pose: 'sit-pedal' | 'stand' | 'drive', speed: number, seatHeight: number, dt: number) {
+    const b = this.rig.bones;
+    this.t += dt;
+    this.phase += speed * 1.6 * dt;
+    const ph = this.phase;
+    for (const n of Object.keys(b) as (keyof typeof b)[]) { b[n].rotation.set(0, 0, 0); }
+    b.Chest.scale.set(1, 1, 1);
+    if (pose === 'sit-pedal') {
+      b.Hips.position.y = seatHeight + 0.06;
+      b.Spine.rotation.x = 0.38;
+      b.Head.rotation.x = -0.3;
+      for (const [side, off] of [['Left', 0], ['Right', Math.PI]] as const) {
+        const s1 = Math.sin(ph + off), c1 = Math.cos(ph + off);
+        b[`${side}UpperLeg`].rotation.x = -1.05 - s1 * 0.35;
+        b[`${side}LowerLeg`].rotation.x = 1.05 + c1 * 0.45;
+        b[`${side}Foot`].rotation.x = -0.2;
+        b[`${side}UpperArm`].rotation.x = -1.05;
+        b[`${side}LowerArm`].rotation.x = -0.25;
+      }
+    } else if (pose === 'stand') {
+      b.Hips.position.y = this.baseHipsY + seatHeight - 0.02;
+      b.Spine.rotation.x = 0.12;
+      b.LeftUpperLeg.rotation.x = -0.12; b.RightUpperLeg.rotation.x = 0.18;
+      b.LeftLowerLeg.rotation.x = 0.15; b.RightLowerLeg.rotation.x = 0.1;
+      for (const side of ['Left', 'Right'] as const) { b[`${side}UpperArm`].rotation.x = -0.95; b[`${side}LowerArm`].rotation.x = -0.35; }
+    } else {
+      b.Hips.position.y = seatHeight + 0.1;
+      for (const side of ['Left', 'Right'] as const) {
+        b[`${side}UpperLeg`].rotation.x = -1.4; b[`${side}LowerLeg`].rotation.x = 1.2;
+        b[`${side}UpperArm`].rotation.x = -0.8; b[`${side}LowerArm`].rotation.x = -0.5;
+      }
+    }
+    this.walkW = this.runW = this.airW = 0;
+  }
+
   update(speed: number, grounded: boolean, dt: number) {
     const p = BODY_TYPES[this.rig.body];
     const b = this.rig.bones;

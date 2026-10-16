@@ -40,7 +40,7 @@ export class CollisionWorld {
     }
   }
 
-  private addSegment(s: Seg) {
+  addSegment(s: Seg) {
     const x0 = Math.floor(Math.min(s.ax, s.bx) / CELL), x1 = Math.floor(Math.max(s.ax, s.bx) / CELL);
     const z0 = Math.floor(Math.min(s.az, s.bz) / CELL), z1 = Math.floor(Math.max(s.az, s.bz) / CELL);
     for (let ix = x0; ix <= x1; ix++) for (let iz = z0; iz <= z1; iz++) {
@@ -77,6 +77,17 @@ export class CollisionWorld {
         }
       }
       for (const h of b.poly.holes ?? []) this.addPolygon(h, b.minHeight, b.height);
+    }
+  }
+
+  /** gradis e muros (linhas OSM barrier=fence/wall) bloqueiam a passagem */
+  addChunkBarriers(chunk: ChunkData) {
+    for (const l of chunk.lines) {
+      if (l.kind !== 'fence' && l.kind !== 'wall') continue;
+      for (let i = 0; i < l.pts.length - 1; i++) {
+        const a = l.pts[i], b = l.pts[i + 1];
+        this.addSegment({ ax: a[0], az: a[1], bx: b[0], bz: b[1], bottom: 0, top: l.kind === 'fence' ? 2.2 : 2.4 });
+      }
     }
   }
 

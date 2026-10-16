@@ -177,6 +177,8 @@ export interface WorldManifest {
   minimapRoads: { pts: XZ[]; w: number; pv?: boolean; name?: string }[];
   monuments?: MonumentRec[];
   billboards?: BillboardSlot[];
+  /** estações reais de bicicleta compartilhada (OSM amenity=bicycle_rental) */
+  bikeStations?: { p: XZ; name?: string; capacity?: number }[];
   streetSigns?: StreetSignRec[];
   /** arquivo das faixas de tráfego (veículos NPC) */
   traffic?: string;

@@ -29,6 +29,14 @@ export class AvatarVisual {
     return BODY_TYPES[this.rig.body].speedFactor;
   }
 
+  /** montado num veículo: posiciona sobre ele e aplica a pose */
+  updateRiding(x: number, y: number, z: number, heading: number, pose: 'sit-pedal' | 'stand' | 'drive', speed: number, seatHeight: number, dt: number) {
+    this.smoothY = y;
+    this.root.position.set(x, y, z);
+    this.root.rotation.y = heading;
+    this.anim.updateRiding(pose, speed, seatHeight, dt);
+  }
+
   update(s: PlayerState, dt: number) {
     if (!this.initialized) { this.smoothY = s.y; this.initialized = true; }
     this.smoothY += (s.y - this.smoothY) * (1 - Math.exp(-18 * dt));

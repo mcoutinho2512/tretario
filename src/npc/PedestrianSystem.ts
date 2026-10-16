@@ -71,6 +71,27 @@ export class PedestrianSystem {
     });
   }
 
+  /** efeito local leve de empurrão (somente NPCs de ambiente; no multiplayer quem decide é o servidor) */
+  pushNear(x: number, z: number, dir: number, range = 1.8): boolean {
+    for (const p of this.peds) {
+      if (!p.active) continue;
+      const dx = p.x - x, dz = p.z - z;
+      const d = Math.hypot(dx, dz);
+      if (d > range || d < 1e-3) continue;
+      if ((dx * Math.sin(dir) + dz * Math.cos(dir)) / d < 0.3) continue; // precisa estar à frente
+      // tropeça para trás e se afasta (sem dano)
+      const nx = p.x + Math.sin(dir) * 0.9, nz = p.z + Math.cos(dir) * 0.9;
+      if (this.world.isPedestrianWalkable(nx, nz)) { p.x = nx; p.z = nz; }
+      p.mode = 'walk'; p.target = null; p.approach = null;
+      p.heading = dir;
+      p.idleTimer = 0;
+      p.speed = p.cruise * 2.2; // sai apressado
+      p.walkTimer = 4;
+      return true;
+    }
+    return false;
+  }
+
   /** posições de pedestres na pista (para os veículos frearem) */
   crossingPositions(): { x: number; z: number }[] {
     const out: { x: number; z: number }[] = [];

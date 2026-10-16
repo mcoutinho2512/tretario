@@ -93,6 +93,7 @@ export class ChunkManager {
     c.loading = false;
     this.collision.addChunkBuildings(c.data);
     this.collision.addChunkSurfaces(c.data);
+    this.collision.addChunkBarriers(c.data);
     this.stats.loaded++;
   }
 

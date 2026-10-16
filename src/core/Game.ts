@@ -32,6 +32,8 @@ import { SignalController } from '../traffic/SignalController';
 import { MonumentSystem } from '../world/Monuments';
 import { BillboardSystem } from '../events/Billboards';
 import { EventManager } from '../events/EventManager';
+import { RideableSystem, stepRideable, type RideableInstance } from '../vehicles/Rideable';
+import { InteractionController } from '../interaction/InteractionMode';
 import type { PropRec } from '../world/types';
 import { distToPolyline } from '../geo/polyline';
 import type { TrafficData } from '../world/types';
@@ -62,6 +64,12 @@ export class Game {
   private monuments!: MonumentSystem;
   private billboards!: BillboardSystem;
   readonly events!: EventManager;
+  private rideables!: RideableSystem;
+  private riding: RideableInstance | null = null;
+  readonly interaction = new InteractionController();
+  private prompt!: HTMLDivElement;
+  private modeBadge!: HTMLDivElement;
+  private messageTimer = 0;
   private input: InputManager;
   private player!: PlayerState;
   private avatar: AvatarVisual;
@@ -191,6 +199,11 @@ export class Game {
     try {
       await this.events.load(new URLSearchParams(location.search).get('event') ?? undefined);
     } catch (e) { console.warn('evento não carregado', e); }
+    this.interaction.setPolicy(this.events.current?.interaction);
+    // veículos utilizáveis nas estações reais de bicicleta compartilhada
+    const kinds = (this.events.current?.vehicles ?? [{ kind: 'bicycle' }, { kind: 'scooter' }]).map((v) => v.kind).filter((k) => k !== 'car') as ('bicycle' | 'scooter')[];
+    this.rideables = new RideableSystem(this.manifest.bikeStations ?? [], (x, z) => this.collision.groundHeight(x, z), kinds);
+    this.scene.add(this.rideables.group);
     this.cam = new ThirdPersonCamera(this.camera, this.collision);
     // intro: começa olhando a Central, depois gira para a avenida (direção da Candelária)
     const central = this.manifest.landmarks.find((l) => l.key === 'LANDMARK_CENTRAL')!;
@@ -232,8 +245,14 @@ export class Game {
     help.className = 'help';
     help.innerHTML = this.input.isTouch
       ? 'Joystick: andar · Arraste: câmera · Pinça: zoom'
-      : '<b>WASD</b> andar · <b>Shift</b> correr · <b>Espaço</b> pular · <b>Mouse</b> câmera · <b>Roda</b> zoom · <b>M</b> mapa · <b>F3</b> debug · <b>H</b> ajuda · <b>Esc</b> soltar mouse';
+      : '<b>WASD</b> andar · <b>Shift</b> correr · <b>Espaço</b> pular · <b>Mouse</b> câmera · <b>Roda</b> zoom · <b>E</b> usar bicicleta/patinete · <b>K</b> modo · <b>M</b> mapa · <b>F3</b> debug · <b>H</b> ajuda · <b>Esc</b> soltar mouse';
     this.hud.appendChild(help);
+    this.prompt = document.createElement('div');
+    this.prompt.className = 'use-prompt';
+    this.hud.appendChild(this.prompt);
+    this.modeBadge = document.createElement('div');
+    this.modeBadge.className = 'mode-badge';
+    this.hud.appendChild(this.modeBadge);
     const evb = document.createElement('div');
     evb.className = 'event-badge';
     evb.textContent = this.events.current ? `Evento: ${this.events.current.name}` : '';
@@ -384,24 +403,67 @@ export class Game {
       }
     }
 
-    // movimento relativo à câmera
+    // modo de interação / ações (pedidos — servidor será a autoridade)
+    this.interaction.update(dt);
+    if (this.input.consumeToggle('mode')) this.flash(this.interaction.toggle().message);
+    if (this.input.consumeToggle('action')) {
+      const r = this.interaction.request('empurrar', this.player.x, this.player.z, this.player.heading, this.time);
+      if (r) { if (!this.peds.pushNear(r.x, r.z, r.dir)) this.flash('Ninguém ao alcance'); }
+      else if (this.interaction.mode === 'pacifico') this.flash('Modo pacífico: aperte K para alternar (se o evento permitir)');
+    }
+
+    // usar/descer de veículo
     const ax = this.input.moveAxis();
     const [fx, fz] = this.cam.forward();
-    const rx = -fz, rz = fx; // direita da câmera
-    void rz;
-    const intent = {
-      dirX: fx * ax.y + -Math.cos(this.cam.yaw) * ax.x,
-      dirZ: fz * ax.y + Math.sin(this.cam.yaw) * ax.x,
-      run: this.input.running(),
-      jump: this.input.consumeJump(),
-      speedFactor: this.avatar.speedFactor,
-    };
-    void rx;
-    // passo fixo para estabilidade
-    const steps = Math.max(1, Math.ceil(dt / (1 / 120)));
-    for (let i = 0; i < steps; i++) stepPlayer(this.player, intent, dt / steps, this.collision);
-    this.traffic.pushOut(this.player);
-    this.avatar.update(this.player, dt);
+    if (this.input.consumeToggle('use')) {
+      if (this.riding) {
+        const v = this.riding;
+        v.state.occupant = null;
+        v.state.speed = 0;
+        this.player.x = v.state.x + Math.cos(v.state.heading) * 0.9;
+        this.player.z = v.state.z - Math.sin(v.state.heading) * 0.9;
+        this.player.heading = v.state.heading;
+        this.riding = null;
+      } else {
+        const near = this.rideables.nearest(this.player.x, this.player.z);
+        if (near) { this.riding = near; near.state.occupant = this.player.id; near.state.heading = this.player.heading; }
+      }
+    }
+    if (this.riding) {
+      const v = this.riding;
+      // A/D esterçam, W/S aceleram/freiam; câmera acompanha o rumo suavemente
+      stepRideable(v.state, v.def, { throttle: ax.y, steer: -ax.x, boost: this.input.running() }, dt, this.collision);
+      this.input.consumeJump();
+      this.player.x = v.state.x; this.player.z = v.state.z; this.player.y = v.state.y;
+      this.player.heading = v.state.heading; this.player.speed = Math.abs(v.state.speed);
+      this.player.locomotion = 'walk';
+      this.avatar.updateRiding(v.state.x, v.state.y, v.state.z, v.state.heading, v.def.pose, v.state.speed, v.def.seatHeight, dt);
+      let dyaw = v.state.heading - this.cam.yaw;
+      while (dyaw > Math.PI) dyaw -= Math.PI * 2;
+      while (dyaw < -Math.PI) dyaw += Math.PI * 2;
+      if (Math.abs(v.state.speed) > 1) this.cam.yaw += dyaw * Math.min(1, dt * 1.5);
+      this.prompt.textContent = `E — descer da ${v.def.label.toLowerCase()} · W/S acelerar/frear · A/D virar · Shift mais rápido`;
+    } else {
+      // movimento a pé relativo à câmera
+      const intent = {
+        dirX: fx * ax.y + -Math.cos(this.cam.yaw) * ax.x,
+        dirZ: fz * ax.y + Math.sin(this.cam.yaw) * ax.x,
+        run: this.input.running(),
+        jump: this.input.consumeJump(),
+        speedFactor: this.avatar.speedFactor,
+      };
+      const steps = Math.max(1, Math.ceil(dt / (1 / 120)));
+      for (let i = 0; i < steps; i++) stepPlayer(this.player, intent, dt / steps, this.collision);
+      this.traffic.pushOut(this.player);
+      this.avatar.update(this.player, dt);
+      const near = this.rideables.nearest(this.player.x, this.player.z);
+      this.prompt.textContent = near ? `E — usar ${near.def.label.toLowerCase()}` : '';
+    }
+    this.rideables.sync(this.camera.position);
+    this.prompt.classList.toggle('show', !!this.prompt.textContent);
+    this.messageTimer -= dt;
+    if (this.messageTimer <= 0) this.modeBadge.textContent = this.interaction.mode === 'pacifico' ? 'Modo pacífico' : 'Modo interação';
+    this.modeBadge.classList.toggle('combat', this.interaction.mode === 'interacao');
     const ppos = this.avatar.root.position;
     this.cam.update(ppos, dt);
     this.signals.update(dt);
@@ -446,6 +508,12 @@ export class Game {
     });
   }
 
+  /** mensagem curta no selo de modo */
+  private flash(msg: string) {
+    this.modeBadge.textContent = msg;
+    this.messageTimer = 2.5;
+  }
+
   private updateValidation() {
     let best: ValidationPoint | null = null, bd = Infinity;
     for (const v of this.manifest.validation) {
@@ -485,6 +553,16 @@ export class Game {
       },
       camera: (yaw: number, pitch: number, dist: number) => { this.cam.maxDistance = Math.max(16, dist); this.cam.yaw = yaw; this.cam.pitch = pitch; this.cam.zoom(Math.log(dist / this.cam.distance)); this.intro.active = false; },
       portrait: (dist = 3) => { this.cam.yaw = this.player.heading + Math.PI; this.cam.pitch = 0.08; this.cam.zoom(Math.log(dist / this.cam.distance)); this.intro.active = false; },
+      /** teste: vai até a estação de bicicleta mais próxima e monta */
+      ride: () => {
+        const st = (this.manifest.bikeStations ?? []).slice().sort((a, b) => Math.hypot(a.p[0] - this.player.x, a.p[1] - this.player.z) - Math.hypot(b.p[0] - this.player.x, b.p[1] - this.player.z))[0];
+        if (!st) return false;
+        this.player.x = st.p[0]; this.player.z = st.p[1] + 1.2; this.intro.active = false;
+        this.input.queueToggle('use');
+        return true;
+      },
+      press: (code: string, ms = 1000) => { window.dispatchEvent(new KeyboardEvent('keydown', { code })); setTimeout(() => window.dispatchEvent(new KeyboardEvent('keyup', { code })), ms); },
+      riding: () => this.riding?.def.kind ?? null,
       toggleDebug: () => this.debug.toggle(),
       /** identifica o objeto sob um pixel (coordenadas de tela) */
       pick: (px: number, py: number) => {

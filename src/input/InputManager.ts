@@ -51,6 +51,9 @@ export class InputManager {
     if (e.code === 'KeyM' && !e.repeat) this.toggles.add('map');
     if (e.code === 'KeyH' && !e.repeat) this.toggles.add('help');
     if (e.code === 'KeyP' && !e.repeat) this.toggles.add('photo');
+    if (e.code === 'KeyE' && !e.repeat) this.toggles.add('use');
+    if (e.code === 'KeyK' && !e.repeat) this.toggles.add('mode');
+    if (e.code === 'KeyF' && !e.repeat) this.toggles.add('action');
     this.keys.add(e.code);
   };
 
@@ -83,6 +86,7 @@ export class InputManager {
   }
 
   queueJump() { this.jumpQueued = true; }
+  queueToggle(name: string) { this.toggles.add(name); }
 
   addLook(dx: number, dy: number) { this.lookDX += dx; this.lookDY += dy; }
 

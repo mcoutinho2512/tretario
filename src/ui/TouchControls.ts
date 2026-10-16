@@ -22,6 +22,8 @@ export class TouchControls {
     this.el.appendChild(this.base);
     const runBtn = this.button('CORRER', 'touch-btn run');
     const jumpBtn = this.button('PULAR', 'touch-btn jump');
+    const useBtn = this.button('USAR', 'touch-btn use');
+    useBtn.addEventListener('touchstart', (e) => { e.preventDefault(); input.queueToggle('use'); });
     runBtn.addEventListener('touchstart', (e) => { e.preventDefault(); input.touchRun = !input.touchRun; runBtn.classList.toggle('on', input.touchRun); });
     jumpBtn.addEventListener('touchstart', (e) => { e.preventDefault(); input.queueJump(); });
     this.el.addEventListener('touchstart', this.onStart, { passive: false });
