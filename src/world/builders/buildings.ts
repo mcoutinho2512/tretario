@@ -35,8 +35,105 @@ function floorHeightFor(b: BuildingRec): number {
   return 3.2;
 }
 
+// -------------------------------------------------------------------------------------------
+// Galerias (térreo recuado com colunata, padrão dos prédios do PA da Pres. Vargas)
+// -------------------------------------------------------------------------------------------
+export const ARCADE_HEIGHT = 6.5;
+export interface ArcadeSpan { a: XZ; c: XZ; n: XZ; ai: XZ; ci: XZ; depth: number; height: number; columns: XZ[] }
+
+export function arcadeSpans(b: BuildingRec): ArcadeSpan[] {
+  if (!b.arcadeEdges?.length || b.minHeight > 0.5) return [];
+  const ring = b.poly.outer;
+  const out: ArcadeSpan[] = [];
+  for (const i of b.arcadeEdges) {
+    const a = ring[i], c = ring[(i + 1) % ring.length];
+    if (!a || !c) continue;
+    const dx = c[0] - a[0], dz = c[1] - a[1];
+    const len = Math.hypot(dx, dz);
+    if (len < 6) continue;
+    let nx = dz / len, nz = -dx / len;
+    const mid: XZ = [(a[0] + c[0]) / 2 + nx * 0.4, (a[1] + c[1]) / 2 + nz * 0.4];
+    if (pointInRing(mid, ring)) { nx = -nx; nz = -nz; }
+    // profundidade limitada pela profundidade do prédio (testa ponto interno)
+    let depth = 4.2;
+    while (depth > 2 && !pointInRing([(a[0] + c[0]) / 2 - nx * (depth + 1.5), (a[1] + c[1]) / 2 - nz * (depth + 1.5)], ring)) depth -= 0.5;
+    if (depth <= 2) continue;
+    const ux = dx / len, uz = dz / len;
+    const columns: XZ[] = [];
+    const nCols = Math.max(1, Math.round((len - 1.2) / 4.6));
+    const step = (len - 1.2) / nCols;
+    for (let k = 0; k <= nCols; k++) {
+      const t = 0.6 + k * step;
+      columns.push([a[0] + ux * t - nx * 0.35, a[1] + uz * t - nz * 0.35]);
+    }
+    out.push({ a, c, n: [nx, nz], ai: [a[0] - nx * depth, a[1] - nz * depth], ci: [c[0] - nx * depth, c[1] - nz * depth], depth, height: Math.min(ARCADE_HEIGHT, b.height * 0.5), columns });
+  }
+  return out;
+}
+
+/** quad com winding coerente com a normal dada */
+function quad(acc: Acc, v: number[][], n: number[], uvs: number[][], f1: number[], f2: number[]) {
+  const base = acc.pos.length / 3;
+  for (let k = 0; k < 4; k++) {
+    acc.pos.push(v[k][0], v[k][1], v[k][2]);
+    acc.nor.push(n[0], n[1], n[2]);
+    acc.uv.push(uvs[k][0], uvs[k][1]);
+    acc.f1.push(...f1);
+    acc.f2.push(...f2);
+  }
+  const e1 = [v[1][0] - v[0][0], v[1][1] - v[0][1], v[1][2] - v[0][2]];
+  const e2 = [v[2][0] - v[0][0], v[2][1] - v[0][1], v[2][2] - v[0][2]];
+  const cx = e1[1] * e2[2] - e1[2] * e2[1], cy = e1[2] * e2[0] - e1[0] * e2[2], cz = e1[0] * e2[1] - e1[1] * e2[0];
+  if (cx * n[0] + cy * n[1] + cz * n[2] >= 0) acc.idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
+  else acc.idx.push(base, base + 2, base + 1, base, base + 3, base + 2);
+}
+
+function addArcades(acc: Acc, b: BuildingRec, spans: ArcadeSpan[], f1: number[], f2: number[]) {
+  const y0 = b.minHeight;
+  const shopF2 = [f2[0], f2[1], FLAG_SHOPS, 0];
+  const plainF1 = [f1[0], 99, f1[2], f1[3]];
+  for (const s of spans) {
+    const H = s.height;
+    const len = Math.hypot(s.c[0] - s.a[0], s.c[1] - s.a[1]);
+    const ux = (s.c[0] - s.a[0]) / len, uz = (s.c[1] - s.a[1]) / len;
+    const shopF = [...shopF2];
+    shopF[3] = H; // térreo de lojas ocupa a altura da galeria
+    // parede interna (vitrines/lojas), voltada para a rua
+    quad(acc, [[s.ai[0], y0, s.ai[1]], [s.ci[0], y0, s.ci[1]], [s.ci[0], H, s.ci[1]], [s.ai[0], H, s.ai[1]]], [s.n[0], 0, s.n[1]],
+      [[0, y0], [len, y0], [len, H], [0, H]], f1, shopF);
+    // teto da galeria
+    quad(acc, [[s.a[0], H, s.a[1]], [s.c[0], H, s.c[1]], [s.ci[0], H, s.ci[1]], [s.ai[0], H, s.ai[1]]], [0, -1, 0],
+      [[s.a[0], s.a[1]], [s.c[0], s.c[1]], [s.ci[0], s.ci[1]], [s.ai[0], s.ai[1]]], plainF1, [f2[0], f2[1], 0, 0]);
+    // fechamentos laterais do recuo
+    quad(acc, [[s.a[0], y0, s.a[1]], [s.ai[0], y0, s.ai[1]], [s.ai[0], H, s.ai[1]], [s.a[0], H, s.a[1]]], [ux, 0, uz],
+      [[0, y0], [s.depth, y0], [s.depth, H], [0, H]], plainF1, [f2[0], f2[1], 0, 0]);
+    quad(acc, [[s.c[0], y0, s.c[1]], [s.ci[0], y0, s.ci[1]], [s.ci[0], H, s.ci[1]], [s.c[0], H, s.c[1]]], [-ux, 0, -uz],
+      [[0, y0], [s.depth, y0], [s.depth, H], [0, H]], plainF1, [f2[0], f2[1], 0, 0]);
+    // colunas
+    for (const col of s.columns) {
+      const w = 0.3;
+      const corners: XZ[] = [
+        [col[0] - ux * w - s.n[0] * w, col[1] - uz * w - s.n[1] * w], [col[0] + ux * w - s.n[0] * w, col[1] + uz * w - s.n[1] * w],
+        [col[0] + ux * w + s.n[0] * w, col[1] + uz * w + s.n[1] * w], [col[0] - ux * w + s.n[0] * w, col[1] - uz * w + s.n[1] * w],
+      ];
+      for (let k = 0; k < 4; k++) {
+        const p0 = corners[k], p1 = corners[(k + 1) % 4];
+        const mx = (p0[0] + p1[0]) / 2 - col[0], mz = (p0[1] + p1[1]) / 2 - col[1];
+        const l = Math.hypot(mx, mz) || 1;
+        quad(acc, [[p0[0], y0, p0[1]], [p1[0], y0, p1[1]], [p1[0], H, p1[1]], [p0[0], H, p0[1]]], [mx / l, 0, mz / l],
+          [[0, y0], [0.6, y0], [0.6, H], [0, H]], plainF1, [f2[0], f2[1], 0, 0]);
+      }
+    }
+  }
+}
+
+const edgeKey = (a: XZ, c: XZ) => {
+  const k1 = `${a[0]},${a[1]}`, k2 = `${c[0]},${c[1]}`;
+  return k1 < k2 ? `${k1}|${k2}` : `${k2}|${k1}`;
+};
+
 /** Paredes de um anel (externo ou buraco). `outward` garante normais para fora do volume. */
-function addWalls(acc: Acc, ring: XZ[], isHole: boolean, b: BuildingRec, f1: number[], f2: number[]) {
+function addWalls(acc: Acc, ring: XZ[], isHole: boolean, b: BuildingRec, f1: number[], f2: number[], arcadeKeys?: Map<string, number>) {
   const n = ring.length;
   // garantir orientação: externos CCW no plano (x,z) visto de cima → normais para fora
   let pts = ring;
@@ -44,9 +141,11 @@ function addWalls(acc: Acc, ring: XZ[], isHole: boolean, b: BuildingRec, f1: num
   // com esta fórmula (= −shoelace), área NEGATIVA é a orientação em que (dz, −dx) aponta para fora
   if ((area > 0) !== isHole) pts = [...ring].reverse();
   let perim = b.seed * 37; // deslocamento para que prédios vizinhos não alinhem janelas
-  const y0 = b.minHeight, y1 = b.height;
+  const y1 = b.height;
   for (let i = 0; i < n; i++) {
     const a = pts[i], c = pts[(i + 1) % n];
+    // fachada sobre galeria: começa no teto da galeria
+    const y0 = arcadeKeys?.get(edgeKey(a, c)) ?? b.minHeight;
     const dx = c[0] - a[0], dz = c[1] - a[1];
     const len = Math.hypot(dx, dz);
     if (len < 0.05) continue;
@@ -130,8 +229,13 @@ export function buildBuildingsGeometry(buildings: BuildingRec[], opts: BuildingB
     const groundH = b.arcade ? 6.5 : b.style === FacadeStyle.Sobrado ? Math.min(4.2, fh) : Math.min(4.5, Math.max(3.6, fh * 1.2));
     const f1 = [b.style, fh, b.tint, b.seed];
     const f2 = [b.height, b.minHeight, flags, groundH];
-    addWalls(acc, b.poly.outer, false, b, f1, f2);
+    const spans = arcadeSpans(b);
+    const keys = spans.length ? new Map(spans.map((sp) => [edgeKey(sp.a, sp.c), sp.height] as [string, number])) : undefined;
+    // com galeria geométrica, o shader não pinta mais a galeria falsa
+    if (spans.length) f2[2] &= ~FLAG_ARCADE;
+    addWalls(acc, b.poly.outer, false, b, f1, f2, keys);
     for (const h of b.poly.holes ?? []) addWalls(acc, h, true, b, f1, f2);
+    if (spans.length) addArcades(acc, b, spans, f1, f2);
     addRoof(acc, b, b.height, f1, f2);
     if (b.canopy) addRoof(acc, b, b.minHeight, f1, f2, true);
 

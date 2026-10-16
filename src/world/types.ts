@@ -38,6 +38,8 @@ export interface BuildingRec {
   seed: number;
   /** térreo com galeria/arcada (frente para a Presidente Vargas) */
   arcade?: boolean;
+  /** índices das arestas do anel externo com galeria (recuo real com colunata) */
+  arcadeEdges?: number[];
   /** parede lisa sem janelas (monumentos, mausoléus, muros altos) */
   plain?: boolean;
   /** marquise/cobertura (building=roof): sem colisão, laje fina */

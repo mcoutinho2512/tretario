@@ -6,6 +6,7 @@
  * manter o jogador no chão e impedir a câmera de atravessar prédios.
  */
 import type { ChunkData, Poly, XZ } from '../world/types';
+import { arcadeSpans } from '../world/builders/buildings';
 import { CURB_HEIGHT, PLATFORM_HEIGHT } from '../world/types';
 
 interface Seg { ax: number; az: number; bx: number; bz: number; bottom: number; top: number }
@@ -53,22 +54,52 @@ export class CollisionWorld {
   addChunkBuildings(chunk: ChunkData) {
     for (const b of chunk.buildings) {
       if (b.canopy || b.minHeight > 2.2) continue; // marquises: passa por baixo
-      this.addPolygon(b.poly.outer, b.minHeight, b.height);
+      const spans = arcadeSpans(b);
+      if (!spans.length) {
+        this.addPolygon(b.poly.outer, b.minHeight, b.height);
+      } else {
+        // galerias: fachada só acima do teto; parede interna, fechamentos e colunas bloqueiam
+        const ring = b.poly.outer;
+        const key = (a: XZ, c: XZ) => spans.find((sp) => (sp.a === a && sp.c === c) || (sp.a === c && sp.c === a));
+        for (let i = 0; i < ring.length; i++) {
+          const a = ring[i], c = ring[(i + 1) % ring.length];
+          const sp = key(a, c);
+          this.addSegment({ ax: a[0], az: a[1], bx: c[0], bz: c[1], bottom: sp ? sp.height : b.minHeight, top: b.height });
+        }
+        for (const sp of spans) {
+          this.addSegment({ ax: sp.ai[0], az: sp.ai[1], bx: sp.ci[0], bz: sp.ci[1], bottom: 0, top: sp.height });
+          this.addSegment({ ax: sp.a[0], az: sp.a[1], bx: sp.ai[0], bz: sp.ai[1], bottom: 0, top: sp.height });
+          this.addSegment({ ax: sp.c[0], az: sp.c[1], bx: sp.ci[0], bz: sp.ci[1], bottom: 0, top: sp.height });
+          for (const col of sp.columns) {
+            const w = 0.3;
+            this.addPolygon([[col[0] - w, col[1] - w], [col[0] + w, col[1] - w], [col[0] + w, col[1] + w], [col[0] - w, col[1] + w]], 0, sp.height);
+          }
+        }
+      }
       for (const h of b.poly.holes ?? []) this.addPolygon(h, b.minHeight, b.height);
     }
   }
 
-  /** Rasteriza as superfícies do chunk num mapa de códigos (canvas 2D, 0,5 m/pixel). */
+  /**
+   * Rasteriza as superfícies do chunk num mapa de códigos (canvas 2D, 0,5 m/pixel).
+   * Cada classe é uma MÁSCARA num canal separado (limiar 50%) — imune ao antialiasing das bordas
+   * (antes, valores intermediários entre "prédio" e "calçada" viravam códigos espúrios).
+   */
   addChunkSurfaces(chunk: ChunkData) {
     const [minX, minZ, maxX] = chunk.bounds;
     const size = maxX - minX;
     const n = Math.round(size / HF_RES);
-    const canvas = typeof OffscreenCanvas !== 'undefined' ? new OffscreenCanvas(n, n) : Object.assign(document.createElement('canvas'), { width: n, height: n });
-    const ctx = (canvas as HTMLCanvasElement).getContext('2d', { willReadFrequently: true }) as CanvasRenderingContext2D;
-    ctx.imageSmoothingEnabled = false;
     const k = n / size;
-    const fill = (polys: Poly[], code: number) => {
-      ctx.fillStyle = `rgb(${code * 50},0,0)`;
+    const mk = () => {
+      const canvas = typeof OffscreenCanvas !== 'undefined' ? new OffscreenCanvas(n, n) : Object.assign(document.createElement('canvas'), { width: n, height: n });
+      const ctx = (canvas as HTMLCanvasElement).getContext('2d', { willReadFrequently: true }) as CanvasRenderingContext2D;
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, 0, n, n);
+      ctx.globalCompositeOperation = 'lighter';
+      return ctx;
+    };
+    const fill = (ctx: CanvasRenderingContext2D, polys: Poly[], color: string) => {
+      ctx.fillStyle = color;
       for (const p of polys) {
         ctx.beginPath();
         for (const ring of [p.outer, ...(p.holes ?? [])]) {
@@ -81,18 +112,37 @@ export class CollisionWorld {
         ctx.fill('evenodd');
       }
     };
-    ctx.fillStyle = `rgb(${Surface.Walk * 50},0,0)`;
-    ctx.fillRect(0, 0, n, n);
     const S = chunk.surfaces;
-    fill(S.road, Surface.Road);
-    fill(S.ballast, Surface.Road);
-    fill(S.platform, Surface.Platform);
-    fill(S.water, Surface.Water);
-    // edifícios (para NPCs saberem onde não podem nascer/andar; o jogador colide pelos segmentos)
-    fill(chunk.buildings.filter((b) => !b.canopy && b.minHeight < 2.2).map((b) => b.poly), Surface.Building);
-    const img = ctx.getImageData(0, 0, n, n).data;
+    // passada 1: R = pista/brita, G = plataforma, B = água
+    const c1 = mk();
+    fill(c1, S.road, 'rgb(255,0,0)');
+    fill(c1, S.ballast, 'rgb(255,0,0)');
+    fill(c1, S.platform, 'rgb(0,255,0)');
+    fill(c1, S.water, 'rgb(0,0,255)');
+    // passada 2: R = edifício (menos o piso das galerias)
+    const c2 = mk();
+    fill(c2, chunk.buildings.filter((b) => !b.canopy && b.minHeight < 2.2).map((b) => b.poly), 'rgb(255,0,0)');
+    c2.globalCompositeOperation = 'source-over';
+    c2.fillStyle = '#000';
+    for (const b of chunk.buildings) for (const sp of arcadeSpans(b)) {
+      c2.beginPath();
+      for (const [i, q] of [sp.a, sp.c, sp.ci, sp.ai].entries()) {
+        const x = (q[0] - minX) * k, y = (q[1] - minZ) * k;
+        if (i === 0) c2.moveTo(x, y); else c2.lineTo(x, y);
+      }
+      c2.closePath();
+      c2.fill();
+    }
+    const i1 = c1.getImageData(0, 0, n, n).data, i2 = c2.getImageData(0, 0, n, n).data;
     const data = new Uint8Array(n * n);
-    for (let i = 0; i < n * n; i++) data[i] = Math.round(img[i * 4] / 50);
+    for (let i = 0; i < n * n; i++) {
+      const o = i * 4;
+      data[i] = i1[o + 2] > 127 ? Surface.Water
+        : i1[o + 1] > 127 ? Surface.Platform
+        : i2[o] > 127 ? Surface.Building
+        : i1[o] > 127 ? Surface.Road
+        : Surface.Walk;
+    }
     this.tiles.set(chunk.key, { minX, minZ, size, n, data });
   }
 

@@ -244,6 +244,24 @@ function addBuilding(id: number, outer: XZ[], holes: XZ[][], t: Record<string, s
   const seed = hash32(id);
   // galeria/arcada no térreo: prédios altos com fachada para a Presidente Vargas (padrão PA dos anos 40)
   const arcade = !canopy && h > 25 && distPv < 75 && outer.some((p) => distPointPolyline(p, pvAxis) < 52);
+  // arestas voltadas para a avenida: ponto médio perto do eixo e normal externa apontando para ele
+  let arcadeEdges: number[] | undefined;
+  if (arcade) {
+    const ring = openRing(outer);
+    arcadeEdges = [];
+    for (let i = 0; i < ring.length; i++) {
+      const a = ring[i], c2 = ring[(i + 1) % ring.length];
+      const len = Math.hypot(c2[0] - a[0], c2[1] - a[1]);
+      if (len < 6) continue;
+      const mid: XZ = [(a[0] + c2[0]) / 2, (a[1] + c2[1]) / 2];
+      let nx = (c2[1] - a[1]) / len, nz = -(c2[0] - a[0]) / len;
+      if (pointInPolygon([mid[0] + nx * 0.5, mid[1] + nz * 0.5], ring)) { nx = -nx; nz = -nz; }
+      const dMid = distPointPolyline(mid, pvAxis);
+      const dOut = distPointPolyline([mid[0] + nx * 3, mid[1] + nz * 3], pvAxis);
+      if (dMid < 55 && dOut < dMid - 1.5) arcadeEdges.push(i);
+    }
+    if (!arcadeEdges.length) arcadeEdges = undefined;
+  }
   buildings.push({
     id,
     poly: { outer: outer.map((p) => [round2(p[0]), round2(p[1])] as XZ), holes: holes.length ? holes.map((r) => openRing(r)) : undefined },
@@ -256,6 +274,7 @@ function addBuilding(id: number, outer: XZ[], holes: XZ[][], t: Record<string, s
     tint: round2(hash32(id * 7 + 3)),
     seed: round2(seed),
     ...(arcade ? { arcade: true } : {}),
+    ...(arcadeEdges ? { arcadeEdges } : {}),
     ...(canopy ? { canopy: true } : {}),
     ...(t.name ? { name: t.name } : {}),
   });
