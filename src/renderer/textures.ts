@@ -196,7 +196,7 @@ export function graniteTexture(size = 256): PbrSet {
       const gr = hash2(x >> 1, y >> 1, 142);
       const gr2 = hash2(x, y, 143);
       let r = 0.56 + (n - 0.5) * 0.08, g = 0.55 + (n - 0.5) * 0.08, b = 0.54 + (n - 0.5) * 0.08;
-      if (gr < 0.18) { r -= 0.3; g -= 0.3; b -= 0.29; } // biotita (preto)
+      if (gr < 0.16) { r -= 0.18; g -= 0.18; b -= 0.17; } // biotita (preto)
       else if (gr > 0.86) { r += 0.16; g += 0.15; b += 0.14; } // quartzo (branco)
       else if (gr > 0.8) { r += 0.12; g += 0.04; b += 0.02; } // feldspato (rosado)
       const k = 0.94 + (gr2 - 0.5) * 0.08;

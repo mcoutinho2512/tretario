@@ -207,9 +207,9 @@ export class Environment {
     (su.uSunColor.value as THREE.Color).copy(this.sun.color);
     // hemisfério: complemento suave do IBL (céu azul em cima, rebote quente do chão embaixo)
     const dayK = 1 - night;
-    this.hemi.color.setRGB(0.55 + 0.1 * dayK, 0.68 + 0.05 * dayK, 0.92).multiplyScalar(1 - night * 0.75);
-    this.hemi.groundColor.setRGB(0.5, 0.44, 0.38).multiplyScalar(1 - night * 0.7);
-    this.hemi.intensity = THREE.MathUtils.lerp(THREE.MathUtils.clamp(0.1 + Math.sin(Math.max(elev, 0)) * 0.35, 0.1, 0.32), 0.3, night);
+    this.hemi.color.setRGB(0.66 + 0.06 * dayK, 0.74 + 0.03 * dayK, 0.88).multiplyScalar(1 - night * 0.75);
+    this.hemi.groundColor.setRGB(0.56, 0.5, 0.42).multiplyScalar(1 - night * 0.7);
+    this.hemi.intensity = THREE.MathUtils.lerp(THREE.MathUtils.clamp(0.12 + Math.sin(Math.max(elev, 0)) * 0.4, 0.12, 0.4), 0.3, night);
     (this.cloudUniforms.uSunDir.value as THREE.Vector3).copy(this.sunDir);
     (this.cloudUniforms.uSunColor.value as THREE.Color).copy(this.sun.color);
     this.cloudUniforms.uLight.value = THREE.MathUtils.clamp(0.35 + elev * 2.2, 0.35, 1.0) * (1 - night * 0.9);
@@ -263,7 +263,7 @@ export class Environment {
     this.envRT?.dispose();
     this.envRT = this.pmrem.fromScene(this.envScene, 0.02, 1, 1100);
     this.scene.environment = this.envRT.texture;
-    this.scene.environmentIntensity = THREE.MathUtils.lerp(0.85, 0.25, n);
+    this.scene.environmentIntensity = THREE.MathUtils.lerp(0.72, 0.25, n);
   }
 
   /** disk: 1 desenha o disco solar (céu visível); 0 no IBL (o brilho especular do sol vem da luz direcional) */

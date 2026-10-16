@@ -272,6 +272,7 @@ export const FACADE_FRAGMENT_MAIN = /* glsl */ `
     vec3 Vw = normalize(cameraPosition - vFWPos);
     vec3 vt = vec3(dot(Vw, Tw), Vw.y, max(dot(Vw, Nw), 0.12));
     vec2 pl = vec2(lx, ly);
+    vec3 st = vec3(dot(uSunDir, Tw), uSunDir.y, dot(uSunDir, Nw)); // sol no espaço da fachada
     vec2 pg = pl - vt.xy / vt.z * depth * uDetail * detail;
 
     float inOpen = pvWin(pl, wlo, whi, arch, aa) * upper;
@@ -431,7 +432,6 @@ export const FACADE_FRAGMENT_MAIN = /* glsl */ `
       caix = max(caix, pvLines(ly, fh, 0.03, aa.y));
     }
     // sombra do sol dentro do vão (verga e ombreira) sobre o vidro
-    vec3 st = vec3(dot(uSunDir, Tw), uSunDir.y, dot(uSunDir, Nw));
     float recShadow = 0.0;
     if (st.z > 0.02 && depth > 0.05) {
       float sy = depth * st.y / st.z, sx = depth * st.x / st.z;
@@ -483,6 +483,32 @@ export const FACADE_FRAGMENT_MAIN = /* glsl */ `
     detailed = mix(detailed, acC, ac);
     detailed *= 1.0 - acShadow * 0.4;
     fHgt += ac * 0.06;
+
+    // ---------- brise-soleil (quebra-sol) do modernismo carioca: aletas verticais ou lâminas horizontais ----------
+    // Sem geometria: oclusão (parallax) da face lateral/inferior e sombra projetada calculadas analiticamente.
+    float briseT = 0.0;
+    if (fStyle > 0.5 && fStyle < 1.5) briseT = h8 > 0.8 ? 2.0 : h8 < 0.12 ? 1.0 : 0.0;
+    else if (office && !curtain) briseT = h5 < 0.3 ? 1.0 : h5 > 0.8 ? 2.0 : 0.0;
+    if (briseT > 0.5 && upper > 0.5 && detail > 0.01 && uDetail > 0.5) {
+      float bd = 0.45 + h6 * 0.3, bw = 0.1;
+      vec3 bC = accent * (0.92 + nLow * 0.12);
+      float sunOn = (1.0 - uNight) * step(0.02, st.z);
+      float d, vs, ss, lit;
+      if (briseT < 1.5) {
+        d = (lx > 0.0 ? bayW * 0.5 : -bayW * 0.5) - lx;
+        vs = bd * vt.x / vt.z; ss = bd * st.x / max(st.z, 0.02); lit = step(0.0, st.x * vs);
+      } else {
+        d = min(whi.y + 0.15, fh) - ly;
+        vs = bd * vt.y / vt.z; ss = bd * st.y / max(st.z, 0.02); lit = step(0.0, st.y * vs);
+      }
+      float front = 1.0 - smoothstep(bw * 0.5 - aa.x, bw * 0.5 + aa.x, abs(d));
+      float side = step(0.0, d * vs) * step(abs(d), abs(vs)) * (1.0 - front);
+      float shade = step(0.0, d * ss) * step(abs(d), abs(ss)) * sunOn;
+      detailed = mix(detailed, detailed * 0.42, shade * (1.0 - side));
+      detailed = mix(detailed, bC * mix(0.55, 1.0, lit * sunOn), side);
+      detailed = mix(detailed, bC, front);
+      col *= 0.92;
+    }
 
     // cor média (longe): parede + fração de vidro
     float winFrac = curtain ? 0.85 : clamp((winW * winH) / (bayW * fh), 0.0, 0.9);
