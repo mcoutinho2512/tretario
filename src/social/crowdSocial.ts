@@ -27,6 +27,8 @@ export interface SocialCrowdConfig {
   propWeights?: Record<string, number>;
   /** pesos de designs por chave ou por família (`family:campaign`, `family:brasil`…); padrão: `crowdWeight` */
   designWeights?: Record<string, number>;
+  /** multidão de concentração (instanciada) ao redor do trio/carros de som/palco — referência para o preset ALTO */
+  rallyCrowd?: number;
 }
 
 export const DEFAULT_SOCIAL: SocialCrowdConfig = { activity: 0.25, propShare: 0.06 };

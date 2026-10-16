@@ -21,6 +21,8 @@ import { BOXED_KINDS, EVENT_VEHICLE_KINDS, boxesOverlap, impactAllowed, pushOutO
 import { HumanCharacter } from '../characters/human/HumanCharacter';
 import { registerCampaigns, DESIGN_BY_KEY } from '../social/designs';
 import { SocialController } from '../social/SocialController';
+import { RallyCrowd } from '../social/RallyCrowd';
+import { rallyPoints } from '../social/rally';
 import { ActionWheel } from '../ui/ActionWheel';
 import { NET_TICK_HZ } from '../net/protocol';
 import { ACTION_BY_KEY, ACTION_BY_ID } from '../social/actions';
@@ -282,6 +284,9 @@ export class Game {
       await this.events.load(new URLSearchParams(location.search).get('event') ?? undefined);
     } catch (e) { console.warn('evento não carregado', e); }
     this.peds.setSocialConfig(this.events.current?.social);
+    // multidão de concentração (instanciada) ao redor do trio/carros de som/palco — quantidade pelo evento e preset
+    this.rallyCrowd = new RallyCrowd(this.collision, this.crowd, this.events.current?.social ?? { activity: 0.25, propShare: 0.06 });
+    this.rallyCrowd.setConfig(this.events.current?.social, RallyCrowd.presetScale(this.crowd.budget.total));
     // designs de campanha (DADOS, não código): mesmo arquivo que o servidor usa para validar
     try {
       const r = await fetch(`${import.meta.env.BASE_URL}designs/campaigns.json`);
@@ -512,6 +517,7 @@ export class Game {
   private cpuMs = 0;
   /** ações sociais / item na mão do jogador local (previsão + servidor) */
   private wheel: ActionWheel | null = null;
+  private rallyCrowd: RallyCrowd | null = null;
   readonly social = new SocialController((s) => this.avatar.setSocial(s), () => (this.mpOnline ? this.net! : null), (m) => this.flash(m));
   /** quadros longos (> 34 ms de CPU) com a divisão por etapa */
   private hitchLog: { t: number; ms: number; parts: Record<string, number>; novos: Record<string, number> }[] = [];
@@ -569,6 +575,7 @@ export class Game {
     this.graffiti.update(dt, this.camera.position, this.player);
     mark('rede');
     this.peds.update(dt, this.camera, this.player);
+    this.rallyCrowd?.update(dt);
     mark('pedestres');
     this.crowd.end(this.camera, dt);
     mark('multidão');
@@ -668,7 +675,7 @@ export class Game {
     this.net.onSelfSocial = () => this.social.fromServer(this.net!.self.social);
     this.net.onSocialDenied = (_k, reason) => this.social.denied(reason, this.net!.self.social);
     this.net.onEvent = (id) => {
-      if (this.events.current?.id !== id) void this.events.load(id).then(() => { this.interaction.setPolicy(this.events.current?.interaction); this.peds.setSocialConfig(this.events.current?.social); this.scenery.applyEvent(this.events.current); });
+      if (this.events.current?.id !== id) void this.events.load(id).then(() => { this.interaction.setPolicy(this.events.current?.interaction); this.peds.setSocialConfig(this.events.current?.social); this.rallyCrowd?.setConfig(this.events.current?.social, RallyCrowd.presetScale(this.crowd.budget.total)); this.scenery.applyEvent(this.events.current); });
     };
     void preloadRagdoll().catch(() => { /* fallback procedural */ });
     try {
@@ -959,6 +966,7 @@ export class Game {
       carHeading: () => this.riding?.state.heading ?? null,
       /** anda até (x,z) usando o movimento normal (aceito pelo servidor) */
       hitches: () => this.hitchLog.slice(),
+      rallyCrowd: () => ({ ...this.rallyCrowd?.stats, rally: rallyPoints.all().map((p) => ({ id: p.id, kind: p.kind, x: Math.round(p.x), z: Math.round(p.z), strength: p.strength })) }),
       // ações sociais / itens (QA): chave ou id
       act: (k: string | number) => { const d = typeof k === 'number' ? ACTION_BY_ID.get(k) : ACTION_BY_KEY.get(k); this.social.requestAction(d?.id ?? 0); return this.social.state; },
       prop: (kind: string | null, design?: string) => { this.social.requestProp(kind ? PROP_BY_KIND.get(kind as PropKind)?.id ?? 0 : 0, design ? DESIGN_BY_KEY.get(design)?.id : undefined); return this.social.state; },

@@ -1,0 +1,134 @@
+/**
+ * Multidão de CONCENTRAÇÃO (ambiente, só instanciada): centenas de pessoas ao redor dos pontos de concentração
+ * (trio, carros de som, palco) — dançando, batendo palmas, com bandeiras e cartazes — custando o mesmo que a
+ * multidão instanciada da rede (VAT + itens instanciados; nenhum esqueleto, nenhuma física).
+ *
+ *  - Quantidade pelos DADOS do evento (`social.rallyCrowd`, referência para o preset ALTO) e sempre dentro do teto de
+ *    humanos do preset: cede lugar à multidão real da rede (jogadores) quando ela cresce.
+ *  - Lugares no anel de cada ponto, distribuição orgânica (mais gente perto do veículo); fora de prédios.
+ *  - Mesma agenda social dos pedestres (crowdSocial.ts): ações irregulares e desfasadas, itens/designs pelo evento.
+ *  - O ponto andou (trio em movimento)? Cada pessoa caminha até o novo lugar (sem teletransporte).
+ */
+import type { CollisionWorld } from '../physics/CollisionWorld';
+import type { CrowdDirector } from '../characters/crowd/CrowdDirector';
+import { createAgent, type CrowdAgent } from '../characters/crowd/crowdBudget';
+import { randomAppearance, type BodyType } from '../characters/bodyTypes';
+import { SocialSchedule, rng, type SocialCrowdConfig } from './crowdSocial';
+import { RallyRegistry, rallyPoints } from './rally';
+
+const BODIES: BodyType[] = ['homem', 'mulher', 'homem', 'mulher', 'idoso', 'idosa'];
+const BODY_INDEX: Record<BodyType, number> = { homem: 0, mulher: 1, idoso: 2, idosa: 3 };
+
+interface Member {
+  agent: CrowdAgent;
+  schedule: SocialSchedule;
+  seed: number;
+  point: string;
+  /** lugar no anel (ângulo/raio sorteados): segue o ponto quando ele anda */
+  u1: number; u2: number;
+  x: number; z: number; heading: number; speed: number;
+  /** desvio individual de rumo (ninguém olha exatamente para o mesmo ponto) */
+  look: number;
+}
+
+export class RallyCrowd {
+  private members: Member[] = [];
+  private version = -1;
+  private ids = '';
+  private time = 0;
+  /** referência do evento para o preset ALTO (0 = desligado) */
+  private target = 0;
+  stats = { members: 0, submitted: 0, points: 0 };
+
+  constructor(private world: CollisionWorld, private crowd: CrowdDirector, private cfg: SocialCrowdConfig) {}
+
+  setConfig(cfg: SocialCrowdConfig | undefined, presetScale: number) {
+    this.cfg = cfg ?? { activity: 0.25, propShare: 0.06 };
+    this.target = Math.round((cfg?.rallyCrowd ?? 0) * presetScale);
+    this.version = -1; this.ids = '\u0000'; // redistribui
+  }
+
+  /** distribui as pessoas entre os pontos ativos, proporcional à força × área do anel */
+  private rebuild() {
+    this.members = [];
+    const pts = rallyPoints.all().filter((p) => p.strength > 0);
+    this.stats.points = pts.length;
+    if (!this.target || !pts.length) return;
+    const w = pts.map((p) => p.strength * (p.radius * p.radius - p.inner * p.inner));
+    const tw = w.reduce((s, x) => s + x, 0) || 1;
+    let seed = 7;
+    pts.forEach((p, k) => {
+      const n = Math.round((this.target * w[k]) / tw);
+      for (let i = 0; i < n; i++) {
+        seed = (seed * 1664525 + 1013904223) >>> 0;
+        const r = rng(seed);
+        // lugar fora de prédios: algumas tentativas no anel
+        let u1 = r(), u2 = r(), spot = RallyRegistry.spotFor(p, u1, u2);
+        for (let t = 0; t < 6 && this.blocked(spot.x, spot.z); t++) { u1 = r(); u2 = r(); spot = RallyRegistry.spotFor(p, u1, u2); }
+        if (this.blocked(spot.x, spot.z)) continue;
+        const body = BODIES[seed % BODIES.length];
+        const app = randomAppearance(seed, body);
+        const agent = createAgent({ maxTier: 1, body: BODY_INDEX[body], skin: app.skin, hair: app.hair, top: app.top, bottom: app.bottom, scale: app.scale, x: spot.x, z: spot.z });
+        this.members.push({
+          agent, seed, point: p.id, u1, u2, x: spot.x, z: spot.z, heading: Math.atan2(p.x - spot.x, p.z - spot.z), speed: 0,
+          look: (r() - 0.5) * 0.5, schedule: new SocialSchedule(seed, this.cfg),
+        });
+      }
+    });
+    this.stats.members = this.members.length;
+  }
+
+  private blocked(x: number, z: number): boolean {
+    const pos = { x, y: 0, z };
+    this.world.resolveCircle(pos, 0.3, 1.7);
+    return Math.hypot(pos.x - x, pos.z - z) > 0.05;
+  }
+
+  update(dt: number) {
+    this.time += dt;
+    // redistribui quando o CONJUNTO de pontos ativos muda (andar não muda: cada um acompanha a pé)
+    if (this.version !== rallyPoints.version) {
+      this.version = rallyPoints.version;
+      const ids = rallyPoints.all().filter((p) => p.strength > 0).map((p) => p.id).sort().join(',');
+      if (ids !== this.ids) { this.ids = ids; this.rebuild(); }
+    }
+    // teto do preset: a multidão real (rede) tem prioridade
+    const room = Math.max(0, Math.floor(this.crowd.budget.total * 0.75) - this.crowd.othersCount);
+    const n = Math.min(this.members.length, room);
+    const nowS = performance.now() / 1000;
+    for (let i = 0; i < n; i++) {
+      const m = this.members[i];
+      const p = rallyPoints.get(m.point);
+      if (!p) continue;
+      // lugar atual no anel (o ponto pode ter andado): vai a pé até lá
+      const spot = RallyRegistry.spotFor(p, m.u1, m.u2);
+      const dx = spot.x - m.x, dz = spot.z - m.z, d = Math.hypot(dx, dz);
+      if (d > 0.6) {
+        m.speed += (1.2 - m.speed) * (1 - Math.exp(-3 * dt));
+        const st = Math.min(d, m.speed * dt);
+        m.x += (dx / d) * st; m.z += (dz / d) * st;
+        m.heading = Math.atan2(dx, dz);
+      } else {
+        m.speed = Math.max(0, m.speed - dt * 3);
+        const want = Math.atan2(p.x - m.x, p.z - m.z) + m.look;
+        let dh = want - m.heading;
+        while (dh > Math.PI) dh -= Math.PI * 2;
+        while (dh < -Math.PI) dh += Math.PI * 2;
+        m.heading += dh * (1 - Math.exp(-2 * dt));
+      }
+      const sc = m.schedule;
+      sc.update(this.time, m.speed > 0.3, p);
+      const ag = m.agent;
+      ag.x = m.x; ag.z = m.z; ag.y = this.world.groundHeight(m.x, m.z); ag.heading = m.heading; ag.speed = m.speed;
+      ag.act = sc.act; ag.actAt = nowS - Math.max(0, this.time - sc.startedAt);
+      ag.prop = sc.profile.prop; ag.design = sc.profile.design;
+      this.crowd.submit(ag, 'ped');
+    }
+    this.stats.submitted = n;
+  }
+
+  /** escala do preset em relação ao ALTO (teto total de humanos) */
+  static presetScale(total: number): number {
+    return Math.max(0.15, Math.min(1.4, total / 600));
+  }
+}

@@ -39,7 +39,8 @@
    "fist_up": 2,
    "dance_simple": 2,
    "dance_lively": 1
-  }
+  },
+  "rallyCrowd": 360
  },
  "billboards": {
   "rotateSeconds": 10,
