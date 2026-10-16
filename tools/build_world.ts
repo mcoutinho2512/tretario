@@ -528,8 +528,10 @@ const collisionSegs: Seg[] = [];
 // estações reais; carros, motos e patinetes ESTACIONADOS junto ao meio-fio ao longo do corredor (nunca no meio da
 // avenida); ônibus estacionados encostados no meio-fio como CENÁRIO (não utilizáveis, sólidos). Ids estáveis.
 // ---------------------------------------------------------------------------------------------
-const vehicleSpawns: { id: string; kind: 'bicycle' | 'scooter' | 'car' | 'moto'; x: number; z: number; heading: number }[] = [];
+const vehicleSpawns: { id: string; kind: 'bicycle' | 'scooter' | 'car' | 'moto' | 'soundcar' | 'trio'; x: number; z: number; heading: number }[] = [];
 const parkedBuses: { x: number; z: number; heading: number }[] = [];
+/** cenário de evento (não utilizável, sólido): caminhões de campanha, telões, palco */
+const eventSpots: { id: string; kind: 'truck' | 'screen' | 'stage'; x: number; z: number; heading: number }[] = [];
 {
   F.bikeStations.forEach((st, si) => {
     for (let i = 0; i < 3; i++) {
@@ -646,6 +648,75 @@ const parkedBuses: { x: number; z: number; heading: number }[] = [];
     used.push({ p: best.p, r: 4 });
     vehicleSpawns.push({ id: `sc${si++}`, kind: 'scooter', x: best.p[0], z: best.p[1], heading: best.heading });
   }
+  // ---- VEÍCULOS E CENÁRIO DE EVENTO (rodada 7, docs/MANIFESTATION_SYSTEM.md): na pista, inteiros sobre o asfalto.
+  // Depois dos veículos dos jogadores: as vagas deles não mudam com o cenário de evento.
+  // trio elétrico no centro do corredor, carros de som a 1/3 e 2/3, caminhões de campanha junto ao meio-fio,
+  // telões em dois pontos da avenida e um palco perto da Candelária (onde o ato concentra). Ids estáveis.
+  {
+    const dirAt = (t: number): XZ => {
+      const a = along(Math.max(0, t - 0.003)), b = along(Math.min(1, t + 0.003)), l = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+      return [(b[0] - a[0]) / l, (b[1] - a[1]) / l];
+    };
+    /** retângulo (comprimento × largura, com folga) inteiro no asfalto, fora de canteiro/praça */
+    const fits = (p: XZ, h: number, len: number, wid: number) => {
+      const fx = Math.sin(h), fz = Math.cos(h);
+      for (let k = -len / 2; k <= len / 2 + 1e-6; k += Math.min(1.2, len / 4)) for (const l of [-wid / 2, 0, wid / 2]) {
+        const q: XZ = [p[0] + fx * k + fz * l, p[1] + fz * k - fx * l];
+        if (!pointInPaths(q, roadPaths) || pointInPaths(q, greenPaths) || pointInPaths(q, plazaPaths)) return false;
+      }
+      return true;
+    };
+    /** varre o corte transversal da avenida em t: o lugar livre mais perto do deslocamento lateral preferido */
+    const place = (t: number, len: number, wid: number, r: number, prefer: number, flip = false) => {
+      const c = along(t), d = dirAt(t), perp: XZ = [-d[1], d[0]];
+      const h = Math.atan2(d[0], d[1]) + (flip ? Math.PI : 0);
+      const offs: number[] = [];
+      for (let o = -32; o <= 32; o += 0.5) offs.push(o);
+      offs.sort((a, b) => Math.abs(a - prefer) - Math.abs(b - prefer));
+      for (const o of offs) {
+        const p: XZ = [r2(c[0] + perp[0] * o), r2(c[1] + perp[1] * o)];
+        if (free(p, r) && fits(p, h, len, wid)) { used.push({ p, r }); return { p, h: r2(h) }; }
+      }
+      return null;
+    };
+    const ev: { id: string; kind: 'trio' | 'soundcar'; t: number; len: number; wid: number; r: number; prefer: number }[] = [
+      { id: 'trio0', kind: 'trio', t: 0.5, len: 15.5, wid: 3.4, r: 14, prefer: 4 },
+      { id: 'som0', kind: 'soundcar', t: 0.31, len: 6, wid: 2.6, r: 7, prefer: -4 },
+      { id: 'som1', kind: 'soundcar', t: 0.69, len: 6, wid: 2.6, r: 7, prefer: 4 },
+    ];
+    for (const e of ev) {
+      const at = place(e.t, e.len, e.wid, e.r, e.prefer);
+      if (!at) { log(`⚠ sem lugar para ${e.id}`); continue; }
+      // o trio é posicionado pelo centro da caixa de 15,5 m (carroceria + escada atrás): recua o centro 1,4 m
+      const back = e.kind === 'trio' ? 1.4 : 0;
+      vehicleSpawns.push({ id: e.id, kind: e.kind, x: r2(at.p[0] + Math.sin(at.h) * back), z: r2(at.p[1] + Math.cos(at.h) * back), heading: at.h });
+    }
+    const box = (p: XZ, h: number, hl: number, hw: number, top: number) => {
+      const fx = Math.sin(h), fz = Math.cos(h);
+      const c = [[hl, hw], [hl, -hw], [-hl, -hw], [-hl, hw]].map(([a, l]) => [p[0] + fx * a + fz * l, p[1] + fz * a - fx * l]);
+      for (let i = 0; i < 4; i++) collisionSegs.push({ ax: c[i][0], az: c[i][1], bx: c[(i + 1) % 4][0], bz: c[(i + 1) % 4][1], bottom: 0, top });
+    };
+    // caminhões de campanha (cenário, sólidos): junto ao meio-fio, como os ônibus
+    const truckSpots = spotsRoad.filter((b) => fits(b.p, b.heading, 9.5, 2.8));
+    let ti = 0;
+    for (const t of [along(0.37), along(0.43), along(0.57), along(0.63)]) {
+      const best = truckSpots.filter((b) => free(b.p, 12)).sort((x, y) => Math.hypot(x.p[0] - t[0], x.p[1] - t[1]) - Math.hypot(y.p[0] - t[0], y.p[1] - t[1]))[0];
+      if (!best) continue;
+      used.push({ p: best.p, r: 12 });
+      eventSpots.push({ id: `truck${ti++}`, kind: 'truck', x: best.p[0], z: best.p[1], heading: best.heading });
+      box(best.p, best.heading, 4.25, 1.25, 3.8);
+    }
+    // telões avulsos (estrutura de treliça) virados para o trio; palco perto da Candelária virado para a Central
+    for (const [i, t] of [0.455, 0.6].entries()) {
+      const at = place(t, 1.6, 6, 6, i ? -9 : 9, i === 1);
+      if (!at) continue;
+      eventSpots.push({ id: `screen${i}`, kind: 'screen', x: at.p[0], z: at.p[1], heading: at.h });
+      for (const s of [-2.6, 2.6]) box([at.p[0] + Math.cos(at.h) * s, at.p[1] - Math.sin(at.h) * s], at.h, 0.3, 0.3, 6.5);
+    }
+    const st = place(0.88, 8, 11, 12, 0, true);
+    if (st) { eventSpots.push({ id: 'stage0', kind: 'stage', x: st.p[0], z: st.p[1], heading: st.h }); box(st.p, st.h, 3.5, 5, 1.5); }
+    log(`evento: ${vehicleSpawns.filter((v) => v.kind === 'trio').length} trio, ${vehicleSpawns.filter((v) => v.kind === 'soundcar').length} carros de som, ${eventSpots.map((e) => e.id).join(', ')}`);
+  }
   log(`vagas junto ao meio-fio: ${spots.length} (pista: ${spotsRoad.length}, cabem ônibus: ${busSpots.length})`);
   log(`veículos utilizáveis: ${vehicleSpawns.filter((v) => v.kind === 'bicycle').length} bicicletas, ${vehicleSpawns.filter((v) => v.kind === 'scooter').length} patinetes, ${ci} carros, ${mi} motos · ${parkedBuses.length} ônibus de cenário`);
 }
@@ -687,6 +758,7 @@ const manifest: WorldManifest = {
   collision: collisionFile,
   vehicleSpawns,
   parkedBuses,
+  eventSpots,
   monuments: F.monuments,
   billboards,
   bikeStations: F.bikeStations,

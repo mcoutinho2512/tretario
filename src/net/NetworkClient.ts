@@ -6,6 +6,8 @@
  *  interpolação  remotos com buffer adaptativo ao jitter medido (100–300 ms)
  *  relógio       ping/pong estilo NTP → worldClock (semáforos e trânsito iguais para todos)
  *  mundo         trânsito por snapshots binários (área de interesse); veículos e jogadores via StateView
+ *  trio         quem está EM CIMA do trio manda posição LOCAL ('pmove'); remotos em cima são desenhados como
+ *                pose interpolada do trio × posição local interpolada (não escorregam quando o trio anda)
  *  multidão      os remotos detalhados (StateView, os mais próximos) e a multidão distante (mensagem "crowd", 2 Hz)
  *                entram no orçamento do CrowdDirector: só os mais próximos ganham esqueleto (pool por corpo); o resto
  *                é desenhado instanciado. Ver docs/CROWDS.md
@@ -17,7 +19,8 @@ import { ROOM_NAME, NET_TICK_HZ, LOCO, type JoinOptions } from './protocol';
 import { packMove } from './rules';
 import { netStats, SIM } from './netWebSocket';
 import { worldClock } from './clock';
-import { RIDEABLE_DEFS, type RideableKind } from '../vehicles/Rideable';
+import { RIDEABLE_DEFS, seatWorld, type RideableKind } from '../vehicles/Rideable';
+import { TRIO, localToWorld, packPlatformMove } from '../vehicles/platform';
 import { AvatarVisual } from '../player/AvatarVisual';
 import { createPlayerState, type PlayerState } from '../player/PlayerState';
 import type { Accessory, BodyType, CharacterAppearance } from '../characters/bodyTypes';
@@ -33,11 +36,15 @@ const FAR_DELAY_MS = 650;
 interface FarSnap { t: number; x: number; y: number; z: number; heading: number; speed: number }
 interface FarRemote { nid: number; agent: CrowdAgent; a: FarSnap; b: FarSnap; seen: number }
 
-interface Snapshot { t: number; x: number; y: number; z: number; heading: number; speed: number; loco: number; vehicle: string }
+interface Snapshot { t: number; x: number; y: number; z: number; heading: number; speed: number; loco: number; vehicle: string; platform: string; plx: number; plz: number; plh: number }
 
 export interface RemoteInfo {
   id: string; name: string; body: string; accessory: string;
   x: number; z: number; speed: number; interaction: string; status: number; vehicle: string;
+  /** em cima de um trio: id e posição local */
+  platform: string; plx: number; plz: number;
+  /** última posição de MUNDO recebida do servidor (QA: o servidor leva o passageiro junto com o trio) */
+  wx: number; wz: number;
 }
 
 interface Remote {
@@ -56,6 +63,7 @@ interface Remote {
   interaction: string;
   status: number;
   vehicle: string;
+  platform: string;
   lastArrival: number;
 }
 
@@ -78,7 +86,7 @@ export class NetworkClient {
   corrections = 0;
   correctionReasons: Record<string, number> = {};
   /** estado do PRÓPRIO jogador segundo o servidor */
-  self = { interaction: 'pacifico', status: 0, vehicle: '' };
+  self = { interaction: 'pacifico', status: 0, vehicle: '', platform: '' };
   policy: 'pacifico' | 'opcional' = 'opcional';
   /** última negativa/aviso do servidor (QA) */
   lastDenial = '';
@@ -97,7 +105,15 @@ export class NetworkClient {
   vehiclesInView() { return [...this.vehicleKinds.keys()]; }
   /** tipo de cada veículo (pela sincronização do servidor) — pose/altura do assento dos remotos */
   private vehicleKinds = new Map<string, string>();
-  onVehicle: ((id: string, v: { x: number; y: number; z: number; heading: number; occupant: string; kind: string; state: number }) => void) | null = null;
+  onVehicle: ((id: string, v: { x: number; y: number; z: number; heading: number; occupant: string; kind: string; state: number; design: number }) => void) | null = null;
+  // ---- trio elétrico (plataforma)
+  /** em cima de um trio: o jogo atualiza a posição LOCAL a cada quadro; o envio vira 'pmove' */
+  platform: { id: string; lx: number; lz: number; lh: number; speed: number; loco: number } | null = null;
+  /** pose do trio COMO ESTE CLIENTE O DESENHA (interpolada) — os passageiros remotos são presos a ela */
+  platformPose: ((id: string) => { x: number; y: number; z: number; heading: number } | null) | null = null;
+  onBoard: ((ok: boolean, d: { id: string; reason?: string; lx?: number; lz?: number }) => void) | null = null;
+  onUnboard: ((pos: { x: number; z: number }) => void) | null = null;
+  onPlatformCorrect: ((lx: number, lz: number, reason: string) => void) | null = null;
   onEnter: ((ok: boolean, data: { id: string; reason?: string; x?: number; z?: number; heading?: number }) => void) | null = null;
   onExit: ((pos: { x: number; z: number }) => void) | null = null;
   onKnock: ((k: KnockMsg, isSelf: boolean) => void) | null = null;
@@ -151,6 +167,10 @@ export class NetworkClient {
       room.onMessage('enter_ok', (d: { id: string; x: number; z: number; heading: number }) => { this.holdMoves = false; this.onEnter?.(true, d); });
       room.onMessage('enter_denied', (d: { id: string; reason: string }) => { this.holdMoves = false; this.lastDenial = `enter:${d.reason}`; this.onEnter?.(false, d); });
       room.onMessage('exit_ok', (d: { x: number; z: number }) => { this.holdMoves = false; this.onExit?.(d); });
+      room.onMessage('board_ok', (d: { id: string; lx: number; lz: number }) => { this.holdMoves = false; this.onBoard?.(true, d); });
+      room.onMessage('board_denied', (d: { id: string; reason: string }) => { this.holdMoves = false; this.lastDenial = `board:${d.reason}`; this.onBoard?.(false, d); });
+      room.onMessage('unboard_ok', (d: { x: number; z: number }) => { this.holdMoves = false; this.platform = null; this.onUnboard?.(d); });
+      room.onMessage('pcorrect', (c: [number, number, number, string]) => { this.corrections++; this.correctionReasons[c[3]] = (this.correctionReasons[c[3]] ?? 0) + 1; this.onPlatformCorrect?.(c[0], c[1], c[3]); });
       room.onMessage('mode_ok', (m: string) => { this.self.interaction = m; this.onNotice?.(m === 'interacao' ? 'Modo INTERAÇÃO (validado pelo servidor)' : 'Modo PACÍFICO'); });
       room.onMessage('mode_denied', (r: string) => this.onNotice?.(r === 'evento_pacifico' ? 'Este evento é pacífico' : `Modo negado: ${r}`));
       room.onMessage('push_denied', (r: string) => { this.lastDenial = `push:${r}`; this.onNotice?.(DENIAL_TEXT[r] ?? `Empurrão negado (${r})`); });
@@ -162,7 +182,7 @@ export class NetworkClient {
       cb.listen('eventId', (id: string) => { if (id) this.onEvent?.(id); });
       cb.onAdd('players', (p: any, id: string) => {
         if (id === this.sessionId) {
-          cb.onChange(p, () => { this.self.interaction = p.interaction; this.self.status = p.status; this.self.vehicle = p.vehicle; });
+          cb.onChange(p, () => { this.self.interaction = p.interaction; this.self.status = p.status; this.self.vehicle = p.vehicle; this.self.platform = p.platform ?? ''; });
           return;
         }
         this.addRemote(id, p);
@@ -171,7 +191,7 @@ export class NetworkClient {
       cb.onRemove('players', (_p: any, id: string) => this.removeRemote(id));
       cb.onAdd('vehicles', (v: any, id: string) => {
         this.vehicleKinds.set(id, v.kind);
-        const emit = () => this.onVehicle?.(id, { x: v.x, y: v.y, z: v.z, heading: v.heading, occupant: v.occupant, kind: v.kind, state: v.state ?? 0 });
+        const emit = () => this.onVehicle?.(id, { x: v.x, y: v.y, z: v.z, heading: v.heading, occupant: v.occupant, kind: v.kind, state: v.state ?? 0, design: v.design ?? 0 });
         emit();
         cb.onChange(v, emit);
       });
@@ -199,6 +219,9 @@ export class NetworkClient {
   /** entrar/sair levam o seq atual: o servidor descarta movimentos antigos ainda em trânsito */
   requestEnter(id: string) { this.holdMoves = true; this.send('enter', { id, seq: this.seq }); }
   requestExit() { this.holdMoves = true; this.send('exit', { seq: this.seq }); }
+  /** subir/descer do trio (escada): mesma ideia do entrar/sair — o seq descarta movimentos antigos */
+  requestBoard(id: string) { this.holdMoves = true; this.send('board', { id, seq: this.seq }); }
+  requestUnboard() { this.holdMoves = true; this.send('unboard', { seq: this.seq }); }
   /** segura o envio de movimento entre o pedido de entrar/sair e a resposta (a posição muda de "dono") */
   private holdMoves = false;
   requestPush(target: string) { this.send('push', target); }
@@ -215,8 +238,8 @@ export class NetworkClient {
     return best;
   }
 
-  remotesForObstacles(): { x: number; z: number; interaction: string; status: number; vehicle: string }[] {
-    return [...this.remotes.values()].map((r) => ({ x: r.state.x, z: r.state.z, interaction: r.interaction, status: r.status, vehicle: r.vehicle }));
+  remotesForObstacles(): { x: number; z: number; interaction: string; status: number; vehicle: string; platform: string }[] {
+    return [...this.remotes.values()].map((r) => ({ x: r.state.x, z: r.state.z, interaction: r.interaction, status: r.status, vehicle: r.vehicle, platform: r.platform }));
   }
 
   // ---------------------------------------------------------------- remotos
@@ -232,7 +255,7 @@ export class NetworkClient {
     label.style.display = 'none';
     const r: Remote = {
       id, nid, visual: null, app, agent, state: createPlayerState(id, p.x, p.y, p.z, p.heading), buf: [], label, name: p.name, body: p.body, accessory: p.accessory || 'nenhum',
-      interaction: p.interaction, status: p.status, vehicle: p.vehicle, lastArrival: performance.now(),
+      interaction: p.interaction, status: p.status, vehicle: p.vehicle, platform: p.platform ?? '', lastArrival: performance.now(),
     };
     this.remotes.set(id, r);
     if (!this.crowd) this.acquire(r);
@@ -296,9 +319,9 @@ export class NetworkClient {
     const ia = now - r.lastArrival;
     r.lastArrival = now;
     if (ia < 1000) this.jitterMs = this.jitterMs * 0.9 + Math.abs(ia - 50) * 0.1;
-    r.buf.push({ t: now, x: p.x, y: p.y, z: p.z, heading: p.heading, speed: p.speed, loco: p.loco, vehicle: p.vehicle });
+    r.buf.push({ t: now, x: p.x, y: p.y, z: p.z, heading: p.heading, speed: p.speed, loco: p.loco, vehicle: p.vehicle, platform: p.platform ?? '', plx: p.plx ?? 0, plz: p.plz ?? 0, plh: p.plh ?? 0 });
     if (r.buf.length > 40) r.buf.shift();
-    r.interaction = p.interaction; r.status = p.status; r.vehicle = p.vehicle;
+    r.interaction = p.interaction; r.status = p.status; r.vehicle = p.vehicle; r.platform = p.platform ?? '';
     r.label.classList.toggle('combat', p.interaction === 'interacao');
     if (p.name && p.name !== r.name) { r.name = p.name; r.label.textContent = p.name; }
   }
@@ -321,7 +344,7 @@ export class NetworkClient {
       if (r.visual) void r.visual.knockdown({ dirX: k.dx, dirZ: k.dz, strength: k.strength, groundY: r.state.y, walls: [], downMs: k.downMs, getupMs: k.getupMs });
       // posição de repouso autoritativa: o buffer passa a apontar para ela
       r.buf.length = 0;
-      r.buf.push({ t: performance.now(), x: k.rx, y: r.state.y, z: k.rz, heading: r.state.heading, speed: 0, loco: 0, vehicle: '' });
+      r.buf.push({ t: performance.now(), x: k.rx, y: r.state.y, z: k.rz, heading: r.state.heading, speed: 0, loco: 0, vehicle: '', platform: '', plx: 0, plz: 0, plh: 0 });
     }
     this.onKnock?.(k, false);
   }
@@ -336,7 +359,9 @@ export class NetworkClient {
         const seq = ++this.seq;
         this.history.set(seq, { x: local.x, z: local.z });
         if (this.history.size > 120) this.history.delete(seq - 120);
-        this.room.send('move', packMove({ x: local.x, y: local.y, z: local.z, heading: local.heading, speed: local.speed, loco, seq }));
+        const pl = this.platform;
+        if (pl) this.room.send('pmove', packPlatformMove({ lx: pl.lx, lz: pl.lz, lh: pl.lh, speed: pl.speed, loco: pl.loco, seq }));
+        else this.room.send('move', packMove({ x: local.x, y: local.y, z: local.z, heading: local.heading, speed: local.speed, loco, seq }));
       }
       this.pingAcc += dt;
       if (this.pingAcc > 2) { this.pingAcc = 0; this.room.send('ping', Date.now()); }
@@ -375,6 +400,20 @@ export class NetworkClient {
       s.heading = a.heading + dh * k;
       s.speed = a.speed + (c.speed - a.speed) * k;
       s.grounded = c.loco !== 3;
+      if (c.platform) {
+        // em cima do trio: pose do trio como ESTE cliente o desenha × posição local (interpolada no mesmo trio)
+        const pose = this.platformPose?.(c.platform);
+        if (pose) {
+          const same = a.platform === c.platform;
+          const lx = same ? a.plx + (c.plx - a.plx) * k : c.plx, lz = same ? a.plz + (c.plz - a.plz) * k : c.plz;
+          let dl = c.plh - (same ? a.plh : c.plh);
+          while (dl > Math.PI) dl -= Math.PI * 2;
+          while (dl < -Math.PI) dl += Math.PI * 2;
+          const w = localToWorld(pose, lx, lz);
+          s.x = w.x; s.z = w.z; s.y = pose.y + TRIO.deckH; s.heading = pose.heading + (same ? a.plh : c.plh) + dl * k;
+          s.grounded = true;
+        }
+      }
       const d = Math.hypot(s.x - cam.x, s.y - cam.y, s.z - cam.z);
       const ag = r.agent;
       ag.x = s.x; ag.y = s.y; ag.z = s.z; ag.heading = s.heading; ag.speed = c.vehicle ? 0 : s.speed;
@@ -390,7 +429,8 @@ export class NetworkClient {
       if (c.vehicle && !visual.isDown) {
         // tipo REAL do veículo (sincronizado), não deduzido do id
         const def = RIDEABLE_DEFS[(this.vehicleKinds.get(c.vehicle) ?? 'bicycle') as RideableKind] ?? RIDEABLE_DEFS.bicycle;
-        visual.updateRiding(s.x, s.y, s.z, s.heading, def.pose, s.speed, def.seatHeight, dt);
+        const seat = seatWorld(def, s.x, s.z, s.heading); // carro de som/trio: banco na cabine, longe do centro
+        visual.updateRiding(seat.x, s.y, seat.z, s.heading, def.pose, s.speed, def.seatHeight, dt);
       } else visual.update(s, dt, crowd ? visual.root.visible && crowd.shouldAnimate(ag) : undefined);
       v.set(s.x, s.y + 2.1, s.z).project(camera);
       const vis = visual.root.visible && v.z < 1 && Math.hypot(s.x - cam.x, s.z - cam.z) < 70;
@@ -417,7 +457,10 @@ export class NetworkClient {
 
   /** para QA */
   remotesInfo(): RemoteInfo[] {
-    return [...this.remotes.values()].map((r) => ({ id: r.id, name: r.name, body: r.body, accessory: r.accessory, x: +r.state.x.toFixed(2), z: +r.state.z.toFixed(2), speed: +r.state.speed.toFixed(2), interaction: r.interaction, status: r.status, vehicle: r.vehicle }));
+    return [...this.remotes.values()].map((r) => {
+      const c = r.buf[r.buf.length - 1];
+      return { id: r.id, name: r.name, body: r.body, accessory: r.accessory, x: +r.state.x.toFixed(2), z: +r.state.z.toFixed(2), speed: +r.state.speed.toFixed(2), interaction: r.interaction, status: r.status, vehicle: r.vehicle, platform: r.platform, plx: +(c?.plx ?? 0).toFixed(3), plz: +(c?.plz ?? 0).toFixed(3), wx: +(c?.x ?? 0).toFixed(2), wz: +(c?.z ?? 0).toFixed(2) };
+    });
   }
 
   disconnect() {

@@ -3,6 +3,9 @@
  *
  *  posição      cliente propõe; servidor valida velocidade por modo, limites e PAREDES (colisão 2D) e corrige
  *  veículos     registro no servidor; entrar/sair validados; 1 ocupante por veículo; posição vem do ocupante validado
+ *  evento       carro de som e trio elétrico (veículos de evento, lentos e sempre pacíficos); passageiros EM CIMA do trio
+ *               (NetPlayer.platform/plx/plz/plh): movimento LOCAL validado contra o polígono do piso; o servidor
+ *               leva todos junto quando o trio anda (src/vehicles/platform.ts, docs/SHARED_WORLD.md)
  *  interação    modo por jogador (política do evento); empurrão e impacto de veículo validados aqui
  *  mundo        relógio global e semente. SEM trânsito NPC: a Pres. Vargas está fechada para o evento — só veículos
  *               de jogadores (carro, moto, bicicleta, patinete), estacionados até alguém usar
@@ -16,7 +19,9 @@ import { WorldState, NetPlayer, NetVehicle } from './state.ts';
 import { loadWorld, type ServerWorld } from './world.ts';
 import { BODIES, NET_ACCESSORIES, MAX_SPEED, sanitizeColor, sanitizeName, type JoinOptions, type MoveMode } from '../../src/net/protocol.ts';
 import { validateMoveInWorld } from '../../src/net/authority.ts';
-import { RULES, STATUS, VEHICLE_BOX, VEHICLE_STATE, canPush, canEnter, impactAllowed, knockdownOutcome, shouldResetVehicle, vehicleBlock, vehicleImpact, unpackMove, type Actor, type Mode, type VehicleKind } from '../../src/net/rules.ts';
+import { RULES, STATUS, VEHICLE_BOX, VEHICLE_STATE, EVENT_VEHICLE_KINDS, boxesOverlap, canPush, canEnter, impactAllowed, knockdownOutcome, pushOutOfBox, shouldResetVehicle, vehicleBlock, vehicleImpact, unpackMove, type Actor, type Mode, type VehicleKind } from '../../src/net/rules.ts';
+import { TRIO, canBoard, exitPoints, localToWorld, unpackPlatformMove, validatePlatformMove } from '../../src/vehicles/platform.ts';
+import { DESIGN_BY_KEY } from '../../src/social/designs.ts';
 import { metrics } from './metrics.ts';
 import { SpatialGrid, selectInterest, selectInterestSlots, InterestScratch, makeSlotView, type SlotView } from '../../src/net/spatialGrid.ts';
 import { CrowdTable } from '../../src/net/crowdCodec.ts';
@@ -70,6 +75,8 @@ interface PlayerRT {
   crowdKnown: Set<number>;
   /** ações sociais / item segurado (regras puras em src/social/actionRules.ts) */
   social: ActionActor;
+  /** em cima de um trio: posição LOCAL aceita (validação do próximo 'pmove') */
+  plat: { id: string; x: number; z: number; t: number; seq: number } | null;
 }
 
 export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
@@ -101,6 +108,10 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
   private freeSlots: number[] = [];
   private nextNid = 1;
   private nids = new Set<number>();
+  /** trio → passageiros em cima (sessionIds) */
+  private riders = new Map<string, Set<string>>();
+  /** veículos de evento (carro de som, trio): sólidos para quem anda e para os outros veículos */
+  private eventVehIds: string[] = [];
 
   messages = {
     move: (client: Client, raw: unknown) => this.withNet(client, true, () => this.onMove(client, raw)),
@@ -112,6 +123,10 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     // ações sociais (emotes) e itens seguráveis: só ids pequenos — os outros clientes tocam a animação localmente
     act: (client: Client, m: { a?: unknown; v?: unknown }) => this.onAct(client, m),
     prop: (client: Client, m: { p?: unknown; d?: unknown }) => this.onProp(client, m),
+    // trio elétrico: subir/descer pela escada e andar em cima (posição LOCAL no piso)
+    board: (client: Client, m: { id?: unknown; seq?: number }) => this.withNet(client, false, () => this.onBoard(client, m)),
+    unboard: (client: Client, m?: { seq?: number }) => this.withNet(client, false, () => this.onUnboard(client, m?.seq)),
+    pmove: (client: Client, raw: unknown) => this.withNet(client, true, () => this.onPlatformMove(client, raw)),
     appearance: (client: Client, opts: Partial<JoinOptions>) => {
       const p = this.state.players.get(client.sessionId);
       if (p && opts) this.applyAppearance(p, opts);
@@ -128,10 +143,14 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     this.spawn = { x: sp.p[0], z: sp.p[1], heading: Math.atan2(Math.cos(sp.yaw), Math.sin(sp.yaw)) };
     // veículos utilizáveis (mesmos ids do cliente)
     const allowed = new Set((W.events.get(ev)?.vehicles ?? []).map((v) => v.kind));
+    // arte dos painéis dos veículos de evento: DADOS do evento (scenery.designs: id → chave de design)
+    const designs = W.events.get(ev)?.scenery?.designs ?? {};
     for (const s of W.manifest.vehicleSpawns ?? []) {
       if (allowed.size && !allowed.has(s.kind)) continue;
       const v = new NetVehicle();
       v.kind = s.kind; v.x = s.x; v.z = s.z; v.y = 0; v.heading = s.heading; v.speed = 0; v.occupant = ''; v.state = VEHICLE_STATE.AVAILABLE;
+      v.design = DESIGN_BY_KEY.get(designs[s.id] ?? '')?.id ?? 0;
+      if (EVENT_VEHICLE_KINDS.has(s.kind)) this.eventVehIds.push(s.id);
       this.state.vehicles.set(s.id, v);
       this.vehRT.set(s.id, { spawnX: s.x, spawnZ: s.z, spawnHeading: s.heading, idleSince: Date.now(), vslot: this.vehIds.length });
       this.vehIds.push(s.id);
@@ -245,7 +264,8 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
       // veículos: mesma grade espacial (só células próximas); o do próprio jogador fica sempre
       const vc: { item: string; d: number }[] = [];
       this.vgrid.forEachInRadius(me.x, me.z, AOI_RADIUS * AOI_HYST, (vs, d) => vc.push({ item: this.vehIds[vs], d }));
-      const vr = selectInterest({ candidates: vc, inView: r.vehInView, radius: AOI_RADIUS, hysteresis: AOI_HYST, always: me.vehicle ? new Set([me.vehicle]) : undefined });
+      const own = me.vehicle || me.platform; // o veículo em uso / o trio em que está em cima fica sempre na vista
+      const vr = selectInterest({ candidates: vc, inView: r.vehInView, radius: AOI_RADIUS, hysteresis: AOI_HYST, always: own ? new Set([own]) : undefined });
       for (const vid of vr.add) { const v = this.state.vehicles.get(vid); if (v) { r.view.add(v); r.vehInView.add(vid); } }
       for (const vid of vr.remove) { const v = this.state.vehicles.get(vid); if (v) r.view.remove(v); r.vehInView.delete(vid); }
     }
@@ -330,7 +350,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     // As regras de autoridade continuam idênticas a partir daí.
     const ts = options?.testSpawn;
     if (process.env.PV_TEST === '1' && ts && Number.isFinite(ts.x) && Number.isFinite(ts.z)) { p.x = ts.x; p.z = ts.z; }
-    p.y = 0; p.heading = this.spawn.heading; p.loco = 0; p.vehicle = ''; p.interaction = 'pacifico'; p.status = STATUS.OK;
+    p.y = 0; p.heading = this.spawn.heading; p.loco = 0; p.vehicle = ''; p.platform = ''; p.interaction = 'pacifico'; p.status = STATUS.OK;
     p.nid = this.allocNid();
     this.state.players.set(client.sessionId, p);
     const view = new StateView();
@@ -342,6 +362,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
       nid: p.nid, overflow: [], crowdKnown: new Set(), slot: this.allocSlot(client.sessionId),
       aoiCap: clientCap(options?.aoiMax),
       social: { act: 0, actAt: 0, prop: 0, design: 0, status: 0, vehicle: '', recent: [] },
+      plat: null,
     };
     this.slotNid[r.slot] = p.nid;
     this.rt.set(client.sessionId, r);
@@ -359,6 +380,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
       const v = this.state.vehicles.get(p.vehicle);
       if (v) { v.occupant = ''; v.speed = 0; v.state = VEHICLE_STATE.AVAILABLE; const rt = this.vehRT.get(p.vehicle); if (rt) rt.idleSince = Date.now(); }
     }
+    if (p?.platform) this.riders.get(p.platform)?.delete(client.sessionId);
     const leaving = this.rt.get(client.sessionId);
     if (leaving) {
       const { nid, slot } = leaving;
@@ -386,6 +408,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     if (!p || !r || !m) return;
     if (m.seq <= r.last.seq) return; // fora de ordem/duplicada
     if (p.status !== STATUS.OK) { r.last.seq = m.seq; return; } // caído: servidor ignora (posição de repouso é do servidor)
+    if (p.platform) { r.last.seq = m.seq; return; } // em cima do trio: só vale 'pmove' (local); o mundo é do trio
     const veh = p.vehicle ? this.state.vehicles.get(p.vehicle) : undefined;
     const mode: MoveMode = veh ? (veh.kind as MoveMode) : 'foot'; // modo vem do SERVIDOR, não do cliente
     const now = Date.now();
@@ -400,6 +423,12 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
         const b = vehicleBlock(veh.kind as VehicleKind, { x: prevX, z: prevZ }, { x: res.x, z: res.z }, m.heading, blk);
         if (b.blocked) { res.x = b.x; res.z = b.z; res.ok = false; res.reason = 'bloqueado'; }
       }
+      // trio/carro de som são sólidos para os outros veículos (e vice-versa): não atravessa, para encostado
+      if (this.vehicleOverlap(p.vehicle, veh.kind, prevX, prevZ, veh.heading, res.x, res.z, m.heading)) { res.x = prevX; res.z = prevZ; res.ok = false; res.reason = 'bloqueado'; }
+    } else {
+      // a pé: a carroceria do trio/carro de som é sólida (mesma regra da colisão local, com folga menor)
+      const o = this.pushOutOfEventVehicles(res.x, res.z);
+      if (o) { res.x = o.x; res.z = o.z; res.ok = false; res.reason = 'veiculo'; }
     }
     // andar cancela ações que não permitem movimento (dançar, sentar, pose…); as de "andar com bandeira" seguem
     if (p.act !== 0 && cancelsOnMove(p.act, Math.hypot(res.x - prevX, res.z - prevZ))) this.setAct(p, r, 0, now);
@@ -415,6 +444,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     }
     if (veh) {
       veh.x = res.x; veh.z = res.z; veh.y = res.y; veh.heading = m.heading; veh.speed = measured;
+      if (veh.kind === 'trio') this.carryRiders(p.vehicle);
       if (veh.kind === 'car' || veh.kind === 'moto') {
         const box = VEHICLE_BOX[veh.kind as VehicleKind];
         this.checkImpacts(client.sessionId, { x: res.x, z: res.z, px: prevX, pz: prevZ, heading: m.heading, speed: measured, len: box.len, width: box.width });
@@ -438,6 +468,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     const r = this.rt.get(client.sessionId);
     const v = typeof id === 'string' ? this.state.vehicles.get(id) : undefined;
     if (!p || !r) return;
+    if (p.platform) { client.send('enter_denied', { id, reason: 'em_cima_do_trio' }); return; }
     const c = canEnter({ x: r.last.x, z: r.last.z, status: p.status, vehicle: p.vehicle }, v ? { x: v.x, z: v.z, occupant: v.occupant, heading: v.heading, kind: v.kind } : undefined);
     if (!c.ok) { client.send('enter_denied', { id, reason: c.reason }); metrics.denied(); console.log(`[room] entrar negado ${client.sessionId} → ${JSON.stringify(id)}: ${c.reason}`); return; }
     v!.occupant = client.sessionId;
@@ -466,16 +497,122 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
       if (vrt) vrt.idleSince = Date.now();
       // sai pelo lado esquerdo (motorista); se houver parede, pelo direito; senão no lugar
       const side = v.kind === 'car' ? 1.6 : v.kind === 'moto' ? 1.0 : 0.9;
-      const cands = [[-Math.cos(v.heading), Math.sin(v.heading)], [Math.cos(v.heading), -Math.sin(v.heading)]];
+      let cands = [[-Math.cos(v.heading), Math.sin(v.heading)], [Math.cos(v.heading), -Math.sin(v.heading)]].map(([dx, dz]) => ({ x: v.x + dx * side, z: v.z + dz * side }));
+      // veículos de evento: desce pela porta da cabine (longe do centro), fora da carroceria
+      if (EVENT_VEHICLE_KINDS.has(v.kind)) cands = exitPoints(v.kind, v);
       let out = { x: v.x, z: v.z };
-      for (const [dx, dz] of cands) {
-        const t = { x: v.x + dx * side, z: v.z + dz * side };
+      for (const t of cands) {
         if (world().walls.raycast(v.x, 0.6, v.z, t.x, 0.6, t.z) >= 1) { out = t; break; }
       }
       p.x = out.x; p.z = out.z;
       r.last = { x: out.x, y: 0, z: out.z, t: Date.now(), seq: Math.max(r.last.seq, Number.isFinite(seq) ? (seq as number) : r.last.seq) };
       client.send('exit_ok', { x: out.x, z: out.z });
     }
+  }
+
+  // ---------------------------------------------------------------- trio elétrico (plataforma) e veículos de evento
+  /** passageiros acompanham o trio: mundo = pose do trio × posição local (chamado a cada movimento do trio) */
+  private carryRiders(trioId: string) {
+    const v = this.state.vehicles.get(trioId), set = this.riders.get(trioId);
+    if (!v || !set) return;
+    for (const id of set) {
+      const p = this.state.players.get(id), r = this.rt.get(id);
+      if (!p || !r) continue;
+      const w = localToWorld(v, p.plx, p.plz);
+      p.x = w.x; p.z = w.z; p.y = v.y + TRIO.deckH; p.heading = v.heading + p.plh;
+      r.actor.x = w.x; r.actor.z = w.z; r.actor.heading = p.heading;
+      r.last.x = w.x; r.last.z = w.z; r.last.y = p.y;
+    }
+  }
+
+  private onBoard(client: Client, m: { id?: unknown; seq?: number }) {
+    const p = this.state.players.get(client.sessionId), r = this.rt.get(client.sessionId);
+    const id = typeof m?.id === 'string' ? m.id : '';
+    const v = id ? this.state.vehicles.get(id) : undefined;
+    if (!p || !r) return;
+    const c = canBoard({ x: r.last.x, z: r.last.z, status: p.status, vehicle: p.vehicle, platform: p.platform }, v ? { x: v.x, z: v.z, heading: v.heading, kind: v.kind } : undefined, this.riders.get(id)?.size ?? 0);
+    if (!c.ok) { client.send('board_denied', { id, reason: c.reason }); metrics.denied(); console.log(`[room] subir negado ${client.sessionId} → ${JSON.stringify(id)}: ${c.reason}`); return; }
+    const now = Date.now();
+    const seq = Math.max(r.last.seq, Number.isFinite(m.seq) ? (m.seq as number) : r.last.seq);
+    p.platform = id; p.plx = TRIO.ladderTop[0]; p.plz = TRIO.ladderTop[1]; p.plh = 0;
+    r.plat = { id, x: p.plx, z: p.plz, t: now, seq };
+    r.last.seq = seq;
+    r.actor.platform = id;
+    if (p.act !== 0) this.setAct(p, r, 0, now);
+    let set = this.riders.get(id);
+    if (!set) this.riders.set(id, (set = new Set()));
+    set.add(client.sessionId);
+    this.carryRiders(id);
+    client.send('board_ok', { id, lx: p.plx, lz: p.plz });
+    console.log(`[room] ${client.sessionId} subiu no ${id} (${set.size} em cima)`);
+  }
+
+  private onUnboard(client: Client, seq?: number) {
+    const p = this.state.players.get(client.sessionId), r = this.rt.get(client.sessionId);
+    if (!p || !r || !p.platform) return;
+    const id = p.platform, v = this.state.vehicles.get(id);
+    let out = { x: p.x, z: p.z };
+    if (v) {
+      // desce pela escada; se houver parede atrás, pelas laterais da traseira
+      const top = localToWorld(v, TRIO.ladderTop[0], TRIO.ladderTop[1]);
+      const cands: [number, number][] = [[TRIO.ladderFoot[0], TRIO.ladderFoot[1]], [TRIO.width / 2 + 1.0, TRIO.ladderTop[1]], [-TRIO.width / 2 - 1.0, TRIO.ladderTop[1]]];
+      out = localToWorld(v, cands[0][0], cands[0][1]);
+      for (const [lx, lz] of cands) {
+        const t = localToWorld(v, lx, lz);
+        if (world().walls.raycast(top.x, 0.6, top.z, t.x, 0.6, t.z) >= 1) { out = t; break; }
+      }
+    }
+    this.riders.get(id)?.delete(client.sessionId);
+    p.platform = ''; p.plx = 0; p.plz = 0; p.plh = 0;
+    r.plat = null; r.actor.platform = '';
+    p.x = out.x; p.z = out.z; p.y = v?.y ?? 0;
+    r.actor.x = out.x; r.actor.z = out.z;
+    r.last = { x: out.x, y: p.y, z: out.z, t: Date.now(), seq: Math.max(r.last.seq, Number.isFinite(seq) ? (seq as number) : r.last.seq) };
+    client.send('unboard_ok', { x: out.x, z: out.z });
+  }
+
+  /** movimento LOCAL em cima do trio: velocidade de quem anda + preso ao polígono do piso (TRIO_DECK) */
+  private onPlatformMove(client: Client, raw: unknown) {
+    const p = this.state.players.get(client.sessionId), r = this.rt.get(client.sessionId);
+    const m = unpackPlatformMove(raw);
+    if (!p || !r || !m || !r.plat || !p.platform) return;
+    if (m.seq <= r.plat.seq) return;
+    const now = Date.now();
+    const res = validatePlatformMove(r.plat, { x: m.lx, z: m.lz }, (now - r.plat.t) / 1000, MAX_SPEED.foot);
+    if (p.act !== 0 && cancelsOnMove(p.act, Math.hypot(res.x - r.plat.x, res.z - r.plat.z))) this.setAct(p, r, 0, now);
+    p.plx = res.x; p.plz = res.z; p.plh = m.lh;
+    p.speed = Math.min(Math.abs(m.speed), MAX_SPEED.foot);
+    p.loco = Math.max(0, Math.min(2, m.loco | 0));
+    r.plat = { id: r.plat.id, x: res.x, z: res.z, t: now, seq: m.seq };
+    r.last.seq = m.seq;
+    r.last.t = now;
+    this.carryRiders(p.platform);
+    if (!res.ok) { client.send('pcorrect', [res.x, res.z, m.seq, res.reason ?? '']); metrics.correction(); }
+  }
+
+  /** quem anda a pé não entra na carroceria do trio/carro de som (folga menor que a do cliente: correção rara) */
+  private pushOutOfEventVehicles(x: number, z: number): { x: number; z: number } | null {
+    let out: { x: number; z: number } | null = null;
+    for (const id of this.eventVehIds) {
+      const v = this.state.vehicles.get(id);
+      if (!v || Math.hypot(v.x - x, v.z - z) > 10) continue;
+      const o = pushOutOfBox(out?.x ?? x, out?.z ?? z, v, 0.15);
+      if (o) out = o;
+    }
+    return out;
+  }
+
+  /** o veículo em `next` sobrepõe um veículo de evento (ou, sendo de evento, qualquer outro)? só se antes não sobrepunha */
+  private vehicleOverlap(selfId: string, kind: string, px: number, pz: number, ph: number, x: number, z: number, h: number): boolean {
+    let hit = false;
+    this.vgrid.forEachInRadius(x, z, 30, (vs) => {
+      if (hit) return;
+      const oid = this.vehIds[vs];
+      const o = oid === selfId ? undefined : this.state.vehicles.get(oid);
+      if (!o || (!EVENT_VEHICLE_KINDS.has(kind) && !EVENT_VEHICLE_KINDS.has(o.kind))) return;
+      if (boxesOverlap({ x, z, heading: h, kind }, o) && !boxesOverlap({ x: px, z: pz, heading: ph, kind }, o)) hit = true;
+    });
+    return hit;
   }
 
   // ---------------------------------------------------------------- interação física
@@ -489,7 +626,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     if (!p || !r || !m) return;
     const now = Date.now();
     const s = r.social;
-    s.status = p.status; s.vehicle = p.vehicle; s.prop = p.prop;
+    s.status = p.status; s.vehicle = p.vehicle; s.prop = p.prop; s.onPlatform = !!p.platform;
     const v = validateAction(s, m.a, now);
     if (!v.ok) { client.send('act_denied', v.reason); return; }
     applyAction(s, m.a as number, now);
@@ -502,7 +639,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     if (!p || !r || !m) return;
     const now = Date.now();
     const s = r.social;
-    s.status = p.status; s.vehicle = p.vehicle; s.act = p.act;
+    s.status = p.status; s.vehicle = p.vehicle; s.act = p.act; s.onPlatform = !!p.platform;
     const v = validateProp(s, m.p, m.d ?? 0, now);
     if (!v.ok) { client.send('prop_denied', v.reason); return; }
     applyProp(s, m.p as number, typeof m.d === 'number' ? m.d : 0, now);
@@ -550,7 +687,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
       const id = this.slotIds[sl];
       if (id === driverId) return;
       const a = this.rt.get(id)?.actor;
-      if (!a || a.vehicle) return;
+      if (!a || a.vehicle || a.platform) return; // em veículo ou em cima do trio: não está no chão
       const canHit = (kind === 'car' || kind === 'moto') && !!d && impactAllowed(d.actor.mode, a.mode) && a.status === STATUS.OK && now >= a.immuneUntil;
       if (!canHit) out.push({ x: a.x, z: a.z });
     });
@@ -570,7 +707,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
       const r = this.rt.get(id);
       if (!r || id === driverId) continue;
       const a = r.actor;
-      if (a.mode !== 'interacao' || a.status !== STATUS.OK || a.vehicle || now < a.immuneUntil) continue;
+      if (a.mode !== 'interacao' || a.status !== STATUS.OK || a.vehicle || a.platform || now < a.immuneUntil) continue;
       const hit = vehicleImpact(car, { x: a.x, z: a.z });
       if (hit.hit) this.knockdown(id, car.x - Math.sin(car.heading) * 3, car.z - Math.cos(car.heading) * 3, hit.strength, 'impact', driverId, hit.strength);
     }

@@ -17,7 +17,7 @@ import { worldProjection, WORLD_ORIGIN } from '../geo/projection';
 import { createPlayerState, type PlayerState } from '../player/PlayerState';
 import { stepPlayer } from '../player/PlayerController';
 import { AvatarVisual } from '../player/AvatarVisual';
-import { VEHICLE_BOX, impactAllowed, vehicleBlock, type Mode, type VehicleKind } from '../net/rules';
+import { BOXED_KINDS, EVENT_VEHICLE_KINDS, boxesOverlap, impactAllowed, pushOutOfBox, vehicleBlock, type Mode, type VehicleKind } from '../net/rules';
 import { HumanCharacter } from '../characters/human/HumanCharacter';
 import { registerCampaigns } from '../social/designs';
 import { FrameGovernor } from './frameGovernor';
@@ -43,7 +43,12 @@ import { worldClock } from '../net/clock';
 import { MonumentSystem } from '../world/Monuments';
 import { BillboardSystem } from '../events/Billboards';
 import { EventManager } from '../events/EventManager';
-import { RideableSystem, stepRideable, type RideableInstance } from '../vehicles/Rideable';
+import { RideableSystem, seatWorld, stepRideable, type RideableInstance } from '../vehicles/Rideable';
+// ---- rodada 7: veículos de evento (trio elétrico, carro de som) e cenário (caminhões, telões, palco)
+import { EventScenery } from '../world/eventScenery';
+import { TrioRider } from '../vehicles/trioRider';
+import { TRIO, exitPoints, localToWorld } from '../vehicles/platform';
+import { screenFeed } from '../events/screenFeed';
 import { InteractionController } from '../interaction/InteractionMode';
 import type { KnockMsg } from '../net/NetworkClient';
 import { preloadRagdoll } from '../physics/Ragdoll';
@@ -68,6 +73,8 @@ const RIDE_HELP: Record<string, string> = {
   moto: 'E — sair · W acelerar · S frear · A/D guidão · Shift mais rápido (limite 30 km/h)',
   bicycle: 'E — descer · W pedalar · S frear · A/D guidão · Shift pedalar forte',
   scooter: 'E — descer · W acelerar · S frear · A/D guidão · Shift mais rápido (limite 20 km/h)',
+  soundcar: 'E — sair · W acelerar · S frear/ré · A/D volante · passo de cortejo (até 15 km/h)',
+  trio: 'E — sair · W andar · S frear/ré · A/D volante · trio elétrico: bem devagar (até 5 km/h)',
 };
 
 export class Game {
@@ -95,6 +102,10 @@ export class Game {
   readonly events!: EventManager;
   private rideables!: RideableSystem;
   private riding: RideableInstance | null = null;
+  /** cenário de evento e jogador local em cima do trio (rodada 7) */
+  private scenery!: EventScenery;
+  private trio = new TrioRider();
+  private pendingBoard = false;
   readonly interaction = new InteractionController();
   private net: NetworkClient | null = null;
   private appearance: CharacterAppearance | undefined;
@@ -272,6 +283,12 @@ export class Game {
     const kinds = (this.events.current?.vehicles ?? [{ kind: 'bicycle' }, { kind: 'scooter' }, { kind: 'car' }, { kind: 'moto' }]).map((v) => v.kind);
     this.rideables = new RideableSystem(this.manifest.vehicleSpawns ?? [], (x, z) => this.collision.groundHeight(x, z), kinds);
     this.scene.add(this.rideables.group);
+    // cenário de evento (caminhões de campanha, telões, palco) + telão do trio no mesmo canal
+    this.scenery = new EventScenery(this.manifest, (x, z) => this.collision.groundHeight(x, z), this.collision);
+    this.scenery.applyEvent(this.events.current);
+    for (const it of this.rideables.eventItems()) this.scenery.addScreens(it.model);
+    this.scene.add(this.scenery.group);
+    screenFeed().info = () => ({ time: this.simTime.toTimeString().slice(0, 5), players: 1 + (this.net?.remoteCount ?? 0) + (this.net?.farCount ?? 0) });
     this.cam = new ThirdPersonCamera(this.camera, this.collision);
     // intro: começa olhando a Central, depois gira para a avenida (direção da Candelária)
     const central = this.manifest.landmarks.find((l) => l.key === 'LANDMARK_CENTRAL')!;
@@ -330,7 +347,7 @@ export class Game {
     help.className = 'help';
     help.innerHTML = this.input.isTouch
       ? 'Joystick: andar · Arraste: câmera · Pinça: zoom'
-      : '<b>WASD</b> andar · <b>Shift</b> correr · <b>Espaço</b> pular · <b>Mouse</b> câmera · <b>Roda</b> zoom · <b>E</b> usar bicicleta/patinete · <b>K</b> modo · <b>M</b> mapa · <b>F3</b> debug · <b>H</b> ajuda · <b>Esc</b> soltar mouse';
+      : '<b>WASD</b> andar · <b>Shift</b> correr · <b>Espaço</b> pular · <b>Mouse</b> câmera · <b>Roda</b> zoom · <b>E</b> usar veículo / subir no trio · <b>K</b> modo · <b>M</b> mapa · <b>F3</b> debug · <b>H</b> ajuda · <b>Esc</b> soltar mouse';
     this.hud.appendChild(help);
     this.prompt = document.createElement('div');
     this.prompt.className = 'use-prompt';
@@ -531,6 +548,7 @@ export class Game {
     this.crowd.end(this.camera, dt);
     mark('multidão');
     this.closure.update(this.camera.position);
+    this.scenery.update(dt, this.camera.position);
     this.props.updateSignals((j, ph) => this.signals.state(j, ph));
 
     // mundo
@@ -602,7 +620,16 @@ export class Game {
       if (this.riding) { this.riding.state.x = this.player.x; this.riding.state.z = this.player.z; if (reason === 'collision') this.riding.state.speed = 0; }
       this.player.y = Math.max(abs.y, this.collision.groundHeight(this.player.x, this.player.z));
     };
-    this.net.onVehicle = (id, v) => this.rideables.applyServer(id, v.x, v.y, v.z, v.heading, v.occupant, this.net!.sessionId, v.state);
+    this.net.onVehicle = (id, v) => this.rideables.applyServer(id, v.x, v.y, v.z, v.heading, v.occupant, this.net!.sessionId, v.state, v.design);
+    // trio elétrico: passageiros presos à pose do trio COMO ESTE CLIENTE O DESENHA
+    this.net.platformPose = (id) => { const it = this.rideables.byId.get(id); return it ? it.state : null; };
+    this.net.onBoard = (ok, d) => {
+      this.pendingBoard = false;
+      if (ok) { this.trio.board(d.id, d.lx, d.lz); this.cam.setProfile('foot'); this.flash('Você subiu no trio elétrico (servidor confirmou)'); }
+      else this.flash(d.reason === 'lotado' ? 'O trio está lotado' : `Não foi possível subir (${d.reason})`);
+    };
+    this.net.onUnboard = (pos) => this.leaveTrioLocal(pos);
+    this.net.onPlatformCorrect = (lx, lz) => this.trio.correct(lx, lz);
     this.net.onEnter = (ok, d) => {
       const it = this.rideables.byId.get(d.id);
       if (ok && it) { it.state.x = d.x ?? it.state.x; it.state.z = d.z ?? it.state.z; it.state.heading = d.heading ?? it.state.heading; this.mountLocal(it); this.flash(it.def.kind === 'car' ? 'Você está dirigindo (servidor confirmou)' : `${it.def.label}: em uso (servidor confirmou)`); }
@@ -613,7 +640,7 @@ export class Game {
     this.net.onKnock = (k, isSelf) => { if (isSelf) this.onSelfKnock(k); };
     this.net.onNotice = (m) => this.flash(m);
     this.net.onEvent = (id) => {
-      if (this.events.current?.id !== id) void this.events.load(id).then(() => this.interaction.setPolicy(this.events.current?.interaction));
+      if (this.events.current?.id !== id) void this.events.load(id).then(() => { this.interaction.setPolicy(this.events.current?.interaction); this.scenery.applyEvent(this.events.current); });
     };
     void preloadRagdoll().catch(() => { /* fallback procedural */ });
     try {
@@ -666,11 +693,23 @@ export class Game {
     this.cam.setProfile(v.def.kind);
   }
 
+  /** desce do trio (servidor confirmou, ou offline): pé da escada */
+  private leaveTrioLocal(pos?: { x: number; z: number }) {
+    const s = this.trio.state;
+    this.trio.unboard();
+    if (this.net) this.net.platform = null;
+    if (!pos && s) { const it = this.rideables.byId.get(s.id); if (it) pos = localToWorld(it.state, TRIO.ladderFoot[0], TRIO.ladderFoot[1]); }
+    if (pos) { this.player.x = pos.x; this.player.z = pos.z; }
+    this.player.y = this.collision.groundHeight(this.player.x, this.player.z);
+    this.pendingBoard = false;
+  }
+
   private dismountLocal(pos?: { x: number; z: number }) {
     const v = this.riding;
     if (!v) return;
     v.state.occupant = null;
     v.state.speed = 0;
+    if (!pos && EVENT_VEHICLE_KINDS.has(v.def.kind)) pos = exitPoints(v.def.kind, v.state)[0];
     if (pos) { this.player.x = pos.x; this.player.z = pos.z; }
     else { const side = v.def.kind === 'car' ? -1.6 : v.def.kind === 'moto' ? 1.0 : 0.9; this.player.x = v.state.x + Math.cos(v.state.heading) * side; this.player.z = v.state.z - Math.sin(v.state.heading) * side; }
     this.player.y = this.collision.groundHeight(this.player.x, this.player.z);
@@ -696,7 +735,14 @@ export class Game {
       }
     }
     if (this.input.consumeToggle('use') && !this.avatar.isDown) {
-      if (this.riding) {
+      const ladder = !this.riding && !this.trio.active ? this.rideables.nearestLadder(this.player.x, this.player.z) : null;
+      if (this.trio.active) {
+        // em cima do trio: E desce pela escada
+        if (this.mpOnline) { this.pendingBoard = true; this.net!.requestUnboard(); } else this.leaveTrioLocal();
+      } else if (ladder) {
+        if (this.mpOnline) { this.pendingBoard = true; this.net!.requestBoard(ladder.state.id); this.flash('Subindo… (aguardando o servidor)'); }
+        else this.trio.board(ladder.state.id);
+      } else if (this.riding) {
         if (this.mpOnline) this.net!.requestExit();
         else this.dismountLocal();
       } else {
@@ -714,6 +760,17 @@ export class Game {
       this.player.locomotion = 'idle';
       this.avatar.update(this.player, dt);
       this.prompt.textContent = 'Caído… levantando em instantes';
+    } else if (this.trio.active) {
+      // em cima do trio: anda no piso (posição LOCAL); o mundo vem da pose do trio
+      const it = this.rideables.byId.get(this.trio.state!.id);
+      if (!it) this.leaveTrioLocal();
+      else {
+        this.input.consumeJump();
+        this.trio.step(this.player, it.state, fx * ax.y + -Math.cos(this.cam.yaw) * ax.x, fz * ax.y + Math.sin(this.cam.yaw) * ax.x, this.input.running(), dt);
+        if (this.net) this.net.platform = this.trio.state;
+        this.avatar.update(this.player, dt);
+        this.prompt.textContent = this.pendingBoard ? 'Aguardando o servidor…' : 'E — DESCER DO TRIO · WASD andar em cima';
+      }
     } else if (this.riding) {
       const v = this.riding;
       const prev = { x: v.state.x, z: v.state.z };
@@ -723,19 +780,27 @@ export class Game {
         // (vehicleBlock). Atropelamento só existe entre jogadores em modo interação, com carro/moto (servidor decide).
         const kind = v.def.kind as VehicleKind;
         const blockers = [
-          ...(this.net?.remotesForObstacles() ?? []).filter((r) => !r.vehicle && !((kind === 'car' || kind === 'moto') && impactAllowed(this.interaction.mode, r.interaction as Mode) && r.status === 0)),
+          ...(this.net?.remotesForObstacles() ?? []).filter((r) => !r.vehicle && !r.platform && !((kind === 'car' || kind === 'moto') && impactAllowed(this.interaction.mode, r.interaction as Mode) && r.status === 0)),
           ...this.peds.nearby(v.state.x, v.state.z, 8),
         ];
         if (blockers.length) {
           const b = vehicleBlock(kind, prev, { x: v.state.x, z: v.state.z }, v.state.heading, blockers);
           if (b.blocked) { v.state.x = b.x; v.state.z = b.z; v.state.speed = 0; }
         }
+        // trio/carro de som são sólidos para os outros veículos (e vice-versa) — mesma regra do servidor
+        for (const o of this.rideables.items) {
+          if (o === v || (!EVENT_VEHICLE_KINDS.has(kind) && !EVENT_VEHICLE_KINDS.has(o.def.kind))) continue;
+          if (Math.hypot(o.state.x - v.state.x, o.state.z - v.state.z) > 20) continue;
+          const os = { x: o.state.x, z: o.state.z, heading: o.state.heading, kind: o.def.kind };
+          if (boxesOverlap({ x: v.state.x, z: v.state.z, heading: v.state.heading, kind }, os) && !boxesOverlap({ x: prev.x, z: prev.z, heading: v.state.heading, kind }, os)) { v.state.x = prev.x; v.state.z = prev.z; v.state.speed = 0; }
+        }
       }
       this.input.consumeJump();
       this.player.x = v.state.x; this.player.z = v.state.z; this.player.y = v.state.y;
       this.player.heading = v.state.heading; this.player.speed = Math.abs(v.state.speed);
       this.player.locomotion = 'walk';
-      this.avatar.updateRiding(v.state.x, v.state.y, v.state.z, v.state.heading, v.def.pose, v.state.speed, v.def.seatHeight, dt);
+      const seat = seatWorld(v.def, v.state.x, v.state.z, v.state.heading);
+      this.avatar.updateRiding(seat.x, v.state.y, seat.z, v.state.heading, v.def.pose, v.state.speed, v.def.seatHeight, dt);
       let dyaw = v.state.heading - this.cam.yaw;
       while (dyaw > Math.PI) dyaw -= Math.PI * 2;
       while (dyaw < -Math.PI) dyaw += Math.PI * 2;
@@ -751,21 +816,16 @@ export class Game {
       };
       const steps = Math.max(1, Math.ceil(dt / (1 / 120)));
       for (let i = 0; i < steps; i++) stepPlayer(this.player, intent, dt / steps, this.collision);
-      for (const it of this.rideables.items) if ((it.def.kind === 'car' || it.def.kind === 'moto') && it !== this.riding) {
-        // carros e motos estacionados são sólidos
-        const box = VEHICLE_BOX[it.def.kind as VehicleKind];
-        const fx2 = Math.sin(it.state.heading), fz2 = Math.cos(it.state.heading);
-        const dx = this.player.x - it.state.x, dz = this.player.z - it.state.z;
-        const lz = dx * fx2 + dz * fz2, lx = dx * fz2 - dz * fx2;
-        const hx = box.width / 2 + 0.35, hz = box.len / 2 + 0.35;
-        if (Math.abs(lx) < hx && Math.abs(lz) < hz) {
-          if (hx - Math.abs(lx) < hz - Math.abs(lz)) { const nlx = Math.sign(lx || 1) * hx; this.player.x = it.state.x + lz * fx2 + nlx * fz2; this.player.z = it.state.z + lz * fz2 - nlx * fx2; }
-          else { const nlz = Math.sign(lz || 1) * hz; this.player.x = it.state.x + nlz * fx2 + lx * fz2; this.player.z = it.state.z + nlz * fz2 - lx * fx2; }
-        }
+      for (const it of this.rideables.items) if (BOXED_KINDS.has(it.def.kind) && it !== this.riding) {
+        // carros, motos, carros de som e o trio (estacionados ou andando) são sólidos
+        if (Math.hypot(this.player.x - it.state.x, this.player.z - it.state.z) > 10) continue;
+        const o = pushOutOfBox(this.player.x, this.player.z, { x: it.state.x, z: it.state.z, heading: it.state.heading, kind: it.def.kind }, 0.35);
+        if (o) { this.player.x = o.x; this.player.z = o.z; }
       }
       this.avatar.update(this.player, dt);
       const near = this.rideables.nearest(this.player.x, this.player.z);
-      this.prompt.textContent = this.pendingEnter ? 'Aguardando o servidor…' : near ? `E — USAR ${near.def.label.toUpperCase()}` : '';
+      const ladder = this.rideables.nearestLadder(this.player.x, this.player.z);
+      this.prompt.textContent = this.pendingEnter || this.pendingBoard ? 'Aguardando o servidor…' : ladder ? 'E — SUBIR NO TRIO' : near ? (near.def.kind === 'trio' ? 'E — DIRIGIR O TRIO ELÉTRICO' : `E — USAR ${near.def.label.toUpperCase()}`) : '';
     }
     this.rideables.sync(this.camera.position);
     this.prompt.classList.toggle('show', !!this.prompt.textContent);
@@ -849,6 +909,21 @@ export class Game {
       },
       press: (code: string, ms = 1000) => { window.dispatchEvent(new KeyboardEvent('keydown', { code })); setTimeout(() => window.dispatchEvent(new KeyboardEvent('keyup', { code })), ms); },
       riding: () => this.riding?.def.kind ?? null,
+      // ---- trio elétrico / veículos de evento (QA: tools/qa/trio_mp.mjs)
+      /** em cima do trio? {id, lx, lz, lh} */
+      platform: () => (this.trio.state ? { ...this.trio.state } : null),
+      /** pose do trio (ou de qualquer veículo) como este cliente o desenha */
+      vehiclePose: (id: string) => { const it = this.rideables.byId.get(id); return it ? { x: it.state.x, y: it.state.y, z: it.state.z, heading: it.state.heading, occupant: it.state.occupant, design: it.design } : null; },
+      /** posição DESENHADA de cada remoto (para medir o erro relativo ao trio) */
+      remoteDrawn: () => this.net?.remotesInfo() ?? [],
+      /** cenário de evento (caminhões/telões/palco) e troca de arte por id → chave/id de design */
+      eventScenery: () => this.scenery.items.map((i) => ({ id: i.spot.id, kind: i.spot.kind, x: i.spot.x, z: i.spot.z, heading: i.spot.heading, design: i.design })),
+      setSceneryDesign: (id: string, design: string | number) => this.scenery.setDesign(id, design),
+      /** QA local (sem servidor): arte dos painéis de um veículo de evento */
+      setVehicleDesign: (id: string, design: number) => { const it = this.rideables.byId.get(id); if (!it) return false; this.rideables.applyServer(id, it.state.x, it.state.y, it.state.z, it.state.heading, it.state.occupant ?? '', this.net?.sessionId ?? '', it.netState, design); return true; },
+      screenFeed: () => { const f = screenFeed(); return { draws: f.draws, slide: f.slideIndex, slides: f.playlist.length }; },
+      /** QA de custo: mostra/esconde um objeto da cena pelo nome (medir draw calls/triângulos com e sem) */
+      showObject: (name: string, visible: boolean) => { const o = this.scene.getObjectByName(name); for (const c of o?.children ?? []) c.visible = visible; return !!o; },
       ridingId: () => this.riding?.state.id ?? null,
       carHeading: () => this.riding?.state.heading ?? null,
       /** anda até (x,z) usando o movimento normal (aceito pelo servidor) */

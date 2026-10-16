@@ -25,10 +25,11 @@ export class ThirdPersonCamera {
 
   /** perfil de câmera por veículo (distância e altura do pivô) */
   pivotHeight = 1.6;
-  setProfile(kind: 'foot' | 'bicycle' | 'scooter' | 'car' | 'moto') {
-    const d = kind === 'car' ? 8.5 : kind === 'foot' ? 5.2 : 6;
-    this.pivotHeight = kind === 'car' ? 1.9 : 1.6;
-    this.maxDistance = kind === 'car' ? 18 : 16;
+  setProfile(kind: 'foot' | 'bicycle' | 'scooter' | 'car' | 'moto' | 'soundcar' | 'trio') {
+    // veículos de evento são grandes: câmera mais longe e mais alta (o trio tem 7 m com a treliça)
+    const d = kind === 'trio' ? 17 : kind === 'soundcar' ? 10 : kind === 'car' ? 8.5 : kind === 'foot' ? 5.2 : 6;
+    this.pivotHeight = kind === 'trio' ? 4.2 : kind === 'soundcar' ? 2.6 : kind === 'car' ? 1.9 : 1.6;
+    this.maxDistance = kind === 'trio' ? 30 : kind === 'soundcar' ? 22 : kind === 'car' ? 18 : 16;
     this.targetDistance = d;
   }
 

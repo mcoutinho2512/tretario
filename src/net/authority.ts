@@ -8,12 +8,13 @@ import { validateMove, type MoveMsg } from './protocol';
 
 export interface PathCheck { x: number; z: number; blocked: boolean }
 
-/** Verifica o trajeto from→to contra paredes; veículos usam 3 raios paralelos (largura). */
+/** Verifica o trajeto from→to contra paredes; carros e veículos de evento usam 3 raios paralelos (largura). */
 export function checkPath(walls: WallGrid, from: { x: number; z: number }, to: { x: number; z: number }, mode: string, y = 0.6): PathCheck {
   const dx = to.x - from.x, dz = to.z - from.z;
   const len = Math.hypot(dx, dz);
   if (len < 1e-4) return { x: to.x, z: to.z, blocked: false };
-  const offsets = mode === 'car' ? [-0.75, 0, 0.75] : [0];
+  // largura do veículo: carro 3 raios; carro de som/trio, raios nas laterais da carroceria
+  const offsets = mode === 'car' ? [-0.75, 0, 0.75] : mode === 'soundcar' ? [-0.9, 0, 0.9] : mode === 'trio' ? [-1.2, 0, 1.2] : [0];
   const nx = -dz / len, nz = dx / len;
   let tMin = 1;
   for (const o of offsets) {

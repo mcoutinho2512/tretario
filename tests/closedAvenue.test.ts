@@ -84,7 +84,7 @@ describe('controles por categoria', () => {
       if (RIDEABLE_DEFS[kind].reverse) expect(v.speed).toBeLessThan(0); // carro engata ré
       else expect(v.speed).toBeCloseTo(0, 1); // moto/bicicleta/patinete só freiam
       // limites: carro/moto ≤ 30 km/h, bicicleta ≤ 25, patinete ≤ 20 (+ validação do servidor coerente)
-      expect(RIDEABLE_DEFS[kind].boostSpeed).toBeLessThanOrEqual({ car: 8.34, moto: 8.34, bicycle: 6.95, scooter: 5.56 }[kind]);
+      expect(RIDEABLE_DEFS[kind].boostSpeed).toBeLessThanOrEqual({ car: 8.34, moto: 8.34, bicycle: 6.95, scooter: 5.56, soundcar: 4.17, trio: 1.67 }[kind]);
       expect(MAX_SPEED[kind]).toBeGreaterThanOrEqual(RIDEABLE_DEFS[kind].boostSpeed);
     });
   }

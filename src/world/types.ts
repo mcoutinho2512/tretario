@@ -183,9 +183,11 @@ export interface WorldManifest {
   bikeStations?: { p: XZ; name?: string; capacity?: number }[];
   streetSigns?: StreetSignRec[];
   /** veículos utilizáveis (ids compartilhados cliente/servidor) */
-  vehicleSpawns?: { id: string; kind: 'bicycle' | 'scooter' | 'car' | 'moto'; x: number; z: number; heading: number }[];
+  vehicleSpawns?: { id: string; kind: 'bicycle' | 'scooter' | 'car' | 'moto' | 'soundcar' | 'trio'; x: number; z: number; heading: number }[];
   /** ônibus estacionados como cenário (não utilizáveis; carroceria está na colisão) */
   parkedBuses?: { x: number; z: number; heading: number }[];
+  /** cenário de evento (caminhões de campanha, telões, palco): sólido (carroceria na colisão), não utilizável */
+  eventSpots?: { id: string; kind: 'truck' | 'screen' | 'stage'; x: number; z: number; heading: number }[];
   /** colisão do servidor (segmentos Float32) */
   collision?: string;
   /** arquivo das faixas de tráfego (veículos NPC) */

@@ -3,7 +3,7 @@
  *
  * Arquitetura (igual à do jogador — estado / simulação / visual separados, pronta para rede):
  *   RideableState      dado puro e serializável (posição, rumo, velocidade, ocupante)
- *   RIDEABLE_DEFS      parâmetros por tipo (bicycle, scooter, car, moto) — limites urbanos (avenida fechada)
+ *   RIDEABLE_DEFS      parâmetros por tipo (bicycle, scooter, car, moto, soundcar, trio) — limites urbanos (avenida fechada)
  *   stepRideable()     simulação cinemática determinística (modelo de bicicleta) contra o CollisionWorld
  *   RideableSystem     spawns (estações reais), proximidade/uso, render com LOD por distância
  */
@@ -12,9 +12,12 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import type { CollisionWorld } from '../physics/CollisionWorld';
 import { legacyGeometry } from '../traffic/legacyModels';
 import { getVehicleGeometry, vehicleMaterial } from '../traffic/vehicleModels';
-import { distToVehicle } from '../net/rules';
+import { distToVehicle, EVENT_VEHICLE_KINDS } from '../net/rules';
+import { TRIO, distToCabDoor, localToWorld } from './platform';
+import { applyDesign, buildSoundcar, buildTrio } from './eventModels';
+import { rallyPoints, RALLY_DEFAULT_WEIGHTS } from '../social/rally';
 
-export type RideableKind = 'bicycle' | 'scooter' | 'car' | 'moto';
+export type RideableKind = 'bicycle' | 'scooter' | 'car' | 'moto' | 'soundcar' | 'trio';
 
 export interface RideableDef {
   kind: RideableKind;
@@ -33,6 +36,10 @@ export interface RideableDef {
   sidewalk: boolean;
   /** tem marcha à ré (carro); os demais só freiam */
   reverse: boolean;
+  /** veículos longos (trio): comprimento para testar as pontas contra prédios/meio-fio, não só o centro */
+  length?: number;
+  /** banco do motorista no referencial local [x, z] (cabine longe do centro: carro de som, trio) */
+  seat?: [number, number];
 }
 
 // Velocidades urbanas: a Pres. Vargas está FECHADA para o evento — nada de pista de corrida.
@@ -42,7 +49,15 @@ export const RIDEABLE_DEFS: Record<RideableKind, RideableDef> = {
   scooter: { kind: 'scooter', label: 'Patinete', article: 'o', maxSpeed: 4.7, boostSpeed: 5.5, accel: 3.0, brake: 6, turnRate: 2.3, radius: 0.4, pose: 'stand', seatHeight: 0.18, sidewalk: true, reverse: false },
   moto: { kind: 'moto', label: 'Moto', article: 'a', maxSpeed: 6.9, boostSpeed: 8.3, accel: 4.0, brake: 9, turnRate: 1.6, radius: 0.55, pose: 'ride', seatHeight: 0.78, sidewalk: false, reverse: false },
   car: { kind: 'car', label: 'Carro', article: 'o', maxSpeed: 6.9, boostSpeed: 8.3, accel: 3.2, brake: 9, turnRate: 1.1, radius: 1.15, pose: 'drive', seatHeight: 0.42, sidewalk: false, reverse: true },
+  // veículos de EVENTO: passo de cortejo (carro de som 12,6 km/h, Shift 14,4; trio 4,3 km/h, Shift 5,4)
+  soundcar: { kind: 'soundcar', label: 'Carro de som', article: 'o', maxSpeed: 3.5, boostSpeed: 4.0, accel: 1.2, brake: 4, turnRate: 0.75, radius: 1.0, pose: 'drive', seatHeight: 0.95, sidewalk: false, reverse: true, length: 5.0, seat: [0.45, 1.0] },
+  trio: { kind: 'trio', label: 'Trio elétrico', article: 'o', maxSpeed: 1.2, boostSpeed: 1.5, accel: 0.5, brake: 2, turnRate: 0.3, radius: 1.3, pose: 'drive', seatHeight: 1.75, sidewalk: false, reverse: true, length: TRIO.len, seat: [0.6, 5.1] },
 };
+
+/** posição do motorista no mundo (banco da cabine) */
+export function seatWorld(def: RideableDef, x: number, z: number, heading: number): { x: number; z: number } {
+  return def.seat ? localToWorld({ x, z, heading }, def.seat[0], def.seat[1]) : { x, z };
+}
 
 export interface RideableState {
   id: string;
@@ -70,12 +85,17 @@ export function stepRideable(v: RideableState, def: RideableDef, intent: RideInt
   v.heading += intent.steer * def.turnRate * steerScale * dt;
   const nx = v.x + Math.sin(v.heading) * v.speed * dt;
   const nz = v.z + Math.cos(v.heading) * v.speed * dt;
+  const ends = def.length ? [def.length / 2 - 0.3, 0, -def.length / 2 + 0.3] : [0];
   const ok = (x: number, z: number) => {
-    if (world.isBlockedSurface(x, z)) return false;
-    const g = world.groundHeight(x, z);
-    // carro não SOBE no meio-fio (pode descer da calçada onde estacionou)
-    if (!def.sidewalk && g - v.y > 0.05) return false;
-    return g - v.y <= 0.3;
+    for (const e of ends) {
+      const px = x + Math.sin(v.heading) * e, pz = z + Math.cos(v.heading) * e;
+      if (world.isBlockedSurface(px, pz)) return false;
+      const g = world.groundHeight(px, pz);
+      // carro não SOBE no meio-fio (pode descer da calçada onde estacionou)
+      if (!def.sidewalk && g - v.y > 0.05) return false;
+      if (g - v.y > 0.3) return false;
+    }
+    return true;
   };
   if (ok(nx, nz)) { v.x = nx; v.z = nz; } else v.speed *= -0.2; // bate e para
   const p = { x: v.x, y: v.y, z: v.z };
@@ -103,6 +123,9 @@ export function rideableModel(kind: RideableKind, color: number): THREE.Group {
 }
 
 function buildRideableModel(kind: RideableKind, color: number): THREE.Group {
+  // veículos de evento: modelos com LOD próprio e painéis de design (src/vehicles/eventModels.ts)
+  if (kind === 'soundcar') return buildSoundcar();
+  if (kind === 'trio') return buildTrio();
   const g = new THREE.Group();
   const frameMat = new THREE.MeshStandardMaterial({ color, roughness: 0.45, metalness: 0.5 });
   const dark = new THREE.MeshStandardMaterial({ color: 0x1b1b1b, roughness: 0.7, metalness: 0.2 });
@@ -183,6 +206,8 @@ export interface RideableInstance {
   state: RideableState; def: RideableDef; model: THREE.Group;
   /** estado no servidor: 0 disponível · 1 ocupado · 2 voltando para a vaga */
   netState: number;
+  /** design dos painéis (carro de som/trio; 0 = arte neutra padrão) */
+  design: number;
 }
 
 /** cores genéricas (sem marcas): carros com paleta de rua, motos e bicicletas/patinetes compartilhados */
@@ -191,7 +216,11 @@ const PALETTE: Record<RideableKind, number[]> = {
   moto: [0x111111, 0xb31b1b, 0x1d4aa8, 0xe8e8e8, 0x2b2b2b],
   bicycle: [0xe0731c],
   scooter: [0x2e7d4f],
+  soundcar: [0xffffff],
+  trio: [0xffffff],
 };
+/** distância de desenho por tipo (m): o trio, alto e iluminado, aparece de longe */
+const DRAW_DIST: Record<RideableKind, number> = { car: 400, moto: 220, bicycle: 140, scooter: 140, soundcar: 450, trio: 700 };
 const hashId = (id: string) => { let h = 0; for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0; return h; };
 
 export class RideableSystem {
@@ -200,7 +229,7 @@ export class RideableSystem {
 
   readonly byId = new Map<string, RideableInstance>();
 
-  constructor(spawns: { id: string; kind: RideableKind; x: number; z: number; heading: number }[], heightAt: (x: number, z: number) => number, kinds: RideableKind[] = ['bicycle', 'scooter', 'car', 'moto']) {
+  constructor(spawns: { id: string; kind: RideableKind; x: number; z: number; heading: number }[], heightAt: (x: number, z: number) => number, kinds: RideableKind[] = ['bicycle', 'scooter', 'car', 'moto', 'soundcar', 'trio']) {
     this.group.name = 'rideables';
     this.group.userData.category = 'vehicles/rideables';
     for (const sp of spawns) {
@@ -211,7 +240,8 @@ export class RideableSystem {
       const model = rideableModel(sp.kind, color);
       model.name = `rideable_${sp.id}`;
       this.group.add(model);
-      const it: RideableInstance = { state, def: RIDEABLE_DEFS[sp.kind], model, netState: 0 };
+      if (EVENT_VEHICLE_KINDS.has(sp.kind)) applyDesign(model, 0);
+      const it: RideableInstance = { state, def: RIDEABLE_DEFS[sp.kind], model, netState: 0, design: 0 };
       this.items.push(it);
       this.byId.set(sp.id, it);
     }
@@ -219,11 +249,12 @@ export class RideableSystem {
   }
 
   /** estado vindo do servidor (veículos não controlados localmente): suavizado */
-  applyServer(id: string, x: number, y: number, z: number, heading: number, occupant: string, localId: string, netState = 0) {
+  applyServer(id: string, x: number, y: number, z: number, heading: number, occupant: string, localId: string, netState = 0, design = 0) {
     const it = this.byId.get(id);
     if (!it) return;
     it.state.occupant = occupant || null;
     it.netState = netState;
+    if (design !== it.design && EVENT_VEHICLE_KINDS.has(it.def.kind)) { it.design = design; applyDesign(it.model, design); }
     if (occupant === localId) return; // o motorista local é a fonte da pose (predição)
     (it as RideableInstance & { target?: { x: number; y: number; z: number; h: number } }).target = { x, y, z, h: heading };
   }
@@ -249,11 +280,43 @@ export class RideableSystem {
     let best: RideableInstance | null = null, bd = range;
     for (const it of this.items) {
       if (it.state.occupant || it.netState === 2) continue; // ocupado ou voltando para a vaga
-      // carro/moto: alcance pela lateral da carroceria
-      const d = distToVehicle(x, z, { x: it.state.x, z: it.state.z, heading: it.state.heading, kind: it.def.kind }) - (it.def.kind === 'car' ? 0.2 : it.def.kind === 'moto' ? 0.8 : 0);
+      // carro/moto: alcance pela lateral da carroceria; trio: pela porta da cabine (a escada é para subir)
+      const d = it.def.kind === 'trio'
+        ? distToCabDoor(x, z, it.state) + (range - TRIO.driveRange)
+        : distToVehicle(x, z, { x: it.state.x, z: it.state.z, heading: it.state.heading, kind: it.def.kind }) - (it.def.kind === 'car' || it.def.kind === 'soundcar' ? 0.2 : it.def.kind === 'moto' ? 0.8 : 0);
       if (d < bd) { bd = d; best = it; }
     }
     return best;
+  }
+
+  /** trio cujo pé da escada está ao alcance (subir na plataforma) */
+  nearestLadder(x: number, z: number): RideableInstance | null {
+    for (const it of this.items) {
+      if (it.def.kind !== 'trio' || it.netState === 2) continue;
+      const f = localToWorld(it.state, TRIO.ladderFoot[0], TRIO.ladderFoot[1]);
+      if (Math.hypot(x - f.x, z - f.z) <= TRIO.boardRange) return it;
+    }
+    return null;
+  }
+
+  /** veículos de evento (sólidos para quem anda e para os outros veículos) */
+  eventItems(): RideableInstance[] { return this.items.filter((it) => EVENT_VEHICLE_KINDS.has(it.def.kind)); }
+
+  /** pontos de concentração da multidão (src/social/rally.ts): seguem o trio/carro de som quando andam */
+  private rallyAt = new Map<string, { x: number; z: number }>();
+  private updateRally() {
+    for (const it of this.items) {
+      const k = it.def.kind;
+      if (k !== 'trio' && k !== 'soundcar') continue;
+      const last = this.rallyAt.get(it.state.id);
+      if (last && Math.hypot(last.x - it.state.x, last.z - it.state.z) < 0.5) continue;
+      this.rallyAt.set(it.state.id, { x: it.state.x, z: it.state.z });
+      rallyPoints.upsert({
+        id: `veh_${it.state.id}`, kind: k, x: it.state.x, z: it.state.z,
+        inner: k === 'trio' ? TRIO.len / 2 + 1.5 : 3.5, radius: k === 'trio' ? 24 : 14, strength: k === 'trio' ? 1 : 0.75,
+        actionWeights: RALLY_DEFAULT_WEIGHTS[k],
+      });
+    }
   }
 
   sync(cam?: THREE.Vector3) {
@@ -261,7 +324,8 @@ export class RideableSystem {
       const s = it.state;
       it.model.position.set(s.x, s.y, s.z);
       it.model.rotation.y = s.heading;
-      it.model.visible = !cam || Math.hypot(s.x - cam.x, s.z - cam.z) < (it.def.kind === 'car' ? 400 : it.def.kind === 'moto' ? 220 : 140);
+      it.model.visible = !cam || Math.hypot(s.x - cam.x, s.z - cam.z) < DRAW_DIST[it.def.kind];
     }
+    this.updateRally();
   }
 }

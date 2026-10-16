@@ -76,7 +76,7 @@ export interface BillboardPlan {
 /** Veículo disponível para uso no evento. */
 export interface VehicleOption {
   id: string;
-  kind: 'bicycle' | 'scooter' | 'car' | 'moto';
+  kind: 'bicycle' | 'scooter' | 'car' | 'moto' | 'soundcar' | 'trio';
   name: string;
   /** spawns: 'bike-stations' = estações de bicicleta reais do OSM */
   spawn: 'bike-stations' | 'none';
@@ -98,6 +98,19 @@ export interface EventDef {
   decorations?: WorldDecoration[];
   billboards?: BillboardPlan;
   vehicles?: VehicleOption[];
+  /**
+   * cenário de evento (rodada 7): arte dos painéis por id (trio0, som0, truck0…, stage0 → chave de design em
+   * src/social/designs.ts / public/designs/campaigns.json) e programação dos telões. Sem isto: arte neutra do ato;
+   * caminhões de campanha recebem as campanhas cadastradas em rodízio (todas tratadas igualmente).
+   */
+  scenery?: {
+    designs?: Record<string, string>;
+    /** slides dos telões: chave de design, 'info' (hora/pessoas) ou 'eq' (equalizador + letreiro) */
+    screens?: string[];
+    screenSeconds?: number;
+    /** texto do letreiro do equalizador */
+    ticker?: string;
+  };
   npcs?: { pedestrianDensity?: number; vehicleDensity?: number };
   ambience?: { music?: string; crowd?: string };
 }
