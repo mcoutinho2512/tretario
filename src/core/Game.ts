@@ -146,6 +146,8 @@ export class Game {
     this.collision = new CollisionWorld(this.manifest.chunkSize, this.manifest.bounds);
     this.props = new PropSystem(lib.noise);
     this.scene.add(this.props.group);
+    progress(0.1, 'Plantando oitis e amendoeiras');
+    await this.props.loadVegetation(this.gr.renderer, this.preset.vegetationDensity);
     this.chunks = new ChunkManager(this.manifest, base, lib, buildingMat, this.collision, this.props, this.preset);
     this.scene.add(this.chunks.group);
 
@@ -453,7 +455,7 @@ export class Game {
     // mundo
     const camXZ = new THREE.Vector2(this.camera.position.x, this.camera.position.z);
     this.chunks.update(camXZ, 5);
-    this.props.update(this.time);
+    this.props.update(this.time, this.camera.position);
     this.props.updateNightLights(this.camera.position, this.env.night);
     const sim = this.simTime;
     for (const lm of this.landmarks) lm.update(sim, this.camera.position);

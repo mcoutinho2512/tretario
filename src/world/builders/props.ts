@@ -3,10 +3,11 @@
  * (um InstancedMesh por parte de modelo, global para todos os chunks próximos).
  */
 import * as THREE from 'three';
-import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import type { PropKind, PropRec } from '../types';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import type { PropRec } from '../types';
 import { CURB_HEIGHT } from '../types';
 import { mulberry32 } from '../../renderer/noise';
+import { loadVegetation, speciesAt, VegetationSystem, vegetationOptionsFor, type TreeInstance } from '../vegetation';
 
 type Part = { geo: THREE.BufferGeometry; mat: THREE.Material; castShadow: boolean };
 export interface PropModel { parts: Part[] }
@@ -46,153 +47,25 @@ const merge = (gs: THREE.BufferGeometry[]) => {
 export interface PropMaterials {
   painted: THREE.MeshStandardMaterial; // vertexColors, fosco
   metal: THREE.MeshStandardMaterial; // vertexColors, metálico
-  foliage: THREE.MeshStandardMaterial; // vertexColors + vento
-  bark: THREE.MeshStandardMaterial;
   lampGlow: THREE.MeshStandardMaterial;
   signalLights: THREE.MeshStandardMaterial;
   signalLamp: THREE.MeshBasicMaterial;
   glass: THREE.MeshStandardMaterial;
+  /** tempo para o vento das folhas (VegetationSystem) */
   windUniform: { value: number };
 }
 
-export function createPropMaterials(noise: THREE.Texture): PropMaterials {
+export function createPropMaterials(_noise: THREE.Texture): PropMaterials {
   const windUniform = { value: 0 };
-  const foliage = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, metalness: 0 });
-  foliage.onBeforeCompile = (shader) => {
-    shader.uniforms.uTime = windUniform;
-    shader.uniforms.uNoise = { value: noise };
-    shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nuniform float uTime;')
-      .replace('#include <begin_vertex>', `#include <begin_vertex>
-        #ifdef USE_INSTANCING
-          vec3 ip = vec3(instanceMatrix[3][0], instanceMatrix[3][1], instanceMatrix[3][2]);
-          float ph = ip.x * 0.37 + ip.z * 0.21;
-        #else
-          float ph = 0.0;
-        #endif
-        float sway = max(0.0, transformed.y - 2.0) * 0.012;
-        transformed.x += sin(uTime * 1.3 + ph) * sway + sin(uTime * 3.1 + ph * 2.0 + transformed.y) * sway * 0.35;
-        transformed.z += cos(uTime * 1.1 + ph) * sway * 0.7;`);
-  };
-  foliage.customProgramCacheKey = () => 'pv-foliage-wind';
   return {
     painted: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.75, metalness: 0 }),
     metal: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.45, metalness: 0.7 }),
-    foliage,
-    bark: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0 }),
     lampGlow: new THREE.MeshStandardMaterial({ color: 0xfff4dd, emissive: 0xffe2b0, emissiveIntensity: 0.15, roughness: 0.3 }),
     signalLights: new THREE.MeshStandardMaterial({ vertexColors: true, emissive: 0xffffff, emissiveIntensity: 0.0, roughness: 0.3, metalness: 0 }),
     signalLamp: new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false }),
     glass: new THREE.MeshStandardMaterial({ color: 0x9fb4bb, roughness: 0.1, metalness: 0.3, transparent: true, opacity: 0.35, depthWrite: false }),
     windUniform,
   };
-}
-
-// ------------------------------------------------------------------------------------------
-// árvores (copas de esferas deformadas com sombreamento falso de oclusão)
-// ------------------------------------------------------------------------------------------
-function crownBlob(radius: number, seed: number, color: THREE.Color, detail: number): THREE.BufferGeometry {
-  // icosfera indexada → deslocamento contínuo (sem frestas) e normais suaves
-  let g: THREE.BufferGeometry = new THREE.IcosahedronGeometry(radius, detail);
-  g.deleteAttribute('normal');
-  g.deleteAttribute('uv');
-  g = mergeVertices(g, 1e-4);
-  const pos = g.attributes.position as THREE.BufferAttribute;
-  const rnd = mulberry32(seed);
-  const bumps = Array.from({ length: 9 }, () => new THREE.Vector3(rnd() - 0.5, rnd() - 0.5 + 0.15, rnd() - 0.5).normalize());
-  const v = new THREE.Vector3();
-  for (let i = 0; i < pos.count; i++) {
-    v.fromBufferAttribute(pos, i);
-    const d = v.clone().normalize();
-    let k = 1;
-    for (const b of bumps) k += Math.max(0, d.dot(b)) ** 4 * 0.28;
-    // ruído determinístico pela direção (mesmo vértice compartilhado → mesmo deslocamento)
-    k += (Math.sin(d.x * 9.1 + seed) * Math.sin(d.y * 7.3) * Math.sin(d.z * 8.7 + seed * 0.5)) * 0.1;
-    v.multiplyScalar(k);
-    v.y *= d.y < 0 ? 0.62 : 0.85; // base mais achatada
-    pos.setXYZ(i, v.x, v.y, v.z);
-  }
-  g.computeVertexNormals();
-  // cor: mais escura embaixo/dentro (oclusão), variação suave
-  const col = new Float32Array(pos.count * 3);
-  for (let i = 0; i < pos.count; i++) {
-    const y = pos.getY(i);
-    const shade = 0.5 + 0.5 * THREE.MathUtils.clamp((y / radius) * 0.6 + 0.5, 0, 1);
-    const j = 0.88 + rnd() * 0.24;
-    col[i * 3] = color.r * shade * j;
-    col[i * 3 + 1] = color.g * shade * (0.95 + rnd() * 0.1);
-    col[i * 3 + 2] = color.b * shade * j;
-  }
-  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
-  return g.toNonIndexed();
-}
-
-function treeModel(variant: number, lod: 0 | 1, mats: PropMaterials): PropModel {
-  const rnd = mulberry32(100 + variant);
-  const greens = [new THREE.Color(0.16, 0.30, 0.10), new THREE.Color(0.20, 0.33, 0.12), new THREE.Color(0.13, 0.26, 0.11)];
-  const green = greens[variant % greens.length];
-  const detail = lod === 0 ? 2 : 1;
-  const blobs: THREE.BufferGeometry[] = [];
-  const trunkParts: THREE.BufferGeometry[] = [];
-  const barkC = new THREE.Color(0.30, 0.25, 0.20);
-  if (variant === 0) {
-    // oiti: copa densa e arredondada (muito comum nas ruas do Rio)
-    const h = 3.2;
-    trunkParts.push(colorize(at(new THREE.CylinderGeometry(0.16, 0.24, h + 1, 7), 0, (h + 1) / 2, 0), barkC, 0.1));
-    blobs.push(at(crownBlob(2.9, 1, green, detail), 0, h + 2.4, 0));
-    if (lod === 0) {
-      blobs.push(at(crownBlob(2.0, 2, green, detail), 1.6, h + 1.6, 0.6));
-      blobs.push(at(crownBlob(2.1, 3, green, detail), -1.4, h + 1.8, -0.8));
-      blobs.push(at(crownBlob(1.8, 4, green, detail), 0.2, h + 3.8, -0.4));
-    }
-  } else if (variant === 1) {
-    // amendoeira: copa em camadas horizontais
-    const h = 4.0;
-    trunkParts.push(colorize(at(new THREE.CylinderGeometry(0.18, 0.28, h + 2, 7), 0, (h + 2) / 2, 0), barkC, 0.1));
-    for (let i = 0; i < (lod === 0 ? 3 : 2); i++) {
-      const b = crownBlob(3.4 - i * 0.7, 10 + i, green.clone().offsetHSL(0.01, 0, 0.02 * i), detail);
-      b.scale(1, 0.45, 1);
-      blobs.push(at(b, (rnd() - 0.5) * 0.8, h + 0.6 + i * 1.5, (rnd() - 0.5) * 0.8));
-    }
-  } else {
-    // árvore grande (ficus/sibipiruna)
-    const h = 4.5;
-    trunkParts.push(colorize(at(new THREE.CylinderGeometry(0.25, 0.4, h + 2, 8), 0, (h + 2) / 2, 0), barkC, 0.1));
-    if (lod === 0) {
-      trunkParts.push(colorize(at(new THREE.CylinderGeometry(0.1, 0.16, 3, 5), 0.8, h + 1.2, 0, 0, 0, -0.6), barkC));
-      trunkParts.push(colorize(at(new THREE.CylinderGeometry(0.1, 0.16, 3, 5), -0.8, h + 1.2, 0.3, 0.2, 0, 0.6), barkC));
-    }
-    blobs.push(at(crownBlob(3.6, 20, green, detail), 0, h + 3.4, 0));
-    if (lod === 0) {
-      blobs.push(at(crownBlob(2.6, 21, green, detail), 2.4, h + 2.6, 1));
-      blobs.push(at(crownBlob(2.7, 22, green, detail), -2.3, h + 2.8, -0.9));
-      blobs.push(at(crownBlob(2.2, 23, green, detail), 0.4, h + 5.2, 1.2));
-    }
-  }
-  return {
-    parts: [
-      { geo: merge(trunkParts), mat: mats.bark, castShadow: true },
-      { geo: merge(blobs), mat: mats.foliage, castShadow: true },
-    ],
-  };
-}
-
-function palmModel(mats: PropMaterials): PropModel {
-  const trunk = colorize(at(new THREE.CylinderGeometry(0.17, 0.24, 12, 8), 0, 6, 0), 0x8a8478, 0.1);
-  const fronds: THREE.BufferGeometry[] = [];
-  for (let i = 0; i < 9; i++) {
-    const g = new THREE.PlaneGeometry(0.9, 4.2, 1, 4);
-    const p = g.attributes.position as THREE.BufferAttribute;
-    for (let k = 0; k < p.count; k++) {
-      const y = p.getY(k) + 2.1;
-      p.setZ(k, -0.05 * y * y);
-      p.setY(k, y);
-    }
-    g.computeVertexNormals();
-    const c = colorize(g, 0x3c5a24, 0.2, i);
-    fronds.push(at(c, 0, 12, 0, -1.0, (i / 9) * Math.PI * 2, 0));
-  }
-  return { parts: [{ geo: trunk, mat: mats.bark, castShadow: true }, { geo: merge(fronds), mat: mats.foliage, castShadow: true }] };
 }
 
 // ------------------------------------------------------------------------------------------
@@ -303,7 +176,7 @@ function kioskModel(mats: PropMaterials): PropModel {
 // ------------------------------------------------------------------------------------------
 // Gerenciador de instâncias
 // ------------------------------------------------------------------------------------------
-type ModelKey = 'tree0' | 'tree1' | 'tree2' | 'treeFar0' | 'treeFar1' | 'treeFar2' | 'palm' | 'lamp' | 'signal' | 'bench' | 'bus_stop' | 'bus_pole' | 'bollard' | 'waste' | 'kiosk';
+type ModelKey = 'lamp' | 'signal' | 'bench' | 'bus_stop' | 'bus_pole' | 'bollard' | 'waste' | 'kiosk';
 
 interface Inst { p: [number, number]; r: number; s: number; y: number; j?: number; ph?: number }
 
@@ -318,15 +191,13 @@ export class PropSystem {
   /** semáforos instanciados: cruzamento e fase de cada instância */
   private signalInfo: { j: number; ph: number }[] = [];
   private nightLights: THREE.PointLight[] = [];
+  /** árvores/palmeiras (sistema próprio com LOD e impostores) */
+  veg?: VegetationSystem;
+  private pendingTrees: { rec: PropRec; y: number }[] | null = null;
 
   constructor(noise: THREE.Texture) {
     this.group.name = 'props';
     this.mats = createPropMaterials(noise);
-    for (let v = 0; v < 3; v++) {
-      this.models.set(`tree${v}` as ModelKey, treeModel(v, 0, this.mats));
-      this.models.set(`treeFar${v}` as ModelKey, treeModel(v, 1, this.mats));
-    }
-    this.models.set('palm', palmModel(this.mats));
     this.models.set('lamp', lampModel(this.mats));
     this.models.set('signal', signalModel(this.mats));
     this.models.set('bench', benchModel(this.mats));
@@ -385,34 +256,56 @@ export class PropSystem {
     });
   }
 
-  static modelFor(k: PropKind, rec: PropRec, far: boolean): ModelKey {
-    if (k === 'tree') {
-      const v = Math.floor(Math.abs(Math.sin(rec.p[0] * 12.9898 + rec.p[1] * 78.233) * 43758.5453) % 1 * 3) as 0 | 1 | 2;
-      return (far ? `treeFar${v}` : `tree${v}`) as ModelKey;
+  /**
+   * Carrega a vegetação pré-gerada (public/vegetation/) e renderiza os impostores.
+   * Falha de rede não derruba o jogo: o mundo segue sem árvores (aviso no console).
+   */
+  async loadVegetation(renderer: THREE.WebGLRenderer, vegetationDensity: number, baseUrl = `${import.meta.env.BASE_URL}vegetation/`) {
+    try {
+      const assets = await loadVegetation(baseUrl);
+      this.veg = new VegetationSystem(renderer, assets, this.mats.windUniform, vegetationOptionsFor(vegetationDensity));
+      this.group.add(this.veg.group);
+      if (this.pendingTrees) this.veg.setTrees(this.treeInstances(this.pendingTrees));
+    } catch (e) {
+      console.warn('vegetação indisponível:', e);
     }
-    return k as ModelKey;
+  }
+
+  private treeInstances(list: { rec: PropRec; y: number }[]): TreeInstance[] {
+    const veg = this.veg!;
+    return list.map(({ rec, y }) => {
+      const [x, z] = rec.p;
+      const species = rec.k === 'palm' ? 'palmeira' : speciesAt(x, z);
+      const h = Math.abs(Math.sin(x * 4.231 + z * 9.137) * 43758.5453) % 1;
+      return {
+        x, y, z,
+        rot: h * Math.PI * 2,
+        scale: (rec.s ?? 1) * (0.88 + 0.24 * ((h * 7.31) % 1)),
+        variant: veg.variantFor(species, x, z),
+      };
+    });
   }
 
   /**
    * Reconstrói as instâncias a partir dos props dos chunks ativos.
-   * near: props em detalhe; far: somente árvores simplificadas.
+   * near: mobiliário em detalhe + árvores; far: somente árvores (o LOD das árvores é por distância,
+   * decidido a cada passo da câmera em VegetationSystem — perto/médio/impostor).
    */
-  rebuild(near: PropRec[], far: PropRec[], vegetationDensity: number, heightAt: (x: number, z: number) => number) {
+  rebuild(near: PropRec[], far: PropRec[], _vegetationDensity: number, heightAt: (x: number, z: number) => number) {
     const buckets = new Map<ModelKey, Inst[]>();
+    const trees: { rec: PropRec; y: number }[] = [];
     const push = (key: ModelKey, rec: PropRec) => {
       const arr = buckets.get(key) ?? [];
-      const y = rec.k === 'tree' || rec.k === 'palm' ? heightAt(rec.p[0], rec.p[1]) : heightAt(rec.p[0], rec.p[1]);
-      arr.push({ p: rec.p, r: rec.r ?? 0, s: rec.s ?? 1, y, j: rec.j, ph: rec.ph });
+      arr.push({ p: rec.p, r: rec.r ?? 0, s: rec.s ?? 1, y: heightAt(rec.p[0], rec.p[1]), j: rec.j, ph: rec.ph });
       buckets.set(key, arr);
     };
     for (const rec of near) {
-      if ((rec.k === 'tree' || rec.k === 'palm') && vegetationDensity < 1) {
-        const h = Math.abs(Math.sin(rec.p[0] * 3.1 + rec.p[1] * 7.7) * 1e4) % 1;
-        if (h > vegetationDensity) { push(PropSystem.modelFor(rec.k, rec, true), rec); continue; }
-      }
-      push(PropSystem.modelFor(rec.k, rec, false), rec);
+      if (rec.k === 'tree' || rec.k === 'palm') trees.push({ rec, y: heightAt(rec.p[0], rec.p[1]) });
+      else push(rec.k as ModelKey, rec);
     }
-    for (const rec of far) if (rec.k === 'tree' || rec.k === 'palm') push(PropSystem.modelFor('tree', rec, true), rec);
+    for (const rec of far) if (rec.k === 'tree' || rec.k === 'palm') trees.push({ rec, y: heightAt(rec.p[0], rec.p[1]) });
+    this.pendingTrees = trees;
+    if (this.veg) this.veg.setTrees(this.treeInstances(trees));
 
     for (const [key, model] of this.models) {
       const list = buckets.get(key) ?? [];
@@ -461,14 +354,15 @@ export class PropSystem {
     }
   }
 
-  update(time: number) {
+  update(time: number, camera?: THREE.Vector3) {
     this.mats.windUniform.value = time;
+    if (camera && this.veg) this.veg.update(camera);
   }
 
   get instanceCount() {
     let n = 0;
     for (const ms of this.meshes.values()) n += ms[0]?.count ?? 0;
-    return n;
+    return n + (this.pendingTrees?.length ?? 0);
   }
 }
 
