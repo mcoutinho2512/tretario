@@ -288,6 +288,86 @@ for (const r of ds.rels.values()) {
     addBuilding(r.id, o, holes, t);
   }
 }
+// ---------------------------------------------------------------------------------------------
+// Deduplicação: o OSM do Centro mistura contornos de edifício/lote com os volumes 3D da Prefeitura
+// mapeados por dentro. Regras (documentadas em docs/AUDIT.md):
+//  (a) duplicatas quase idênticas (centróides mútuos, áreas ±15%) → fica a de melhor fonte de altura
+//  (b) contorno com altura ESTIMADA que contém volumes com altura real cobrindo ≥ 40% da área → removido
+//      (o nome passa para o maior volume interno)
+// ---------------------------------------------------------------------------------------------
+{
+  const n = buildings.length;
+  const info = buildings.map((b) => {
+    const c = centroid(b.poly.outer);
+    let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
+    for (const p of b.poly.outer) { x0 = Math.min(x0, p[0]); x1 = Math.max(x1, p[0]); z0 = Math.min(z0, p[1]); z1 = Math.max(z1, p[1]); }
+    return { c, area: Math.abs(polygonArea(b.poly.outer)), box: [x0, z0, x1, z1] };
+  });
+  const grid = new Map<string, number[]>();
+  info.forEach((it, i) => {
+    for (let gx = Math.floor(it.box[0] / 50); gx <= Math.floor(it.box[2] / 50); gx++)
+      for (let gz = Math.floor(it.box[1] / 50); gz <= Math.floor(it.box[3] / 50); gz++) {
+        const k = `${gx},${gz}`;
+        (grid.get(k) ?? grid.set(k, []).get(k)!).push(i);
+      }
+  });
+  const rank = (b: BuildingRec) => (b.heightSource === 'osm:height' ? 3 : b.heightSource === 'osm:levels' ? 2 : 1);
+  const removed = new Set<number>();
+  const covered = new Float64Array(n);
+  const biggestInner = new Int32Array(n).fill(-1);
+  let dup = 0;
+  for (let i = 0; i < n; i++) {
+    if (buildings[i].canopy) continue;
+    const ci = info[i].c;
+    for (const j of grid.get(`${Math.floor(ci[0] / 50)},${Math.floor(ci[1] / 50)}`) ?? []) {
+      if (j === i || buildings[j].canopy || removed.has(j) || removed.has(i)) continue;
+      if (!pointInPolygon(ci, buildings[j].poly.outer)) continue;
+      const ratio = info[i].area / Math.max(1, info[j].area);
+      if (ratio > 0.85 && ratio < 1.18 && pointInPolygon(info[j].c, buildings[i].poly.outer)) {
+        // (a) duplicata
+        const keep = rank(buildings[i]) > rank(buildings[j]) || (rank(buildings[i]) === rank(buildings[j]) && buildings[i].height >= buildings[j].height) ? i : j;
+        const drop = keep === i ? j : i;
+        if (!buildings[keep].name && buildings[drop].name) buildings[keep].name = buildings[drop].name;
+        removed.add(drop);
+        dup++;
+      } else if (buildings[j].heightSource === 'estimate' && buildings[i].heightSource !== 'estimate') {
+        covered[j] += info[i].area;
+        if (biggestInner[j] < 0 || info[i].area > info[biggestInner[j]].area) biggestInner[j] = i;
+      }
+    }
+  }
+  let outl = 0;
+  for (let j = 0; j < n; j++) {
+    if (removed.has(j) || buildings[j].heightSource !== 'estimate') continue;
+    if (covered[j] >= info[j].area * 0.4) {
+      const bi = biggestInner[j];
+      if (bi >= 0 && buildings[j].name && !buildings[bi].name) buildings[bi].name = buildings[j].name;
+      removed.add(j);
+      outl++;
+    }
+  }
+  const kept = buildings.filter((_, i) => !removed.has(i));
+  buildings.length = 0;
+  buildings.push(...kept);
+  console.log(`[process] dedup: ${dup} duplicatas, ${outl} contornos estimados sobre volumes reais removidos`);
+}
+// correções documentadas (data/overrides/buildings.json)
+{
+  const ov = JSON.parse(readFileSync('data/overrides/buildings.json', 'utf8')) as { byName: Record<string, { height?: number; style?: string; tint?: number }> };
+  const styleMap: Record<string, FacadeStyle> = { eclectic: FacadeStyle.Eclectic, institutional: FacadeStyle.Institutional, artdeco: FacadeStyle.ArtDecoPiers, office: FacadeStyle.ModernOffice, classic: FacadeStyle.ClassicPunched };
+  let applied = 0;
+  for (const b of buildings) {
+    const o = b.name ? ov.byName[b.name] : undefined;
+    if (!o) continue;
+    if (o.height) { b.height = o.height; b.heightSource = 'estimate'; b.levels = Math.round(o.height / 3.8); (b as any).override = true; }
+    if (o.style) b.style = styleMap[o.style] ?? b.style;
+    if (o.tint !== undefined) b.tint = o.tint;
+    if (b.cls === 'C' || b.cls === 'D') b.cls = 'B';
+    b.arcade = undefined;
+    applied++;
+  }
+  console.log(`[process] overrides aplicados: ${applied}`);
+}
 console.log(`[process] edifícios=${buildings.length} (substituídos por partes: ${partsByParent.size})`);
 
 // ---------------------------------------------------------------------------------------------

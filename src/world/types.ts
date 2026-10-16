@@ -20,6 +20,7 @@ export enum FacadeStyle {
   ArtDecoPiers = 2, // pilastras verticais marcadas
   Sobrado = 3, // casario antigo 2–4 pavimentos (Saara)
   Institutional = 4, // pedra / poucas janelas grandes
+  Eclectic = 5, // eclético/neoclássico do Centro histórico: base rusticada, janelas com frontão, pilastras, cornija
 }
 
 export interface BuildingRec {

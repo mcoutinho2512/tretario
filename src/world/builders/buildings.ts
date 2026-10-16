@@ -125,7 +125,7 @@ export function buildBuildingsGeometry(buildings: BuildingRec[], opts: BuildingB
     let flags = 0;
     if (b.arcade) flags |= FLAG_ARCADE;
     if (b.canopy) flags |= FLAG_CANOPY;
-    if (!b.canopy && b.minHeight < 0.5 && b.style !== FacadeStyle.Institutional && b.height < 120) flags |= FLAG_SHOPS;
+    if (!b.canopy && b.minHeight < 0.5 && b.style !== FacadeStyle.Institutional && b.style !== FacadeStyle.Eclectic && b.height < 120) flags |= FLAG_SHOPS;
     const groundH = b.arcade ? 6.5 : b.style === FacadeStyle.Sobrado ? Math.min(4.2, fh) : Math.min(4.5, Math.max(3.6, fh * 1.2));
     const f1 = [b.style, fh, b.tint, b.seed];
     const f2 = [b.height, b.minHeight, flags, groundH];
@@ -204,6 +204,11 @@ export function createBuildingMaterial(noise: THREE.Texture): THREE.MeshStandard
         float fh1(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
         vec3 wallPalette(float style, float t){
           // paletas inspiradas no Centro: concreto claro, bege, pastilha, granito, casario colorido
+          if (style > 4.5) {
+            vec3 e0 = vec3(0.86,0.82,0.72), e1 = vec3(0.80,0.68,0.50), e2 = vec3(0.84,0.66,0.62), e3 = vec3(0.72,0.70,0.66);
+            float k = floor(t * 4.0);
+            return k < 1.0 ? e0 : k < 2.0 ? e1 : k < 3.0 ? e2 : e3;
+          }
           if (style > 2.5 && style < 3.5) {
             vec3 c0 = vec3(0.86,0.78,0.55), c1 = vec3(0.70,0.80,0.80), c2 = vec3(0.88,0.66,0.58), c3 = vec3(0.78,0.84,0.66), c4 = vec3(0.92,0.90,0.84), c5 = vec3(0.62,0.70,0.82);
             float k = floor(t * 6.0);
@@ -245,7 +250,7 @@ export function createBuildingMaterial(noise: THREE.Texture): THREE.MeshStandard
           vec2 m = vFUV; // metros: x = ao longo da fachada, y = altura
           float yRel = m.y;
           // largura do vão por estilo
-          float bayW = fStyle < 0.5 ? 1.5 : fStyle < 1.5 ? 2.6 : fStyle < 2.5 ? 2.1 : fStyle < 3.5 ? 3.4 : 4.2;
+          float bayW = fStyle < 0.5 ? 1.5 : fStyle < 1.5 ? 2.6 : fStyle < 2.5 ? 2.1 : fStyle < 3.5 ? 3.4 : fStyle < 4.5 ? 4.2 : 3.6;
           bayW *= 0.9 + fract(fSeed * 13.7) * 0.25;
           float fy = (yRel - fGroundH) / fFloorH;
           float level = floor(fy);
@@ -258,7 +263,8 @@ export function createBuildingMaterial(noise: THREE.Texture): THREE.MeshStandard
           else if (fStyle < 1.5) { wmin = vec2(0.22, 0.28); wmax = vec2(0.78, 0.82); }     // recortada
           else if (fStyle < 2.5) { wmin = vec2(0.26, 0.18); wmax = vec2(0.74, 0.90); }     // art déco: pilastras
           else if (fStyle < 3.5) { wmin = vec2(0.30, 0.12); wmax = vec2(0.70, 0.80); }     // sobrado: portas-janela altas
-          else { wmin = vec2(0.30, 0.25); wmax = vec2(0.70, 0.85); }                       // institucional
+          else if (fStyle < 4.5) { wmin = vec2(0.30, 0.25); wmax = vec2(0.70, 0.85); }     // institucional
+          else { wmin = vec2(0.32, 0.16); wmax = vec2(0.68, 0.74); }                       // eclético: janelas altas
           float inX = step(wmin.x, bx) * step(bx, wmax.x);
           float inY = step(wmin.y, ly) * step(ly, wmax.y);
           float isWin = inX * inY * step(0.0, fy);
@@ -280,6 +286,15 @@ export function createBuildingMaterial(noise: THREE.Texture): THREE.MeshStandard
           // pilastras art déco: relevo vertical claro
           float pier = 0.0;
           if (fStyle > 1.5 && fStyle < 2.5) pier = 1.0 - smoothstep(0.0, 0.08, min(bx, 1.0 - bx));
+          // eclético: pilastras a cada 2 vãos, frontão sobre as janelas, base rusticada
+          float eclectic = step(4.5, fStyle);
+          float pediment = 0.0, rustic = 0.0;
+          if (eclectic > 0.5) {
+            float b2 = fract(m.x / (bayW * 2.0));
+            pier = (1.0 - smoothstep(0.0, 0.05, min(b2, 1.0 - b2))) * step(fGroundH, yRel);
+            pediment = step(wmin.x - 0.05, bx) * step(bx, wmax.x + 0.05) * step(wmax.y + 0.03, ly) * step(ly, wmax.y + 0.1) * step(0.0, fy);
+            rustic = (1.0 - step(fGroundH * 1.9, yRel)) * step(0.82, fract(yRel / 0.45));
+          }
           // peitoril (sombra sob a janela)
           float sill = inX * step(wmin.y - 0.06, ly) * step(ly, wmin.y) * step(0.0, fy);
           // sujeira escorrida (vertical) e encardido na base
@@ -288,6 +303,8 @@ export function createBuildingMaterial(noise: THREE.Texture): THREE.MeshStandard
           float wn = texture2D(uNoise, m * vec2(0.07, 0.05)).a;
           vec3 wallC = wall * (0.86 + wn * 0.22) * (1.0 - grime);
           wallC = mix(wallC, wallC * 1.08, pier);
+          wallC = mix(wallC, wallC * 0.78, rustic);
+          wallC = mix(wallC, wallC * 1.12, pediment);
           vec3 col = wallC;
           // ---- anti-moiré: média do padrão quando o pixel cobre muitos vãos/andares
           vec2 fw = fwidth(m);
@@ -305,6 +322,8 @@ export function createBuildingMaterial(noise: THREE.Texture): THREE.MeshStandard
           vec3 litC = mix(vec3(1.0, 0.78, 0.45), vec3(0.85, 0.92, 1.0), step(0.6, r));
           fEmissive = litC * uNight * (0.55 + r2 * 0.6) * (isWin * (1.0 - frame) * lit * detail + winArea * 0.32 * (1.0 - detail));
           if (topBand > 0.5) col = wallC * 0.9;
+          if (eclectic > 0.5 && yRel > fTop - 2.0 && yRel < fTop - 1.1) col = wallC * 1.1;
+          if (eclectic > 0.5 && yRel > fTop - 2.4 && yRel < fTop - 2.0) col = wallC * 0.62;
           // ---- térreo: comércio / portas de aço / galeria
           if (yRel < fGroundH) {
             float shopW = 4.5 + fract(fSeed * 7.3) * 2.0;
@@ -351,6 +370,6 @@ export function createBuildingMaterial(noise: THREE.Texture): THREE.MeshStandard
       .replace('#include <metalnessmap_fragment>', `#include <metalnessmap_fragment>
         metalnessFactor = fMetal;`);
   };
-  mat.customProgramCacheKey = () => 'pv-building-facade-v2';
+  mat.customProgramCacheKey = () => 'pv-building-facade-v3';
   return mat;
 }

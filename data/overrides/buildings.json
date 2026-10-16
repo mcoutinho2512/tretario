@@ -1,0 +1,28 @@
+{
+  "_doc": "Correções manuais de edifícios, aplicadas pelo tools/process_osm.ts. Cada item precisa de 'source' (de onde veio a informação) e 'confidence' (alta|media|baixa). Alterações geométricas devem preferencialmente ser feitas no OSM.",
+  "byName": {
+    "Centro Cultural Banco do Brasil": {
+      "height": 31, "style": "eclectic", "tint": 0.18,
+      "source": "Fotos Wikimedia Commons (CCBB-Rio 2017-07-10, CC BY-SA): ~6 pavimentos + ático sobre base rusticada; altura OSM ausente (estimativa 9 m)",
+      "confidence": "media"
+    },
+    "Centro Cultural Correios": {
+      "style": "eclectic", "tint": 0.58,
+      "source": "Edifício eclético (1922); altura real do OSM mantida",
+      "confidence": "alta"
+    },
+    "Associação Comercial do Rio de Janeiro": {
+      "style": "eclectic", "tint": 0.3,
+      "source": "Edifício histórico; altura ainda estimada (conferir)",
+      "confidence": "baixa"
+    },
+    "Igreja de Nossa Senhora da Mãe dos Homens": {
+      "style": "institutional",
+      "source": "Igreja colonial; altura OSM estimada 16 m (conferir)",
+      "confidence": "baixa"
+    },
+    "Paço Imperial": { "style": "eclectic", "tint": 0.2, "source": "Edifício colonial/histórico", "confidence": "media" },
+    "Palácio do Itamaraty": { "style": "eclectic", "tint": 0.68, "source": "Palácio neoclássico (rosado)", "confidence": "media" },
+    "Palácio Duque de Caxias": { "style": "artdeco", "tint": 0.5, "source": "Edifício monumental dos anos 1930/40", "confidence": "media" }
+  }
+}
