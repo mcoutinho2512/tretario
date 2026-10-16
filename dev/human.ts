@@ -9,6 +9,8 @@ import { DEFAULT_PLAYER_APPEARANCE, type BodyType } from '../src/characters/body
 import type { Lod } from '../src/characters/human/HumanAssets';
 
 const q = new URLSearchParams(location.search);
+import { HumanAnimator } from '../src/characters/human/HumanAnimator';
+if (q.get('sprintmix')) HumanAnimator.sprintShare = Number(q.get('sprintmix'));
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(Math.min(2, devicePixelRatio));
 renderer.setSize(innerWidth, innerHeight);

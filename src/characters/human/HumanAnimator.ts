@@ -11,6 +11,13 @@ type Loco = (typeof LOCO)[number];
 export type RidePose = 'sit-pedal' | 'stand' | 'drive';
 export type ShowPose = 'parado' | 'andando' | 'acenando' | 'dancando';
 
+/** pose de repouso de todos os ossos (o mixer não reescreve ossos sem trilha: medições e jogo partem do repouso) */
+function snapshotRest(root: THREE.Object3D) {
+  const rest: { o: THREE.Object3D; q: THREE.Quaternion; p: THREE.Vector3 }[] = [];
+  root.traverse((o) => { if ((o as THREE.Bone).isBone) rest.push({ o, q: o.quaternion.clone(), p: o.position.clone() }); });
+  return () => { for (const r of rest) { r.o.quaternion.copy(r.q); r.o.position.copy(r.p); } };
+}
+
 const naturalCache = new Map<string, number>();
 const groundCache = new Map<string, number>();
 
@@ -29,7 +36,9 @@ export function measureGroundY(key: string, root: THREE.Object3D, clip: THREE.An
   const step = 1 / 30, n = Math.max(1, Math.ceil(clip.duration / step));
   const inv = new THREE.Matrix4(), v = new THREE.Vector3();
   let min = Infinity;
+  const restore = snapshotRest(root);
   for (let i = 0; i <= n; i++) {
+    restore();
     mixer.setTime(i * step);
     root.updateMatrixWorld(true);
     inv.copy(root.matrixWorld).invert();
@@ -37,6 +46,7 @@ export function measureGroundY(key: string, root: THREE.Object3D, clip: THREE.An
   }
   a.stop();
   mixer.uncacheRoot(root);
+  restore();
   groundCache.set(key, min);
   return min;
 }
@@ -55,7 +65,9 @@ export function measureNatural(key: string, root: THREE.Object3D, clip: THREE.An
   const inv = new THREE.Matrix4();
   const samples: { y: number; z: number }[][] = [[], []];
   const v = new THREE.Vector3();
+  const restore = snapshotRest(root);
   for (let i = 0; i <= n; i++) {
+    restore();
     mixer.setTime(i * step);
     root.updateMatrixWorld(true);
     inv.copy(root.matrixWorld).invert();
@@ -63,6 +75,7 @@ export function measureNatural(key: string, root: THREE.Object3D, clip: THREE.An
   }
   a.stop();
   mixer.uncacheRoot(root);
+  restore();
   const speeds: number[] = [];
   for (const s of samples) {
     const minY = Math.min(...s.map((p) => p.y));
@@ -108,6 +121,8 @@ export function groundOffsets(bodyKey: string, root: THREE.Object3D, clips: Map<
 }
 
 export class HumanAnimator {
+  /** fração do sprint na corrida do jogo (0 = só trote) */
+  static sprintShare = 0;
   readonly mixer: THREE.AnimationMixer;
   private act = new Map<string, THREE.AnimationAction>();
   private w: Record<string, number> = {};
@@ -119,6 +134,9 @@ export class HumanAnimator {
   /** ajustes procedurais (base do idle, aceno, pedal) só valem a pena de perto */
   detail = true;
   private bones = new Map<string, THREE.Object3D>();
+  /** pose de repouso de todos os ossos: restaurada antes do mixer a cada quadro, porque ossos SEM trilha nos clipes
+   * (o exportador remove canais constantes) não são reescritos pelo mixer e acumulariam os ajustes aditivos */
+  private rest: { o: THREE.Object3D; q: THREE.Quaternion | null; p: THREE.Vector3 | null }[] = [];
   private tmpQ = new THREE.Quaternion();
   private axis = new THREE.Vector3();
 
@@ -128,7 +146,15 @@ export class HumanAnimator {
 
   constructor(private root: THREE.Object3D, clips: Map<string, THREE.AnimationClip>, bodyKey: string, speedFactor = 1) {
     this.mixer = new THREE.AnimationMixer(root);
-    root.traverse((o) => this.bones.set(o.name, o));
+    // ossos que NENHUM clipe anima (canais constantes removidos no export): só esses voltam ao repouso por quadro
+    const animated = new Set<string>();
+    for (const c of clips.values()) for (const t of c.tracks) animated.add(`${t.name.split('.')[0]}.${t.name.split('.').pop()}`);
+    root.traverse((o) => {
+      this.bones.set(o.name, o);
+      if (!(o as THREE.Bone).isBone) return;
+      const q = animated.has(`${o.name}.quaternion`), p = animated.has(`${o.name}.position`);
+      if (!q || !p) this.rest.push({ o, q: q ? null : o.quaternion.clone(), p: p ? null : o.position.clone() });
+    });
     this.baseY = root.position.y;
     // pés na pose de repouso = chão (o MakeHuman exporta com os pés no chão)
     this.ground = groundOffsets(bodyKey, root, clips, ['idle', 'walk', 'jog', 'sprint', 'dance', 'talk']);
@@ -182,7 +208,10 @@ export class HumanAnimator {
     // horizontal e só entra acima de ~1,9× a velocidade natural do trote
     const jogTop = this.natural.jog * 1.9;
     if (speed >= this.natural.jog && speed <= jogTop) {
-      const out: Record<Loco, number> = { idle: 0, walk: 0, jog: 1, sprint: 0 };
+      // a partir de ~1,2× o trote, mistura parte do sprint (passada mais longa, cadência menos frenética)
+      const t = THREE.MathUtils.clamp((speed - this.natural.jog * 1.2) / Math.max(0.01, this.natural.jog * 0.45), 0, 1);
+      const sp = HumanAnimator.sprintShare * t;
+      const out: Record<Loco, number> = { idle: 0, walk: 0, jog: 1 - sp, sprint: sp };
       return out;
     }
     const pts: [Loco, number][] = [['idle', 0], ['walk', walkTop], ['jog', speed > jogTop ? jogTop : this.natural.jog], ['sprint', Math.max(this.natural.sprint, jogTop * 1.25)]];
@@ -221,6 +250,7 @@ export class HumanAnimator {
       a.timeScale = THREE.MathUtils.clamp(speed / Math.max(0.1, this.natural[l]), 0.35, 2.0);
       if (this.w[l] > mw) { mw = this.w[l]; master = a; }
     }
+    this.restorePose();
     this.mixer.update(dt);
     if (master) {
       const ph = master.time / master.getClip().duration;
@@ -230,10 +260,12 @@ export class HumanAnimator {
       }
     }
     this.applyOneShot(dt);
-    this.applyGround();
-    if (this.detail && ((this.w.idle ?? 0) > 0.01 || this.show === 'acenando')) {
+    this.applyGround(dt);
+    const runW = (this.w.jog ?? 0) + (this.w.sprint ?? 0);
+    if (this.detail && ((this.w.idle ?? 0) > 0.01 || runW > 0.01 || this.show === 'acenando')) {
       this.root.updateMatrixWorld(true);
       this.narrowStance();
+      this.uprightRun(runW);
       if (this.show === 'acenando') this.wave();
     }
   }
@@ -244,20 +276,44 @@ export class HumanAnimator {
     for (const k of this.act.keys()) targets[k] = 0;
     targets[pose === 'drive' ? 'drive' : pose === 'sit-pedal' ? 'sit' : 'idle'] = 1;
     this.blend(targets, dt, 14);
+    this.restorePose();
     this.mixer.update(dt);
     this.root.position.y = this.baseY;
     this.root.updateMatrixWorld(true);
     if (pose === 'sit-pedal') this.pedal(speed);
   }
 
-  /** contato com o chão: soma ponderada das correções dos clipes ativos */
-  private applyGround() {
+  private restorePose() {
+    for (const r of this.rest) { if (r.q) r.o.quaternion.copy(r.q); if (r.p) r.o.position.copy(r.p); }
+  }
+
+  /** sola acima do osso do pé (bola/tornozelo): o osso fica dentro do calçado */
+  private static readonly SOLE = 0.012;
+  private lift = 0;
+  private feet: THREE.Object3D[] | null = null;
+  private tmpV = new THREE.Vector3();
+
+  /**
+   * contato com o chão: base = soma ponderada das correções medidas por clipe; de perto, uma TRAVA por quadro
+   * mede o pé mais baixo depois da animação e levanta o corpo se ele estiver abaixo do chão (nunca atravessa).
+   */
+  private applyGround(dt = 1 / 60) {
     let off = 0, wsum = 0;
     for (const [name, d] of Object.entries(this.ground)) {
       const w = this.w[name] ?? 0;
       if (w > 0) { off += d * w; wsum += w; }
     }
-    this.root.position.y = this.baseY + (wsum > 0 ? off / Math.max(1, wsum) : 0);
+    const base = this.baseY + (wsum > 0 ? off / Math.max(1, wsum) : 0);
+    this.root.position.y = base;
+    if (!this.detail || !this.root.parent) { this.lift = 0; return; }
+    this.feet ??= ['ball_l', 'ball_r', 'foot_l', 'foot_r'].map((n) => this.bones.get(n)).filter(Boolean) as THREE.Object3D[];
+    this.root.updateMatrixWorld(true);
+    let min = Infinity;
+    for (const f of this.feet) min = Math.min(min, this.root.parent.worldToLocal(f.getWorldPosition(this.tmpV)).y);
+    const target = Number.isFinite(min) ? Math.max(0, HumanAnimator.SOLE - min) : 0;
+    // sobe rápido (não deixa afundar), desce devagar (sem tremer)
+    this.lift += (target - this.lift) * (target > this.lift ? 1 : 1 - Math.exp(-10 * dt));
+    this.root.position.y = base + this.lift;
   }
 
   private blend(targets: Record<string, number>, dt: number, rate: number) {
@@ -298,6 +354,15 @@ export class HumanAnimator {
   }
 
   /** o idle da biblioteca tem base larga ("prontidão"): aproxima os pés, proporcional ao peso do idle */
+  /** o ciclo de corrida da biblioteca é encurvado (tronco e cabeça projetados): endireita, proporcional ao peso */
+  private uprightRun(k: number) {
+    if (k < 0.01) return;
+    this.rot('spine_01', 1, 0, 0, -0.16 * k);
+    this.rot('spine_03', 1, 0, 0, -0.1 * k);
+    this.rot('neck_01', 1, 0, 0, -0.12 * k);
+    this.rot('head', 1, 0, 0, -0.08 * k);
+  }
+
   private narrowStance() {
     const k = this.w.idle ?? 0;
     if (k < 0.01) return;

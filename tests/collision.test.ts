@@ -37,7 +37,7 @@ describe('colisão e movimento', () => {
     expect(s.speed).toBeGreaterThan(1.5);
     expect(s.speed).toBeLessThan(2.2);
     for (let i = 0; i < 120; i++) stepPlayer(s, { dirX: 0, dirZ: 1, run: true, jump: false }, 1 / 60, world);
-    expect(s.speed).toBeGreaterThan(4.5);
+    expect(s.speed).toBeGreaterThan(4.0); // corrida de rua plausível (4,4 m/s); acima disso a cadência do ciclo fica frenética
     expect(s.locomotion).toBe('run');
   });
 });
