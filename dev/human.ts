@@ -42,6 +42,8 @@ else if (mode === 'lods') { cam.position.set(0, 1.4, 7.5); cam.lookAt(0, 0.9, 0)
 else if (mode === 'side') { cam.position.set(3.2, 0.9, 0); cam.lookAt(0, 0.85, 0); }
 else { cam.position.set(1.4, 1.25, 3.6); cam.lookAt(0, 0.9, 0); }
 
+if (q.get('inflate')) HumanCharacter.shirtInflate = Number(q.get('inflate'));
+if (q.get('nocull')) HumanCharacter.skinCull = false;
 const body = (q.get('body') ?? 'homem') as BodyType;
 const app = { ...DEFAULT_PLAYER_APPEARANCE[body], accessory: (q.get('acc') ?? 'nenhum') as never, acc: 0x2b4a7a };
 if (q.get('top')) app.top = parseInt(q.get('top')!, 16);
@@ -60,7 +62,7 @@ const pose = q.get('pose');
 let t0 = performance.now();
 await Promise.all(chars.map((c) => c.ready));
 await new Promise((r) => setTimeout(r, 400));
-(window as any).__human = { chars, info: () => chars.map((c) => ({ lod: c.lod, natural: c.animator?.naturalSpeeds, tris: renderer.info.render.triangles, calls: renderer.info.render.calls })) };
+(window as any).__human = { chars, info: () => chars.map((c) => ({ cull: HumanCharacter.lastSkinCull, lod: c.lod, natural: c.animator?.naturalSpeeds, tris: renderer.info.render.triangles, calls: renderer.info.render.calls })) };
 const freeze = q.get('t') ? Number(q.get('t')) : null;
 function frame() {
   const now = performance.now();

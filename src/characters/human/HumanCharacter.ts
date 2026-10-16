@@ -12,6 +12,8 @@ import { clone as cloneSkeleton } from 'three/examples/jsm/utils/SkeletonUtils.j
 import { BODY_TYPES, type BodyType, type CharacterAppearance } from '../bodyTypes';
 import { LAYER_INDEX, averageColor, loadClips, loadLod, type Lod } from './HumanAssets';
 import { HumanAnimator } from './HumanAnimator';
+import { hideCoveredSkin, type ClothInput } from './hideCovered';
+import type { CullJob } from './hideCovered.worker';
 
 interface LodInst {
   group: THREE.Group;
@@ -20,6 +22,8 @@ interface LodInst {
   single: boolean;
   tints?: { value: THREE.Color[] };
   layerAvg?: THREE.Color[];
+  /** malhas de origem por camada (para o recorte da pele coberta) */
+  src?: { layer: string; sm: THREE.SkinnedMesh }[];
 }
 
 const clipsByBody = new Map<string, Promise<Map<string, THREE.AnimationClip>>>();
@@ -71,10 +75,77 @@ export interface HumanOptions {
 }
 
 const warmed = new Set<string>();
+let lastCull: { hidden: number; pantsHidden: number; mainMs: number; totalMs: number } | null = null;
+
+/** posições/normais de uma malha de origem na pose de REPOUSO do esqueleto (m). Com a quantização do meshopt a
+ * escala real está nas matrizes inversas dos ossos (matrixWorld/bindMatrix são identidade): aplica o skinning de
+ * repouso. Normais recalculadas da superfície resultante (as quantizadas não servem com escala não uniforme). */
+function worldArrays(sm: THREE.SkinnedMesh) {
+  const g = sm.geometry, P = g.getAttribute('position');
+  const n = P.count, pos = new Float32Array(n * 3), nor = new Float32Array(n * 3);
+  const v = new THREE.Vector3();
+  for (let i = 0; i < n; i++) { v.fromBufferAttribute(P, i); sm.applyBoneTransform(i, v); pos[i * 3] = v.x; pos[i * 3 + 1] = v.y; pos[i * 3 + 2] = v.z; }
+  const idx = g.index ? (g.index.array as ArrayLike<number>) : null;
+  const tri = idx ?? Array.from({ length: n }, (_, i) => i);
+  const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
+  for (let t = 0; t + 2 < tri.length; t += 3) {
+    const i0 = tri[t], i1 = tri[t + 1], i2 = tri[t + 2];
+    a.fromArray(pos, i0 * 3); b.fromArray(pos, i1 * 3).sub(a); c.fromArray(pos, i2 * 3).sub(a);
+    b.cross(c); // área × normal (ponderado)
+    for (const k of [i0, i1, i2]) { nor[k * 3] += b.x; nor[k * 3 + 1] += b.y; nor[k * 3 + 2] += b.z; }
+  }
+  for (let i = 0; i < n; i++) { v.fromArray(nor, i * 3).normalize(); nor[i * 3] = v.x; nor[i * 3 + 1] = v.y; nor[i * 3 + 2] = v.z; }
+  return { pos, normal: nor, index: idx };
+}
+
+/** recorte por geometria (compartilhada entre personagens do mesmo corpo/LOD): uma promessa por geometria de corpo */
+const cullJobs = new WeakMap<THREE.BufferGeometry, Promise<void>>();
+let worker: Worker | null | undefined;
+let jobSeq = 0;
+const pending = new Map<number, (out: { index: Uint32Array; hidden: number }[]) => void>();
+function runCull(jobs: CullJob[]): Promise<{ index: ArrayLike<number>; hidden: number }[]> {
+  if (worker === undefined) {
+    try {
+      worker = new Worker(new URL('./hideCovered.worker.ts', import.meta.url), { type: 'module' });
+      worker.onmessage = (e) => { pending.get(e.data.id)?.(e.data.out); pending.delete(e.data.id); };
+    } catch { worker = null; }
+  }
+  if (!worker) return Promise.resolve(jobs.map((j) => hideCoveredSkin(j.pos, j.normal, j.index, j.cloths, j.opts)));
+  const id = ++jobSeq;
+  return new Promise((res) => { pending.set(id, res); worker!.postMessage({ id, jobs }); });
+}
+function cullCovered(src: { layer: string; sm: THREE.SkinnedMesh }[]): Promise<void> {
+  const body = src.find((l) => l.layer === 'BODY')?.sm;
+  const shirt = src.find((l) => l.layer === 'SHIRT')?.sm, pants = src.find((l) => l.layer === 'PANTS')?.sm;
+  const cloths = [shirt, pants].filter(Boolean) as THREE.SkinnedMesh[];
+  if (!body || !cloths.length) return Promise.resolve();
+  let p = cullJobs.get(body.geometry);
+  if (p) return p;
+  const t0 = performance.now();
+  const b = worldArrays(body), sh = shirt ? worldArrays(shirt) : null, pa = pants ? worldArrays(pants) : null;
+  const jobs: CullJob[] = [{ ...b, cloths: [sh, pa].filter(Boolean) as ClothInput[] }];
+  // a calça também atravessava a camisa na cintura (manchas na barra): calça × camisa. O cós e os passadores saem
+  // até ~6 cm para fora da camisa solta; o raio já garante camisa por cima, então sem margem de borda
+  if (pa && sh && pants) jobs.push({ ...pa, cloths: [sh], opts: { inside: 0.06, edgeMargin: 0, radial: true } });
+  const mainMs = performance.now() - t0;
+  p = runCull(jobs).then((out) => {
+    body.geometry.setIndex(Array.from(out[0].index));
+    if (out[1] && pants) pants.geometry.setIndex(Array.from(out[1].index));
+    lastCull = { hidden: out[0].hidden, pantsHidden: out[1]?.hidden ?? 0, mainMs: +mainMs.toFixed(1), totalMs: +(performance.now() - t0).toFixed(1) };
+  });
+  cullJobs.set(body.geometry, p);
+  return p;
+}
 
 export class HumanCharacter {
   /** definido pelo jogo: pré-compila materiais de um objeto (renderer.compileAsync com as luzes da cena) */
   static warmup: ((obj: THREE.Object3D) => Promise<void>) | null = null;
+  /** quanto a camiseta é afastada da pele (unidades do modelo = m) */
+  static shirtInflate = 0.008;
+  /** esconde a pele coberta pela roupa (QA: desligável para comparar) */
+  static skinCull = true;
+  /** último recorte de pele (QA) */
+  static get lastSkinCull() { return lastCull; }
   readonly root = new THREE.Group();
   /** contêiner do esqueleto (pai do osso "Root") */
   armature: THREE.Object3D | null = null;
@@ -135,6 +206,11 @@ export class HumanCharacter {
     if (this.disposed) return;
     if (!this.armature) await this.buildRig(gltf.scene);
     const inst = this.bind(gltf.scene, l);
+    // pele/calça coberta pela roupa some antes de o LOD aparecer (num Worker: não trava o jogo)
+    if (HumanCharacter.skinCull && !inst.single && inst.src) {
+      try { await cullCovered(inst.src); } catch (e) { console.warn('[human] recorte da pele falhou', e); }
+      if (this.disposed) return;
+    }
     // pré-compila os shaders deste LOD antes de mostrá-lo (evita engasgo de 100+ ms na primeira aparição)
     if (HumanCharacter.warmup && !warmed.has(`${this.body}:${l}`)) {
       warmed.add(`${this.body}:${l}`);
@@ -181,6 +257,7 @@ export class HumanCharacter {
     const srcArm = (() => { let a: THREE.Object3D | null = null; src.traverse((o) => { if ((o as THREE.Bone).isBone && o.name === 'Root') a = o.parent; }); return a as THREE.Object3D | null; })();
     const armInv = srcArm ? srcArm.matrixWorld.clone().invert() : new THREE.Matrix4();
     const skels = new Map<THREE.Skeleton, THREE.Skeleton>();
+    const layers: { layer: string; sm: THREE.SkinnedMesh }[] = [];
     src.traverse((o) => {
       const sm = o as THREE.SkinnedMesh;
       if (!sm.isSkinnedMesh) return;
@@ -190,6 +267,7 @@ export class HumanCharacter {
       // as camadas vêm com o nome do objeto do Blender (BODY, SHIRT, ACC_bone…); o glTF às vezes põe no pai
       const layerName = [sm.name, sm.parent?.name].find((n) => n && /^(BODY|HAIR|SHIRT|PANTS|SHOES|EYES|EYEBROWS|EYELASHES|ACC_|LOD)/.test(n)) ?? sm.name;
       mesh.userData.layer = layerName.replace(/_\d+$/, '');
+      layers.push({ layer: mesh.userData.layer, sm });
       new THREE.Matrix4().multiplyMatrices(armInv, sm.matrixWorld).decompose(mesh.position, mesh.quaternion, mesh.scale);
       // UM esqueleto por pele de origem (as camadas compartilham): uma textura de ossos e um update por quadro
       let skel = skels.get(sm.skeleton);
@@ -202,18 +280,18 @@ export class HumanCharacter {
       mesh.castShadow = this.castShadow;
       mesh.receiveShadow = true;
       if (sm.geometry.getAttribute('_layer')) single = true;
-      this.prepMaterial(mesh, mat);
+      this.prepMaterial(mesh, mat, l);
       meshes.push(mesh);
       group.add(mesh);
     });
     group.visible = false;
     this.armature!.add(group);
-    const inst: LodInst = { group, meshes, single };
+    const inst: LodInst = { group, meshes, single, src: layers };
     if (single) this.prepTints(inst);
     return inst;
   }
 
-  private prepMaterial(mesh: THREE.SkinnedMesh, mat: THREE.MeshStandardMaterial) {
+  private prepMaterial(mesh: THREE.SkinnedMesh, mat: THREE.MeshStandardMaterial, l: Lod) {
     const layer = mesh.userData.layer as string;
     if (['HAIR', 'EYEBROWS', 'EYELASHES', 'ACC_oculos'].includes(layer)) {
       mat.transparent = false;
@@ -225,6 +303,18 @@ export class HumanCharacter {
     if (layer === 'EYES' || layer === 'EYEBROWS' || layer === 'EYELASHES') mesh.castShadow = false;
     // pele: um pouco de brilho especular e menos "plástico"
     if (layer === 'BODY') { mat.roughness = 0.55; mat.envMapIntensity = 0.6; }
+    // camiseta: o corpo (mais musculoso) atravessava o tecido nos ombros/costas — "roupa rasgada". Empurra a malha
+    // da camiseta alguns milímetros para fora pela normal (antes do skinning), sempre por cima da pele
+    if (layer === 'SHIRT') {
+      // LOD1 tem menos polígonos (folgas maiores); de longe a espessura extra não aparece
+      const k = HumanCharacter.shirtInflate * (l >= 1 ? 1.75 : 1);
+      const prev = mat.onBeforeCompile;
+      mat.onBeforeCompile = (sh, r) => {
+        prev?.call(mat, sh, r);
+        sh.vertexShader = sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>\ntransformed += normalize(objectNormal) * ${k.toFixed(4)};`);
+      };
+      mat.customProgramCacheKey = () => `shirt${k}`;
+    }
     // cor média da textura: calculada no build (Blender) e gravada em extras; o cálculo no navegador é só reserva
     const avg = mat.userData.pv_avg as number[] | undefined;
     mesh.userData.baseColor = avg ? new THREE.Color().setRGB(avg[0], avg[1], avg[2], THREE.SRGBColorSpace) : averageColor(mat.map, ['HAIR', 'EYEBROWS', 'EYELASHES'].includes(layer));

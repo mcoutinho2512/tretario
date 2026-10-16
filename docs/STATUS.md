@@ -34,6 +34,12 @@ corrida a 5,8 m/s (~21 km/h; servidor valida até 6,4 m/s a pé); jogo em 60 FPS
 nenhum quadro longo (antes 50–100 ms quando um pedestre próximo ganhava o modelo detalhado: as texturas 2048²
 subiam todas num quadro — agora limitadas a 1024 px e enviadas à GPU uma por quadro antes de aparecer).
 
+**Roupa sem "rasgos"**: o corpo (mais musculoso) atravessava a camiseta nos ombros/costas e a calça atravessava a
+camisa na cintura. Agora, ao carregar cada corpo/LOD, a pele e a calça que ficam sob a roupa são escondidas (raio pela
+normal contra os triângulos da roupa, longe das bordas: sem buracos em golas e decotes — `src/characters/human/hideCovered.ts`,
+calculado num Web Worker: ~6 ms na thread principal) e a camiseta é afastada 8 mm da pele (14 mm no LOD1). Conferido
+nos 4 corpos, LOD0 e LOD1, de frente/costas, parado/andando/correndo.
+
 **Notas honestas**
 - Os carros estacionam **sobre a calçada, encostados no meio-fio** (as vagas são amostradas ao longo das fachadas).
   Funciona e não bloqueia a passagem, mas o ideal seria uma faixa de estacionamento no asfalto.
