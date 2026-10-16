@@ -11,6 +11,8 @@
  *            --total=T    tamanho total da multidão (para distribuir posições entre processos)
  *            --wait-go    entra, imprime "READY" e só começa a medir ao receber "go" na entrada padrão
  *            --hold       depois de medir, espera "bye" na entrada padrão antes de sair (o pai coordena)
+ *            --social=F   fração F dos bots com vida de manifestação (rodada 7): dançando, com bandeira, com cartaz,
+ *                         gesticulando (pedidos 'act'/'prop' reais, validados pelo servidor)
  *
  * Movimento de multidão: caminhada lenta (0,5–1,4 m/s), paradas de 1–6 s, pequenas variações de rumo,
  * e volta para a área da concentração quando sai dela. Ao receber correção do servidor (parede), muda de rumo.
@@ -34,6 +36,13 @@ const OFFSET = flagNum('offset', 0);
 const TOTAL = flagNum('total', N);
 const WAIT_GO = !!flag('wait-go');
 const HOLD = !!flag('hold');
+const SOCIAL = flagNum('social', 0);
+// ids dos registros (src/social): dança, bandeira, cartaz, gestos
+import { ACTION_BY_KEY } from '../../src/social/actions.ts';
+import { PROP_BY_KIND } from '../../src/social/props.ts';
+const A = (k: string) => ACTION_BY_KEY.get(k)!.id;
+const PROP = (k: string) => PROP_BY_KIND.get(k as never)!.id;
+type SocialRole = 'none' | 'dancer' | 'flag' | 'sign' | 'gesture';
 
 // contadores por socket (instrumentação do ws no processo dos bots)
 const stats = new Map<unknown, { in: number; out: number; mIn: number; mOut: number }>();
@@ -64,6 +73,7 @@ function rng(seed: number) { let s = seed >>> 0 || 1; return () => ((s = (s * 16
 interface Bot {
   room: any; x: number; z: number; h: number; seq: number; corrections: number; detailed: number; far: number; crowdMsgs: number; trafficMsgs: number;
   speed: number; cruise: number; pause: number; home: { x: number; z: number }; r: () => number;
+  role: SocialRole; nextAct: number; acts: number; denied: number;
 }
 const bots: Bot[] = [];
 
@@ -92,20 +102,43 @@ async function startBot(i: number) {
   const b: Bot = {
     room, x: sp?.x ?? 0, z: sp?.z ?? 0, h: r() * Math.PI * 2, seq: 0, corrections: 0, detailed: 0, far: 0, crowdMsgs: 0, trafficMsgs: 0,
     speed: 0, cruise: 0.5 + r() * 0.9, pause: r() * 3, home: sp ?? { x: 0, z: 0 }, r,
+    role: 'none', nextAct: 1 + r() * 4, acts: 0, denied: 0,
   };
+  // papel na manifestação: ~30 % dançam, 25 % bandeira, 20 % cartaz, 25 % gestos
+  if (r() < SOCIAL) { const u = r(); b.role = u < 0.3 ? 'dancer' : u < 0.55 ? 'flag' : u < 0.75 ? 'sign' : 'gesture'; }
   room.onMessage('spawn', (s: any) => { b.x = s.x; b.z = s.z; if (!sp) b.home = { x: s.x, z: s.z }; });
   room.onMessage('correct', (c: number[]) => { b.x = c[0]; b.z = c[2]; b.corrections++; b.h += Math.PI * (0.5 + b.r()); });
   room.onMessage('traffic', () => { b.trafficMsgs++; });
   room.onMessage('crowd', (buf: Uint8Array) => { b.crowdMsgs++; b.far = decodeCrowd(buf instanceof Uint8Array ? buf : new Uint8Array(buf)).length; });
   for (const t of ['pong', 'knock', 'action', 'enter_ok', 'enter_denied', 'exit_ok', 'mode_ok', 'mode_denied', 'push_denied']) room.onMessage(t, () => {});
+  room.onMessage('act_denied', () => { b.denied++; });
+  room.onMessage('prop_denied', () => { b.denied++; });
+  if (b.role === 'flag') room.send('prop', { p: PROP('flag_small'), d: 0 });
+  if (b.role === 'sign') room.send('prop', { p: PROP('sign_small'), d: 0 });
   const cb = Callbacks.get(room as any) as any;
   cb.onAdd('players', () => { b.detailed++; });
   cb.onRemove('players', () => { b.detailed--; });
   bots.push(b);
 }
 
+/** vida de manifestação: pede ações reais ao servidor de tempos em tempos (irregular, por bot) */
+function socialBot(b: Bot, dt: number) {
+  if (b.role === 'none') return;
+  b.nextAct -= dt;
+  if (b.nextAct > 0) return;
+  b.nextAct = 6 + b.r() * 10;
+  let a = 0;
+  if (b.role === 'dancer') { a = A(['dance_simple', 'dance_lively', 'dance_arms', 'dance_party'][Math.floor(b.r() * 4)]); b.pause = b.nextAct; } // dança parado
+  else if (b.role === 'flag') a = A(b.r() < 0.6 ? 'flag_wave' : 'flag_raise');
+  else if (b.role === 'sign') a = A(b.r() < 0.6 ? 'sign_raise' : 'sign_wave');
+  else { a = A(['clap', 'arms_up', 'talk', 'wave', 'rhythm_clap'][Math.floor(b.r() * 5)]); if (a === A('talk')) b.pause = b.nextAct; }
+  b.acts++;
+  b.room.send('act', { a, v: Math.floor(b.r() * 8) });
+}
+
 /** um passo de "multidão": anda devagar, para às vezes, varia o rumo, volta para a concentração */
 function stepBot(b: Bot, dt: number) {
+  socialBot(b, dt);
   if (b.pause > 0) { b.pause -= dt; b.speed = Math.max(0, b.speed - dt * 2); }
   else {
     b.speed += (b.cruise - b.speed) * Math.min(1, dt * 2);
@@ -154,6 +187,7 @@ const res = {
   totals: { bytesIn: inB, bytesOut: outB, msgsIn: mIn, msgsOut: mOut },
   visiblePlayers: { min: Math.min(...vis), max: Math.max(...vis), avg: avg(visSamples), detailedAvg: avg(detSamples) },
   corrections: bots.reduce((s, b) => s + b.corrections, 0),
+  social: { share: SOCIAL, roles: Object.fromEntries(['dancer', 'flag', 'sign', 'gesture'].map((k) => [k, bots.filter((b) => b.role === k).length])), actsSent: bots.reduce((s, b) => s + b.acts, 0), denied: bots.reduce((s, b) => s + b.denied, 0) },
   crowdMsgsPerBot: +(bots.reduce((s, b) => s + b.crowdMsgs, 0) / n / secs).toFixed(2),
   trafficSnapshotsPerBot: +(bots.reduce((s, b) => s + b.trafficMsgs, 0) / n / secs).toFixed(2),
   joinMs,

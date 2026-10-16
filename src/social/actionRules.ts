@@ -8,8 +8,9 @@ import { PROP_BY_ID, NO_PROP } from './props';
 import { DESIGN_BY_ID, NO_DESIGN } from './designs';
 
 export const ACTION_RULES = {
-  /** intervalo mínimo entre pedidos de ação/item */
-  cooldownMs: 250,
+  /** intervalo mínimo entre pedidos de ação/item (curto: "pegar megafone + usar" é um par legítimo; o anti-spam
+   * de verdade é o limite por janela) */
+  cooldownMs: 60,
   /** anti-spam: no máximo N pedidos por janela */
   rateWindowMs: 10_000,
   rateMax: 24,
@@ -31,13 +32,15 @@ export interface ActionActor {
   onPlatform?: boolean;
   /** histórico de pedidos (ms) — anti-spam */
   recent: number[];
+  /** último pedido de cada tipo (o intervalo mínimo vale entre pedidos do MESMO tipo: "pegar item + usar" passa) */
+  lastAct?: number;
+  lastProp?: number;
 }
 
 export type RuleResult = { ok: true } | { ok: false; reason: string };
 
-function rate(a: ActionActor, now: number): RuleResult {
-  const last = a.recent[a.recent.length - 1] ?? -Infinity;
-  if (now - last < ACTION_RULES.cooldownMs) return { ok: false, reason: 'rapido' };
+function rate(a: ActionActor, now: number, last: number | undefined): RuleResult {
+  if (now - (last ?? -Infinity) < ACTION_RULES.cooldownMs) return { ok: false, reason: 'rapido' };
   while (a.recent.length && now - a.recent[0] > ACTION_RULES.rateWindowMs) a.recent.shift();
   if (a.recent.length >= ACTION_RULES.rateMax) return { ok: false, reason: 'spam' };
   return { ok: true };
@@ -56,11 +59,12 @@ export function validateAction(a: ActionActor, actionId: unknown, now: number): 
       if (!p || !d.needs.includes(p.kind)) return { ok: false, reason: 'sem_item' };
     }
   }
-  return rate(a, now);
+  return rate(a, now, a.lastAct);
 }
 
 export function applyAction(a: ActionActor, actionId: number, now: number) {
   a.recent.push(now);
+  a.lastAct = now;
   a.act = actionId;
   a.actAt = now;
 }
@@ -79,11 +83,12 @@ export function validateProp(a: ActionActor, propId: unknown, designId: unknown,
       if (!p.designSlot || !d.targets.includes(p.designSlot)) return { ok: false, reason: 'design_incompativel' };
     }
   }
-  return rate(a, now);
+  return rate(a, now, a.lastProp);
 }
 
 export function applyProp(a: ActionActor, propId: number, designId: number, now: number) {
   a.recent.push(now);
+  a.lastProp = now;
   a.prop = propId;
   a.design = propId === NO_PROP ? NO_DESIGN : designId;
   // ação que dependia do item anterior termina

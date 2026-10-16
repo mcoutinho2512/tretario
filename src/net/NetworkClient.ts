@@ -44,6 +44,8 @@ interface Snapshot { t: number; x: number; y: number; z: number; heading: number
 export interface RemoteInfo {
   id: string; name: string; body: string; accessory: string;
   x: number; z: number; speed: number; interaction: string; status: number; vehicle: string;
+  /** vida social sincronizada (ids) e o que o esqueleto local está tocando (se houver esqueleto) */
+  act: number; actPhase: number; prop: number; design: number; visualAct: number | null; visualProp: number | null;
 }
 
 interface Remote {
@@ -459,7 +461,9 @@ export class NetworkClient {
 
   /** para QA */
   remotesInfo(): RemoteInfo[] {
-    return [...this.remotes.values()].map((r) => ({ id: r.id, name: r.name, body: r.body, accessory: r.accessory, x: +r.state.x.toFixed(2), z: +r.state.z.toFixed(2), speed: +r.state.speed.toFixed(2), interaction: r.interaction, status: r.status, vehicle: r.vehicle }));
+    return [...this.remotes.values()].map((r) => ({ id: r.id, name: r.name, body: r.body, accessory: r.accessory, x: +r.state.x.toFixed(2), z: +r.state.z.toFixed(2), speed: +r.state.speed.toFixed(2), interaction: r.interaction, status: r.status, vehicle: r.vehicle,
+      act: r.soc.act, actPhase: +socialOf(r.soc).phase.toFixed(2), prop: r.soc.prop, design: r.soc.design,
+      visualAct: r.visual ? r.visual.social.act : null, visualProp: r.visual ? r.visual.social.prop : null }));
   }
 
   disconnect() {

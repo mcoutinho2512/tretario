@@ -78,7 +78,7 @@ describe('regras de ação (servidor)', () => {
   it('anti-spam: cooldown e limite por janela', () => {
     const a = actor();
     applyAction(a, 1, 0);
-    expect(validateAction(a, 1, 100)).toEqual({ ok: false, reason: 'rapido' });
+    expect(validateAction(a, 1, 30)).toEqual({ ok: false, reason: "rapido" });
     let t = 0;
     for (let i = 0; i < ACTION_RULES.rateMax; i++) { t += 300; applyAction(a, 2, t); }
     expect(validateAction(a, 1, t + 300)).toEqual({ ok: false, reason: 'spam' });
