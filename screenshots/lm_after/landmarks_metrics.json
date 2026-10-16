@@ -1,0 +1,91 @@
+{
+  "quality": "high",
+  "time": "10:30",
+  "shots": {
+    "central1": {
+      "cpuMs": 2.77,
+      "gpuMs": 9.18,
+      "calls": 536,
+      "triangles": 1483473
+    },
+    "central2": {
+      "cpuMs": 2.95,
+      "gpuMs": 9.73,
+      "calls": 627,
+      "triangles": 1909486
+    },
+    "central3": {
+      "cpuMs": 2.61,
+      "gpuMs": 11.76,
+      "calls": 532,
+      "triangles": 1634724
+    },
+    "central4": {
+      "cpuMs": 2.38,
+      "gpuMs": 13.62,
+      "calls": 444,
+      "triangles": 1376878
+    },
+    "central6": {
+      "cpuMs": 2.52,
+      "gpuMs": 14.75,
+      "calls": 460,
+      "triangles": 1333896
+    },
+    "cand1": {
+      "cpuMs": 4.26,
+      "gpuMs": 5.8,
+      "calls": 1226,
+      "triangles": 1883324
+    },
+    "central5": {
+      "cpuMs": 2.84,
+      "gpuMs": 8.33,
+      "calls": 438,
+      "triangles": 1502946
+    },
+    "cand2": {
+      "cpuMs": 3.12,
+      "gpuMs": 8.73,
+      "calls": 430,
+      "triangles": 1408172
+    },
+    "cand4": {
+      "cpuMs": 3.7,
+      "gpuMs": 9.62,
+      "calls": 1182,
+      "triangles": 1911495
+    },
+    "cand3": {
+      "cpuMs": 3.78,
+      "gpuMs": 9.34,
+      "calls": 1190,
+      "triangles": 1828658
+    },
+    "palacio1": {
+      "cpuMs": 2.98,
+      "gpuMs": 7.41,
+      "calls": 722,
+      "triangles": 1858890
+    },
+    "palacio2": {
+      "cpuMs": 3.02,
+      "gpuMs": 8.74,
+      "calls": 610,
+      "triangles": 1655806
+    },
+    "ccbb1": {
+      "cpuMs": 2.74,
+      "gpuMs": 7.98,
+      "calls": 416,
+      "triangles": 1429338
+    },
+    "ccbb2": {
+      "cpuMs": 3.17,
+      "gpuMs": 9.66,
+      "calls": 492,
+      "triangles": 1452702
+    }
+  },
+  "errors": []
+}

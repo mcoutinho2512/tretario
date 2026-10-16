@@ -70,6 +70,25 @@ Footprint: OSM way 30839484 (real). Modelo procedural dedicado (`src/world/landm
 - [ ] Teleférico da Providência: cobertura da estação flutua a 10 m (dado OSM `min_height`). Coerente com a estação elevada? Conferir.
 - [ ] **Relevo**: o Morro da Providência (atrás da Central), o São Bento e o da Conceição estão **planos** — limitação conhecida.
 
+## Rodada 5 — passada de fidelidade dos landmarks (conferência humana)
+Detalhes, medidas, fontes e confiança: [`docs/LANDMARKS.md`](LANDMARKS.md). Capturas comparáveis:
+`screenshots/lm_before/` × `screenshots/lm_after/` (mesmas poses; `tools/qa/landmark_shots.mjs`).
+
+- [ ] **Central — torre**: 110 m de cobertura, antenas até 135 m, relógio Ø 10 m centrado a 86 m
+      (Diário do Rio, confiança média). Torre no **centro da aresta longa da fachada leste**, face frontal
+      4 m atrás das alas, que terminam em **pontas arredondadas** (fotos). O contorno OSM tem essa aresta
+      reta — **conferir** se o recuo existe e se a torre não fica mais ao sul. Colisão acompanha o recuo.
+- [ ] **Central — alas**: 7 pavimentos (29 m) com janelas em fita junto à torre e nas curvas; gare 16 m (estimativa).
+- [ ] **Candelária**: massa alinhada ao contorno OSM (~36 m de largura em todo o comprimento; antes a
+      abside tinha 26 m); transepto em s = −13…+4 m (saliências OSM); cúpula deslocada para s = −4,5 m;
+      cruz das torres ~49,5 m (estimativa por foto). **Conferir** altura das torres e dos fundos.
+- [ ] **Palácio Duque de Caxias**: torre agora no **centro da fachada sul inteira** (as duas arestas
+      colineares do OSM são fundidas — antes ficava ~28 m a leste). O eixo da torre passa pelo Panteão
+      de Caxias (OSM). Bloco 44 m (antes 38 m; override atualizado). Granito do embasamento rosado/castanho
+      (antes quase marrom-escuro).
+- [ ] **CCBB**: modelo dedicado (`model: ccbb`); fachada principal a oeste (Rua 1º de Março) com entrada
+      em granito escuro; altura 31 m (contagem de pavimentos). Sem painel de LED (edifício histórico).
+
 ## Como reportar
 Anote o **ponto de validação** ou o **XYZ / lat-lon do F3** e o que está errado
 ("este prédio está alto demais", "falta esta rua", "a torre fica mais ao norte"). Correções de dado

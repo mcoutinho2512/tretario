@@ -147,7 +147,7 @@ export function buildCentral(lm: LandmarkRec, archMats: Record<ArchMat, THREE.Ma
         ab.box(core, 1.1, 0.4, 0, 0, 0.2, BASE_GRANITE, 'granite');
         ab.facadeGrid({ x0: -core / 2, x1: core / 2, y0: 0, floors: 1, floorH: 6.5, bay: core / 3, winW: 3.6, winH: 4.6, sill: 0.9, frameD: 0.35, pierW: 1.0, wall: CREAM_SHADE, wallMat: 'concrete', glass: 0x22292e, mullions: true });
         ab.facadeGrid({
-          x0: -core / 2, x1: core / 2, y0: 6.5, floors: shaftFloors, floorH: 3.45, bay: core / 4, winW: 1.9, winH: 1.9, sill: 0.95,
+          x0: -core / 2, x1: core / 2, y0: 6.5, floors: shaftFloors, floorH: 3.45, bay: core / 4, winW: 2.5, winH: 2.05, sill: 0.85,
           frameD: 0.24, pierW: 1.1, pierD: 0.22, majorEvery: 4, majorW: 1.6, majorD: 0.4, wall: CREAM, wallMat: 'concrete', glass: GLASS, mullions: true,
         });
         // pilastras escalonadas do topo do fuste (silhueta serrilhada art déco)

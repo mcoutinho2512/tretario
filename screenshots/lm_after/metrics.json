@@ -1,0 +1,35 @@
+{
+  "quality": "high",
+  "time": "10:30",
+  "loadMs": 1531,
+  "shots": {
+    "C": {
+      "cpuMs": 2.72,
+      "gpuMs": 9.44,
+      "calls": 596,
+      "triangles": 1897732,
+      "heapMB": 277.5,
+      "textures": 70,
+      "geometries": 269
+    },
+    "E": {
+      "cpuMs": 2.55,
+      "gpuMs": 9.86,
+      "calls": 591,
+      "triangles": 1842529,
+      "heapMB": 327.5,
+      "textures": 80,
+      "geometries": 325
+    },
+    "F": {
+      "cpuMs": 2.95,
+      "gpuMs": 7.12,
+      "calls": 597,
+      "triangles": 1531891,
+      "heapMB": 253.4,
+      "textures": 111,
+      "geometries": 526
+    }
+  },
+  "errors": []
+}

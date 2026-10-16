@@ -3,68 +3,86 @@
   "time": "10:30",
   "shots": {
     "central1": {
-      "cpuMs": 2.78,
-      "gpuMs": 14.2,
+      "cpuMs": 2.28,
+      "gpuMs": 5.73,
       "calls": 520,
-      "triangles": 1023936
+      "triangles": 1136025
     },
     "central2": {
-      "cpuMs": 3.47,
-      "gpuMs": 5.21,
-      "calls": 650,
-      "triangles": 1731042
+      "cpuMs": 2.53,
+      "gpuMs": 5.32,
+      "calls": 604,
+      "triangles": 1522522
     },
     "central3": {
-      "cpuMs": 2.58,
-      "gpuMs": 4.37,
+      "cpuMs": 2.09,
+      "gpuMs": 7.56,
       "calls": 514,
-      "triangles": 1300192
+      "triangles": 1287248
     },
     "central4": {
-      "cpuMs": 2.43,
-      "gpuMs": 8.19,
+      "cpuMs": 2.16,
+      "gpuMs": 11.84,
       "calls": 432,
-      "triangles": 1227574
+      "triangles": 1214630
+    },
+    "central6": {
+      "cpuMs": 2.24,
+      "gpuMs": 8.86,
+      "calls": 454,
+      "triangles": 1181992
     },
     "cand1": {
-      "cpuMs": 3.65,
-      "gpuMs": 10.72,
-      "calls": 1188,
-      "triangles": 1721754
+      "cpuMs": 3.12,
+      "gpuMs": 9.14,
+      "calls": 1184,
+      "triangles": 1716196
+    },
+    "central5": {
+      "cpuMs": 2.33,
+      "gpuMs": 9.12,
+      "calls": 424,
+      "triangles": 1137482
     },
     "cand2": {
-      "cpuMs": 2.84,
-      "gpuMs": 8.16,
-      "calls": 430,
-      "triangles": 1332586
+      "cpuMs": 2.19,
+      "gpuMs": 10.98,
+      "calls": 398,
+      "triangles": 1264148
+    },
+    "cand4": {
+      "cpuMs": 2.97,
+      "gpuMs": 10.25,
+      "calls": 1140,
+      "triangles": 1742756
     },
     "cand3": {
-      "cpuMs": 3.34,
-      "gpuMs": 9.64,
+      "cpuMs": 2.83,
+      "gpuMs": 12.8,
       "calls": 1144,
-      "triangles": 1612738
+      "triangles": 1611754
     },
     "palacio1": {
-      "cpuMs": 3.28,
-      "gpuMs": 7.56,
-      "calls": 710,
-      "triangles": 1575690
+      "cpuMs": 2.69,
+      "gpuMs": 10.7,
+      "calls": 707,
+      "triangles": 1584141
     },
     "palacio2": {
-      "cpuMs": 2.84,
-      "gpuMs": 8.56,
+      "cpuMs": 2.56,
+      "gpuMs": 11.64,
       "calls": 590,
       "triangles": 1301082
     },
     "ccbb1": {
-      "cpuMs": 2.57,
-      "gpuMs": 6.34,
-      "calls": 400,
-      "triangles": 1328365
+      "cpuMs": 2.01,
+      "gpuMs": 4.94,
+      "calls": 396,
+      "triangles": 1313442
     },
     "ccbb2": {
-      "cpuMs": 2.43,
-      "gpuMs": 10.03,
+      "cpuMs": 2.04,
+      "gpuMs": 6.15,
       "calls": 464,
       "triangles": 1325162
     }
