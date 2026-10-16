@@ -150,6 +150,18 @@ Gráficos: `docs/memory/{before_loop,after_loop,merged_loop}/<preset>_loop.svg` 
 
 **Sem crescimento contínuo** em nenhum preset: a inclinação fica em ±0,1 MB/min (ruído de GC/JIT) e a GPU não muda.
 
+**Estado final** (depois do 2º merge com master: multidão com animação assada/VAT e AOI), Candelária, sem laço:
+
+| preset | heap V8 pós-GC | ArrayBuffers | performance.memory pós-GC | pico bruto (sem GC) | GPU est. | GPU real (livro) |
+|---|---|---|---|---|---|---|
+| ALTO | 56,3 | 64,0 | **119,4** | 254,6 | 454,6 | 566,8 |
+| MÉDIO | 43,9 | 59,6 | **103,4** | 178,9 | 356,1 | 385,4 |
+| BAIXO | 36,5 | 50,5 | **87,0** | 140,9 | 283,3 | 292,9 |
+
+A multidão nova carrega mais corpos/LODs detalhados para NPCs (`characters/npc`: 29 texturas, 64 MB de GPU, 526 malhas
+com pele, 2,6 MB de bone textures no ALTO); a deduplicação de imagens mantém as duplicatas de textura em 0,2 MB.
+Os 518 materiais "idênticos" são os clones por personagem da multidão (área do agente de multidão).
+
 ### 3.2 Regressão visual e jogabilidade
 - `tools/qa/fidelity_shots.mjs` (ALTO, 10:30) antes/depois: poses A–G sem diferença no conteúdo estático; as diferenças de
   pixel vêm de trânsito/pedestres (dinâmicos) e de pequenas variações da câmera de terceira pessoa. Close-up de uma placa de
