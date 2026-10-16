@@ -1,1 +1,1 @@
-{ "default": "cotidiano", "events": ["cotidiano", "classico-exemplo", "encontro-exemplo"] }
+{"default": "manifestacao", "events": ["cotidiano", "classico-exemplo", "encontro-exemplo", "manifestacao"]}

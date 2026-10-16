@@ -1,0 +1,96 @@
+{
+ "id": "manifestacao",
+ "name": "Ato na Presidente Vargas",
+ "category": "manifestacao",
+ "description": "Manifestação/ato em período eleitoral (simulação). Conteúdo NEUTRO: as campanhas configuradas em public/designs/campaigns.json recebem o mesmo peso; bandeiras do Brasil, cartazes cívicos neutros e camisas com cores do futebol carioca. Nenhuma frase atribuída a pessoas reais.",
+ "interaction": "pacifico",
+ "social": {
+  "activity": 0.55,
+  "propShare": 0.32,
+  "propWeights": {
+   "flag_small": 6,
+   "flag_large": 2,
+   "sign_small": 5,
+   "sign_large": 3,
+   "sign_double": 1,
+   "banner": 1,
+   "megaphone": 1,
+   "whistle": 1,
+   "umbrella": 1,
+   "drum": 1,
+   "bat": 0
+  },
+  "designWeights": {
+   "family:brasil": 10,
+   "family:campaign": 8,
+   "family:neutral": 6,
+   "family:group": 2,
+   "family:event": 2,
+   "family:football": 3
+  },
+  "actionWeights": {
+   "clap": 6,
+   "rhythm_clap": 5,
+   "arms_up": 5,
+   "cheer": 3,
+   "wave": 3,
+   "talk": 5,
+   "phone": 3,
+   "fist_up": 2,
+   "dance_simple": 2,
+   "dance_lively": 1
+  }
+ },
+ "billboards": {
+  "rotateSeconds": 10,
+  "playlist": [
+   {
+    "type": "text",
+    "text": "ATO NA PRESIDENTE VARGAS",
+    "subtext": "Simulação · conteúdo de jogo",
+    "colors": [
+     "#111111",
+     "#f2c230"
+    ]
+   },
+   {
+    "type": "text",
+    "text": "VOTE CONSCIENTE",
+    "subtext": "Eleições · simulação",
+    "colors": [
+     "#1d3557",
+     "#f1faee"
+    ]
+   }
+  ]
+ },
+ "vehicles": [
+  {
+   "id": "bike",
+   "kind": "bicycle",
+   "name": "Bicicleta",
+   "spawn": "bike-stations"
+  },
+  {
+   "id": "patinete",
+   "kind": "scooter",
+   "name": "Patinete",
+   "spawn": "bike-stations"
+  },
+  {
+   "id": "carro",
+   "kind": "car",
+   "name": "Automóvel",
+   "spawn": "none"
+  },
+  {
+   "id": "moto",
+   "kind": "moto",
+   "name": "Moto",
+   "spawn": "none"
+  }
+ ],
+ "npcs": {
+  "pedestrianDensity": 1.0
+ }
+}

@@ -19,7 +19,12 @@ import { stepPlayer } from '../player/PlayerController';
 import { AvatarVisual } from '../player/AvatarVisual';
 import { VEHICLE_BOX, impactAllowed, vehicleBlock, type Mode, type VehicleKind } from '../net/rules';
 import { HumanCharacter } from '../characters/human/HumanCharacter';
-import { registerCampaigns } from '../social/designs';
+import { registerCampaigns, DESIGN_BY_KEY } from '../social/designs';
+import { SocialController } from '../social/SocialController';
+import { ActionWheel } from '../ui/ActionWheel';
+import { NET_TICK_HZ } from '../net/protocol';
+import { ACTION_BY_KEY, ACTION_BY_ID } from '../social/actions';
+import { PROP_BY_KIND, type PropKind } from '../social/props';
 import { FrameGovernor } from './frameGovernor';
 import { deviceProfile } from './settings';
 import { loadClips, loadLod, preloadCrowd } from '../characters/human/HumanAssets';
@@ -262,6 +267,7 @@ export class Game {
     try {
       await this.events.load(new URLSearchParams(location.search).get('event') ?? undefined);
     } catch (e) { console.warn('evento não carregado', e); }
+    this.peds.setSocialConfig(this.events.current?.social);
     // designs de campanha (DADOS, não código): mesmo arquivo que o servidor usa para validar
     try {
       const r = await fetch(`${import.meta.env.BASE_URL}designs/campaigns.json`);
@@ -330,7 +336,7 @@ export class Game {
     help.className = 'help';
     help.innerHTML = this.input.isTouch
       ? 'Joystick: andar · Arraste: câmera · Pinça: zoom'
-      : '<b>WASD</b> andar · <b>Shift</b> correr · <b>Espaço</b> pular · <b>Mouse</b> câmera · <b>Roda</b> zoom · <b>E</b> usar bicicleta/patinete · <b>K</b> modo · <b>M</b> mapa · <b>F3</b> debug · <b>H</b> ajuda · <b>Esc</b> soltar mouse';
+      : '<b>WASD</b> andar · <b>Shift</b> correr · <b>Espaço</b> pular · <b>Mouse</b> câmera · <b>Roda</b> zoom · <b>E</b> usar bicicleta/patinete · <b>G</b> ações · <b>K</b> modo · <b>M</b> mapa · <b>F3</b> debug · <b>H</b> ajuda · <b>Esc</b> soltar mouse';
     this.hud.appendChild(help);
     this.prompt = document.createElement('div');
     this.prompt.className = 'use-prompt';
@@ -351,6 +357,10 @@ export class Game {
     lock.textContent = 'Clique para controlar a câmera';
     this.hud.appendChild(lock);
     if (this.input.isTouch) this.hud.appendChild(new TouchControls(this.input).el);
+    this.wheel = new ActionWheel(this.social);
+    // roda aberta: solta o mouse para clicar; fechada: volta a controlar a câmera
+    this.wheel.onToggle = (open) => { if (open) document.exitPointerLock?.(); else if (!this.input.isTouch) this.input.requestLock(); };
+    this.hud.appendChild(this.wheel.el);
     this.container.appendChild(this.hud);
     setTimeout(() => help.classList.add('faded'), 12000);
     window.addEventListener('resize', () => this.onResize());
@@ -476,6 +486,9 @@ export class Game {
   }
 
   private cpuMs = 0;
+  /** ações sociais / item na mão do jogador local (previsão + servidor) */
+  private wheel: ActionWheel | null = null;
+  readonly social = new SocialController((s) => this.avatar.setSocial(s), () => (this.mpOnline ? this.net! : null), (m) => this.flash(m));
   /** quadros longos (> 34 ms de CPU) com a divisão por etapa */
   private hitchLog: { t: number; ms: number; parts: Record<string, number>; novos: Record<string, number> }[] = [];
 
@@ -489,6 +502,7 @@ export class Game {
     if (this.input.consumeToggle('debug')) this.debug.toggle();
     if (this.input.consumeToggle('map')) this.minimap.toggleExpanded();
     if (this.input.consumeToggle('help')) this.hud.querySelector('.help')?.classList.toggle('faded');
+    if (this.input.consumeToggle('wheel')) this.wheel?.toggle();
     if (this.input.consumeToggle('photo')) { this.photoMode = !this.photoMode; this.hud.classList.toggle('photo', this.photoMode); }
     this.hud.classList.toggle('locked', this.input.pointerLocked || this.input.isTouch);
 
@@ -516,6 +530,9 @@ export class Game {
     const mark = (n: string) => T.push([n, performance.now()]);
     this.updateInteraction(dt);
     this.updateMovement(dt);
+    // andar cancela ação incompatível; caído/veículo encerram (mesmas regras do servidor: deslocamento por mensagem
+    // de movimento = velocidade / NET_TICK_HZ)
+    this.social.update(Math.abs(this.player.speed) / NET_TICK_HZ, this.avatar.isDown || !!this.riding);
     mark('movimento');
     const ppos = this.avatar.root.position;
     this.cam.update(ppos, dt);
@@ -612,8 +629,10 @@ export class Game {
     this.net.onExit = (pos) => this.dismountLocal(pos);
     this.net.onKnock = (k, isSelf) => { if (isSelf) this.onSelfKnock(k); };
     this.net.onNotice = (m) => this.flash(m);
+    this.net.onSelfSocial = () => this.social.fromServer(this.net!.self.social);
+    this.net.onSocialDenied = (_k, reason) => this.social.denied(reason, this.net!.self.social);
     this.net.onEvent = (id) => {
-      if (this.events.current?.id !== id) void this.events.load(id).then(() => this.interaction.setPolicy(this.events.current?.interaction));
+      if (this.events.current?.id !== id) void this.events.load(id).then(() => { this.interaction.setPolicy(this.events.current?.interaction); this.peds.setSocialConfig(this.events.current?.social); });
     };
     void preloadRagdoll().catch(() => { /* fallback procedural */ });
     try {
@@ -853,6 +872,10 @@ export class Game {
       carHeading: () => this.riding?.state.heading ?? null,
       /** anda até (x,z) usando o movimento normal (aceito pelo servidor) */
       hitches: () => this.hitchLog.slice(),
+      // ações sociais / itens (QA): chave ou id
+      act: (k: string | number) => { const d = typeof k === 'number' ? ACTION_BY_ID.get(k) : ACTION_BY_KEY.get(k); this.social.requestAction(d?.id ?? 0); return this.social.state; },
+      prop: (kind: string | null, design?: string) => { this.social.requestProp(kind ? PROP_BY_KIND.get(kind as PropKind)?.id ?? 0 : 0, design ? DESIGN_BY_KEY.get(design)?.id : undefined); return this.social.state; },
+      social: () => ({ local: this.social.state, avatar: this.avatar.social, server: this.net?.self.social ?? null }),
       walkTo: (x: number, z: number, run = true) => { this.autopilot = { x, z }; this.autopilotRun = run; this.intro.active = false; },
       arrived: () => !this.autopilot,
       stopWalk: () => { this.autopilot = null; },

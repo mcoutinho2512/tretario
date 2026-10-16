@@ -19,6 +19,14 @@ import { HumanCharacter } from '../characters/human/HumanCharacter';
 import type { Lod } from '../characters/human/HumanAssets';
 import { createAgent, type CrowdAgent } from '../characters/crowd/crowdBudget';
 import type { CrowdDirector } from '../characters/crowd/CrowdDirector';
+import { DEFAULT_SOCIAL, SocialSchedule, pickProfile, rng, type SocialCrowdConfig } from '../social/crowdSocial';
+import { rallyPoints, RallyRegistry, type RallyPoint } from '../social/rally';
+import { ACTIONS } from '../social/actions';
+import { PROPS } from '../social/props';
+import type { SocialState } from '../social/types';
+
+/** clipes que os NPCs carregam: locomoção + todos os de ações/itens (camada social) */
+const NPC_CLIPS = [...new Set(['idle', 'walk', 'jog', ...ACTIONS.map((a) => a.clip), ...PROPS.map((p) => p.carryClip)])];
 
 const BODY_INDEX: Record<BodyType, number> = { homem: 0, mulher: 1, idoso: 2, idosa: 3 };
 /** pedestres mínimos mesmo com multidão grande da rede (vida na calçada fora da manifestação) */
@@ -31,6 +39,8 @@ interface PedVisual {
   setAppearance(a: CharacterAppearance): void;
   setShadow(on: boolean): void;
   setLod(d: number): void;
+  /** ação social / item (no-op no personagem procedural antigo) */
+  setSocial(s: SocialState): void;
   /** LOD decidido pelo orçamento da multidão */
   setLodDirect(l: Lod): void;
   /** já há malha visível */
@@ -41,7 +51,7 @@ interface PedAnim { update(speed: number, grounded: boolean, dt: number): void }
 function legacyVisual(app: CharacterAppearance): { rig: PedVisual; anim: PedAnim } {
   const r = createCharacter(app);
   const anim = new CharacterAnimator(r);
-  return { rig: { mesh: r.mesh, body: r.body, setAppearance: (a) => r.setAppearance(a), setShadow: (on) => { r.mesh.castShadow = on; }, setLod() {}, setLodDirect() {}, ready: () => true }, anim };
+  return { rig: { mesh: r.mesh, body: r.body, setAppearance: (a) => r.setAppearance(a), setShadow: (on) => { r.mesh.castShadow = on; }, setLod() {}, setLodDirect() {}, setSocial() {}, ready: () => true }, anim };
 }
 import type { PedCrossing } from '../world/types';
 import type { SignalController } from '../traffic/SignalController';
@@ -58,7 +68,8 @@ interface Ped {
   animAcc: number;
   frame: number;
   active: boolean;
-  mode: 'walk' | 'wait' | 'cross';
+  /** walk/wait/cross: calçada e faixas · rally: indo para a concentração · gather: na concentração */
+  mode: 'walk' | 'wait' | 'cross' | 'rally' | 'gather';
   target: [number, number] | null;
   crossing: PedCrossing | null;
   waitTime: number;
@@ -69,6 +80,12 @@ interface Ped {
   tick: number;
   /** agente no orçamento de humanos (CrowdDirector) */
   agent: CrowdAgent;
+  /** vida social (ações irregulares, item, design) — determinística por semente */
+  schedule: SocialSchedule;
+  /** semente deste pedestre (perfil social, lugar na concentração) */
+  socialSeed: number;
+  /** concentração: ponto, lugar no anel e até quando fica */
+  rally: { id: string; spot: [number, number]; until: number } | null;
 }
 
 const BODY_MIX: BodyType[] = ['homem', 'mulher', 'homem', 'mulher', 'idoso', 'idosa', 'homem', 'mulher'];
@@ -90,6 +107,13 @@ export class PedestrianSystem {
   private crossings: PedCrossing[] = [];
   private crossGrid = new Map<string, number[]>();
   private signals: SignalController | null = null;
+
+  /** vida social do evento ativo (dados do evento: atividade, itens, designs, pesos de ações) */
+  private social: SocialCrowdConfig = DEFAULT_SOCIAL;
+  setSocialConfig(cfg: SocialCrowdConfig | undefined) {
+    this.social = cfg ?? DEFAULT_SOCIAL;
+    for (const ped of this.peds) ped.active = false; // redistribui itens/designs
+  }
 
   /** cores de grupos do evento ativo: parte dos NPCs se veste com elas */
   private palettes: { colors: number[]; share: number }[] = [];
@@ -183,8 +207,9 @@ export class PedestrianSystem {
       idleTimer: 0, walkTimer: 0, animAcc: 0, frame: i, active: false,
       mode: 'walk', target: null, crossing: null, waitTime: 0, crossCooldown: 0, approach: null, tick: i * 13,
       agent: createAgent({ body: BODY_INDEX[body], skin: app.skin, hair: app.hair, top: app.top, bottom: app.bottom, scale: app.scale }),
+      schedule: new SocialSchedule(i * 7919 + 17, this.social), socialSeed: i * 7919 + 17, rally: null,
     } as Omit<Ped, 'rig' | 'anim'> as Ped;
-    const human = new HumanCharacter(app, { lod: 3, castShadow: false, clips: ['idle', 'walk', 'jog'] });
+    const human = new HumanCharacter(app, { lod: 3, castShadow: false, clips: NPC_CLIPS });
     let lastLod = -1;
     ped.rig = {
       mesh: human.root, body,
@@ -195,6 +220,7 @@ export class PedestrianSystem {
         if (l !== lastLod) { human.setLod(l); lastLod = l; }
       },
       setLodDirect: (l) => { if (l !== lastLod) { human.setLod(l); lastLod = l; } },
+      setSocial: (s) => human.setSocial(s),
       ready: () => human.showing,
     };
     ped.anim = { update: (sp, g, dt) => human.animator?.update(sp, g, dt) };
@@ -243,6 +269,11 @@ export class PedestrianSystem {
       Object.assign(p.agent, { skin: app.skin, hair: app.hair, top: app.top, bottom: app.bottom, scale: app.scale });
       p.active = true;
       p.mode = 'walk'; p.target = null; p.crossing = null; p.crossCooldown = 3 + this.rnd() * 10; p.approach = null;
+      // vida social: novo perfil (item/design) a cada nascimento, agenda desfasada
+      p.socialSeed = Math.floor(this.rnd() * 2 ** 31);
+      p.schedule = new SocialSchedule(p.socialSeed, this.social, pickProfile(p.socialSeed, this.social));
+      p.rally = null;
+      this.applySocial(p);
       return true;
     }
     return false;
@@ -255,6 +286,53 @@ export class PedestrianSystem {
     const mx = x + Math.sin(h) * dist * 0.5, mz = z + Math.cos(h) * dist * 0.5;
     if (!this.world.isPedestrianWalkable(mx, mz)) return false;
     return this.world.raycast(x, y + 1, z, nx, y + 1, nz) >= 1;
+  }
+
+  private applySocial(p: Ped) {
+    const sc = p.schedule;
+    p.rig.setSocial({ act: sc.act, phase: Math.max(0, this.time - sc.startedAt), variation: p.socialSeed & 7, prop: sc.profile.prop, design: sc.profile.design });
+    const ag = p.agent;
+    ag.act = sc.act; ag.actAt = performance.now() / 1000 - Math.max(0, this.time - sc.startedAt); ag.prop = sc.profile.prop; ag.design = sc.profile.design;
+  }
+
+  /**
+   * concentração: perto de um ponto ativo (trio, carro de som), parte dos pedestres vai para um lugar no anel ao
+   * redor dele (andando — sem teletransporte), fica de frente para o centro e usa os pesos de ação do ponto.
+   */
+  private updateRally(p: Ped, dt: number, rally: RallyPoint | null) {
+    if (p.mode === 'walk' && rally && !p.rally && (p.tick % 30) === 0) {
+      const r = rng(p.socialSeed ^ p.tick);
+      if (r() < 0.6 * rally.strength) {
+        const s = RallyRegistry.spotFor(rally, r(), r());
+        p.rally = { id: rally.id, spot: [s.x, s.z], until: this.time + 60 + r() * 180 };
+        p.mode = 'rally'; p.approach = null;
+      }
+    }
+    if (!p.rally) return;
+    const pt = rallyPoints.get(p.rally.id);
+    // ponto sumiu/desligou ou acabou o tempo: volta a passear
+    if (!pt || pt.strength <= 0 || this.time > p.rally.until) { p.rally = null; p.mode = 'walk'; return; }
+    const dx = p.rally.spot[0] - p.x, dz = p.rally.spot[1] - p.z, dist = Math.hypot(dx, dz);
+    if (p.mode === 'rally') {
+      if (dist < 0.8) { p.mode = 'gather'; return; }
+      p.heading = Math.atan2(dx, dz);
+      p.speed += (p.cruise - p.speed) * (1 - Math.exp(-3 * dt));
+      const st = Math.min(dist, p.speed * dt);
+      const pos = { x: p.x + (dx / dist) * st, y: p.y, z: p.z + (dz / dist) * st };
+      this.world.resolveCircle(pos, 0.3, 1.7);
+      p.x = pos.x; p.z = pos.z;
+      if (pt && Math.hypot(pt.x - p.x, pt.z - p.z) < pt.inner) p.mode = 'gather'; // não entra no veículo
+    } else if (p.mode === 'gather') {
+      p.speed = Math.max(0, p.speed - dt * 4);
+      // de frente para o centro (o trio/palco), com uma variação individual
+      const want = Math.atan2(pt.x - p.x, pt.z - p.z) + ((p.socialSeed % 9) - 4) * 0.06;
+      let dh = want - p.heading;
+      while (dh > Math.PI) dh -= Math.PI * 2;
+      while (dh < -Math.PI) dh += Math.PI * 2;
+      p.heading += dh * (1 - Math.exp(-2 * dt));
+      // o ponto se move (trio andando): acompanha a pé
+      if (dist > 3) p.mode = 'rally';
+    }
   }
 
   update(dt: number, camera: THREE.Camera, player: { x: number; z: number }) {
@@ -283,8 +361,13 @@ export class PedestrianSystem {
       if (d > this.radius + 20) { p.active = false; p.rig.mesh.visible = false; continue; }
       active++;
 
-      // travessia de rua (faixas de pedestres reais do OSM)
       p.tick++;
+      // concentração (trio/carro de som) e vida social
+      const rally = rallyPoints.nearestActive(p.x, p.z);
+      this.updateRally(p, dt, rally);
+      if (p.schedule.update(this.time, p.speed > 0.3, p.rally ? rallyPoints.get(p.rally.id) ?? null : null)) this.applySocial(p);
+
+      // travessia de rua (faixas de pedestres reais do OSM)
       p.crossCooldown -= dt;
       // escolhe uma faixa próxima como destino de tempos em tempos
       if (p.mode === 'walk' && !p.approach && p.crossCooldown <= 0 && (p.tick % 60) === 0 && this.rnd() < 0.5) {
@@ -339,7 +422,9 @@ export class PedestrianSystem {
       }
 
       // comportamento
-      if (p.mode !== 'walk') {
+      if (p.mode === 'rally' || p.mode === 'gather') {
+        // concentração: movimento decidido em updateRally
+      } else if (p.mode !== 'walk') {
         // esperando/atravessando: sem desvio nem separação
       } else if (p.idleTimer > 0) {
         p.idleTimer -= dt;
@@ -369,6 +454,15 @@ export class PedestrianSystem {
       }
       // separação (outros pedestres e jogador)
       let sx = 0, sz = 0;
+      if (p.mode === 'gather') {
+        // na concentração só se afastam um pouco de quem está colado (sem andar pela calçada)
+        for (let j = 0; j < this.max; j++) {
+          const o = this.peds[j];
+          if (j === i || !o?.active) continue;
+          const dx = p.x - o.x, dz = p.z - o.z, dd = dx * dx + dz * dz;
+          if (dd < 0.36 && dd > 1e-6) { const l = Math.sqrt(dd); p.x += (dx / l) * (0.6 - l) * 0.5 * dt * 4; p.z += (dz / l) * (0.6 - l) * 0.5 * dt * 4; }
+        }
+      }
       if (p.mode === 'walk') {
       for (let j = 0; j < this.max; j++) {
         if (j === i) continue;

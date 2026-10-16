@@ -260,9 +260,10 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     let any = false;
     for (const r of this.rt.values()) if (r.slot % slices === phase && (r.overflow.length || r.crowdKnown.size)) { any = true; break; }
     if (!any) return;
+    const now = Date.now();
     for (const r of this.rt.values()) {
       const p = this.state.players.get(r.actor.id);
-      if (p) this.crowdTable.set(r.slot, { nid: r.nid, x: p.x, y: p.y, z: p.z, heading: p.heading, speed: p.speed, body: BODY_INDEX[p.body] ?? 0, status: p.status, vehicle: !!p.vehicle, app: { skin: p.skin, hair: p.hair, top: p.top, bottom: p.bottom } });
+      if (p) this.crowdTable.set(r.slot, { nid: r.nid, x: p.x, y: p.y, z: p.z, heading: p.heading, speed: p.speed, body: BODY_INDEX[p.body] ?? 0, status: p.status, vehicle: !!p.vehicle, social: { act: p.act, ageS: (now - p.actAt) / 1000, prop: p.prop, design: p.design }, app: { skin: p.skin, hair: p.hair, top: p.top, bottom: p.bottom } });
     }
     for (const [id, r] of this.rt) {
       if (r.slot % slices !== phase) continue;

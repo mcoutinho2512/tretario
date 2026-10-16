@@ -99,5 +99,10 @@ export interface EventDef {
   billboards?: BillboardPlan;
   vehicles?: VehicleOption[];
   npcs?: { pedestrianDensity?: number; vehicleDensity?: number };
+  /**
+   * vida social da multidão (rodada 7): atividade, itens, designs e ações dos NPCs — ver src/social/crowdSocial.ts.
+   * Designs de campanha entram por `designWeights` (chave ou `family:campaign`, dividido igualmente: neutro).
+   */
+  social?: import('../social/crowdSocial').SocialCrowdConfig;
   ambience?: { music?: string; crowd?: string };
 }

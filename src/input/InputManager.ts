@@ -54,6 +54,7 @@ export class InputManager {
     if (e.code === 'KeyE' && !e.repeat) this.toggles.add('use');
     if (e.code === 'KeyK' && !e.repeat) this.toggles.add('mode');
     if (e.code === 'KeyF' && !e.repeat) this.toggles.add('action');
+    if (e.code === 'KeyG' && !e.repeat) this.toggles.add('wheel');
     this.keys.add(e.code);
   };
 

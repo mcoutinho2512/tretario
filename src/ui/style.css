@@ -109,3 +109,21 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); o
 .mode-badge.combat { color: #ffb3a8; }
 .name-labels { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
 .name-label { position: absolute; left: 0; top: 0; background: rgba(10,12,14,0.6); color: #fff; font-size: 12px; padding: 2px 7px; border-radius: 10px; white-space: nowrap; }
+
+/* ---- roda de ações (rodada 7) */
+.action-wheel { position: absolute; inset: 0; display: none; z-index: 30; background: radial-gradient(circle at 50% 50%, rgba(10, 14, 20, 0.35) 0, rgba(10, 14, 20, 0.15) 260px, transparent 340px); pointer-events: auto; }
+.action-wheel.open { display: block; }
+.aw-ring { position: absolute; left: 50%; top: 50%; width: 0; height: 0; }
+.aw-opt { position: absolute; left: 0; top: 0; min-width: 84px; max-width: 128px; padding: 7px 10px; border-radius: 18px; border: 1px solid rgba(255, 255, 255, 0.25); background: rgba(18, 24, 32, 0.82); color: #f3f1ea; font: 600 12px/1.15 system-ui, sans-serif; text-align: center; cursor: pointer; backdrop-filter: blur(4px); }
+.aw-opt:hover { background: rgba(40, 70, 110, 0.9); }
+.aw-opt.active { background: #f2c230; color: #1a1a1a; border-color: #f2c230; }
+.aw-opt.disabled { opacity: 0.45; }
+.aw-cat { min-width: 74px; font-weight: 800; font-size: 11px; letter-spacing: 0.04em; background: rgba(30, 40, 52, 0.9); }
+.aw-center { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 120px; text-align: center; color: #fff; font: 600 12px system-ui, sans-serif; pointer-events: auto; }
+.aw-title { font-weight: 800; font-size: 13px; margin-bottom: 6px; text-shadow: 0 1px 3px #000; }
+.aw-design { display: flex; align-items: center; justify-content: center; gap: 4px; margin-bottom: 6px; }
+.aw-design button { border: 0; border-radius: 10px; width: 26px; height: 26px; background: rgba(255, 255, 255, 0.85); cursor: pointer; }
+.aw-design span { font-size: 10px; max-width: 64px; }
+.aw-hint { font-size: 10px; opacity: 0.75; text-shadow: 0 1px 2px #000; }
+.touch-btn.actions { bottom: 300px; }
+@media (max-width: 640px) { .aw-opt { min-width: 70px; font-size: 11px; padding: 6px 8px; } }

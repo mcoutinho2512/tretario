@@ -24,6 +24,7 @@ import type { Accessory, BodyType, CharacterAppearance } from '../characters/bod
 import { decodeCrowd } from './crowdCodec';
 import { createAgent, type CrowdAgent } from '../characters/crowd/crowdBudget';
 import type { CrowdDirector } from '../characters/crowd/CrowdDirector';
+import type { SocialState } from '../social/types';
 
 const BODY_LIST = ['homem', 'mulher', 'idoso', 'idosa'] as const;
 const bodyIndex = (b: string) => Math.max(0, BODY_LIST.indexOf(b as (typeof BODY_LIST)[number]));
@@ -32,6 +33,11 @@ const FAR_DELAY_MS = 650;
 
 interface FarSnap { t: number; x: number; y: number; z: number; heading: number; speed: number }
 interface FarRemote { nid: number; agent: CrowdAgent; a: FarSnap; b: FarSnap; seen: number }
+
+/** estado social → `SocialState` com a fase no relógio comum (todos tocam a mesma fase) */
+function socialOf(s: { act: number; actAt: number; actVar: number; prop: number; design: number }): SocialState {
+  return { act: s.act, phase: s.act ? Math.max(0, (worldClock.now() - s.actAt) / 1000) : 0, variation: s.actVar, prop: s.prop, design: s.design };
+}
 
 interface Snapshot { t: number; x: number; y: number; z: number; heading: number; speed: number; loco: number; vehicle: string }
 
@@ -57,6 +63,10 @@ interface Remote {
   status: number;
   vehicle: string;
   lastArrival: number;
+  /** vida social vinda do servidor (actAt no relógio do servidor) */
+  soc: { act: number; actAt: number; actVar: number; prop: number; design: number };
+  /** o esqueleto atual já recebeu o estado social atual */
+  socApplied: AvatarVisual | null;
 }
 
 export interface KnockMsg { target: string; by: string; kind: 'push' | 'impact'; dx: number; dz: number; strength: number; rx: number; rz: number; downMs: number; getupMs: number }
@@ -78,7 +88,11 @@ export class NetworkClient {
   corrections = 0;
   correctionReasons: Record<string, number> = {};
   /** estado do PRÓPRIO jogador segundo o servidor */
-  self = { interaction: 'pacifico', status: 0, vehicle: '' };
+  self = { interaction: 'pacifico', status: 0, vehicle: '', social: { act: 0, actAt: 0, actVar: 0, prop: 0, design: 0 } };
+  /** o servidor mudou a ação/item do próprio jogador (confirmação, fim, cancelamento) */
+  onSelfSocial?: (s: SocialState) => void;
+  /** pedido de ação/item negado (motivo) */
+  onSocialDenied?: (kind: 'act' | 'prop', reason: string) => void;
   policy: 'pacifico' | 'opcional' = 'opcional';
   /** última negativa/aviso do servidor (QA) */
   lastDenial = '';
@@ -153,6 +167,8 @@ export class NetworkClient {
       room.onMessage('exit_ok', (d: { x: number; z: number }) => { this.holdMoves = false; this.onExit?.(d); });
       room.onMessage('mode_ok', (m: string) => { this.self.interaction = m; this.onNotice?.(m === 'interacao' ? 'Modo INTERAÇÃO (validado pelo servidor)' : 'Modo PACÍFICO'); });
       room.onMessage('mode_denied', (r: string) => this.onNotice?.(r === 'evento_pacifico' ? 'Este evento é pacífico' : `Modo negado: ${r}`));
+      room.onMessage('act_denied', (r: string) => { this.lastDenial = `act:${r}`; this.onSocialDenied?.('act', r); });
+      room.onMessage('prop_denied', (r: string) => { this.lastDenial = `prop:${r}`; this.onSocialDenied?.('prop', r); });
       room.onMessage('push_denied', (r: string) => { this.lastDenial = `push:${r}`; this.onNotice?.(DENIAL_TEXT[r] ?? `Empurrão negado (${r})`); });
       room.onMessage('action', (a: { by: string; type: string }) => { const r = this.remotes.get(a.by); r?.visual?.playPush(); });
       room.onMessage('knock', (k: KnockMsg) => this.handleKnock(k));
@@ -162,7 +178,15 @@ export class NetworkClient {
       cb.listen('eventId', (id: string) => { if (id) this.onEvent?.(id); });
       cb.onAdd('players', (p: any, id: string) => {
         if (id === this.sessionId) {
-          cb.onChange(p, () => { this.self.interaction = p.interaction; this.self.status = p.status; this.self.vehicle = p.vehicle; });
+          cb.onChange(p, () => {
+            this.self.interaction = p.interaction; this.self.status = p.status; this.self.vehicle = p.vehicle;
+            // ação/item autoritativos do próprio jogador (o servidor pode encerrar: andar, cair, entrar em veículo)
+            const s = this.self.social;
+            if (s.act !== p.act || s.actAt !== p.actAt || s.prop !== p.prop || s.design !== p.design) {
+              this.self.social = { act: p.act, actAt: p.actAt, actVar: p.actVar, prop: p.prop, design: p.design };
+              this.onSelfSocial?.(socialOf(this.self.social));
+            }
+          });
           return;
         }
         this.addRemote(id, p);
@@ -202,6 +226,10 @@ export class NetworkClient {
   /** segura o envio de movimento entre o pedido de entrar/sair e a resposta (a posição muda de "dono") */
   private holdMoves = false;
   requestPush(target: string) { this.send('push', target); }
+  /** ação social (0 = parar) — o servidor valida; só ids pequenos vão pela rede */
+  requestAct(a: number, v = 0) { this.send('act', { a, v }); }
+  /** item na mão (0 = nenhum) com design (0 = padrão) */
+  requestProp(p: number, d = 0) { this.send('prop', { p, d }); }
 
   /** remoto mais próximo à frente (alvo do empurrão) */
   pickTarget(x: number, z: number, heading: number, range = 2.4): string | null {
@@ -233,6 +261,7 @@ export class NetworkClient {
     const r: Remote = {
       id, nid, visual: null, app, agent, state: createPlayerState(id, p.x, p.y, p.z, p.heading), buf: [], label, name: p.name, body: p.body, accessory: p.accessory || 'nenhum',
       interaction: p.interaction, status: p.status, vehicle: p.vehicle, lastArrival: performance.now(),
+      soc: { act: p.act ?? 0, actAt: p.actAt ?? 0, actVar: p.actVar ?? 0, prop: p.prop ?? 0, design: p.design ?? 0 }, socApplied: null,
     };
     this.remotes.set(id, r);
     if (!this.crowd) this.acquire(r);
@@ -283,6 +312,11 @@ export class NetworkClient {
         if (e.app) Object.assign(f.agent, e.app);
       }
       f.agent.body = e.body;
+      const so = e.social;
+      const startS = now / 1000 - (so?.ageS ?? 0);
+      // mantém o início da ação estável entre mensagens (a idade vem quantizada em ¼ s)
+      if ((so?.act ?? 0) !== f.agent.act || Math.abs(startS - f.agent.actAt) > 0.6) f.agent.actAt = startS;
+      f.agent.act = so?.act ?? 0; f.agent.prop = so?.prop ?? 0; f.agent.design = so?.design ?? 0;
     }
     for (const [nid, f] of this.far) if (f.seen !== stamp) this.far.delete(nid);
     if (this.farApp.size > 4096) this.farApp.clear();
@@ -299,6 +333,11 @@ export class NetworkClient {
     r.buf.push({ t: now, x: p.x, y: p.y, z: p.z, heading: p.heading, speed: p.speed, loco: p.loco, vehicle: p.vehicle });
     if (r.buf.length > 40) r.buf.shift();
     r.interaction = p.interaction; r.status = p.status; r.vehicle = p.vehicle;
+    const so = r.soc;
+    if (so.act !== p.act || so.actAt !== p.actAt || so.prop !== p.prop || so.design !== p.design || so.actVar !== p.actVar) {
+      r.soc = { act: p.act, actAt: p.actAt, actVar: p.actVar, prop: p.prop, design: p.design };
+      r.socApplied = null;
+    }
     r.label.classList.toggle('combat', p.interaction === 'interacao');
     if (p.name && p.name !== r.name) { r.name = p.name; r.label.textContent = p.name; }
   }
@@ -379,12 +418,15 @@ export class NetworkClient {
       const ag = r.agent;
       ag.x = s.x; ag.y = s.y; ag.z = s.z; ag.heading = s.heading; ag.speed = c.vehicle ? 0 : s.speed;
       ag.priority = r.status !== 0 || r.vehicle ? 0.5 : 1;
+      ag.act = r.soc.act; ag.prop = r.soc.prop; ag.design = r.soc.design;
+      ag.actAt = nowP / 1000 - (r.soc.act ? Math.max(0, (worldClock.now() - r.soc.actAt) / 1000) : 0);
       crowd?.submit(ag, 'net');
       // representação decidida pelo orçamento no quadro anterior: esqueleto (tier 2) ou instanciado
       const skinned = !crowd || ag.tier === 2 || !!r.visual?.isDown;
       if (!skinned) { if (r.visual) this.release(r); r.label.style.display = 'none'; continue; }
       const visual = r.visual ?? this.acquire(r);
       ag.skinReady = visual.ready;
+      if (r.socApplied !== visual) { visual.setSocial(socialOf(r.soc)); r.socApplied = visual; }
       if (crowd) { visual.applyLod(ag.lod, d); visual.root.visible = ag.inView || d < 6 || visual.isDown; }
       else visual.setDistance(d);
       if (c.vehicle && !visual.isDown) {

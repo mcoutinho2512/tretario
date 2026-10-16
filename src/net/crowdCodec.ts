@@ -6,7 +6,9 @@
  * Formato (little-endian):
  *   u8 versão (1) · u16 quantidade
  *   por entrada (11 B): u16 nid · i16 x (dm) · i16 y (dm) · i16 z (dm) · u8 rumo (256 passos) · u8 vel. (×20 m/s, máx 12,75)
- *                       · u8 flags (bits 0–1 corpo, 2–3 status, 4 em veículo, 7 = segue aparência)
+ *                       · u8 flags (bits 0–1 corpo, 2–3 status, 4 em veículo, 5 = segue vida social, 7 = segue aparência)
+ *   vida social (v2, só de quem está fazendo algo, +5 B): u8 ação · u8 idade da ação (¼ s, satura em 63,75 s)
+ *                       · u8 item · u16 design — a multidão distante dança/levanta bandeira sem estado completo
  *   aparência (só na 1ª vez que o cliente vê aquele nid, +12 B): pele, cabelo, camisa, calça (RGB 3 B cada)
  */
 
@@ -18,17 +20,21 @@ export interface CrowdEntry {
   body: number; // índice em BODIES
   status: number;
   vehicle: boolean;
+  /** vida social (ação/item); ausente = nada */
+  social?: { act: number; ageS: number; prop: number; design: number };
   app?: { skin: number; hair: number; top: number; bottom: number };
 }
 
-export const CROWD_VERSION = 1;
-const BASE = 11, APP = 12;
+export const CROWD_VERSION = 2;
+const BASE = 11, SOC = 5, APP = 12;
+const hasSocial = (s: CrowdEntry['social']) => !!s && (s.act !== 0 || s.prop !== 0);
+const age4 = (ageS: number) => Math.max(0, Math.min(255, Math.round(ageS * 4)));
 
 const q16 = (v: number) => Math.max(-32768, Math.min(32767, Math.round(v * 10)));
 
 export function encodeCrowd(entries: readonly CrowdEntry[]): Uint8Array {
   let n = 3;
-  for (const e of entries) n += BASE + (e.app ? APP : 0);
+  for (const e of entries) n += BASE + (hasSocial(e.social) ? SOC : 0) + (e.app ? APP : 0);
   const buf = new Uint8Array(n);
   const dv = new DataView(buf.buffer);
   dv.setUint8(0, CROWD_VERSION);
@@ -42,8 +48,14 @@ export function encodeCrowd(entries: readonly CrowdEntry[]): Uint8Array {
     const h = ((e.heading % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
     dv.setUint8(o + 8, Math.round((h / (Math.PI * 2)) * 256) & 255);
     dv.setUint8(o + 9, Math.max(0, Math.min(255, Math.round(e.speed * 20))));
-    dv.setUint8(o + 10, (e.body & 3) | ((e.status & 3) << 2) | (e.vehicle ? 16 : 0) | (e.app ? 128 : 0));
+    const soc = hasSocial(e.social);
+    dv.setUint8(o + 10, (e.body & 3) | ((e.status & 3) << 2) | (e.vehicle ? 16 : 0) | (soc ? 32 : 0) | (e.app ? 128 : 0));
     o += BASE;
+    if (soc) {
+      const s = e.social!;
+      dv.setUint8(o, s.act & 255); dv.setUint8(o + 1, age4(s.ageS)); dv.setUint8(o + 2, s.prop & 255); dv.setUint16(o + 3, s.design & 0xffff, true);
+      o += SOC;
+    }
     if (e.app) {
       for (const c of [e.app.skin, e.app.hair, e.app.top, e.app.bottom]) {
         buf[o] = (c >> 16) & 255; buf[o + 1] = (c >> 8) & 255; buf[o + 2] = c & 255;
@@ -60,13 +72,15 @@ export function encodeCrowd(entries: readonly CrowdEntry[]): Uint8Array {
  */
 export class CrowdTable {
   private rec = new Uint8Array(256 * BASE);
+  private soc = new Uint8Array(256 * SOC);
   private app = new Uint8Array(256 * APP);
-  private out = new Uint8Array(3 + 64 * (BASE + APP));
+  private out = new Uint8Array(3 + 64 * (BASE + SOC + APP));
   private grow(slot: number) {
     if ((slot + 1) * BASE <= this.rec.length) return;
     let n = this.rec.length / BASE;
     while (n <= slot) n *= 2;
     const r = new Uint8Array(n * BASE); r.set(this.rec); this.rec = r;
+    const so = new Uint8Array(n * SOC); so.set(this.soc); this.soc = so;
     const a = new Uint8Array(n * APP); a.set(this.app); this.app = a;
   }
   /** grava o registro do slot (aparência sempre; o bit 7 é decidido por cliente em `build`) */
@@ -79,14 +93,19 @@ export class CrowdTable {
     const h = ((e.heading % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
     r[o + 8] = Math.round((h / (Math.PI * 2)) * 256) & 255;
     r[o + 9] = Math.max(0, Math.min(255, Math.round(e.speed * 20)));
-    r[o + 10] = (e.body & 3) | ((e.status & 3) << 2) | (e.vehicle ? 16 : 0);
+    const hs = hasSocial(e.social);
+    r[o + 10] = (e.body & 3) | ((e.status & 3) << 2) | (e.vehicle ? 16 : 0) | (hs ? 32 : 0);
+    if (hs) {
+      const s = e.social!, so = this.soc, q = slot * SOC;
+      so[q] = s.act & 255; so[q + 1] = age4(s.ageS); so[q + 2] = s.prop & 255; so[q + 3] = s.design & 255; so[q + 4] = (s.design >> 8) & 255;
+    }
     const a = this.app, p = slot * APP;
     let k = p;
     for (const c of [e.app.skin, e.app.hair, e.app.top, e.app.bottom]) { a[k] = (c >> 16) & 255; a[k + 1] = (c >> 8) & 255; a[k + 2] = c & 255; k += 3; }
   }
   /** mensagem para um cliente: `slots[0..n)`; `withApp(slot)` diz se aquele cliente ainda precisa da aparência */
   build(slots: ArrayLike<number>, n: number, withApp: (slot: number) => boolean): Uint8Array {
-    const need = 3 + n * (BASE + APP);
+    const need = 3 + n * (BASE + SOC + APP);
     if (this.out.length < need) this.out = new Uint8Array(Math.max(need, this.out.length * 2));
     const out = this.out;
     let o = 3;
@@ -94,12 +113,19 @@ export class CrowdTable {
       const sl = slots[i];
       const rec = this.rec, rs = sl * BASE;
       for (let k = 0; k < BASE; k++) out[o + k] = rec[rs + k];
+      const flagAt = o;
+      o += BASE;
+      if (rec[rs + 10] & 32) {
+        const so = this.soc, ss = sl * SOC;
+        for (let k = 0; k < SOC; k++) out[o + k] = so[ss + k];
+        o += SOC;
+      }
       if (withApp(sl)) {
-        out[o + 10] |= 0x80;
+        out[flagAt + 10] |= 0x80;
         const app = this.app, as = sl * APP;
-        for (let k = 0; k < APP; k++) out[o + BASE + k] = app[as + k];
-        o += BASE + APP;
-      } else o += BASE;
+        for (let k = 0; k < APP; k++) out[o + k] = app[as + k];
+        o += APP;
+      }
     }
     out[0] = CROWD_VERSION; out[1] = n & 255; out[2] = (n >> 8) & 255;
     return out.slice(0, o);
@@ -123,6 +149,11 @@ export function decodeCrowd(buf: Uint8Array): CrowdEntry[] {
       body: f & 3, status: (f >> 2) & 3, vehicle: (f & 16) !== 0,
     };
     o += BASE;
+    if (f & 32) {
+      if (o + SOC > buf.byteLength) break;
+      e.social = { act: buf[o], ageS: buf[o + 1] / 4, prop: buf[o + 2], design: buf[o + 3] | (buf[o + 4] << 8) };
+      o += SOC;
+    }
     if (f & 128) {
       if (o + APP > buf.byteLength) break;
       const c = (k: number) => (buf[o + k] << 16) | (buf[o + k + 1] << 8) | buf[o + k + 2];
