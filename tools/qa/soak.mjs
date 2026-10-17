@@ -10,6 +10,10 @@
  * Amostra a cada AMOSTRA_S (120 s): CDP HeapProfiler.collectGarbage ×2 → Runtime.getHeapUsage; GPU pelo livro-razão
  * (?mem=1). Saída: screenshots/soak/<tag>.json + resumo (inclinação total, primeiros 20 min, últimos 30 min).
  *
+ * Rodada 9 (SOAK_R9=1): também confronto no boneco de treino, itens (pegar/guardar/largar), queda e levantar, entrar/
+ * sair de evento da agenda, debate (assistir/reagir), com bots em confronto (8%); amostra também listeners/nós do DOM
+ * (CDP Performance), intervals ativos, ragdolls vivos (Rapier), remotos e itens no chão.
+ *
  * uso (com o dev server): node tools/qa/soak.mjs [minutos=60] [tag=soak] [bots=60]
  */
 import puppeteer from 'puppeteer-core';
@@ -22,6 +26,7 @@ const BOTS = Number(process.argv[4] ?? 60);
 const BASE = process.env.BASE ?? 'http://localhost:5173';
 const PORT = Number(process.env.PV_SOAK_PORT ?? 2690);
 const SAMPLE_S = Number(process.env.SOAK_SAMPLE_S ?? 120);
+const R9 = process.env.SOAK_R9 === '1';
 const chrome = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const w = (ms) => new Promise((r) => setTimeout(r, ms));
 mkdirSync('screenshots/soak', { recursive: true });
@@ -40,7 +45,7 @@ const srv = start('npx', ['tsx', 'src/index.ts'], { PORT: String(PORT), PV_TEST:
 const log = [];
 srv.stdout.on('data', (d) => log.push(d.toString()));
 for (let i = 0; i < 150 && !log.join('').includes('[pv3d-server]'); i++) await w(200);
-if (BOTS > 0) start('npx', ['tsx', 'tools/bots.ts', String(BOTS), String(MIN * 60 + 600), `ws://127.0.0.1:${PORT}`, 'spread', '--social=0.6']);
+if (BOTS > 0) start('npx', ['tsx', 'tools/bots.ts', String(BOTS), String(MIN * 60 + 600), `ws://127.0.0.1:${PORT}`, 'spread', '--social=0.6', ...(R9 ? ['--groups', '--combat=0.08'] : [])]);
 await w(4000);
 
 const m = JSON.parse(readFileSync('public/world/manifest.json', 'utf8'));
@@ -50,11 +55,19 @@ const trio = m.vehicleSpawns.find((v) => v.kind === 'trio');
 
 const b = await puppeteer.launch({ executablePath: chrome, headless: 'new', args: ['--use-angle=metal', '--enable-gpu', '--enable-precise-memory-info'], defaultViewport: { width: 1280, height: 720 } });
 const page = await b.newPage();
+// rodada 9: conta intervals ativos (vazamento de timer aparece como crescimento)
+if (R9) await page.evaluateOnNewDocument(() => {
+  const live = new Set(); const si = window.setInterval, ci = window.clearInterval;
+  window.setInterval = (...a) => { const id = si(...a); live.add(id); return id; };
+  window.clearInterval = (id) => { live.delete(id); return ci(id); };
+  window.__pvIntervals = () => live.size;
+});
 const errors = [];
 page.on('pageerror', (e) => errors.push(e.message));
-await page.goto(`${BASE}/?autostart=1&welcome=0&quality=high&time=12:00&mem=1&mp=ws://127.0.0.1:${PORT}&name=Soak&spawn=${trio.x - 30},${trio.z}`);
+await page.goto(`${BASE}/?autostart=1&welcome=0&welcome=0&quality=high&time=12:00&mem=1&mp=ws://127.0.0.1:${PORT}&name=Soak&spawn=${trio.x - 30},${trio.z}`);
 await page.waitForFunction('window.__pvReady === true && window.__pv.mp()?.session', { timeout: 240000 });
 const cdp = await page.createCDPSession();
+if (R9) await cdp.send('Performance.enable');
 // espectador simultâneo no MESMO mundo (rodada 8) — só a página do jogador é medida
 let spec = null;
 if (process.env.SOAK_SPECTATOR !== '0') {
@@ -70,7 +83,13 @@ const heap = async () => {
   const u = await cdp.send('Runtime.getHeapUsage');
   const gpu = await page.evaluate(() => window.__pv.memoryReport(false)?.ledger?.totalMB ?? null).catch(() => null);
   const mt = await page.evaluate(() => { const x = window.__pv.metrics(); return { fps: Math.round(x.fps), calls: x.calls, humans: x.crowd?.submitted ?? 0 }; });
-  return { usedMB: +(u.usedSize / 1048576).toFixed(2), gpuMB: gpu, ...mt };
+  let r9 = {};
+  if (R9) {
+    const pm = Object.fromEntries((await cdp.send('Performance.getMetrics')).metrics.map((m) => [m.name, m.value]));
+    const x = await page.evaluate(() => ({ intervals: window.__pvIntervals?.() ?? null, ragdolls: window.__pv.r9b?.().ragdollsLive ?? null, remotes: window.__pv.mp()?.remotes?.length ?? null, items: window.__pv.r9b?.().items?.items?.length ?? null })).catch(() => ({}));
+    r9 = { listeners: pm.JSEventListeners, nodes: pm.Nodes, ...x };
+  }
+  return { usedMB: +(u.usedSize / 1048576).toFixed(2), gpuMB: gpu, ...mt, ...r9 };
 };
 
 // ponto ao longo do eixo (fração t, deslocamento lateral)
@@ -88,6 +107,39 @@ const along = (t, side = 0) => {
   return [axis[0][0], axis[0][1], 0];
 };
 const ev = (fn, ...a) => page.evaluate(fn, ...a).catch((e) => ({ err: e.message }));
+
+// rodada 9: confronto, itens, queda, eventos, debate (servidor de teste; o servidor valida tudo)
+function r9Steps() {
+  const D = JSON.parse(readFileSync('public/gameplay/combat.json', 'utf8')).dummies[0];
+  const racks = JSON.parse(readFileSync('public/gameplay/combat_props.json', 'utf8')).supply.racks;
+  const tp = (x, z) => ev((x, z) => window.__pvProg?.tp(x, z), x, z);
+  const entry = (fmt) => ev((f) => (window.__pvR9?.feed?.list ?? []).find((e) => (!f || e.format === f) && ['REGISTRATION', 'STARTING', 'ACTIVE'].includes(e.state)) ?? null, fmt);
+  return [
+    // treino: boneco (soco, chute, esquiva, soco)
+    async () => {
+      await tp(D.x + 1.6, D.z); await w(1500);
+      await ev((y) => window.__pv.face(y), Math.atan2(-1, 0));
+      for (const c of ['cbt_punch', 'cbt_punch', 'cbt_kick', 'cbt_dodge', 'cbt_punch']) { await ev((c) => window.__pv.cbt(c), c); await w(700); }
+    },
+    // itens: apoio → pegar (T), guardar/sacar (X), largar (Z)
+    async () => {
+      const r = racks[(k >> 1) % racks.length]; const [x, z] = along(r.at.t, r.at.side ?? 0);
+      await tp(x + 1, z); await w(2000);
+      await ev(() => window.__pv.key('KeyT')); await w(1200);
+      await ev(() => window.__pv.key('KeyX')); await w(800); await ev(() => window.__pv.key('KeyX')); await w(800);
+      await ev(() => window.__pv.key('KeyZ')); await w(800);
+    },
+    // queda e levantar (estado forçado pelo servidor de teste → ragdoll Rapier no cliente)
+    async () => { await ev(() => window.__pv.netSend('qa_status', { st: 1 })); await w(5500); },
+    // evento da agenda: entra e sai
+    async () => { const e = await entry(null); if (e && !e.err) { await ev((i) => window.__pv.netSend('evt_join', { inst: i }), e.inst); await w(4000); await ev((i) => window.__pv.netSend('evt_leave', { inst: i }), e.inst); } },
+    // debate: assistir e reagir
+    async () => {
+      const e = await entry('debate');
+      if (e && !e.err) { await ev((i) => window.__pv.netSend('dbt_watch', { inst: i, on: true }), e.inst); await w(2500); await ev((i) => window.__pv.netSend('dbt_react', { inst: i, r: 'aplauso' }), e.inst); await w(2500); await ev((i) => window.__pv.netSend('dbt_watch', { inst: i, on: false }), e.inst); }
+    },
+  ];
+}
 
 const steps = [
   // zonas e multidão
@@ -124,6 +176,7 @@ const steps = [
   async () => { await ev((t) => { const c = window.__pv.chat?.(); c?.type?.(t, 'geral'); }, `passando pela avenida ${Date.now() % 1000}`); },
   // espectador simultâneo (outra página): troca de câmera 1–6
   async () => { if (spec) await spec.evaluate((k) => window.dispatchEvent(new KeyboardEvent('keydown', { code: `Digit${k}`, key: String(k) })), 1 + (k % 6)).catch(() => {}); },
+  ...(R9 ? r9Steps() : []),
   // longe de tudo (descarrega multidão/LOD) e volta
   async () => { const [x, z, h] = along(0.05, 0); await ev((x, z, h) => window.__pv.teleport(x, z, h), x, z, h); },
 ];
@@ -157,6 +210,7 @@ const summary = {
   heap: { first: samples[0].usedMB, last: samples.at(-1).usedMB, min: Math.min(...samples.map((s) => s.usedMB)), max: Math.max(...samples.map((s) => s.usedMB)) },
   slopeMBperMin: { total: slope(0, MIN), first20: slope(0, 20), last30: slope(Math.max(0, MIN - 30), MIN) },
   gpu: { first: gpuVals[0] ?? null, last: gpuVals.at(-1) ?? null, max: gpuVals.length ? Math.max(...gpuVals) : null },
+  ...(R9 ? { r9: Object.fromEntries(['listeners', 'nodes', 'intervals', 'ragdolls', 'remotes', 'items'].map((k) => { const v = samples.map((s) => s[k]).filter((x) => typeof x === 'number'); return [k, v.length ? { first: v[0], last: v.at(-1), min: Math.min(...v), max: Math.max(...v) } : null]; })) } : {}),
 };
 summary.verdict = summary.slopeMBperMin.last30 !== null && Math.abs(summary.slopeMBperMin.last30) < 0.1 ? 'ESTABILIZOU (aquecimento de cache)' : 'CONTINUA CRESCENDO — investigar';
 writeFileSync(`screenshots/soak/${TAG}.json`, JSON.stringify({ summary, samples }, null, 1));

@@ -1,60 +1,72 @@
 {
- "date": "2026-10-17T19:33:22.171Z",
+ "date": "2026-10-17T20:15:50.109Z",
  "ports": [
   2990,
   2992
  ],
  "epochs": {
-  "s1": "2026-10-17T19:35:52.000Z",
-  "s2": "2026-10-17T19:36:52.000Z"
+  "s1": "2026-10-17T20:18:20.000Z",
+  "s2": "2026-10-17T20:19:20.000Z"
  },
- "loadedAtS": 5.2,
+ "loadedAtS": 4.7,
  "agenda": [
   {
+   "id": "debate_palco",
+   "inst": "debate_palco@1792267200000",
+   "format": "debate",
+   "name": "Debate no palco",
+   "zone": "RIO_BRANCO",
+   "state": "ACTIVE",
+   "startsAt": 1792267200000,
+   "endsAt": 1792268280000,
+   "count": 0,
+   "capacity": 20
+  },
+  {
    "id": "caminhada-central-candelaria",
-   "inst": "caminhada-central-candelaria@1792265752000",
+   "inst": "caminhada-central-candelaria@1792268300000",
    "format": "caminhada",
    "name": "Caminhada Central → Candelária",
    "zone": "CENTRAL",
    "state": "REGISTRATION",
-   "startsAt": 1792265752000,
-   "endsAt": 1792265908000,
+   "startsAt": 1792268300000,
+   "endsAt": 1792268456000,
    "count": 0,
    "capacity": 300
   },
   {
    "id": "corrida-bicicleta-cidade-nova",
-   "inst": "corrida-bicicleta-cidade-nova@1792265767000",
+   "inst": "corrida-bicicleta-cidade-nova@1792268315000",
    "format": "corrida",
    "name": "Corrida de bicicleta · Cidade Nova",
    "zone": "CIDADE_NOVA",
    "state": "SCHEDULED",
-   "startsAt": 1792265767000,
-   "endsAt": 1792266007000,
+   "startsAt": 1792268315000,
+   "endsAt": 1792268555000,
    "count": 0,
    "capacity": 12
   },
   {
    "id": "corrida-patinete-cidade-nova",
-   "inst": "corrida-patinete-cidade-nova@1792265968000",
+   "inst": "corrida-patinete-cidade-nova@1792268516000",
    "format": "corrida",
    "name": "Corrida de patinete · Cidade Nova",
    "zone": "CIDADE_NOVA",
    "state": "SCHEDULED",
-   "startsAt": 1792265968000,
-   "endsAt": 1792266148000,
+   "startsAt": 1792268516000,
+   "endsAt": 1792268696000,
    "count": 0,
    "capacity": 12
   },
   {
    "id": "caminhada-central-candelaria",
-   "inst": "caminhada-central-candelaria@1792272952000",
+   "inst": "caminhada-central-candelaria@1792275500000",
    "format": "caminhada",
    "name": "Caminhada Central → Candelária",
    "zone": "CENTRAL",
    "state": "SCHEDULED",
-   "startsAt": 1792272952000,
-   "endsAt": 1792273108000,
+   "startsAt": 1792275500000,
+   "endsAt": 1792275656000,
    "count": 0,
    "capacity": 300
   }
@@ -69,10 +81,10 @@
   "t1": {
    "cells": 59,
    "env": 576,
-   "digest": "28b79ece"
+   "digest": "29a12cd4"
   },
   "leader0": [
-   -624,
+   -625,
    290
   ],
   "leader1": [
@@ -93,42 +105,42 @@
  "bike": {
   "route": 582,
   "a": {
-   "inst": "corrida-bicicleta-cidade-nova@1792265767000",
+   "inst": "corrida-bicicleta-cidade-nova@1792268315000",
    "cp": 8,
    "lap": 1,
    "rank": 1,
    "total": 2,
-   "t": 83152,
+   "t": 83215,
    "finished": true
   },
   "b": {
-   "inst": "corrida-bicicleta-cidade-nova@1792265767000",
+   "inst": "corrida-bicicleta-cidade-nova@1792268315000",
    "cp": 8,
    "lap": 1,
    "rank": 2,
    "total": 2,
-   "t": 89451,
+   "t": 89542,
    "finished": true
   },
   "result": [
    {
     "name": "Ana",
     "rank": 1,
-    "timeMs": 83152,
+    "timeMs": 83215,
     "status": "ok"
    },
    {
     "name": "Bia",
     "rank": 2,
-    "timeMs": 89451,
+    "timeMs": 89542,
     "status": "ok"
    }
   ],
-  "wallS": 90.78
+  "wallS": 90.817
  },
  "clash": {
   "s1": {
-   "mare-vermelha": 8,
+   "mare-vermelha": 9,
    "onda-tricolor": 0
   },
   "s2": null,
@@ -159,38 +171,38 @@
  },
  "scooter": {
   "c": {
-   "inst": "corrida-patinete-cidade-nova@1792265968000",
+   "inst": "corrida-patinete-cidade-nova@1792268516000",
    "cp": 6,
    "lap": 1,
    "rank": 1,
    "total": 1,
-   "t": 75033,
+   "t": 74740,
    "finished": true
   },
   "result": [
    {
     "name": "Caio",
     "rank": 1,
-    "timeMs": 75033,
+    "timeMs": 74740,
     "status": "ok"
    }
   ],
   "shot": true
  },
  "serverLog": [
-  "[eventos] agenda (../screenshots/tmp/agenda_s1.json): caminhada-central-candelaria/caminhada, corrida-bicicleta-cidade-nova/corrida, corrida-patinete-cidade-nova/corrida · epoch 2026-10-17T19:35:52.000Z",
-  "[eventos] agenda (../screenshots/tmp/agenda_s2.json): confronto-campo-de-santana/confronto_grupos · epoch 2026-10-17T19:36:52.000Z"
+  "[eventos] agenda (../screenshots/tmp/agenda_s1.json): caminhada-central-candelaria/caminhada, corrida-bicicleta-cidade-nova/corrida, corrida-patinete-cidade-nova/corrida · epoch 2026-10-17T20:18:20.000Z",
+  "[eventos] agenda (../screenshots/tmp/agenda_s2.json): confronto-campo-de-santana/confronto_grupos · epoch 2026-10-17T20:19:20.000Z"
  ],
  "results": [
   {
    "name": "agenda chega ao entrar (jogador): caminhada, bicicleta e patinete com estado e horário do servidor",
    "ok": true,
-   "detail": "caminhada-central-candelaria:REGISTRATION corrida-bicicleta-cidade-nova:SCHEDULED corrida-patinete-cidade-nova:SCHEDULED caminhada-central-candelaria:SCHEDULED"
+   "detail": "debate_palco:ACTIVE caminhada-central-candelaria:REGISTRATION corrida-bicicleta-cidade-nova:SCHEDULED corrida-patinete-cidade-nova:SCHEDULED caminhada-central-candelaria:SCHEDULED"
   },
   {
    "name": "agenda chega ao espectador (mesma lista)",
    "ok": true,
-   "detail": "4 itens"
+   "detail": "5 itens"
   },
   {
    "name": "agenda do clássico: confronto entre grupos",
@@ -210,7 +222,7 @@
   {
    "name": "bicicleta: inscrição a pé negada (veiculo)",
    "ok": true,
-   "detail": "{\"inst\":\"corrida-bicicleta-cidade-nova@1792265767000\",\"ok\":false,\"r\":\"veiculo\"}"
+   "detail": "{\"inst\":\"corrida-bicicleta-cidade-nova@1792268315000\",\"ok\":false,\"r\":\"veiculo\"}"
   },
   {
    "name": "bicicleta: A e B inscritos; A recebe a rota (race_def) e desenha os marcadores",
@@ -220,7 +232,7 @@
   {
    "name": "confronto: torcida fora das regras do evento negada (grupo)",
    "ok": true,
-   "detail": "{\"inst\":\"confronto-campo-de-santana@1792265812000\",\"ok\":false,\"r\":\"grupo\"}"
+   "detail": "{\"inst\":\"confronto-campo-de-santana@1792268360000\",\"ok\":false,\"r\":\"grupo\"}"
   },
   {
    "name": "confronto: 2 + 2 inscritos das duas torcidas permitidas",
@@ -235,12 +247,12 @@
   {
    "name": "bicicleta: contagem (STARTING) e largada (ACTIVE) pelo relógio do servidor",
    "ok": true,
-   "detail": "t=88 ms"
+   "detail": "t=175 ms"
   },
   {
    "name": "espectador aéreo: a concentração (ambiente das células) ANDA com a caminhada rumo à Candelária",
    "ok": true,
-   "detail": "deslocamento 178 m (120 pessoas de ambiente mudaram de célula) · líder 183 m"
+   "detail": "deslocamento 178 m (120 pessoas de ambiente mudaram de célula) · líder 184 m"
   },
   {
    "name": "espectador aéreo: tudo em AGGREGATE, sem entidades por jogador",
@@ -250,7 +262,7 @@
   {
    "name": "caminhada: P concluiu (servidor emitiu event_complete → evt_done) por acompanhar a concentração",
    "ok": true,
-   "detail": "{\"inst\":\"caminhada-central-candelaria@1792265752000\",\"x\":-449,\"z\":232,\"d\":186,\"total\":283,\"mine\":186,\"need\":170,\"done\":true}"
+   "detail": "{\"inst\":\"caminhada-central-candelaria@1792268300000\",\"x\":-449,\"z\":232,\"d\":186,\"total\":283,\"mine\":186,\"need\":170,\"done\":true}"
   },
   {
    "name": "caminhada: bots que acompanharam também concluíram",
@@ -260,12 +272,12 @@
   {
    "name": "confronto: só a Maré Vermelha na área → pontua por segurar",
    "ok": true,
-   "detail": "{\"mare-vermelha\":8,\"onda-tricolor\":0}"
+   "detail": "{\"mare-vermelha\":9,\"onda-tricolor\":0}"
   },
   {
    "name": "confronto: duas torcidas na área → disputada (hold nulo)",
    "ok": true,
-   "detail": "{\"inst\":\"confronto-campo-de-santana@1792265812000\",\"score\":{\"mare-vermelha\":10,\"onda-tricolor\":0},\"hold\":null,\"t\":11176,\"endsAt\":1792265896000}"
+   "detail": "{\"inst\":\"confronto-campo-de-santana@1792268360000\",\"score\":{\"mare-vermelha\":10,\"onda-tricolor\":0},\"hold\":null,\"t\":11181,\"endsAt\":1792268444000}"
   },
   {
    "name": "confronto: derrubada entre inscritos pontua para a torcida rival",
@@ -275,7 +287,7 @@
   {
    "name": "confronto: derrubado volta ao ponto de retorno do grupo, protegido (FX.PROTECTED)",
    "ok": true,
-   "detail": "pos -480.9,211.5 fx=2"
+   "detail": "pos -480.9,211.5 fx=10"
   },
   {
    "name": "bicicleta: A (navegador) completou por movimentos reais — checkpoints em ordem até a chegada",
@@ -305,7 +317,7 @@
   {
    "name": "caminhada: líder chegou ao fim da rota e a instância terminou (FINISHED)",
    "ok": true,
-   "detail": "{\"id\":\"caminhada-central-candelaria\",\"inst\":\"caminhada-central-candelaria@1792265752000\",\"format\":\"caminhada\",\"name\":\"Caminhada Central → Candelária\",\"zone\":\"CENTRAL\",\"state\":\"FINISHED\",\"startsAt\":1792265752000,\"endsAt\":1792265866853,\"count\":7,\"capacity\":300}"
+   "detail": "{\"id\":\"caminhada-central-candelaria\",\"inst\":\"caminhada-central-candelaria@1792268300000\",\"format\":\"caminhada\",\"name\":\"Caminhada Central → Candelária\",\"zone\":\"CENTRAL\",\"state\":\"FINISHED\",\"startsAt\":1792268300000,\"endsAt\":1792268414812,\"count\":7,\"capacity\":300}"
   },
   {
    "name": "confronto: resultado por grupo no fim; participação concluída (evt_done) — nunca recompensa por golpe",
@@ -315,12 +327,12 @@
   {
    "name": "patinete: C completou por movimentos (checkpoints em ordem, servidor)",
    "ok": true,
-   "detail": "1º · 75.0 s"
+   "detail": "1º · 74.7 s"
   },
   {
    "name": "patinete: quem acompanha recebe o resultado",
    "ok": true,
-   "detail": "1º Caio 75.0 s"
+   "detail": "1º Caio 74.7 s"
   },
   {
    "name": "Ana: sem erros de página",

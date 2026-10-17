@@ -114,7 +114,7 @@ try {
   console.log('   captura docs/screenshots/round9/L_missao_exploracao.jpg');
   const s2 = await prog(A);
   check('XP só das recompensas (missões + conquistas)', s2.p.xp === xp0 + 200 + 100, `${xp0} → ${s2.p.xp}`);
-  check('conquista DO INÍCIO AO FIM + bolsa liberada', s2.p.achievements.includes('inicio_ao_fim') && s2.p.unlocks.includes('acc:bolsa'));
+  check('conquista DO INÍCIO AO FIM + camisa ondas do calçadão liberada', s2.p.achievements.includes('inicio_ao_fim') && s2.p.unlocks.includes('shirt:211'));
   const lvl = await until(async () => (await prog(A)).notices.find((t) => /^NÍVEL \d/.test(t)), 15000);
   check('aviso de subida de nível', !!lvl, lvl ?? '');
   check('nível ≥ 3 (375 XP)', s2.p.level >= 3, `nível ${s2.p.level}`);

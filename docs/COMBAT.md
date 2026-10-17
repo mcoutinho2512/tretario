@@ -110,8 +110,8 @@ clipes `jump_start`/`jump_land` da biblioteca nas transições (HumanAnimator); 
 - **Buffer** de 180 ms: o golpe apertado durante a recuperação sai quando ela termina (previsão local da tabela).
 - **Previsão**: só a animação (e o deslocamento da esquiva), e só com contexto de confronto; em zona de paz nada é
   previsto e o servidor responde `zona_paz`. O resultado SEMPRE vem do servidor: `cbt_hit` (cambaleio + empurrão no
-  próprio com o mesmo deslocamento do servidor, bloqueio do movimento durante o cambaleio; clipe `cbt_stagger` nos
-  remotos), `cbt_act` (remotos tocam o mesmo clipe; quem está perto ganha esqueleto na hora, como na queda).
+  próprio com o mesmo deslocamento do servidor, bloqueio do movimento durante o cambaleio; clipe `stagger` pela mudança
+  de status), `cbt_act` (remotos tocam o mesmo clipe; quem está perto ganha esqueleto na hora, como na queda).
 - **Toque**: SOCO / CHUTE / ESQUIVA aparecem só com contexto de confronto (zona COMBAT/CONTESTED, área de treino,
   evento ou modo interação) e somem fora dele; os 4 fixos não mudam.
 - **HUD**: docs/HUD.md ("HUD de confronto").
@@ -158,3 +158,150 @@ Sem confronto a banda do jogador comum fica igual à da rodada 8 (20,4 KB/s): `f
 negativas são `estado` (lutador caído/cambaleando tentando golpear) — esperado; as correções vêm dos bots, que não
 aplicam o empurrão/esquiva recebidos. A validação mais cara na multidão densa vem da grade espacial compartilhada
 (células de 110 m: a consulta de 5 m visita a célula toda); 14 validações/s × ~1 ms ≈ 1,4 % de um núcleo.
+
+## Itens, estados físicos, zonas, proteção e desorientação
+
+### 1. Itens de confronto: a MESMA tabela de props
+
+`src/social/props.ts` ganhou `category?: 'SOCIAL' | 'COMBAT_PROP'` (ausente = SOCIAL) — não há registro paralelo.
+
+| id | kind | rótulo | pegada | carregar | golpe (CombatActionDefinition.animation) |
+|---|---|---|---|---|---|
+| 11 | `bat` | Taco | `hand_r`, osso da mão | `carry_bat` | `cbt_bat` (golpe_taco, id 10) |
+| 12 | `bar` | Barra de ferro | `hand_r`, osso da mão | `carry_bar` | `cbt_bar` (golpe_barra, id 11) |
+| 13 | `spray` | Spray de pimenta | `hand_r`, osso da mão | `carry_spray` | `cbt_spray` (spray, id 12) |
+
+- Geometria procedural (`propGeometry.ts`): barra = tubo de aço de 0,8 m com empunhadura de borracha e tampas;
+  spray = lata pequena GENÉRICA (laranja, faixa clara SEM texto, tampa-gatilho preta) — sem marca, sem rótulo.
+- `FAR_PLACEMENT`: barra como o taco; spray `null` (pequeno demais de longe, como o apito). Itens de confronto
+  têm `crowdWeight: 0` e são filtrados da multidão (`crowdSocial.ts`) — NPC nunca carrega.
+- `isCombatProp(id)` e `SOCIAL_PROPS` (o que a roda de ações oferece a qualquer um).
+- Clipes (`proceduralClips.ts`): golpes `cbt_bat`/`cbt_bar`/`cbt_spray` (os mesmos tempos de preparação/janela
+  ativa de `combat.json`); estados `stagger` 0,8 s (tocado pela MUDANÇA de `NetPlayer.status` → vale para todos e para
+  quem chega depois) e `disoriented` 2,4 s (loop enquanto o bit FX.DISORIENTED está ligado); carregar `carry_bar`,
+  `carry_spray`. Clipe avulso: `AvatarVisual.playCombatClip(name)` → `HumanAnimator.playClip(name, loop?)` (camada
+  `fx`, por cima da locomoção e do item). Integração: um clipe por golpe/estado — os duplicados foram removidos.
+- Dados: `public/gameplay/combat.json` `props` é a FONTE ÚNICA dos itens (propId, kind, ações, `groundTtlMs`);
+  `public/gameplay/combat_props.json` traz só os pontos de apoio (`supply`).
+
+### 2. Equipar, guardar, pegar, largar, trocar
+
+Item de confronto **não sai do nada**: só de um ponto de apoio ou do chão. Cada jogador POSSUI no máximo um.
+
+| intenção | tecla | toque | mensagem | servidor |
+|---|---|---|---|---|
+| pegar (perto) / trocar | R | tocar em MÃOS | `item_pick {i}` | alcance 2,2 m da posição aceita; já possuindo, o atual cai aos pés; vai para a mão |
+| largar | Z (R sem nada perto) | tocar em MÃOS | `item_drop {}` | 0,7 m à frente (sem atravessar parede); mão esvazia se era ele |
+| guardar / sacar | X | roda (ITENS) | `prop {p: 0}` / `prop {p: c}` | `validateProp`: item de confronto só se `carried === p` |
+
+- Negativas `item_denied`: `inexistente`, `longe`, `ocupado`, `sem_item`, `caido`, `em_veiculo`, `rapido` (200 ms),
+  `invalido` — texto em `ITEM_DENIAL_TEXT`.
+- **Queda**: quem fica DOWN/RAGDOLL larga o item possuído onde caiu (servidor, no tick); saída / graça vencida / sessão
+  substituída também (o item não "passa" para a sessão nova).
+- Indicador **MÃOS / ITEM ATUAL** (`src/ui/hud/HandIndicator.ts`, encaixe `HudShell.mountHand`): "Vazias", o item na
+  mão (âmbar quando é de confronto), "Spray guardado", e a dica (T pegar · Z largar · X guardar). Some com o HUD;
+  só escreve no DOM quando o texto muda.
+
+#### Itens no mundo (`server/src/items/GroundItems.ts`, `RoomItems.ts`)
+- Estados `RACK` (na vaga do apoio) · `GROUND` (largado) · `CARRIED`. Total FIXO (soma dos estoques).
+- Largado expira em `groundTtlMs` (taco/barra 90 s, spray 60 s) e **volta à vaga**; acima de `maxGround` (10)
+  largados, o mais antigo volta já.
+- `item_list` (plano `[id, prop, x·10, z·10, estado]`): itens a ≤ `aoiM` (70 m), comparados por assinatura e enviados
+  **só quando mudam para aquele cliente**, fatiado (cada cliente a 2 Hz). Longe dos apoios = nada enviado (500 bots
+  espalhados não mudam a banda normal).
+- Pontos de apoio (`supply.racks`): Cidade Nova (2), Campo de Santana, Rio Branco — todos em CONFRONTO/DISPUTA, longe
+  do spawn, do palco e do trio. Cliente: estrado de madeira procedural + itens deitados lado a lado
+  (`src/items/GroundItemsView.ts`); largado tem um anel discreto no chão.
+
+### 3. Estados físicos (visual)
+- `STAGGERED` (status 3): clipe `stagger` em camada (`AvatarVisual.setPhys`).
+- `KNOCKED_DOWN` (1) / `RAGDOLL` (4): ragdoll Rapier existente; `GETTING_UP` (2): o levantar existente (slerp da pose
+  do chão para a animada).
+- **Queda por status** (antes só pela mensagem `knock`): `src/player/fallSync.ts` decide `start/refine/ignore` —
+  quem chegar primeiro (knock ou NetPlayer.status) começa; o outro, dentro de 1,5 s, não recomeça (o `knock` atrasado
+  só corrige o repouso). Vale para remotos (`NetworkClient.pushSnapshot`) e para o próprio (`onSelfStatusFall`).
+- **Sem vazamento do Rapier**: `AvatarVisual` usa uma geração por queda; um `Ragdoll.create` que termina depois de
+  outra queda, do reuso no pool, do descarte ou do fim da queda é liberado na hora. `Ragdoll.dispose` é idempotente e
+  `Ragdoll.live` conta mundos vivos (QA: volta a 0 depois de levantar).
+- Item na mão durante a queda: escondido (`PropAttachment.setVisible(false)`) e volta ao levantar — o de confronto o
+  servidor já largou.
+
+### 4. Zonas: política de confronto (dados)
+
+| zona | política | por quê |
+|---|---|---|
+| Cidade Nova | **COMBAT** | ponta oeste, longe do evento — quem quer confronto vai até lá |
+| Central do Brasil | **PEACE** | entrada/spawn |
+| Campo de Santana | **CONTESTED** | só durante evento de confronto ativo |
+| Centro | **PEACE** | a passeata e o trio |
+| Av. Rio Branco | **CONTESTED** | idem (o palco tem área de paz) |
+| Candelária | **PEACE** | chegada do ato |
+
+~60 % do eixo é PAZ, mais as áreas de paz. Fora de qualquer zona = PEACE.
+
+**Áreas de paz** (`PeaceArea`):
+- fixas, em dados: `peaceAreas` dos telões (Campo de Santana, Centro);
+- fixas, derivadas: spawn (`manifest.spawn`, 40 m), palco (`eventSpots` stage, `RALLY_SHAPE.stage.peaceR` 38 m à
+  frente do palco);
+- de evento: pontos de retorno do confronto (`agenda[].clash.respawn` → 16 m), ou o que um runner registrar
+  (`zonePolicy.setEventAreas(key, areas)`);
+- **móveis**: anel do trio (28 m) e do carro de som (18 m) — `RALLY_SHAPE[kind].peaceR`, lidos das posições dos
+  veículos de evento a cada consulta (a mesma lista que monta a concentração das células do espectador aéreo).
+
+**Servidor** (`server/src/combat/zonePolicy.ts`, instância `room.zonePolicy`):
+`policyFor(zoneId) → ZoneCombatPolicy` e `peaceAt(x, z) → boolean` (também `room.policyFor` / `room.peaceAt`).
+Uso pelo CombatSystem:
+```ts
+const party = (sid) => ({ zone: room.zoneOf(sid), inPeaceArea: room.peaceAt(x, z), …, protectedUntil: room.protection.protectedUntil(sid) });
+combatAllowed((z) => room.zonePolicy.policyFor(z), party(a), party(b), eventRules, now);
+```
+
+**Cliente**: o aviso de zona mostra a política discreta ("ZONA DE PAZ" verde, "DISPUTA" âmbar, "ZONA DE CONFRONTO"
+salmão); a legenda do minimapa diz "· paz / disputa / confronto"; o minimapa tinge fraco a faixa das zonas de
+confronto (vermelho) e disputa (âmbar) — camada estática, custo zero por quadro.
+
+### 5. Proteção de retorno
+- Fonte ÚNICA: `Actor.immuneUntil` no servidor (o empurrão antigo, o atropelamento e o CombatSystem leem daqui); o
+  bit FX.PROTECTED em `NetPlayer.fx` é escrito só pelo CombatSystem (que recalcula `fx` enquanto o jogador está
+  "quente"). `room.applyProtection(sid, now?, ms?)` estende `immuneUntil` e acorda o CombatSystem.
+- Duração: `tuning.protectMs` de `public/gameplay/combat.json` (5 s; `PV_PROTECT_MS` só em servidor de teste).
+- Aplicada ao **entrar**, **reconectar**, **levantar** (CombatSystem) e no **retorno** de evento de confronto (runner
+  de eventos, `EventHost.protect`).
+- Visual: casca translúcida com faixas lentas subindo (`src/combat/fxVisuals.ts` ProtectedAura — geometria e material
+  únicos, brilho ≤ 0,16, pulso lento de pequena amplitude: sem piscar).
+
+### 6. Desorientado (spray)
+- Só para quem sofre: véu de tela CSS (`DisorientOverlay`) — desfoque 2,5 px, dessaturação, vinheta; entra e sai em
+  0,6 s; sem flash, sem tremor. O DOM só muda na troca de estado.
+- Reação no personagem (todos veem): `disoriented` em loop enquanto o bit FX.DISORIENTED está ligado (mãos diante dos
+  olhos, cabeça baixa — nada de lesão).
+- Acessibilidade: **Ajustes → "Reduzir efeitos visuais"** (`reduceEffects`): só um ícone pequeno ("Visão turva") e um
+  tom leve. Guardado como as outras preferências do HUD (localStorage + perfil: `PlayerPreferences.reduceEffects`,
+  `sanitizePreferences` no servidor).
+
+### 7. QA
+- Vitest: `tests/props.test.ts` (registro/pegadas/modelos), `tests/proceduralClips.test.ts` (clipes de confronto),
+  `tests/zonePolicy.test.ts` (dados reais, anel móvel do trio, retorno de evento, integração com `combatAllowed`),
+  `tests/combatItems.test.ts` (alcance, troca, expiração/volta, teto, saída/queda, protocolo, posse na mão,
+  proteção, FallSync, preferência).
+- `tools/qa/items_zones_mp.mjs` — 2 navegadores, servidor PV_TEST próprio (porta 2971, evento `cotidiano` para o
+  empurrão): proteção, apoio, pegar/largar/pegar do chão, troca barra/spray, guardar/sacar, desorientação normal e
+  reduzida, cambaleio, queda só por status, empurrão (uma queda só), larga ao cair, Rapier liberado, aviso de zona
+  paz/disputa/confronto. Efeitos que o CombatSystem aplicará de verdade são forçados pelas mensagens `qa_fx` /
+  `qa_status`, que **só existem com PV_TEST=1**.
+- Capturas: `docs/screenshots/round9/` E_taco, F_barra, G_spray (+ desorientado normal/reduzido), H_queda_ragdoll,
+  J_zona_de_paz, K_zona_de_confronto.
+
+## Integração (rodada 9)
+
+- **Uma política só** (`src/combat/policy.ts` `combatAllowed`) para golpes, empurrão antigo (tecla F,
+  `CombatSystem.pushPolicy`) e atropelamento por carro/moto (em zona de paz o carro PARA, como diante de quem é
+  pacífico). Áreas de paz: as fixas de `zones.json` + as derivadas/móveis de `server/src/combat/zonePolicy.ts`
+  (`peaceAt`: spawn 40 m, palco, anéis do trio 28 m e dos carros de som 18 m, retornos de evento).
+- **Área de treino** (boneco): vale como COMBAT dentro de zona PEACE ou CONTESTED.
+- **Eventos**: `room.combat.combatEventFor = evt.combatEventFor` (confronto de grupos: inscritos, zonas do evento,
+  `friendlyFire` dos dados); derrubadas no evento pontuam pelo runner (`evt.onKnockdown`), nunca dão XP por golpe.
+- **Consentimento**: o evento padrão (`manifestacao`) é `opcional` — K liga o modo interação; quem fica pacífico e
+  fora de eventos de confronto nunca sofre impacto, em zona nenhuma.
+- **Teclas**: R soco · Q chute · C esquiva · F empurrão · T pegar/trocar item · Z largar · X guardar/sacar.
+

@@ -182,18 +182,9 @@ try {
   await w(500);
   const ap = await ev(A, () => ({ open: !document.querySelector('.agenda-panel').hidden, now: document.querySelectorAll('.ap-sec:nth-of-type(1) .ap-item:not([hidden])').length, rows: [...document.querySelectorAll('.agenda-panel .ap-item:not([hidden])')].map((i) => i.textContent) }));
   check('AGENDA DA AVENIDA pelo menu: agora / a seguir / encerrados', menuOk && ap.open && ap.rows.length === 6, JSON.stringify(ap.rows));
-  // agenda LOCAL (sem agendador nesta sala): o botão não envia evt_join (mensagem sem handler derrubaria a conexão)
-  const sent0 = await ev(A, () => { const li = [...document.querySelectorAll('.ap-item')].find((i) => /CORRIDA DE BICICLETA/.test(i.textContent)); li?.querySelector('.ap-join:not([disabled])')?.click(); return { sent: window.__sent.filter(([t]) => t === 'evt_join'), flash: document.querySelector('.hud-status').textContent }; });
-  check('"Participar" com agenda sem servidor → nada enviado, aviso claro', sent0.sent.length === 0 && /indisponíveis/.test(sent0.flash), JSON.stringify(sent0));
-  // com agenda vinda do servidor (simulada no transporte) → evt_join {inst}; o servidor decide (evt_res)
-  const sent = await ev(A, () => {
-    const f = window.__pvR9.feed, real = f.net, out = [];
-    f.net = { send: (t, m) => out.push([t, m]), on() {} }; f.serverDriven = true;
-    const li = [...document.querySelectorAll('.ap-item')].find((i) => /CORRIDA DE BICICLETA/.test(i.textContent)); li?.querySelector('.ap-join:not([disabled])')?.click();
-    f.net = real; f.serverDriven = false;
-    return out;
-  });
-  check('botão "Participar" (agenda do servidor) manda evt_join {inst}', sent.length === 1 && sent[0][0] === 'evt_join' && sent[0][1].inst === 'corrida@1', JSON.stringify(sent));
+  // agenda do SERVIDOR (agendador da sala, agente D): o botão manda evt_join {inst}; o servidor decide (evt_res)
+  const sent0 = await ev(A, () => { const li = [...document.querySelectorAll('.ap-item')].find((i) => /CORRIDA DE BICICLETA/i.test(i.textContent)); li?.querySelector('.ap-join:not([disabled])')?.click(); return { driven: window.__pvR9.feed.serverDriven, sent: window.__sent.filter(([t]) => t === 'evt_join') }; });
+  check('"Participar" (agenda do servidor) manda evt_join {inst}', sent0.driven === true && sent0.sent.length >= 1 && /corrida/.test(String(sent0.sent.at(-1)?.[1]?.inst)), JSON.stringify(sent0));
   await ev(A, () => window.__pvR9.map.close());
   await w(300);
   await A.mouse.move(640, 360); await A.mouse.move(700, 380); // HUD aparece (auto-ocultar)

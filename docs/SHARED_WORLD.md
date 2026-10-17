@@ -90,7 +90,7 @@ Nada de ossos pela rede. Cada jogador tem, no estado da sala (só para quem est�
   (0,15 s × 0,15 s), braços, bandeira (item e design), andar balançando a bandeira, cartaz, megafone; andar encerra
   a dança dos dois lados; o jogador distante não recebe A detalhado.
 ## Itens de confronto no mundo e política de zona (rodada 9)
-Detalhes: `docs/COMBAT_ITEMS_ZONES.md`.
+Detalhes: `docs/COMBAT.md`.
 - **Itens no chão** (servidor autoritativo, `server/src/items`): taco/barra/spray (props `COMBAT_PROP`) existem em
   número FIXO, em pontos de apoio definidos por dados (`public/gameplay/combat_props.json`, só em zonas de confronto/
   disputa). Estados `RACK`/`GROUND`/`CARRIED`; um por jogador; pegar exige alcance (2,2 m da posição aceita); largado

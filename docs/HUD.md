@@ -89,7 +89,7 @@ Qualidade gráfica (presets existentes; grava a escolha e oferece "Recarregar pa
 e LOD continuam decididos na carga), nomes dos jogadores, esconder o HUD sozinho, chat recolhido ao entrar, som
 (reservado). `role=dialog`, foco no controle marcado, Esc fecha, controles nativos (rádio/checkbox) para leitor de tela.
 Rodada 9: **Reduzir efeitos visuais** (`reduceEffects`, também no perfil): a desorientação vira só um ícone pequeno e
-um tom leve (sem desfoque/vinheta) — `docs/COMBAT_ITEMS_ZONES.md`.
+um tom leve (sem desfoque/vinheta) — `docs/COMBAT.md`.
 
 Preferências: `localStorage['pv3d.hud']`. Com sessão (descoberta em `GET /api/me`), `names`, `chatCollapsed` e `reduceEffects` vão para
 `PUT /api/me/preferences` (800 ms depois da última mudança); as do perfil vencem as locais ao entrar. Sem sessão/rota:
