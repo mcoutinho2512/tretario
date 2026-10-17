@@ -15,7 +15,7 @@ import { getVehicleGeometry, vehicleMaterial } from '../traffic/vehicleModels';
 import { distToVehicle, EVENT_VEHICLE_KINDS } from '../net/rules';
 import { TRIO, distToCabDoor, localToWorld } from './platform';
 import { applyDesign, buildSoundcar, buildTrio } from './eventModels';
-import { rallyPoints, RALLY_DEFAULT_WEIGHTS } from '../social/rally';
+import { rallyPoints, RALLY_DEFAULT_WEIGHTS, RALLY_SHAPE } from '../social/rally';
 
 export type RideableKind = 'bicycle' | 'scooter' | 'car' | 'moto' | 'soundcar' | 'trio';
 
@@ -311,9 +311,10 @@ export class RideableSystem {
       const last = this.rallyAt.get(it.state.id);
       if (last && Math.hypot(last.x - it.state.x, last.z - it.state.z) < 0.5) continue;
       this.rallyAt.set(it.state.id, { x: it.state.x, z: it.state.z });
+      const sh = RALLY_SHAPE[k];
       rallyPoints.upsert({
         id: `veh_${it.state.id}`, kind: k, x: it.state.x, z: it.state.z,
-        inner: k === 'trio' ? TRIO.len / 2 + 1.5 : 3.5, radius: k === 'trio' ? 24 : 14, strength: k === 'trio' ? 1 : 0.75,
+        inner: sh.inner, radius: sh.radius, strength: sh.strength,
         actionWeights: RALLY_DEFAULT_WEIGHTS[k],
       });
     }

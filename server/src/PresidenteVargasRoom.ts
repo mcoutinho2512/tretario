@@ -18,6 +18,9 @@
  *  rodada 8     espectadores (server/src/spectator: sem corpo, AOI pela câmera), reconexão com graça (PV_GRACE_S, 20 s),
  *               login duplicado (a sessão nova ASSUME a entidade), presença em memória e métricas públicas
  *               (server/src/presence) — docs/SPECTATOR.md, docs/SHARED_WORLD.md
+ *  rodada 8.1   espectador AÉREO: camada pela altitude (spec_cam.alt), AOI por camada e, em FAR/AGGREGATE, células
+ *               agregadas `spec_cells` (CrowdCellAggregator: UMA vez por período para todos; CellFeed por espectador).
+ *               Jogador: nada muda (mesmo AOI, nunca recebe spec_cells)
  */
 import { fileURLToPath } from 'node:url';
 import { Room, type Client } from '@colyseus/core';
@@ -52,8 +55,12 @@ import { recheckIdentities, IDENTITY_RECHECK_MS, CLOSE_BANNED, CLOSE_DOWNGRADED 
 const storeOrNull = () => { try { return services().store; } catch { return null; } };
 import { ACTION_RULES, applyAction, applyProp, cancelsOnMove, onceFinished, validateAction, validateProp, type ActionActor } from '../../src/social/actionRules.ts';
 import { SpectatorSessions, type SpectatorSession } from './spectator/SpectatorSession.ts';
+import { CrowdCellAggregator, environmentCells, type CellPlayer, type CellSet, type EnvModel, type EnvRally } from './spectator/CrowdCellAggregator.ts';
+import { encodeCells } from '../../src/spectator/cellCodec.ts';
+import { CROWD_CELL } from '../../src/spectator/tiers.ts';
+import { RALLY_SHAPE } from '../../src/social/rally.ts';
 import { PresenceTracker } from './presence/PresenceTracker.ts';
-import { environmentCrowdFor, liveWorlds, type WorldMetricsSource } from './presence/publicMetrics.ts';
+import { PEDESTRIAN_ESTIMATE, environmentCrowdFor, liveWorlds, type WorldMetricsSource } from './presence/publicMetrics.ts';
 import { testJoinFlags } from './presence/testJoin.ts';
 import { liveMemorySweepers } from './cleanup/CleanupService.ts';
 import { LINK_WIRE, RECONNECT } from '../../src/net/reconnect.ts';
@@ -145,6 +152,16 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
   private riders = new Map<string, Set<string>>();
   /** veículos de evento (carro de som, trio): sólidos para quem anda e para os outros veículos */
   private eventVehIds: string[] = [];
+  /** espectador aéreo: células agregadas (uma vez por período, compartilhadas) e estimativa de ambiente */
+  private cellAgg!: CrowdCellAggregator;
+  private cellAcc = 0;
+  private cellSet: CellSet | null = null;
+  private envBase: Omit<EnvModel, 'rallies'> = { rallyCrowd: 0, peds: 0, axis: [], pedRange: [0, 1] };
+  private envFixed: EnvRally[] = [];
+  private envKey = '';
+  private envCells = new Map<number, number>();
+  /** QA: conjuntos montados, mensagens/bytes de spec_cells enviados e tempo da última agregação */
+  readonly cellStats = { sets: 0, sent: 0, bytes: 0, aggMs: 0 };
 
   messages = {
     move: (client: Client, raw: unknown) => this.gate(client, 'world.play', () => this.withNet(client, true, () => this.onMove(client, raw))),
@@ -224,6 +241,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     this.rebuildVehicleGrid();
     this.specs = new SpectatorSessions(W.manifest.bounds as [number, number, number, number]);
     const evDef = W.events.get(ev) as (Parameters<typeof environmentCrowdFor>[0] & { name?: string }) | undefined;
+    this.setupCells(W, evDef);
     this.metricsSource = { counts: (now) => this.pres.counts(now), eventId: ev, eventName: evDef?.name ?? ev, environmentCrowd: environmentCrowdFor(evDef) };
     liveWorlds.add(this.metricsSource);
     const gfStore = process.env.PV_GRAFFITI_STORE === 'memory' ? new MemoryGraffitiStore() : new JsonFileGraffitiStore(process.env.PV_GRAFFITI_FILE ?? fileURLToPath(new URL('../data/graffiti.json', import.meta.url)));
@@ -320,6 +338,9 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     this.tickN++;
     this.updateInterest(this.tickN % AOI_SLICES, AOI_SLICES);
     if (CROWD_HZ > 0) { const tc = performance.now(); this.sendCrowd(this.tickN % CROWD_SLICES, CROWD_SLICES); metrics.crowd(performance.now() - tc); }
+    // espectador aéreo: células agregadas a CROWD_CELL.hz — só se alguém está em FAR/AGGREGATE (ou acabou de sair)
+    this.cellAcc += dtMs;
+    if (this.cellAcc >= 1000 / CROWD_CELL.hz) { this.cellAcc = 0; this.sendCells(now); }
     // veículos: grade (AOI) e retorno à vaga dos abandonados (1 Hz)
     this.vehAcc += dtMs;
     if (this.vehAcc >= 1000) { this.vehAcc = 0; this.rebuildVehicleGrid(); this.resetAbandoned(now); }
@@ -373,20 +394,27 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     // espectadores: mesma regra, centrada na câmera (sem slot na grade: ninguém os vê)
     for (const sp of this.specs.values()) {
       if (only ? sp.sid !== only : sp.slot % slices !== phase) continue;
-      this.interestAt(sp, sp.cam.x, sp.cam.z, '');
+      const high = sp.tier === 'FAR' || sp.tier === 'AGGREGATE';
+      this.interestAt(sp, sp.cam.x, sp.cam.z, '', SpectatorSessions.aoiRadius(sp, AOI_RADIUS), high ? this.eventVehIds : undefined);
     }
     metrics.aoi(performance.now() - t0);
   }
 
   /** área de interesse de um observador (jogador ou espectador) num ponto */
-  private interestAt(r: { slot: number; inView: SlotView; vehInView: Set<string>; view: StateView; aoiCap: number; overflow: number[] }, x: number, z: number, own: string) {
-    selectInterestSlots(this.grid, r.slot, x, z, r.inView, { radius: AOI_RADIUS, hysteresis: AOI_HYST, cap: r.aoiCap }, this.scratch, this.aoiAdd, this.aoiRem, r.overflow);
+  private interestAt(r: { slot: number; inView: SlotView; vehInView: Set<string>; view: StateView; aoiCap: number; overflow: number[] }, x: number, z: number, own: string, radius = AOI_RADIUS, keepVeh?: readonly string[]) {
+    selectInterestSlots(this.grid, r.slot, x, z, r.inView, { radius, hysteresis: AOI_HYST, cap: r.aoiCap }, this.scratch, this.aoiAdd, this.aoiRem, r.overflow);
     for (const sl of this.aoiAdd) { const p = this.state.players.get(this.slotIds[sl]); if (p) r.view.add(p); }
     for (const sl of this.aoiRem) { const p = this.state.players.get(this.slotIds[sl]); if (p) r.view.remove(p); }
     // veículos: mesma grade espacial (só células próximas); o do próprio jogador fica sempre
     const vc: { item: string; d: number }[] = [];
-    this.vgrid.forEachInRadius(x, z, AOI_RADIUS * AOI_HYST, (vs, d) => vc.push({ item: this.vehIds[vs], d }));
-    const vr = selectInterest({ candidates: vc, inView: r.vehInView, radius: AOI_RADIUS, hysteresis: AOI_HYST, always: own ? new Set([own]) : undefined });
+    this.vgrid.forEachInRadius(x, z, radius * AOI_HYST, (vs, d) => vc.push({ item: this.vehIds[vs], d }));
+    // espectador no alto: veículos de evento (trio, carros de som) ficam na vista — poucos, marcam a passeata
+    let always: Set<string> | undefined = own ? new Set([own]) : undefined;
+    if (keepVeh?.length) {
+      always = new Set([...(always ?? []), ...keepVeh]);
+      for (const id of keepVeh) if (!vc.some((c) => c.item === id)) vc.push({ item: id, d: Infinity });
+    }
+    const vr = selectInterest({ candidates: vc, inView: r.vehInView, radius, hysteresis: AOI_HYST, always });
     for (const vid of vr.add) { const v = this.state.vehicles.get(vid); if (v) { r.view.add(v); r.vehInView.add(vid); } }
     for (const vid of vr.remove) { const v = this.state.vehicles.get(vid); if (v) r.view.remove(v); r.vehInView.delete(vid); }
   }
@@ -531,8 +559,8 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
   /** espectador: entra no MESMO mundo sem corpo; área de interesse pela câmera (spec_cam) */
   protected joinSpectator(client: Client, _id: RoomIdentity, options: JoinOptions) {
     const slot = this.allocSlot(client.sessionId);
-    const o = options as JoinOptions & { specCam?: { x?: unknown; z?: unknown } }; // vem do cliente: validado abaixo
-    const start = o?.specCam && Number.isFinite(o.specCam.x) && Number.isFinite(o.specCam.z) ? { x: o.specCam.x as number, z: o.specCam.z as number } : { x: this.spawn.x, z: this.spawn.z };
+    const o = options as JoinOptions & { specCam?: { x?: unknown; z?: unknown; alt?: unknown } }; // vem do cliente: validado abaixo
+    const start = o?.specCam && Number.isFinite(o.specCam.x) && Number.isFinite(o.specCam.z) ? { x: o.specCam.x as number, z: o.specCam.z as number, alt: o.specCam.alt } : { x: this.spawn.x, z: this.spawn.z };
     const sp = this.specs.add(client, slot, start, clientCap(options?.aoiMax));
     this.slotNid[slot] = 0;
     client.view = sp.view;
@@ -541,6 +569,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     this.graffiti.update(Date.now(), this.gfPos, client.sessionId);
     this.pres.enterWorld(client.sessionId, Date.now());
     client.send('spawn', { x: sp.cam.x, y: 0, z: sp.cam.z, heading: this.spawn.heading, sessionId: client.sessionId, policy: this.interactionPolicy, seed: this.state.seed, role: 'spectator' });
+    // entrou já no alto: o `full` sai no próximo período de células (≤ 1 s) — antes disso o cliente nem registrou a mensagem
     console.log(`[room] espectador ${client.sessionId} — ${this.specs.size} assistindo`);
   }
 
@@ -555,7 +584,76 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
   private onSpecCam(client: Client, m: unknown) {
     const now = Date.now();
     this.pres.heartbeat(client.sessionId, now);
-    if (this.specs.onCam(client.sessionId, m, now) === 'ok') this.pres.activity(client.sessionId, now);
+    const sp = this.specs.get(client.sessionId), before = sp?.tier;
+    if (this.specs.onCam(client.sessionId, m, now) !== 'ok' || !sp) return;
+    this.pres.activity(client.sessionId, now);
+    if (sp.tier === before) return;
+    // trocou de camada: AOI e células já (sem esperar a fatia / o próximo período)
+    this.updateInterest(0, 1, sp.sid);
+    this.cellsTo(sp, this.currentCells(now), now);
+  }
+
+  // ---------------------------------------------------------------- espectador aéreo: células (rodada 8.1)
+  /** estimativa de ambiente pelos DADOS do evento: concentrações fixas (palco, caminhões) + veículos de evento (andam) */
+  private setupCells(W: ServerWorld, ev: { social?: { rallyCrowd?: number }; npcs?: { pedestrianDensity?: number } } | undefined) {
+    this.cellAgg = new CrowdCellAggregator(this.state.seed);
+    const c0 = W.zones.find((z) => z.id === 'CENTRAL')?.from ?? 0.18;
+    this.envBase = {
+      rallyCrowd: Math.max(0, Math.round(ev?.social?.rallyCrowd ?? 0)),
+      peds: ev ? Math.max(0, Math.round(PEDESTRIAN_ESTIMATE * (ev.npcs?.pedestrianDensity ?? 1))) : 0,
+      axis: (W.manifest.pvAxis ?? []) as [number, number][], pedRange: [c0, 1],
+    };
+    this.envFixed = [];
+    for (const sp of W.manifest.eventSpots ?? []) {
+      if (sp.kind === 'stage') { const S = RALLY_SHAPE.stage; this.envFixed.push({ x: sp.x + Math.sin(sp.heading) * S.front, z: sp.z + Math.cos(sp.heading) * S.front, inner: S.inner, radius: S.radius, strength: S.strength }); }
+      else if (sp.kind === 'truck') { const T = RALLY_SHAPE.truck; this.envFixed.push({ x: sp.x, z: sp.z, inner: T.inner, radius: T.radius, strength: T.strength }); }
+    }
+  }
+
+  /** ambiente por célula — recalculado só quando um veículo de evento anda ≥ 1 m */
+  private environment(): Map<number, number> {
+    const rallies = [...this.envFixed];
+    let key = '';
+    for (const id of this.eventVehIds) {
+      const v = this.state.vehicles.get(id);
+      const sh = v && (v.kind === 'trio' || v.kind === 'soundcar') ? RALLY_SHAPE[v.kind] : null;
+      if (!v || !sh) continue;
+      rallies.push({ x: Math.round(v.x), z: Math.round(v.z), inner: sh.inner, radius: sh.radius, strength: sh.strength });
+      key += `${id}:${Math.round(v.x)},${Math.round(v.z)};`;
+    }
+    if (key !== this.envKey || !this.envCells.size) { this.envKey = key; this.envCells = environmentCells({ ...this.envBase, rallies }); }
+    return this.envCells;
+  }
+
+  /** conjunto de células do período (montado UMA vez por período, compartilhado por todos os espectadores) */
+  private currentCells(now: number): CellSet {
+    if (this.cellSet && now - this.cellSet.t < 1000 / CROWD_CELL.hz - 50) return this.cellSet;
+    const players: CellPlayer[] = [];
+    for (const [sid, p] of this.state.players) {
+      const act = p.vehicle ? 3 : p.act ? 2 : (p.speed > 0.3 || p.loco > 0) ? 1 : 0;
+      players.push({ x: p.x, z: p.z, group: this.identities.get(sid)?.groupKey ?? '', activity: act });
+    }
+    this.cellSet = this.cellAgg.build(players, this.environment(), now);
+    this.cellStats.sets++;
+    this.cellStats.aggMs = +this.cellAgg.stats.ms.toFixed(3);
+    return this.cellSet;
+  }
+
+  /** CROWD_CELL.hz: células para quem está no alto (FAR/AGGREGATE); quem desceu já recebeu a mensagem vazia `full` */
+  private sendCells(now: number) {
+    let any = false;
+    for (const sp of this.specs.values()) if (sp.tier === 'FAR' || sp.tier === 'AGGREGATE') { any = true; break; }
+    if (!any) return;
+    const set = this.currentCells(now);
+    for (const sp of this.specs.values()) if (sp.tier === 'FAR' || sp.tier === 'AGGREGATE') this.cellsTo(sp, set, now);
+  }
+
+  private cellsTo(sp: SpectatorSession, set: CellSet, now: number) {
+    const m = sp.feed.next(set, sp.cam, now);
+    if (!m) return;
+    const buf = encodeCells(m, this.cellAgg.epoch, set.t);
+    this.cellStats.sent++; this.cellStats.bytes += buf.byteLength;
+    sp.client.send('spec_cells', buf);
   }
 
   onJoin(client: Client, options: JoinOptions, auth?: RoomIdentity) {

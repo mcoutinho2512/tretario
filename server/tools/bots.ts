@@ -14,6 +14,8 @@
  *            --social=F   fração F dos bots com vida de manifestação (rodada 7): dançando, com bandeira, com cartaz,
  *                         gesticulando (pedidos 'act'/'prop' reais, validados pelo servidor)
  *            --groups     rodada 8: bots distribuídos entre os grupos do evento (13 / 22 / neutro; opção só de teste)
+ *            --range=A,B  rodada 8.1: no cenário spread, só o trecho [A, B] do eixo (frações; 0.18,1 = Central → Candelária)
+ *                         e com deslocamento lateral de até ±14 m (a avenida inteira vista do alto)
  *            --chat=M     rodada 8: mensagens de chat por MINUTO na multidão inteira (realista: poucos falam; padrão 0),
  *                         espalhadas no tempo e entre bots, canais GERAL/PROXIMIDADE/GRUPO
  *
@@ -27,6 +29,7 @@ import { randomAppearance } from '../../src/characters/bodyTypes.ts';
 import { packMove } from '../../src/net/rules.ts';
 import { decodeCrowd } from '../../src/net/crowdCodec.ts';
 import { readFileSync } from 'node:fs';
+import { pointOnAxis } from '../../src/world/zones.ts';
 import { createInterface } from 'node:readline';
 
 const args = process.argv.slice(2).filter((a) => !a.startsWith('--'));
@@ -44,6 +47,7 @@ const SOCIAL = flagNum('social', 0);
 const GROUPS = !!flag('groups');
 const CHAT_PER_MIN = flagNum('chat', 0);
 const GROUP_KEYS = ['grupo-13', 'grupo-22', 'neutro'];
+const RANGE = (() => { const f = flag('range'); const v = f?.includes('=') ? f.split('=')[1].split(',').map(Number) : null; return v && v.length === 2 && v.every(Number.isFinite) ? v as [number, number] : null; })();
 const CHAT_LINES = ['bora pro trio', 'que dia bonito', 'alguém perto da Central?', 'chegando na Candelária', 'olha o carro de som', 'boa tarde', 'muita gente hoje', 'onde fica o palco?'];
 // ids dos registros (src/social): dança, bandeira, cartaz, gestos
 import { ACTION_BY_KEY } from '../../src/social/actions.ts';
@@ -86,6 +90,7 @@ interface Bot {
 const bots: Bot[] = [];
 
 function spawnPoint(gi: number, r: () => number): { x: number; z: number } | undefined {
+  if (SCEN === 'spread' && RANGE) { const p = pointOnAxis(axis, RANGE[0] + (gi / Math.max(1, TOTAL - 1)) * (RANGE[1] - RANGE[0]), (r() - 0.5) * 28); return { x: p.x + (r() - 0.5) * 4, z: p.z + (r() - 0.5) * 4 }; }
   if (SCEN === 'spread') { const ax = axis[Math.floor((gi / Math.max(1, TOTAL - 1)) * (axis.length - 1))]; return { x: ax[0] + (r() - 0.5) * 8, z: ax[1] + (r() - 0.5) * 8 }; }
   if (SCEN === 'dense') {
     // ponto uniforme na elipse (raiz do raio)

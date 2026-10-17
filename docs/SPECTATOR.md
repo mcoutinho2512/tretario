@@ -28,8 +28,90 @@ instância, não é vídeo: é a mesma Presidente Vargas que os jogadores veem, 
 |---|---|---|
 | join `{ role: 'spectator', specCam?: {x,z} }` | C→S | papel pedido + câmera inicial (o servidor prende aos limites) |
 | `spawn {…, role: 'spectator'}` | S→C | confirma o papel; posição = câmera |
-| `spec_cam {x, z}` | C→S | foco da câmera, 2 Hz quando anda ≥ 6 m, e a cada 3 s (batimento) |
+| `spec_cam {x, z, alt}` | C→S | foco da câmera + altitude da câmera acima do foco (m, 8.1); 2 Hz quando anda ≥ 6 m ou a altitude muda ≥ 8 m, e a cada 3 s (batimento). Sem `alt` = 0 (NEAR) |
+| `spec_cells` (binário) | S→C | só espectador em FAR/AGGREGATE: células agregadas (ver "Espectador aéreo") |
 | `denied {cap}` | S→C | qualquer mensagem de jogo do espectador |
+
+## Espectador aéreo: camadas de representação (rodada 8.1)
+Quanto mais alto, menos detalhe POR pessoa e mais dado AGREGADO por célula — nunca as 500 entidades completas para
+quem está no alto. Contrato em `src/spectator/tiers.ts`; servidor em `server/src/spectator/` (`SpectatorSession`,
+`CrowdCellAggregator`); codificação em `src/spectator/cellCodec.ts`; desenho em `src/spectator/CellImpostors.ts`.
+
+| camada | altitude da câmera (sobe ≥ / desce <) | AOI de entidades | o que chega |
+|---|---|---|---|
+| NEAR | < 45 m | 220 m (= jogador) | `StateView` (48 mais próximos) + `crowd` 2 Hz — igual à rodada 8 |
+| MID | 45 / 33 m | 140 m | idem, raio menor |
+| FAR | 110 / 98 m | 60 m | entidades a ≤ 60 m + `spec_cells` das células a ≤ 260 m do foco |
+| AGGREGATE | 200 / 188 m | 0 | só `spec_cells` da avenida inteira (+ veículos de evento: trio, carros de som) |
+
+- A camada é do **servidor** (`tierForAltitude` com histerese de 12 m sobre o `alt` validado/preso a 0–300 m);
+  o cliente desenha conforme a camada que chega em `spec_cells`. Câmera aérea (260 m) = AGGREGATE; Campo de
+  Santana (≈ 67 m) = MID; Central/Candelária/trio = NEAR.
+- Troca de camada → AOI recalculado na hora (sem esperar a fatia) e `spec_cells` `full`. Descer para NEAR/MID →
+  uma mensagem `full` vazia (o cliente apaga as células) e nada mais.
+
+### Célula (`CrowdCellSnapshot`)
+Grade fixa de **40 m** alinhada à origem do mundo; `cx = floor(x/40)`, `cz = floor(z/40)`.
+
+| campo | conteúdo |
+|---|---|
+| `players` | jogadores REAIS na célula (bots de carga incluídos — são entidades do mundo) |
+| `env` | multidão de AMBIENTE estimada pelos dados do evento — separada dos jogadores |
+| `groups` | chave do grupo do evento → jogadores (`''` = sem grupo). Só contagem: nenhum grupo ganha nada |
+| `activity` | jogadores parados / andando / em ação social / em veículo |
+| `density` | (players + env) / 1600 m² |
+| `seed` | `cellSeed(cx, cz, época)` — época = semente da sala (`state.seed`) |
+| `t` | relógio do servidor da amostra |
+
+**Ambiente** (`environmentCells`, determinístico): `social.rallyCrowd` dividido entre as concentrações ativas
+(palco e caminhões do `manifest.eventSpots` + trio/carros de som na posição ATUAL do servidor) por força × área do
+anel — a mesma regra do `RallyCrowd` do cliente, mesma tabela `RALLY_SHAPE` (`src/social/rally.ts`) — e espalhado em
+cada anel por 192 amostras fixas com a mesma distribuição radial de `RallyRegistry.spotFor`; pedestres
+(`PEDESTRIAN_ESTIMATE × npcs.pedestrianDensity` = 56) ao longo do eixo, da Central (`CENTRAL.from`) à Candelária.
+Arredondamento pelo maior resto (empate → menor chave): soma exata (360 + 56 = 416 no ato). Recalculado só quando um
+veículo de evento anda ≥ 1 m.
+
+### Agregação e entrega
+- `CrowdCellAggregator.build` roda **uma vez por período** (`CROWD_CELL.hz` = 1 Hz) e só se há alguém em FAR/AGGREGATE;
+  o conjunto é **compartilhado** por todos os espectadores (custo ≈ 0,06 ms para 500 jogadores; nada por espectador
+  além do delta). Mesma entrada em qualquer ordem → snapshots idênticos (chaves e grupos ordenados).
+- `CellFeed` (por espectador): guarda a assinatura (FNV-1a, sem `t`) do que o cliente tem; manda só células
+  **alteradas** + **removidas**; `full` na entrada/troca de camada. FAR: células a ≤ 260 m do foco (sai só além de
+  300 m — sem pisca-pisca). Teto `maxBytesPerSec` = 6 KB/s por balde de fichas (rajada de 1 s): o que não cabe vai no
+  próximo envio, as mais perto do foco primeiro. Nada mudou → nada é enviado.
+
+### Formato no fio (binário, `src/spectator/cellCodec.ts`)
+`u8 versão · u8 camada · u8 full · u32 época · f64 t · tabela de grupos (u8 n + [u8 len + ASCII]) · u16 nCélulas ·
+u16 nRemovidas`, depois por célula `i8 cx · i8 cz · u16 players · u16 env · 4×u16 atividade · u8 nG + nG×(u8 grupo,
+u16 n)` (15 B + 3 B por grupo) e `i8,i8` por removida. `density` e `seed` não viajam: o cliente recalcula com a mesma
+fórmula e a mesma época. Medido (500 jogadores ao longo da avenida, 3 grupos, ambiente 416): **77–95 células, `full`
+AGGREGATE ≈ 1,8–2,5 KB** contra ≈ 11 KB do mesmo conteúdo em JSON (≈ 6×); deltas a 1 Hz ≈ 1,0–1,1 KB.
+
+### Cliente
+- `NetworkClient` aplica `spec_cells` em `specCells` (chave → snapshot) e expõe `specTier`.
+- `CellImpostors`: cada pessoa vira uma instância de um boneco de ~20 triângulos num **único InstancedMesh** (1 draw
+  call). Lugar determinístico pela `seed` (sequência estável; lugares dentro de prédio rejeitados pela colisão do
+  mundo) → dois espectadores veem a mesma distribuição. Cores: jogadores pela distribuição de grupos (cor principal
+  do grupo; sem grupo = roupas variadas); ambiente em tons neutros. De muito alto o boneco é ampliado (até 3,2× na
+  largura, 2× na altura) para não sumir em 1 px — é símbolo de mapa, não escala real.
+- **Sem duplicar**: em FAR, quem a rede desenha individualmente (AOI de 60 m, `forEachRemotePos`) é DESCONTADO da
+  sua célula; em FAR/AGGREGATE os pedestres e a concentração locais param (o ambiente vem das células); em NEAR/MID
+  não há células e o `RallyCrowd` volta. Transição: impostores crescem/encolhem em 0,5 s.
+- Minimapa: no alto, o calor sai das células já recebidas (pontos dos impostores + remotos), sem pedir amostra ao
+  `CrowdDirector` (sem amostragem dupla). Rótulo do espectador: "avenida inteira · N jogadores + M ambiente".
+
+### Medido (`tools/qa/spectator_aerial_mp.mjs`, 500 bots da Central à Candelária, 2 navegadores) — 17/17
+| | espectador no chão (Central, NEAR) | espectador no alto (AGGREGATE) |
+|---|---|---|
+| recebido | **8,6 KB/s** (48 detalhados + multidão) | **1,1 KB/s** (células + batimentos) |
+| FPS (M-series, preset baixo, 1280×720) | 59,6 | **60** |
+| draw calls | ~1 400 | ~480 |
+| entidades da rede | 48 | 0 (916 impostores: 500 jogadores + 416 ambiente) |
+
+Os dois espectadores recebem células com a **mesma assinatura** (contagens, grupos, atividades, seeds); FAR sobre a
+Central, Campo de Santana e Candelária manda só ~30 células; descer na Candelária volta a NEAR com 48 entidades e 0
+impostores. Resultado completo: `docs/bench/round8_1_spectator_aerial.json`; capturas A–H em
+`docs/screenshots/round8_1/`.
 
 ## Câmeras (`src/spectator/SpectatorCamera.ts`, `anchors.ts`)
 | tecla | câmera | origem |
@@ -71,9 +153,18 @@ No servidor de desenvolvimento do Vite (módulos soltos, cache quente): ~3,3 s.
 - `tools/qa/spectator_mp.mjs` — A jogador + B, C espectadores (navegadores reais): dança, direção, mensagens forjadas,
   troca para a Candelária (a AOI acompanha) e volta, câmera aérea, métricas, tempo até assistir.
 - Capturas: `screenshots/round8/B_modo_espectador.png`, `screenshots/round8/C_camera_aerea.png`.
+- Rodada 8.1: `tests/crowdCells.test.ts` (histerese, agregador determinístico e independente de ordem, jogadores ×
+  ambiente, grupos/atividades, codificação, delta/full/removidas, teto com 500 jogadores);
+  `tests/spectatorAerialServer.test.ts` (servidor real + 500 bots: no alto só células — 0 entidades —, dois
+  espectadores com as mesmas células, teto de bytes/s, descida → NEAR com entidades, FAR só perto do foco; jogador
+  nunca recebe `spec_cells` e mantém o AOI); `tools/qa/spectator_aerial_mp.mjs` (navegadores reais, capturas A–H).
 
 ## Limitações
-- A área de interesse do espectador tem o mesmo raio dos jogadores (220 m): na câmera aérea, quem está além disso
-  não aparece (nem como multidão). Um raio maior só para a aérea custa banda; fica para quando houver medição.
+- (Resolvido na 8.1) No alto a avenida inteira chega como células agregadas; o AOI de entidades encolhe por camada.
+- Dentro de uma célula a posição de cada pessoa é ilustrativa (lugar sorteado pela seed): a contagem, os grupos e a
+  densidade são reais, a posição exata não. O ambiente é uma ESTIMATIVA pelos dados do evento (os pedestres de cada
+  cliente continuam locais).
+- A oclusão da câmera por prédios pode puxar a câmera para baixo (e a camada desce junto) quando o foco cai dentro de
+  um quarteirão (ex.: o ponto do eixo na Candelária, t = 0,954).
 - O espectador não escolhe seguir um jogador específico (só o trio); a interface de "seguir" é da rodada 9.
 - A multidão ambiental (NPCs) é local de cada cliente (como para os jogadores).

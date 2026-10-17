@@ -12,7 +12,7 @@ import type { WorldManifest } from './types';
 import type { CollisionWorld } from '../physics/CollisionWorld';
 import type { EventDef } from '../events/types';
 import { DESIGNS, DESIGN_BY_ID, DESIGN_BY_KEY } from '../social/designs';
-import { rallyPoints, RALLY_DEFAULT_WEIGHTS } from '../social/rally';
+import { rallyPoints, RALLY_DEFAULT_WEIGHTS, RALLY_SHAPE } from '../social/rally';
 import { applyDesign, buildCampaignTruck, buildScreenStand, buildStage, screenMeshes, setEventNight } from '../vehicles/eventModels';
 import { screenFeed, type ScreenSlide } from '../events/screenFeed';
 
@@ -52,10 +52,12 @@ export class EventScenery {
       // pontos de concentração: o palco atrai muito; caminhões de campanha, pouco (cenário)
       if (sp.kind === 'stage') {
         // concentração NA FRENTE do palco (o palco olha para +z local)
-        const front = { x: sp.x + Math.sin(sp.heading) * 9, z: sp.z + Math.cos(sp.heading) * 9 };
-        rallyPoints.upsert({ id: `stage_${sp.id}`, kind: 'stage', x: front.x, z: front.z, inner: 3, radius: 20, strength: 0.9, actionWeights: RALLY_DEFAULT_WEIGHTS.stage, faceCenter: false });
+        const S = RALLY_SHAPE.stage;
+        const front = { x: sp.x + Math.sin(sp.heading) * S.front, z: sp.z + Math.cos(sp.heading) * S.front };
+        rallyPoints.upsert({ id: `stage_${sp.id}`, kind: S.kind, x: front.x, z: front.z, inner: S.inner, radius: S.radius, strength: S.strength, actionWeights: RALLY_DEFAULT_WEIGHTS.stage, faceCenter: false });
       } else if (sp.kind === 'truck') {
-        rallyPoints.upsert({ id: `truck_${sp.id}`, kind: 'event', x: sp.x, z: sp.z, inner: 5.5, radius: 11, strength: 0.35, actionWeights: RALLY_DEFAULT_WEIGHTS.event });
+        const T = RALLY_SHAPE.truck;
+        rallyPoints.upsert({ id: `truck_${sp.id}`, kind: T.kind, x: sp.x, z: sp.z, inner: T.inner, radius: T.radius, strength: T.strength, actionWeights: RALLY_DEFAULT_WEIGHTS.event });
       }
     }
     this.applyEvent(null);

@@ -9,6 +9,7 @@ import { WallGrid, decodeSegments } from '../../src/physics/walls.ts';
 import type { WorldManifest } from '../../src/world/types.ts';
 import type { EventDef } from '../../src/events/types.ts';
 import { registerCampaigns } from '../../src/social/designs.ts';
+import type { ZoneDefinition } from '../../src/world/zones.ts';
 import { parseSurfaceFile, solidRing, type GraffitiSurface } from '../../src/graffiti/surfaces.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -21,6 +22,8 @@ export interface ServerWorld {
   defaultEvent: string;
   /** superfícies autorizadas de grafite (mesmo arquivo do cliente) */
   graffitiSurfaces: GraffitiSurface[];
+  /** zonas da avenida (public/world/zones.json) — estimativa de ambiente das células do espectador aéreo */
+  zones: ZoneDefinition[];
 }
 
 export function loadWorld(): ServerWorld {
@@ -46,5 +49,7 @@ export function loadWorld(): ServerWorld {
   for (const b of gf.solids) walls.addPolygon(solidRing(b), 0, b.height);
   console.log(`[world] ${gf.surfaces.length} superfícies de grafite, ${gf.solids.length} tapumes`);
   console.log(`[world] ${walls.segmentCount} paredes, ${manifest.vehicleSpawns?.length ?? 0} veículos, ${events.size} eventos (${Date.now() - t0} ms)`);
-  return { manifest, walls, events, defaultEvent: idx.default, graffitiSurfaces: gf.surfaces };
+  const zf = `${PUBLIC}/world/zones.json`;
+  const zones = existsSync(zf) ? ((JSON.parse(readFileSync(zf, 'utf8')) as { zones?: ZoneDefinition[] }).zones ?? []) : [];
+  return { manifest, walls, events, defaultEvent: idx.default, graffitiSurfaces: gf.surfaces, zones };
 }

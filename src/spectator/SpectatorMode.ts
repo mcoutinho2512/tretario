@@ -48,12 +48,23 @@ export class SpectatorMode {
     return new SpectatorMode(cam, o.canvas, o.input);
   }
 
+  private camLabel = 'assistindo ao vivo';
+  private layer = '';
+
   select(m: SpecCamMode) {
     this.cam.setMode(m);
     this.switcher.setActive(m);
-    const label = SPEC_CAMS.find((c) => c.id === m)?.label.toLowerCase() ?? 'assistindo ao vivo';
-    this.badge.set(label);
-    this.onLabel?.(`MODO ESPECTADOR · ${label}`);
+    this.camLabel = SPEC_CAMS.find((c) => c.id === m)?.label.toLowerCase() ?? 'assistindo ao vivo';
+    this.emitLabel();
+  }
+
+  /** camada de representação (rodada 8.1, decidida pelo servidor): "avenida inteira · N jogadores + M ambiente" */
+  setLayer(text: string) { if (text !== this.layer) { this.layer = text; this.emitLabel(); } }
+
+  private emitLabel() {
+    const sub = this.layer ? `${this.camLabel} · ${this.layer}` : this.camLabel;
+    this.badge.set(sub);
+    this.onLabel?.(`MODO ESPECTADOR · ${sub}`);
   }
 
   /** monta sozinho no HUD: selo + seletor flutuante (embaixo, ao centro) */

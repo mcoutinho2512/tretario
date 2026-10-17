@@ -4,11 +4,15 @@
  * área de interesse (StateView: jogadores/veículos próximos + multidão "crowd" + grafites) centrada na posição da
  * CÂMERA, que o cliente manda em baixa frequência (`spec_cam {x, z}`), presa aos limites do mapa e com taxa limitada.
  * Toda mensagem de jogo continua bloqueada por capacidade (PresidenteVargasRoom.gate) — o espectador não tem nenhuma.
+ * Rodada 8.1: `spec_cam {x, z, alt}` — a ALTITUDE escolhe a camada (src/spectator/tiers.ts, com histerese): raio do
+ * AOI de entidades por camada e, em FAR/AGGREGATE, células agregadas (`spec_cells`, CellFeed) em vez de pessoas.
  */
 import type { Client } from '@colyseus/core';
 import { StateView } from '@colyseus/schema';
 import { makeSlotView, type SlotView } from '../../../src/net/spatialGrid';
-import { SPECTATOR, clampToBounds, rateOk, sanitizeSpecCam, type Bounds } from '../../../src/spectator/bounds';
+import { SPECTATOR, clampToBounds, rateOk, sanitizeSpecAlt, sanitizeSpecCam, type Bounds } from '../../../src/spectator/bounds';
+import { SPEC_TIER_AOI, tierForAltitude, type SpecTier } from '../../../src/spectator/tiers';
+import { CellFeed } from './CrowdCellAggregator';
 
 export interface SpectatorSession {
   sid: string;
@@ -19,6 +23,11 @@ export interface SpectatorSession {
   /** centro da área de interesse (câmera), já preso aos limites */
   cam: { x: number; z: number };
   camAt: number;
+  /** altitude da câmera acima do foco (m), presa; camada atual (histerese) */
+  alt: number;
+  tier: SpecTier;
+  /** entrega de células agregadas (FAR/AGGREGATE) */
+  feed: CellFeed;
   inView: SlotView;
   vehInView: Set<string>;
   overflow: number[];
@@ -38,9 +47,13 @@ export class SpectatorSessions {
   get(sid: string) { return this.map.get(sid); }
   values() { return this.map.values(); }
 
-  add(client: Client, slot: number, start: { x: number; z: number }, aoiCap: number): SpectatorSession {
+  add(client: Client, slot: number, start: { x: number; z: number; alt?: unknown }, aoiCap: number): SpectatorSession {
+    const alt = sanitizeSpecAlt(start);
+    const tier = tierForAltitude(alt, 'NEAR');
+    const feed = new CellFeed();
+    feed.setTier(tier);
     const s: SpectatorSession = {
-      sid: client.sessionId, client, view: new StateView(), slot, cam: clampToBounds(start.x, start.z, this.bounds), camAt: -Infinity,
+      sid: client.sessionId, client, view: new StateView(), slot, cam: clampToBounds(start.x, start.z, this.bounds), camAt: -Infinity, alt, tier, feed,
       inView: makeSlotView(), vehInView: new Set(), overflow: [], crowdKnown: new Set(), aoiCap, dropped: 0,
     };
     this.map.set(s.sid, s);
@@ -61,6 +74,14 @@ export class SpectatorSessions {
     const c = sanitizeSpecCam(raw, this.bounds);
     if (!c) { s.dropped++; return 'invalid'; }
     s.cam = c; s.camAt = now;
+    s.alt = sanitizeSpecAlt(raw);
+    s.tier = tierForAltitude(s.alt, s.tier);
+    s.feed.setTier(s.tier);
     return 'ok';
+  }
+
+  /** raio do AOI de entidades do espectador (m) — nunca maior que o do jogador */
+  static aoiRadius(s: Pick<SpectatorSession, 'tier'>, playerRadius: number): number {
+    return Math.min(playerRadius, SPEC_TIER_AOI[s.tier]);
   }
 }

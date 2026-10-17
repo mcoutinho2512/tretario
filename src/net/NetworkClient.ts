@@ -12,6 +12,7 @@
  *                entram no orçamento do CrowdDirector: só os mais próximos ganham esqueleto (pool por corpo); o resto
  *                é desenhado instanciado. Ver docs/CROWDS.md
  *  espectador    (rodada 8) entra com role 'spectator': sem corpo, só manda a câmera (`spec_cam`, 2 Hz) — docs/SPECTATOR.md
+ *                (rodada 8.1) com altitude: no alto o servidor manda células agregadas (`spec_cells`, binário, 1 Hz)
  *  reconexão     (rodada 8) queda → RECONECTANDO (token do Colyseus, exponencial + jitter) → mesma entidade; graça
  *                vencida → entra de novo (ticket novo se autenticado); sessão substituída → para (src/net/reconnect.ts)
  */
@@ -38,6 +39,8 @@ import { RateGate } from '../ui/hud/throttle';
 import type { IdentityJoinOptions, WorldRole } from '../identity/types';
 import { LinkMachine, RECONNECT, backoffDelay, retriesForGrace, type LinkEvent, type LinkState } from './reconnect';
 import { SPECTATOR } from '../spectator/bounds';
+import { decodeCells, cellKey } from '../spectator/cellCodec';
+import type { CrowdCellSnapshot, SpecTier } from '../spectator/tiers';
 
 const BODY_LIST = ['homem', 'mulher', 'idoso', 'idosa'] as const;
 const bodyIndex = (b: string) => Math.max(0, BODY_LIST.indexOf(b as (typeof BODY_LIST)[number]));
@@ -74,8 +77,8 @@ export interface ResumeMsg { x: number; y: number; z: number; heading: number; v
 export interface ConnectOptions {
   /** papel pedido (o servidor decide; visitante sempre assiste) */
   role?: WorldRole;
-  /** espectador: posição inicial da câmera */
-  specCam?: { x: number; z: number };
+  /** espectador: posição inicial da câmera (e altitude acima do foco, m) */
+  specCam?: { x: number; z: number; alt?: number };
   /** SÓ servidor de teste: conta fictícia (QA de login duplicado) */
   testUser?: string;
 }
@@ -189,8 +192,15 @@ export class NetworkClient {
   reconnects = 0;
   rejoins = 0;
   /** espectador: foco da câmera (o jogo atualiza a cada quadro; vai ao servidor como spec_cam em baixa frequência) */
-  spectatorFocus: { x: number; z: number } | null = null;
-  private specSent = { x: Infinity, z: Infinity, t: 0, acc: 0 };
+  spectatorFocus: { x: number; z: number; alt?: number } | null = null;
+  private specSent = { x: Infinity, z: Infinity, alt: 0, t: 0, acc: 0 };
+  /** espectador aéreo (rodada 8.1): camada decidida pelo SERVIDOR e células agregadas recebidas (chave → snapshot) */
+  specTier: SpecTier = 'NEAR';
+  readonly specCells = new Map<number, CrowdCellSnapshot>();
+  /** muda a cada spec_cells aplicada (o desenho/minimapa só refazem quando muda) */
+  specCellsVersion = 0;
+  /** QA: mensagens/bytes de spec_cells e quando chegou a última */
+  specCellStats = { msgs: 0, bytes: 0, fulls: 0, at: 0 };
   private specPingAt = 0;
   private joinArgs: { app: CharacterAppearance; name: string; testSpawn?: { x: number; z: number }; o: IdentityJoinOptions & ConnectOptions } | null = null;
   private leaving = false;
@@ -237,7 +247,7 @@ export class NetworkClient {
     o.ticket = undefined;
     const spec = o.role === 'spectator' ? (this.spectatorFocus ?? o.specCam) : undefined;
     const opts: JoinOptions = { name, body: app.body, skin: app.skin, hair: app.hair, top: app.top, bottom: app.bottom, shoes: app.shoes, accessory: app.accessory ?? 'nenhum', acc: app.acc ?? 0x222222, topStyle: app.topStyle, bottomStyle: app.bottomStyle, shoeStyle: app.shoeStyle, hairStyle: app.hairStyle, shirtDesign: app.shirtDesign ?? 0, cid: anonymousClientId(), ...(testSpawn ? { testSpawn } : {}), ...testGroupOpt(), ...(this.crowd ? { aoiMax: Math.max(16, Math.min(64, this.crowd.budget.skinned * 2)) } : {}),
-      ...(o.role ? { role: o.role } : {}), ...(ticket ? { ticket } : {}), ...(spec ? { specCam: { x: spec.x, z: spec.z } } : {}), ...(o.testUser ? { testUser: o.testUser } : {}) };
+      ...(o.role ? { role: o.role } : {}), ...(ticket ? { ticket } : {}), ...(spec ? { specCam: { x: spec.x, z: spec.z, ...(spec.alt !== undefined ? { alt: Math.round(spec.alt) } : {}) } } : {}), ...(o.testUser ? { testUser: o.testUser } : {}) };
     const room = await client.joinOrCreate(ROOM_NAME, opts);
     this.bind(room);
   }
@@ -254,6 +264,8 @@ export class NetworkClient {
       this.room = room;
       this.sessionId = room.sessionId;
       this.status = 'online';
+      // entrada nova: células do espectador aéreo recomeçam (o servidor manda `full`)
+      this.specCells.clear(); this.specTier = 'NEAR'; this.specCellsVersion++;
       // reconexão automática do SDK com o token da sessão: exponencial + jitter, tentando durante toda a graça
       const rc = room.reconnection;
       rc.backoff = (attempt: number) => backoffDelay(attempt);
@@ -298,6 +310,7 @@ export class NetworkClient {
       room.onMessage('action', (a: { by: string; type: string }) => { const r = this.remotes.get(a.by); r?.visual?.playPush(); });
       room.onMessage('knock', (k: KnockMsg) => this.handleKnock(k));
       room.onMessage('crowd', (b: Uint8Array | ArrayBuffer) => this.onCrowd(b instanceof Uint8Array ? b : new Uint8Array(b)));
+      room.onMessage('spec_cells', (b: Uint8Array | ArrayBuffer) => this.onSpecCells(b instanceof Uint8Array ? b : new Uint8Array(b)));
       room.onLeave((code: number) => this.onRoomLeft(room, code));
       const cb = Callbacks.get(room as any) as any;
       cb.listen('eventId', (id: string) => { if (id) this.onEvent?.(id); });
@@ -483,6 +496,25 @@ export class NetworkClient {
     // pool pequeno por corpo: o suficiente para trocas na borda do orçamento sem recriar personagens
     const keep = Math.ceil((this.crowd?.budget.skinned ?? 8) / 3) + 2;
     if (list.length < keep) list.push(v); else v.dispose();
+  }
+
+  /** espectador aéreo: `full` apaga e aplica; delta aplica alteradas e tira removidas (src/spectator/cellCodec.ts) */
+  private onSpecCells(buf: Uint8Array) {
+    const m = decodeCells(buf);
+    if (!m) return;
+    const st = this.specCellStats;
+    st.msgs++; st.bytes += buf.byteLength; st.at = performance.now();
+    if (m.full) { this.specCells.clear(); st.fulls++; }
+    this.specTier = m.tier;
+    for (const [cx, cz] of m.removed ?? []) this.specCells.delete(cellKey(cx, cz));
+    for (const c of m.cells) this.specCells.set(cellKey(c.cx, c.cz), c);
+    this.specCellsVersion++;
+  }
+
+  /** posições (x, z) de todos os remotos desenhados individualmente (detalhados + multidão distante) */
+  forEachRemotePos(fn: (x: number, z: number) => void) {
+    for (const r of this.remotes.values()) if (r.buf.length) fn(r.state.x, r.state.z);
+    for (const f of this.far.values()) fn(f.agent.x, f.agent.z);
   }
 
   /** multidão distante: posições compactas (2 Hz) → agentes instanciados interpolados */
@@ -673,9 +705,11 @@ export class NetworkClient {
     const f = this.spectatorFocus, s = this.specSent;
     s.acc += dt;
     if (!f || s.acc < 1 / SPECTATOR.sendHz) return;
-    if (Math.hypot(f.x - s.x, f.z - s.z) < SPECTATOR.sendMinMoveM && now - s.t < SPECTATOR.keepAliveMs) return;
-    s.acc = 0; s.x = f.x; s.z = f.z; s.t = now;
-    this.room?.send('spec_cam', { x: Math.round(f.x * 10) / 10, z: Math.round(f.z * 10) / 10 });
+    const alt = f.alt ?? 0;
+    if (Math.hypot(f.x - s.x, f.z - s.z) < SPECTATOR.sendMinMoveM && Math.abs(alt - s.alt) < SPECTATOR.sendMinAltM && now - s.t < SPECTATOR.keepAliveMs) return;
+    s.acc = 0; s.x = f.x; s.z = f.z; s.alt = alt; s.t = now;
+    // altitude decide a camada no servidor (src/spectator/tiers.ts) — inteira basta
+    this.room?.send('spec_cam', { x: Math.round(f.x * 10) / 10, z: Math.round(f.z * 10) / 10, alt: Math.round(alt) });
   }
 
   // ---------------------------------------------------------------- apelidos (LOD — src/net/nameLod.ts)
