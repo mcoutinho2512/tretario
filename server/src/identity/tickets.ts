@@ -13,7 +13,7 @@ export class TicketService {
   private tickets = new Map<string, TicketPayload & { exp: number }>();
 
   issue(p: TicketPayload, now = Date.now()): string {
-    this.sweep(now);
+    if (this.tickets.size >= 1000) this.sweep(now);
     const t = randomBytes(24).toString('base64url');
     this.tickets.set(t, { ...p, exp: now + TTL_MS });
     return t;
@@ -28,8 +28,12 @@ export class TicketService {
     return { userId: p.userId, authSessionId: p.authSessionId, role: p.role };
   }
 
-  private sweep(now: number) {
-    if (this.tickets.size < 1000) return;
-    for (const [k, v] of this.tickets) if (v.exp < now) this.tickets.delete(k);
+  /** remove os vencidos (nunca consumidos) — CleanupService periódico; `issue` também chama acima de 1000. Devolve quantos */
+  sweep(now = Date.now()): number {
+    let n = 0;
+    for (const [k, v] of this.tickets) if (v.exp < now) { this.tickets.delete(k); n++; }
+    return n;
   }
+
+  get size() { return this.tickets.size; }
 }

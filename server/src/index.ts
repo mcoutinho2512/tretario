@@ -5,6 +5,7 @@
  * Variáveis: PORT (2567) · HOST (127.0.0.1) · COLYSEUS_LATENCY (RTT simulado, ms) · PV_JITTER (ms) · PV_LOSS (0–1)
  *            PV_METRICS=1 (log a cada 5 s) · PV_EVENT · PV_SEED · PV_AOI (m) · PV_VEH_RESET_MS (retorno à vaga)
  *            rodada 8: DATABASE_URL (PostgreSQL local, server/.env) · PV_STORE=memory · PV_ALLOW_ANON_PLAYERS=1 · API em PORT+1 (/api/*)
+ *            limpeza: CLEANUP_INTERVAL_MINUTES (0 desliga) · CLEANUP_SESSION_GRACE_MINUTES · CLEANUP_CODE_GRACE_MINUTES · CLEANUP_BATCH (docs/DATABASE.md)
  *            grafite: PV_GRAFFITI_FILE · PV_GRAFFITI_STORE=memory · PV_GRAFFITI_TTL_MS · PV_GRAFFITI_REPORTS · PV_ADMIN_TOKEN (docs/GRAFFITI.md)
  */
 import './env.ts'; // PRIMEIRO: server/.env antes de qualquer módulo ler process.env
@@ -20,6 +21,9 @@ import './data/prisma.ts'; // registra o PrismaDataStore (usado quando DATABASE_
 import { seedEvents } from './events/seed.ts';
 import { router } from './http/router.ts';
 import './http/routes.ts'; // registra as rotas da API (/api/*)
+import { CleanupService } from './cleanup/CleanupService.ts';
+import { sweepAuthLimits } from './auth/routes.ts';
+import { sweepProfileLimits } from './http/profile.ts';
 
 const port = Number(process.env.PORT ?? 2567);
 const host = process.env.HOST ?? '127.0.0.1';
@@ -34,6 +38,15 @@ const server = new Server({ transport: new WebSocketTransport() });
 server.define(ROOM_NAME, PresidenteVargasRoom);
 await server.listen(port, host);
 console.log(`[pv3d-server] ws://${host}:${port} · sala "${ROOM_NAME}" (desenvolvimento)`);
+// limpeza de efêmeros vencidos (sessões, códigos, tickets, limites): primeira passada alguns segundos depois, sem
+// bloquear a subida; timers com unref; para no encerramento gracioso do Colyseus (SIGINT/SIGTERM)
+const cleanup = new CleanupService(svc.store, {
+  sweepers: [
+    { kind: 'tickets', sweep: (now) => svc.tickets.sweep(now) },
+    { kind: 'rateLimit', sweep: (now) => sweepAuthLimits(now) + sweepProfileLimits(now) },
+  ],
+}).start();
+server.onShutdown(() => cleanup.stop());
 if (process.env.COLYSEUS_LATENCY) console.log(`[pv3d-server] latência simulada (RTT): ${process.env.COLYSEUS_LATENCY} ms`);
 if (process.env.PV_JITTER || process.env.PV_LOSS) console.log(`[pv3d-server] jitter ${process.env.PV_JITTER ?? 0} ms · perda ${process.env.PV_LOSS ?? 0}`);
 
