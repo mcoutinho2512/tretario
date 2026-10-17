@@ -1,10 +1,10 @@
 /* espectador (rodada 8): seletor de câmeras e selo — discretos, embaixo ao centro */
 .spec-cams { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; max-width: calc(100% - 28px); pointer-events: auto; z-index: 20; }
-.spec-cam { display: inline-flex; align-items: center; gap: 6px; padding: 7px 11px; border-radius: 16px; border: 1px solid rgba(255, 255, 255, 0.22); background: rgba(14, 18, 24, 0.72); color: #eef1f4; font: 700 11px/1 system-ui, sans-serif; letter-spacing: 0.04em; cursor: pointer; backdrop-filter: blur(4px); }
-.spec-cam:hover { background: rgba(40, 70, 110, 0.85); }
-.spec-cam[aria-pressed='true'] { background: #f2c230; border-color: #f2c230; color: #1a1a1a; }
-.spec-cam kbd { font: 700 10px/1 ui-monospace, monospace; padding: 2px 4px; border-radius: 4px; background: rgba(255, 255, 255, 0.14); }
-.spec-cam[aria-pressed='true'] kbd { background: rgba(0, 0, 0, 0.14); }
+.spec-cams .spec-cam { display: inline-flex; align-items: center; gap: 6px; padding: 7px 11px; border-radius: 16px; border: 1px solid rgba(255, 255, 255, 0.22); background: rgba(14, 18, 24, 0.72); color: #eef1f4; font: 700 11px/1 system-ui, sans-serif; letter-spacing: 0.04em; cursor: pointer; backdrop-filter: blur(4px); }
+.spec-cams .spec-cam:hover { background: rgba(40, 70, 110, 0.85); }
+.spec-cams .spec-cam[aria-pressed='true'] { background: #f2c230; border-color: #f2c230; color: #1a1a1a; }
+.spec-cams .spec-cam kbd { font: 700 10px/1 ui-monospace, monospace; padding: 2px 4px; border-radius: 4px; background: rgba(255, 255, 255, 0.14); }
+.spec-cams .spec-cam[aria-pressed='true'] kbd { background: rgba(0, 0, 0, 0.14); }
 .spec-badge { position: absolute; left: 14px; top: 46px; display: flex; gap: 8px; align-items: baseline; padding: 5px 12px; border-radius: 14px; background: rgba(14, 18, 24, 0.62); color: #f3f1ea; font: 12px/1.2 system-ui, sans-serif; pointer-events: none; }
 .spec-badge b { color: #f2c230; letter-spacing: 0.06em; font-size: 11px; }
 .spec-badge span { opacity: 0.8; }
@@ -18,8 +18,8 @@
 .net-link.bad { color: #ffb3a8; }
 .name-label.away { opacity: 0.55; font-style: italic; }
 @media (max-width: 640px) {
-  .spec-cam { padding: 6px 8px; font-size: 10px; }
-  .spec-cam kbd { display: none; }
+  .spec-cams .spec-cam { padding: 6px 8px; font-size: 10px; }
+  .spec-cams .spec-cam kbd { display: none; }
   .spec-cams.floating { bottom: 150px; }
   .spec-badge { top: 40px; }
 }
