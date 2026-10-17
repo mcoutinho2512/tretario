@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "Servidor multiplayer de DESENVOLVIMENTO (Colyseus). N\u00e3o fazer deploy sem autoriza\u00e7\u00e3o.",
+  "description": "Servidor multiplayer de DESENVOLVIMENTO (Colyseus). Não fazer deploy sem autorização.",
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "start": "tsx src/index.ts",
@@ -12,7 +12,9 @@
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
     "db:generate": "prisma generate",
-    "prepare": "prisma generate"
+    "prepare": "prisma generate",
+    "test:db": "tsx tools/test-db.ts",
+    "admin": "tsx tools/admin.ts"
   },
   "devDependencies": {
     "@colyseus/sdk": "^0.18.4",

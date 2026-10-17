@@ -1,0 +1,54 @@
+/**
+ * E-mail transacional (rodada 8) atrás de uma INTERFACE. Nesta rodada só existe o provedor de DESENVOLVIMENTO:
+ * escreve o código no console do servidor e guarda uma caixa de saída em memória que os testes automatizados leem
+ * (GET /api/dev/outbox, só com NODE_ENV != production e PV_DEV_MAIL=1). Um SMTP real entra depois como outra
+ * implementação de MailProvider — nenhum outro arquivo muda. Sem serviço externo.
+ */
+
+export type MailKind = 'EMAIL_VERIFY' | 'PASSWORD_RESET';
+
+export interface MailMessage {
+  to: string;
+  kind: MailKind;
+  /** código de uso único (só vai no e-mail; o banco guarda o hash) */
+  code: string;
+  subject: string;
+  text: string;
+}
+
+export interface MailProvider {
+  readonly name: string;
+  send(m: MailMessage): Promise<void>;
+}
+
+export function isProduction(): boolean { return process.env.NODE_ENV === 'production'; }
+
+/** caixa de saída de DEV legível por HTTP (testes de QA) */
+export function devOutboxEnabled(): boolean { return !isProduction() && process.env.PV_DEV_MAIL === '1'; }
+
+export class DevelopmentMailProvider implements MailProvider {
+  readonly name = 'dev';
+  private box: (MailMessage & { at: number })[] = [];
+
+  constructor(private log = true) {
+    // nunca em produção: códigos no console seriam um vazamento
+    if (isProduction()) throw new Error('DevelopmentMailProvider recusado em produção — configure um MailProvider real');
+  }
+
+  async send(m: MailMessage) {
+    this.box.push({ ...m, at: Date.now() });
+    if (this.box.length > 200) this.box.splice(0, this.box.length - 200);
+    if (this.log) console.log(`[mail:dev] ${m.kind} para ${m.to}: código ${m.code}`);
+  }
+
+  /** mensagens mais recentes primeiro (filtro por destinatário) */
+  outbox(to?: string): (MailMessage & { at: number })[] {
+    return this.box.filter((m) => !to || m.to === to).reverse();
+  }
+}
+
+export function codeMail(to: string, kind: MailKind, code: string): MailMessage {
+  const subject = kind === 'EMAIL_VERIFY' ? 'Presidente Vargas 3D — confirme seu e-mail' : 'Presidente Vargas 3D — redefinir senha';
+  const what = kind === 'EMAIL_VERIFY' ? 'confirmar seu e-mail' : 'redefinir sua senha';
+  return { to, kind, code, subject, text: `Seu código para ${what}: ${code}\nVale por 15 minutos. Se não foi você, ignore este e-mail.` };
+}
