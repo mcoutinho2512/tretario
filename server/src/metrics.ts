@@ -13,13 +13,13 @@ setInterval(() => metrics.rssPeak(), 1000).unref();
 /** cada consumidor (log interno, GET /metrics) tem a SUA janela — um não zera a do outro */
 interface Win {
   t: number; bytesOut: number; bytesIn: number; msgsOut: number; msgsIn: number; tickMs: number; ticks: number; maxTick: number;
-  patchMs: number; patches: number; maxPatch: number; aoiMs: number; aois: number; maxAoi: number; crowdMs: number; crowds: number;
+  patchMs: number; patches: number; maxPatch: number; aoiMs: number; aois: number; maxAoi: number; crowdMs: number; crowds: number; combatMs: number; combats: number; maxCombat: number; hitMs: number; hits: number; maxHit: number; cbtReq: number; cbtOk: number;
   cpu: NodeJS.CpuUsage; elu: EventLoopUtilization; maxRss: number;
 }
 const windows = new Map<string, Win>();
 const win = (k: string): Win => {
   let w = windows.get(k);
-  if (!w) windows.set(k, (w = { t: Date.now(), bytesOut, bytesIn, msgsOut, msgsIn, tickMs: 0, ticks: 0, maxTick: 0, patchMs: 0, patches: 0, maxPatch: 0, aoiMs: 0, aois: 0, maxAoi: 0, crowdMs: 0, crowds: 0, cpu: process.cpuUsage(), elu: performance.eventLoopUtilization(), maxRss: 0 }));
+  if (!w) windows.set(k, (w = { t: Date.now(), bytesOut, bytesIn, msgsOut, msgsIn, tickMs: 0, ticks: 0, maxTick: 0, patchMs: 0, patches: 0, maxPatch: 0, aoiMs: 0, aois: 0, maxAoi: 0, crowdMs: 0, crowds: 0, combatMs: 0, combats: 0, maxCombat: 0, hitMs: 0, hits: 0, maxHit: 0, cbtReq: 0, cbtOk: 0, cpu: process.cpuUsage(), elu: performance.eventLoopUtilization(), maxRss: 0 }));
   return w;
 };
 
@@ -51,6 +51,11 @@ export const metrics = {
   aoi(ms: number) { for (const w of windows.values()) { w.aoiMs += ms; w.aois++; w.maxAoi = Math.max(w.maxAoi, ms); } },
   /** montagem e envio da multidão distante (já incluído no tick) */
   crowd(ms: number) { for (const w of windows.values()) { w.crowdMs += ms; w.crowds++; } },
+  /** rodada 9: atualização do confronto no tick (janelas ativas/validação de acerto, regeneração, bonecos) */
+  combat(ms: number) { for (const w of windows.values()) { w.combatMs += ms; w.combats++; w.maxCombat = Math.max(w.maxCombat, ms); } },
+  /** validação de UMA janela ativa (candidatos da grade, alcance/arco/parede/política, impacto) */
+  combatHit(ms: number) { for (const w of windows.values()) { w.hitMs += ms; w.hits++; w.maxHit = Math.max(w.maxHit, ms); } },
+  combatReq(ok: boolean) { for (const w of windows.values()) { w.cbtReq++; if (ok) w.cbtOk++; } },
   /** pico de memória residente (amostrado a cada tick de métricas) */
   rssPeak() { const r = process.memoryUsage.rss(); for (const w of windows.values()) w.maxRss = Math.max(w.maxRss, r); },
   join(_id: string) {},
@@ -82,6 +87,12 @@ export const metrics = {
       aoiAvgMs: w.aois ? +(w.aoiMs / w.aois).toFixed(3) : 0,
       aoiMaxMs: +w.maxAoi.toFixed(3),
       crowdAvgMs: w.crowds ? +(w.crowdMs / w.crowds).toFixed(3) : 0,
+      combatAvgMs: w.combats ? +(w.combatMs / w.combats).toFixed(4) : 0,
+      combatMaxMs: +w.maxCombat.toFixed(3),
+      hitValAvgMs: w.hits ? +(w.hitMs / w.hits).toFixed(4) : 0,
+      hitValMaxMs: +w.maxHit.toFixed(3),
+      hitValsPerSec: Math.round(w.hits / dt),
+      cbtReqPerSec: Math.round(w.cbtReq / dt), cbtOkPerSec: Math.round(w.cbtOk / dt),
       /** CPU do processo (user+system) em % de UM núcleo, e utilização do event loop (0–1) */
       cpuPct: +(((cpu.user + cpu.system) / 1000 / (dt * 1000)) * 100).toFixed(1),
       elu: +elu.utilization.toFixed(3),
@@ -90,7 +101,7 @@ export const metrics = {
       rssMB: +(mem.rss / 1e6).toFixed(1),
       corrections, denials, knocks, impacts,
     };
-    Object.assign(w, { t: now, bytesOut, bytesIn, msgsOut, msgsIn, tickMs: 0, ticks: 0, maxTick: 0, patchMs: 0, patches: 0, maxPatch: 0, aoiMs: 0, aois: 0, maxAoi: 0, crowdMs: 0, crowds: 0, cpu: process.cpuUsage(), elu: performance.eventLoopUtilization(), maxRss: 0 });
+    Object.assign(w, { t: now, bytesOut, bytesIn, msgsOut, msgsIn, tickMs: 0, ticks: 0, maxTick: 0, patchMs: 0, patches: 0, maxPatch: 0, aoiMs: 0, aois: 0, maxAoi: 0, crowdMs: 0, crowds: 0, combatMs: 0, combats: 0, maxCombat: 0, hitMs: 0, hits: 0, maxHit: 0, cbtReq: 0, cbtOk: 0, cpu: process.cpuUsage(), elu: performance.eventLoopUtilization(), maxRss: 0 });
     return snapshot;
   },
   get last() { return snapshot; },

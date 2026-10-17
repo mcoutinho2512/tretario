@@ -11,6 +11,8 @@ import type { EventDef } from '../../src/events/types.ts';
 import { registerCampaigns } from '../../src/social/designs.ts';
 import type { ZoneDefinition } from '../../src/world/zones.ts';
 import { parseSurfaceFile, solidRing, type GraffitiSurface } from '../../src/graffiti/surfaces.ts';
+import { parseCombatData } from '../../src/combat/data.ts';
+import type { CombatData } from '../../src/combat/types.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const PUBLIC = resolve(here, '../../public');
@@ -24,6 +26,8 @@ export interface ServerWorld {
   graffitiSurfaces: GraffitiSurface[];
   /** zonas da avenida (public/world/zones.json) — estimativa de ambiente das células do espectador aéreo */
   zones: ZoneDefinition[];
+  /** rodada 9 — tabela de confronto (public/gameplay/combat.json, validada) */
+  combat: CombatData;
 }
 
 export function loadWorld(): ServerWorld {
@@ -51,5 +55,6 @@ export function loadWorld(): ServerWorld {
   console.log(`[world] ${walls.segmentCount} paredes, ${manifest.vehicleSpawns?.length ?? 0} veículos, ${events.size} eventos (${Date.now() - t0} ms)`);
   const zf = `${PUBLIC}/world/zones.json`;
   const zones = existsSync(zf) ? ((JSON.parse(readFileSync(zf, 'utf8')) as { zones?: ZoneDefinition[] }).zones ?? []) : [];
-  return { manifest, walls, events, defaultEvent: idx.default, graffitiSurfaces: gf.surfaces, zones };
+  const combat = parseCombatData(JSON.parse(readFileSync(`${PUBLIC}/gameplay/combat.json`, 'utf8')));
+  return { manifest, walls, events, defaultEvent: idx.default, graffitiSurfaces: gf.surfaces, zones, combat };
 }

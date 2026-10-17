@@ -74,6 +74,10 @@ export interface CombatActionDefinition {
   /** esquiva: duração da invulnerabilidade e deslocamento */
   iFramesMs?: number;
   dashM?: number;
+  /** (rodada 9, aditivo) variante de combo: id da ação BASE que o cliente pede (o servidor troca por esta) */
+  comboOf?: number;
+  /** (aditivo) máximo de alvos por golpe (padrão 1: o mais próximo no arco; spray atinge vários) */
+  maxTargets?: number;
 }
 
 /** item de confronto: o MESMO registro de props (src/social/props.ts), categoria COMBAT_PROP */
@@ -115,7 +119,25 @@ export interface CombatData {
   tuning: CombatTuning;
   actions: CombatActionDefinition[];
   props: CombatPropDefinition[];
+  /** (aditivo) bonecos de treino: alvo do servidor (não é jogador) — cada um com uma área de treino COMBAT */
+  dummies?: CombatDummyDefinition[];
 }
+
+/** boneco de treino (estilizado, não é pessoa): reage (cambaleia/cai/volta) e nunca conta como jogador */
+export interface CombatDummyDefinition {
+  /** id u8 estável */
+  id: number;
+  key: string;
+  x: number; z: number; heading: number;
+  /** raio (m) da área de treino em volta: política COMBAT lá dentro (áreas de paz continuam valendo) */
+  areaR: number;
+  conditionMax: number;
+  /** caído → volta de pé (ms) */
+  resetMs: number;
+}
+
+/** servidor → perto `cbt_dummy`: estado do boneco [id, x, z, heading, st (PHYS), condição 0–100] */
+export type CombatDummyWire = [number, number, number, number, number, number];
 
 /* ── protocolo ─────────────────────────────────────────────────────────────────────────────────────────────────── */
 
@@ -130,6 +152,10 @@ export interface CombatHitEvent {
   r: 'hit' | 'dodged' | 'blocked';
   /** direção do impacto e novo estado físico do alvo */
   dx: number; dz: number; st: PhysState;
+  /** (aditivo) deslocamento aplicado ao alvo (m) — o próprio alvo aplica na predição */
+  kb?: number;
+  /** (aditivo) o alvo é um boneco de treino (tgt = id do boneco) */
+  dummy?: 1;
 }
 /** servidor → só o próprio `cbt_self`: stamina/condição (mudou, ≤ 5 Hz) */
 export interface CombatSelf { st: number; cd: number; fx: number }
@@ -140,3 +166,5 @@ export interface CombatDenied { a: number; reason: CombatDenial }
 /** cliente → servidor `jump {seq}`; servidor valida (no chão, cooldown, estado, veículo) e responde só se negar */
 export interface JumpRequest { seq: number }
 export type JumpDenial = 'no_ar' | 'cooldown' | 'estado' | 'veiculo';
+/** servidor → próprio `jump_denied` */
+export interface JumpDenied { seq: number; reason: JumpDenial }
