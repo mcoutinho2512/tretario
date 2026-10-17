@@ -12,8 +12,12 @@
  *                 PROXIMIDADE  jogadores a ≤ CHAT_RULES.proximityRadius da posição AUTORITATIVA do autor no envio,
  *                              pela grade espacial da sala (nada de laço global); espectadores não recebem
  *                 GRUPO        conexões com o mesmo identity.groupKey (índice por grupo); sem grupo → 'sem_grupo'
- *  mutar        por apelido (chave normalizada): o servidor nem envia ao cliente que mutou; persistido por conta em
- *               preferences.chatMuted (quando há conta)
+ *  mutar        por IDENTIDADE (rodada 8.1), nunca por apelido: o alvo é resolvido AQUI — id de mensagem que o pedinte
+ *               recebeu (cópia de 15 min), nid de entidade no mundo, ou `ref` da própria lista — para a chave de autor
+ *               (`u:<userId>`; sem conta, `s:<conexão>`). O cliente nunca manda userId. Com conta: MuteRelationship no
+ *               DataStore (carregada na entrada, compartilhada entre as conexões da mesma conta); sem conta: só nesta
+ *               conexão. Filtro no servidor em GERAL, PROXIMIDADE, GRUPO e no histórico da entrada. `ref` = HMAC
+ *               opaco do par (dono, alvo) com o segredo do servidor
  *  denúncia     cópia da mensagem guardada no servidor (anel de memória, 15 min) vira evidência do Report no DataStore;
  *               ids de conta nunca vão a clientes
  * Nada disso roda por tick: custo só por mensagem.
@@ -23,7 +27,9 @@ import { CHAT_CHANNELS, CHAT_RULES, REPORT_CATEGORIES, floodCheck, newFloodState
 import { textModeration } from '../../../src/moderation/text';
 import { can } from '../../../src/access/policy';
 import type { PlayerIdentity } from '../../../src/identity/types';
+import { CHAT_MUTE_MAX, type ChatMuteEntry, type ChatMuteRejection } from '../../../src/chat/protocol';
 import type { DataStore } from '../data/types';
+import { createHmac } from 'node:crypto';
 
 export interface ChatOut { send(type: string, msg: unknown): void }
 
@@ -37,17 +43,24 @@ export interface ChatRoomHooks {
   near(x: number, z: number, r: number, fn: (sid: string) => void): void;
   /** envia a TODAS as conexões da sala, exceto `except` (codifica uma vez) */
   broadcast(type: string, msg: unknown, except: string[]): void;
+  /** entidade no mundo pelo nid → conexão + conta (mutar por nome/entidade); undefined = não existe */
+  identityOfNid?(nid: number): { sid: string; userId: string | null; nickname: string } | undefined;
 }
 
 export type ChatIdentity = Pick<PlayerIdentity, 'userId' | 'nickname' | 'state' | 'role' | 'groupKey'> & { test?: boolean };
+
+/** item mutado: chave de autor (`u:`/`s:`), ref opaco, apelido no momento (só exibição) */
+interface MuteItem { key: string; ref: string; nick: string; since: number }
+/** lista de um DONO (conta ou conexão) — compartilhada pelas conexões da mesma conta */
+interface MuteSet { byKey: Map<string, MuteItem>; byRef: Map<string, string>; ready: boolean; peers: number; io: Promise<unknown>; times: number[] }
 
 interface Peer {
   sid: string; ident: ChatIdentity; out: ChatOut;
   /** chave de autor (anti-flood, mutar, denúncia): conta ou conexão */
   key: string;
-  nickKey: string;
-  /** chaves de apelido mutadas por esta conexão */
-  muted: Set<string>;
+  mutes: MuteSet;
+  /** mutes da conta ainda carregando: chat_hello adiado e PROXIMIDADE/GRUPO guardados aqui (null = pronto) */
+  pending: { wire: ChatMessage; authorKey: string }[] | null;
 }
 
 /** cópia INTERNA da mensagem (evidência de denúncia) — nunca enviada a clientes */
@@ -60,20 +73,23 @@ interface Kept {
 }
 
 export interface ChatServiceOptions {
-  store?: Pick<DataStore, 'reports' | 'profiles'> | null;
+  store?: Pick<DataStore, 'reports' | 'mutes'> | null;
   eventId?: string;
   /** máximo de mensagens GERAL por segundo na sala inteira (teto de leitura) */
   generalPerSec?: number;
   /** tempo que a cópia da mensagem fica disponível para denúncia (ms) */
   keepMs?: number;
   log?: (m: string) => void;
+  /** segredo do servidor para o `ref` opaco do mute (padrão: PV_SESSION_SECRET) */
+  secret?: string;
 }
 
 export const CHAT_SERVER = {
   generalPerSec: 8,
   keepMs: 15 * 60_000,
   keepMax: 2000,
-  maxMuted: 200,
+  /** mudanças de mute por dono por minuto (cada uma pode escrever no banco) */
+  muteChangesPerMin: 30,
   /** denúncias por denunciante */
   reportMax: 6,
   reportWindowMs: 10 * 60_000,
@@ -98,14 +114,21 @@ export function penalize(s: FloodState, now: number): number {
   return ms;
 }
 
-const nickKeyOf = (nick: string) => textModeration.nicknameKey(nick) || nick.toLowerCase();
+/** chave de autor: conta (`u:`) ou, sem conta, a conexão (`s:`) */
+export const authorKeyOf = (sid: string, userId: string | null) => (userId ? `u:${userId}` : `s:${sid}`);
+/** ref OPACO e estável do par (dono, alvo): HMAC-SHA256 truncado (96 bits, base64url) — não revela nem deriva ids */
+export const muteRef = (secret: string, ownerKey: string, targetKey: string) => createHmac('sha256', secret).update(`mute|${ownerKey}|${targetKey}`).digest('base64url').slice(0, 16);
+/** userId persistível (contas fictícias `test:` de QA ficam só na memória) */
+const realUser = (key: string) => (key.startsWith('u:') && !key.startsWith('u:test:') ? key.slice(2) : null);
 
 export class ChatService {
   private peers = new Map<string, Peer>();
   private groups = new Map<string, Set<string>>();
   private flood = new Map<string, FloodState>();
   private kept = new Map<string, Kept>();
-  private history: ChatMessage[] = [];
+  private history: { wire: ChatMessage; authorKey: string }[] = [];
+  private owners = new Map<string, MuteSet>();
+  private secret: string;
   private reportTimes = new Map<string, number[]>();
   private nextId = 1;
   private gen = { windowStart: 0, n: 0 };
@@ -123,38 +146,58 @@ export class ChatService {
     this.generalPerSec = o.generalPerSec ?? CHAT_SERVER.generalPerSec;
     this.keepMs = o.keepMs ?? CHAT_SERVER.keepMs;
     this.log = o.log ?? ((m) => console.log(`[chat] ${m}`));
+    this.secret = o.secret ?? (process.env.PV_SESSION_SECRET || 'dev-only-change-me');
   }
 
   // ------------------------------------------------------------------ conexões
   join(sid: string, ident: ChatIdentity, out: ChatOut) {
     if (!can(ident.state, 'chat.read', ident.role)) return;
-    const key = ident.userId ? `u:${ident.userId}` : `s:${sid}`;
-    const p: Peer = { sid, ident, out, key, nickKey: nickKeyOf(ident.nickname), muted: new Set() };
+    const key = authorKeyOf(sid, ident.userId);
+    let mutes = this.owners.get(key);
+    const fresh = !mutes;
+    if (!mutes) this.owners.set(key, (mutes = { byKey: new Map(), byRef: new Map(), ready: true, peers: 0, io: Promise.resolve(), times: [] }));
+    mutes.peers++;
+    const p: Peer = { sid, ident, out, key, mutes, pending: null };
     this.peers.set(sid, p);
     if (ident.groupKey) { let g = this.groups.get(ident.groupKey); if (!g) this.groups.set(ident.groupKey, (g = new Set())); g.add(sid); }
+    const uid = realUser(key);
+    if (fresh && uid && this.store) {
+      // mutes da CONTA: carrega antes do chat_hello (o histórico já sai filtrado); até lá nada é entregue a ela
+      mutes.ready = false;
+      const ms = mutes;
+      ms.io = this.store.mutes.list(uid).then((list) => {
+        for (const r of list.slice(0, CHAT_MUTE_MAX)) this.addItem(ms, key, `u:${r.mutedUserId}`, r.mutedNicknameAtTime ?? '—', +r.createdAt, false);
+      }).catch((e) => this.log(`falha ao carregar mutes: ${(e as Error).message}`)).finally(() => {
+        ms.ready = true;
+        for (const q of this.peers.values()) if (q.mutes === ms && q.pending) this.greet(q);
+      });
+    }
+    if (mutes.ready) this.greet(p); else p.pending = [];
+  }
+
+  /** chat_hello (histórico do GERAL sem os mutados) + lista de mutados; entrega o que ficou guardado na carga */
+  private greet(p: Peer) {
+    const ident = p.ident, pend = p.pending;
+    p.pending = null;
     const write = can(ident.state, 'chat.write', ident.role);
-    out.send('chat_hello', {
+    p.out.send('chat_hello', {
       canWrite: write,
       ...(write ? {} : { why: ident.role === 'spectator' && ident.state === 'VISITOR' ? 'visitante' : ident.state === 'SUSPENDED' ? 'suspenso' : 'sem_licenca' }),
       nick: ident.nickname,
       group: ident.groupKey,
       canReport: can(ident.state, 'report.create', ident.role),
       radius: CHAT_RULES.proximityRadius,
-      history: this.history,
+      history: this.history.filter((h) => !p.mutes.byKey.has(h.authorKey)).map((h) => h.wire),
     });
-    // mutados da CONTA (preferências do perfil); o cliente também reenvia a lista local
-    if (ident.userId && this.store) {
-      void this.store.profiles.byUserId(ident.userId).then((pr) => {
-        const list = (pr?.preferences as { chatMuted?: unknown } | undefined)?.chatMuted;
-        if (Array.isArray(list) && this.peers.get(sid) === p) for (const k of list.slice(0, CHAT_SERVER.maxMuted)) if (typeof k === 'string') p.muted.add(k);
-      }).catch(() => { /* sem perfil: só a lista local */ });
-    }
+    this.sendMutes(p);
+    for (const m of pend ?? []) if (!p.mutes.byKey.has(m.authorKey)) p.out.send('chat', m.wire);
   }
 
   leave(sid: string) {
     const p = this.peers.get(sid);
     if (!p) return;
     this.peers.delete(sid);
+    if (--p.mutes.peers <= 0 && this.owners.get(p.key) === p.mutes) this.owners.delete(p.key); // a conta recarrega do banco na próxima entrada
     if (p.ident.groupKey) { const g = this.groups.get(p.ident.groupKey); g?.delete(sid); if (g && !g.size) this.groups.delete(p.ident.groupKey); }
     // anti-flood por conexão some com ela; por conta continua (reconectar não zera o cooldown)
     if (p.key.startsWith('s:')) this.flood.delete(p.key);
@@ -194,15 +237,16 @@ export class ChatService {
     }
 
     const wire: ChatMessage = { id: (this.nextId++).toString(36), ch, nick: p.ident.nickname, nid: this.hooks.nidOf(sid), text: v.text, t: now, ...(ch === 'grupo' ? { group: p.ident.groupKey! } : {}) };
-    const muters = (q: Peer) => q.muted.has(p.nickKey) && q.sid !== sid;
+    // mutou o autor (por identidade) → o servidor nem envia; mutes ainda carregando → não entrega agora
+    const muters = (q: Peer) => q.sid !== sid && (q.pending !== null || q.mutes.byKey.has(p.key));
     let to: Set<string> | null = null;
     let n = 0;
     if (ch === 'geral') {
       const except: string[] = [];
-      for (const q of this.peers.values()) if (q.muted.size && muters(q)) except.push(q.sid);
+      for (const q of this.peers.values()) if (muters(q)) except.push(q.sid);
       this.hooks.broadcast('chat', wire, except);
       n = this.peers.size - except.length;
-      this.history.push(wire);
+      this.history.push({ wire, authorKey: p.key }); // quem ainda carrega recebe pelo histórico do chat_hello
       if (this.history.length > CHAT_RULES.historyGeneral) this.history.shift();
     } else {
       to = new Set<string>();
@@ -215,7 +259,9 @@ export class ChatService {
       }
       for (const s of to) {
         const q = this.peers.get(s);
-        if (!q || muters(q)) continue;
+        if (!q) continue;
+        if (q.pending && q.sid !== sid) { q.pending.push({ wire, authorKey: p.key }); continue; }
+        if (muters(q)) continue;
         q.out.send('chat', wire);
         n++;
       }
@@ -238,27 +284,77 @@ export class ChatService {
   }
 
   // ------------------------------------------------------------------ mutar
-  /** `{ nick, on }` ou `{ list: nicks[] }` (sincronização da lista local na entrada) */
-  mute(sid: string, raw: unknown) {
-    const p = this.peers.get(sid);
-    if (!p) return;
-    const m = (raw ?? {}) as { nick?: unknown; on?: unknown; list?: unknown };
-    const keys: [string, boolean][] = [];
-    if (Array.isArray(m.list)) for (const n of m.list.slice(0, CHAT_SERVER.maxMuted)) { if (typeof n === 'string') keys.push([nickKeyOf(n.slice(0, 40)), true]); }
-    else if (typeof m.nick === 'string') keys.push([nickKeyOf(m.nick.slice(0, 40)), m.on !== false]);
-    let changed = false;
-    for (const [k, on] of keys) {
-      if (!k || k === p.nickKey) continue;
-      if (on && p.muted.size >= CHAT_SERVER.maxMuted) break;
-      if (on ? !p.muted.has(k) : p.muted.has(k)) { changed = true; if (on) p.muted.add(k); else p.muted.delete(k); }
-    }
-    if (changed && p.ident.userId && this.store) {
-      const uid = p.ident.userId, list = [...p.muted];
-      void this.store.profiles.byUserId(uid).then((pr) => pr && this.store!.profiles.update(uid, { preferences: { ...pr.preferences, chatMuted: list } })).catch(() => { /* sem perfil */ });
-    }
+  private addItem(ms: MuteSet, ownerKey: string, key: string, nick: string, since: number, check = true): boolean {
+    if (ms.byKey.has(key)) return true;
+    if (check && ms.byKey.size >= CHAT_MUTE_MAX) return false;
+    const ref = muteRef(this.secret, ownerKey, key);
+    ms.byKey.set(key, { key, ref, nick: nick.slice(0, 40), since });
+    ms.byRef.set(ref, key);
+    return true;
   }
 
-  mutedBy(sid: string) { return [...(this.peers.get(sid)?.muted ?? [])]; }
+  private sendMutes(p: Peer, hide?: string[]) {
+    const list: ChatMuteEntry[] = [...p.mutes.byKey.values()].map(({ ref, nick, since }) => ({ ref, nick, since }));
+    p.out.send('chat_mutes', { list, ...(hide?.length ? { hide } : {}) });
+  }
+
+  /**
+   * `chat_mute` { msg | nid | ref, on } — exatamente um alvo, resolvido aqui; qualquer outro campo (userId…) é ignorado.
+   * Resposta: `chat_mutes` (lista nova, a TODAS as conexões do dono) ou `chat_mute_denied` { reason }.
+   */
+  mute(sid: string, raw: unknown, now = Date.now()): { ok: true } | { ok: false; reason: ChatMuteRejection } {
+    const p = this.peers.get(sid);
+    if (!p) return { ok: false, reason: 'alvo_invalido' };
+    const deny = (reason: ChatMuteRejection) => { p.out.send('chat_mute_denied', { reason }); return { ok: false as const, reason }; };
+    const m = (raw ?? {}) as { msg?: unknown; nid?: unknown; ref?: unknown; on?: unknown };
+    const on = m.on !== false;
+    const given = [m.msg, m.nid, m.ref].filter((x) => x !== undefined).length;
+    if (given !== 1) return deny('alvo_invalido');
+    const ms = p.mutes;
+    let target: { key: string; nick: string } | null = null;
+    if (typeof m.ref === 'string') {
+      const key = ms.byRef.get(m.ref.slice(0, 32)); // só a PRÓPRIA lista: ref de outro dono não existe aqui
+      const it = key ? ms.byKey.get(key) : undefined;
+      if (it) target = { key: it.key, nick: it.nick };
+    } else if (typeof m.msg === 'string') {
+      const k = this.kept.get(m.msg.slice(0, 16));
+      // só mensagem que esta conexão pode ter recebido (GERAL público ou destinatário dela)
+      if (k && now - k.wire.t <= this.keepMs && (!k.to || k.to.has(sid))) target = { key: k.authorKey, nick: k.wire.nick };
+    } else if (typeof m.nid === 'number' && Number.isInteger(m.nid) && m.nid > 0) {
+      const t = this.hooks.identityOfNid?.(m.nid);
+      if (t) target = { key: authorKeyOf(t.sid, t.userId), nick: t.nickname };
+    }
+    if (!target) return deny('alvo_invalido');
+    if (target.key === p.key) return deny('proprio');
+    const has = ms.byKey.has(target.key);
+    if (on === has) { this.sendMutes(p); return { ok: true }; } // já está assim
+    ms.times = ms.times.filter((t) => now - t < 60_000);
+    if (ms.times.length >= CHAT_SERVER.muteChangesPerMin) return deny('limite');
+    if (on && !this.addItem(ms, p.key, target.key, target.nick, now)) return deny('limite');
+    let hide: string[] | undefined;
+    if (on) {
+      // mensagens do alvo que o dono já recebeu (o cliente some com elas na hora; ele não sabe quem é quem)
+      hide = [];
+      for (const k of this.kept.values()) if (k.authorKey === target.key && (!k.to || k.to.has(sid))) hide.push(k.wire.id);
+    } else {
+      const it = ms.byKey.get(target.key)!;
+      ms.byKey.delete(target.key); ms.byRef.delete(it.ref);
+    }
+    ms.times.push(now);
+    const owner = realUser(p.key), muted = realUser(target.key);
+    if (owner && muted && this.store) {
+      const st = this.store, nick = target.nick;
+      ms.io = ms.io.then(async () => { if (on) await st.mutes.add(owner, muted, nick); else await st.mutes.remove(owner, muted); })
+        .catch((e) => this.log(`falha ao gravar mute: ${(e as Error).message}`));
+    }
+    for (const q of this.peers.values()) if (q.mutes === ms && !q.pending) this.sendMutes(q, hide);
+    return { ok: true };
+  }
+
+  /** QA/testes: lista atual (ref, apelido) desta conexão */
+  mutedBy(sid: string): ChatMuteEntry[] { return [...(this.peers.get(sid)?.mutes.byKey.values() ?? [])].map(({ ref, nick, since }) => ({ ref, nick, since })); }
+  /** testes: espera a carga e as gravações de mute desta conexão */
+  async settled(sid: string) { const ms = this.peers.get(sid)?.mutes; for (let i = 0; ms && i < 3; i++) await ms.io; }
 
   // ------------------------------------------------------------------ denunciar
   /** denúncia de mensagem: `{ id, category, details? }` → Report no DataStore com a CÓPIA do servidor como evidência */
@@ -293,12 +389,29 @@ export class ChatService {
       try {
         reportId = (await this.store.reports.create({
           reporterUserId: p.ident.userId, targetUserId: k.authorUserId, targetType: 'CHAT_MESSAGE', targetRef: `chat:${this.eventId}:${id}`,
-          category, details, evidence, eventId: this.eventId || null,
+          category, details, evidence, eventId: this.eventId || null, reportedNicknameAtTime: k.wire.nick,
         })).id;
       } catch (e) { this.log(`falha ao gravar denúncia: ${(e as Error).message}`); return res(false, 'erro'); }
     }
     this.log(`denúncia ${reportId} (${category}) da mensagem ${id} (${k.wire.ch}) por ${p.ident.nickname}`);
     return res(true);
+  }
+
+  // ------------------------------------------------------------------ limpeza
+  /**
+   * Esquece estado ocioso que cresce por conta até reiniciar (chamado pela limpeza periódica): anti-flood já fora do
+   * cooldown e sem atividade há mais que as janelas (as infrações zerariam de qualquer forma) e denúncias fora da janela.
+   * Devolve quantas entradas saíram.
+   */
+  sweep(now = Date.now()): number {
+    let n = 0;
+    const idle = Math.max(CHAT_RULES.cooldownMaxMs, CHAT_RULES.repeatWindowMs, CHAT_RULES.burstWindowMs);
+    for (const [k, f] of this.flood) {
+      const last = Math.max(f.lastTextAt, f.recent.at(-1) ?? 0, f.blockedUntil);
+      if (now >= f.blockedUntil && now - last > idle) { this.flood.delete(k); n++; }
+    }
+    for (const [k, ts] of this.reportTimes) if (ts.every((t) => now - t >= CHAT_SERVER.reportWindowMs)) { this.reportTimes.delete(k); n++; }
+    return n;
   }
 
   // ------------------------------------------------------------------ QA

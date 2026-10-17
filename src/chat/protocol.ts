@@ -85,7 +85,8 @@ export interface ChatMuteRequest { msg?: string; nid?: number; ref?: string; on:
 /** item da lista de mutados (servidor → cliente) */
 export interface ChatMuteEntry { ref: string; nick: string; since: number }
 /** servidor → cliente (`chat_mutes`): lista completa após cada mudança e ao entrar */
-export interface ChatMuteList { list: ChatMuteEntry[] }
+export interface ChatMuteList { list: ChatMuteEntry[]; /** ao mutar: ids de mensagens do alvo já recebidas (o cliente some com elas) */ hide?: string[] }
+/** servidor → cliente (`chat_mute_denied` { reason }). 'sem_conta' fica reservado: sem conta o mute vale só para a conexão */
 export type ChatMuteRejection = 'sem_conta' | 'alvo_invalido' | 'proprio' | 'limite';
 /** teto de mutes por conta */
 export const CHAT_MUTE_MAX = 500;

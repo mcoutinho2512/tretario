@@ -10,7 +10,7 @@
  * `attach(net)` e posicionar `panel.el` / `panel.button` à mão.
  */
 import './chat.css';
-import { CHAT_RULES, REPORT_CATEGORIES, REPORT_LABELS, type ChatChannel, type ChatMessage, type ChatRejection, type ReportCategory } from '../chat/protocol';
+import { CHAT_RULES, REPORT_CATEGORIES, REPORT_LABELS, type ChatChannel, type ChatMessage, type ChatMuteEntry, type ChatMuteList, type ChatMuteRejection, type ChatRejection, type ReportCategory } from '../chat/protocol';
 import { textModeration } from '../moderation/text';
 
 export interface ChatTransport { send(type: string, payload?: unknown): void; on(type: string, fn: (msg: any) => void): void }
@@ -39,7 +39,10 @@ const REPORT_RES: Record<string, string> = {
   repetida: 'Você já denunciou esta mensagem', limite: 'Muitas denúncias seguidas; tente mais tarde', inexistente: 'Mensagem antiga demais para denunciar',
   propria: 'Não dá para denunciar a própria mensagem', sem_permissao: 'Crie uma conta para denunciar', erro: 'Falha ao registrar; tente de novo',
 };
-const MUTED_KEY = 'pv.chat.muted';
+const MUTE_RES: Record<ChatMuteRejection, string> = {
+  sem_conta: 'Crie uma conta para mutar', alvo_invalido: 'Não deu para mutar: mensagem antiga ou pessoa fora do evento',
+  proprio: 'Não dá para mutar a si mesmo', limite: 'Limite de mutes atingido; tente mais tarde',
+};
 const STATE_KEY = 'pv.chat.state';
 const MAX_LINES = 200;
 const STALE_MS = 14_000;
@@ -75,7 +78,9 @@ export class ChatPanel {
   private hello: Hello | null = null;
   private ch: ChatChannel = 'geral';
   private state: State = 'idle';
-  private muted = new Set<string>();
+  /** mutados: verdade do SERVIDOR (`chat_mutes`), por identidade — nada local */
+  private muted: ChatMuteEntry[] = [];
+  private mutesBtn: HTMLButtonElement;
   private lines = new Map<string, { li: HTMLLIElement; m: ChatMessage }>();
   private noteTimer = 0;
   private cooldownUntil = 0;
@@ -84,7 +89,6 @@ export class ChatPanel {
   readonly events: { type: string; msg: unknown }[] = [];
 
   constructor(private o: ChatPanelOptions = {}) {
-    for (const n of JSON.parse(store.get(MUTED_KEY) ?? '[]') as unknown[]) if (typeof n === 'string') this.muted.add(this.key(n));
     this.el = el('section', 'chat');
     this.el.setAttribute('aria-label', 'Chat');
     if (o.isTouch) this.el.classList.add('touch');
@@ -110,7 +114,11 @@ export class ChatPanel {
     close.type = 'button';
     close.title = 'Fechar (Esc)';
     close.addEventListener('click', (e) => { e.stopPropagation(); this.close(); });
-    head.append(this.pill, tabs, close);
+    this.mutesBtn = el('button', 'chat-x chat-mutes', 'Mutados');
+    this.mutesBtn.type = 'button';
+    this.mutesBtn.title = 'Pessoas que você mutou';
+    this.mutesBtn.addEventListener('click', (e) => { e.stopPropagation(); this.showMutes(); });
+    head.append(this.pill, tabs, this.mutesBtn, close);
 
     this.log = el('ol', 'chat-log');
     this.log.setAttribute('aria-live', 'polite');
@@ -161,7 +169,15 @@ export class ChatPanel {
   /** liga à rede (NetworkClient.on/send) */
   attach(net: ChatTransport) {
     this.net = net;
-    net.on('chat_hello', (h: Hello) => { this.events.push({ type: 'chat_hello', msg: h }); this.hello = h; this.applyHello(); for (const m of h.history ?? []) this.add(m, true); if (this.muted.size) net.send('chat_mute', { list: [...this.muted] }); });
+    net.on('chat_hello', (h: Hello) => { this.events.push({ type: 'chat_hello', msg: h }); this.hello = h; this.applyHello(); for (const m of h.history ?? []) this.add(m, true); });
+    net.on('chat_mutes', (l: ChatMuteList) => {
+      this.events.push({ type: 'chat_mutes', msg: l });
+      this.muted = Array.isArray(l?.list) ? l.list : [];
+      for (const id of l?.hide ?? []) for (const [k, v] of this.lines) if (v.m.id === id) { v.li.remove(); this.lines.delete(k); }
+      this.mutesBtn.textContent = this.muted.length ? `Mutados (${this.muted.length})` : 'Mutados';
+      if (this.menuFor === null && !this.menu.classList.contains('hidden') && this.menu.dataset.kind === 'mutes') this.showMutes();
+    });
+    net.on('chat_mute_denied', (d: { reason: ChatMuteRejection }) => { this.events.push({ type: 'chat_mute_denied', msg: d }); this.flash(MUTE_RES[d.reason] ?? 'Não deu para mutar', true); });
     net.on('chat', (m: ChatMessage) => this.add(m));
     net.on('chat_denied', (d: { reason: ChatRejection; retryMs: number }) => {
       this.events.push({ type: 'chat_denied', msg: d });
@@ -250,14 +266,12 @@ export class ChatPanel {
   };
 
   // ------------------------------------------------------------------ mensagens
-  private key(nick: string) { return textModeration.nicknameKey(nick) || nick.toLowerCase(); }
   private mine(m: ChatMessage) { return !!this.hello?.nick && m.nick === this.hello.nick; }
 
   private add(m: ChatMessage, history = false) {
     if (!m || typeof m.id !== 'string' || this.lines.has(`${m.ch}:${m.id}`)) return;
     this.received.push(m);
     if (this.received.length > MAX_LINES) this.received.shift();
-    if (this.muted.has(this.key(m.nick))) return;
     const li = el('li', 'chat-line');
     li.dataset.ch = m.ch;
     li.dataset.id = m.id;
@@ -334,6 +348,7 @@ export class ChatPanel {
 
   private showMenu(m: ChatMessage, li: HTMLLIElement, reporting = false) {
     this.menuFor = { m, li };
+    this.menu.dataset.kind = 'msg';
     const items: HTMLElement[] = [el('div', 'chat-menu-h', reporting ? `Denunciar ${m.nick}` : m.nick)];
     const opt = (label: string, act: string, extra = '') => { const b = el('button', `chat-menu-i ${extra}`, label); b.type = 'button'; b.dataset.act = act; return b; };
     if (!reporting) {
@@ -351,27 +366,46 @@ export class ChatPanel {
 
   private hideMenu() { this.menu.classList.add('hidden'); this.menuFor = null; }
 
+  /** lista de mutados (apelido do momento do mute + desmutar pelo ref opaco) */
+  private showMutes() {
+    this.menuFor = null;
+    this.menu.dataset.kind = 'mutes';
+    const opt = (label: string, act: string, extra = '') => { const b = el('button', `chat-menu-i ${extra}`, label); b.type = 'button'; b.dataset.act = act; return b; };
+    const items: HTMLElement[] = [el('div', 'chat-menu-h', this.muted.length ? 'Mutados (só para você)' : 'Ninguém mutado')];
+    for (const e of this.muted) items.push(opt(`Desmutar ${e.nick}`, `unmute:${e.ref}`));
+    items.push(opt('Fechar', 'cancel', 'quiet'));
+    this.menu.replaceChildren(...items);
+    this.menu.classList.remove('hidden');
+    this.menu.style.top = '8px';
+  }
+
   private onMenuClick(e: MouseEvent) {
     e.stopPropagation();
     const act = ((e.target as HTMLElement).closest('button') as HTMLButtonElement | null)?.dataset.act;
     const f = this.menuFor;
-    if (!act || !f) return;
     if (act === 'cancel') return this.hideMenu();
+    if (act?.startsWith('unmute:')) { this.unmute(act.slice(7)); return; }
+    if (!act || !f) return;
     if (act === 'hide') { f.li.remove(); this.lines.delete(`${f.m.ch}:${f.m.id}`); this.hideMenu(); return this.flash('Mensagem oculta para você'); }
-    if (act === 'mute') { this.hideMenu(); return this.mute(f.m.nick, true); }
+    if (act === 'mute') { this.hideMenu(); return this.mute(f.m.id, true); }
     if (act === 'report') return this.showMenu(f.m, f.li, true);
     if (act.startsWith('cat:')) { this.hideMenu(); this.report(f.m.id, act.slice(4) as ReportCategory); }
   }
 
   // ------------------------------------------------------------------ moderação pessoal
-  /** mutar/desmutar por apelido: some na hora daqui e o servidor deixa de enviar */
-  mute(nick: string, on: boolean) {
-    const k = this.key(nick);
-    if (on) this.muted.add(k); else this.muted.delete(k);
-    store.set(MUTED_KEY, JSON.stringify([...this.muted]));
-    this.net?.send('chat_mute', { nick, on });
-    if (on) for (const [id, { li, m }] of this.lines) if (this.key(m.nick) === k) { li.remove(); this.lines.delete(id); }
-    this.flash(on ? `${nick} mutado (só para você)` : `${nick} desmutado`);
+  /** mutar/desmutar o AUTOR de uma mensagem recebida (id): o servidor resolve a identidade, some com as linhas e para de enviar */
+  mute(msgId: string, on: boolean) {
+    this.net?.send('chat_mute', { msg: msgId, on });
+    const nick = [...this.lines.values()].find((x) => x.m.id === msgId)?.m.nick;
+    if (nick) this.flash(on ? `${nick} mutado (só para você)` : `${nick} desmutado`);
+  }
+  /** mutar pela entidade no mundo (nome acima do jogador / nid da mensagem) */
+  muteEntity(nid: number, on = true) { this.net?.send('chat_mute', { nid, on }); }
+  /** desmutar um item da lista (ref opaco do servidor) */
+  unmute(ref: string) {
+    const nick = this.muted.find((e) => e.ref === ref)?.nick;
+    this.net?.send('chat_mute', { ref, on: false });
+    if (nick) this.flash(`${nick} desmutado`);
   }
 
   report(id: string, category: ReportCategory, details?: string) {
@@ -387,10 +421,11 @@ export class ChatPanel {
       events: () => this.events.slice(), open: (ch?: ChatChannel) => this.open(ch), close: () => this.close(),
       type: (text: string, ch?: ChatChannel) => { this.open(ch); this.field.value = text; this.submit(); },
       send: (text: string, ch: ChatChannel) => this.net?.send('chat_send', { ch, text }),
-      mute: (nick: string, on = true) => this.mute(nick, on), report: (id: string, c: ReportCategory) => this.report(id, c),
+      mute: (msgId: string, on = true) => this.mute(msgId, on), muteEntity: (nid: number, on = true) => this.muteEntity(nid, on), unmute: (ref: string) => this.unmute(ref),
+      showMutes: () => this.showMutes(), report: (id: string, c: ReportCategory) => this.report(id, c),
       menu: (id: string) => { const it = [...this.lines.values()].find((x) => x.m.id === id); if (it) this.showMenu(it.m, it.li); },
       reportMenu: (id: string) => { const it = [...this.lines.values()].find((x) => x.m.id === id); if (it) this.showMenu(it.m, it.li, true); },
-      muted: () => [...this.muted],
+      muted: () => this.muted.map((e) => ({ ...e })),
     };
   }
 }

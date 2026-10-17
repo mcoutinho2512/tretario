@@ -2,7 +2,8 @@
  * Rodada 8 — chat no multiplayer: 3 jogadores reais (um navegador cada) + 1 espectador (cliente Colyseus em Node).
  * A e B perto, C longe. Grupos (só servidor de teste: ?testGroup=): A e C "azul", B "verde".
  *  A PROXIMIDADE → B recebe, C não · A GERAL → B e C (e o espectador) · A GRUPO → só C (mesmo grupo, longe)
- *  digitar não move o jogador · B muta A → servidor não envia mais a B · C denuncia → Report gravado (log do servidor)
+ *  digitar não move o jogador · B muta A pela MENSAGEM (identidade resolvida no servidor; aqui jogadores sem conta →
+ *  mute da conexão) → servidor não envia mais a B; desmutar pelo ref da lista · C denuncia → Report gravado (log)
  *  rajada de C → flood · espectador lê o GERAL, não escreve (sem_permissao) e não picha (denied graffiti.create)
  * Capturas: screenshots/round8/K_chat_geral.jpg, L_chat_proximidade.jpg, M_chat_grupo.jpg (+ cópia em docs/screenshots/round8/).
  * Servidor de teste próprio (PV_TEST=1, PV_STORE=memory, porta PV_CHAT_PORT ou 2730). Requer o dev server.
@@ -125,8 +126,10 @@ check('Esc fecha o chat', (await ev(A, () => window.__pv.chat().state())) === 'i
 await ev(A, () => { document.querySelector('.chat-field').value = ''; });
 
 // ---- mutar: B muta Ana → o servidor deixa de enviar a B
-await ev(B, () => window.__pv.chat().mute('Ana', true));
-await w(400);
+await ev(B, (id) => window.__pv.chat().mute(id, true), gB.id);
+const mutedB = await until(async () => { const l = await ev(B, () => window.__pv.chat().muted()); return l.length ? l : null; });
+const visB = await ev(B, () => window.__pv.chat().visible());
+check('B muta Ana pela mensagem → lista do servidor (apelido + ref opaco) e as linhas dela somem', mutedB?.length === 1 && mutedB[0].nick === 'Ana' && /^[A-Za-z0-9_-]{16}$/.test(mutedB[0].ref) && !visB.some((m) => m.nick === 'Ana'), JSON.stringify(mutedB));
 await say(A, 'geral', 'Teste depois do mute');
 await until(() => has(C, 'Teste depois do mute'));
 await w(600);
@@ -151,6 +154,12 @@ await w(800);
 const den = (await ev(C, () => window.__pv.chat().events())).filter((e) => e.type === 'chat_denied').map((e) => e.msg);
 const passed = (await got(A)).filter((m) => m.text.startsWith('rajada')).length;
 check('rajada de 7 → 5 passam, o resto é limitado (flood/cooldown)', passed === 5 && den.some((d) => d.reason === 'flood' || d.reason === 'cooldown'), `${passed} passaram · ${JSON.stringify(den.slice(0, 2))}`);
+
+// ---- desmutar pelo ref (lista do servidor) → B volta a receber Ana
+await ev(B, (ref) => window.__pv.chat().unmute(ref), mutedB[0].ref);
+await until(async () => (await ev(B, () => window.__pv.chat().muted())).length === 0);
+await say(A, 'geral', 'Teste depois do desmute');
+check('B desmuta pelo ref → volta a receber Ana', !!(await until(() => has(B, 'Teste depois do desmute'))));
 
 // ---- espectador
 check('espectador: hello sem escrita ("visitante")', specMsgs.hello?.canWrite === false && specMsgs.hello?.why === 'visitante', JSON.stringify({ canWrite: specMsgs.hello?.canWrite, why: specMsgs.hello?.why, hist: specMsgs.hello?.history?.length }));

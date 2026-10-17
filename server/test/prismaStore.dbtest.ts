@@ -11,6 +11,7 @@ import { AuthService } from '../src/auth/service';
 import { DevelopmentMailProvider } from '../src/auth/mail';
 import { grantAccess } from '../src/access/admin';
 import { seedEvents, readEventDefs } from '../src/events/seed';
+import { ChatService, type ChatIdentity } from '../src/chat/ChatService';
 
 const URL_ = process.env.DATABASE_URL ?? '';
 if (!/schema=/.test(URL_) || parseDatabaseUrl(URL_).schema === 'public') throw new Error('test:db precisa de DATABASE_URL com ?schema=<schema de teste> (nunca public)');
@@ -54,5 +55,52 @@ describe('PrismaDataStore — fluxo de conta no banco real', () => {
       expect((await s.access.active(u.id, 'cotidiano', new Date())).length, s.kind).toBe(0);
     }
     await p.close();
+  });
+
+  it('mute por identidade (8.1): sobrevive a reinício (nova instância), par único, cascata ao apagar a conta, denúncia com apelido', async () => {
+    const mkUser = async (s: Awaited<ReturnType<typeof createPrismaStore>>, nick: string) => {
+      const u = await s.users.create({ email: `${nick}${Math.random().toString(36).slice(2)}@exemplo.test`, passwordHash: 'x' });
+      await s.profiles.create({ userId: u.id, nickname: nick + u.id.slice(0, 6), nicknameKey: (nick + u.id.slice(0, 6)).toLowerCase() });
+      return u.id;
+    };
+    const a = await createPrismaStore(URL_);
+    const owner = await mkUser(a, 'dono'), target = await mkUser(a, 'alvo');
+    // ChatService grava pelo DataStore real (mute pela entidade no mundo)
+    const ident = (userId: string, nickname: string): ChatIdentity => ({ userId, nickname, state: 'PLAYER', role: 'player', groupKey: null });
+    const conns: Record<string, { type: string; msg: any }[]> = {};
+    const out = (sid: string) => ({ send: (type: string, msg: unknown) => { (conns[sid] ??= []).push({ type, msg }); } });
+    const hooks = { nidOf: () => 0, posOf: () => undefined, near: () => {}, broadcast: () => {}, identityOfNid: (nid: number) => (nid === 7 ? { sid: 'T', userId: target, nickname: 'Teste123' } : undefined) };
+    const svc1 = new ChatService(hooks, { store: a, log: () => {}, secret: 's' });
+    svc1.join('O', ident(owner, 'Dono'), out('O'));
+    await svc1.settled('O');
+    expect(svc1.mute('O', { nid: 7, on: true })).toEqual({ ok: true });
+    await svc1.settled('O');
+    const ref = svc1.mutedBy('O')[0].ref;
+    // par único: repetir não duplica
+    await a.mutes.add(owner, target, 'outro apelido');
+    expect(await a.mutes.list(owner)).toHaveLength(1);
+    expect((await a.mutes.list(owner))[0]).toMatchObject({ ownerUserId: owner, mutedUserId: target, mutedNicknameAtTime: 'Teste123' });
+    await a.close();
+
+    // "reinício": store e ChatService novos → a lista volta do banco, com o mesmo ref
+    const b = await createPrismaStore(URL_);
+    const svc2 = new ChatService(hooks, { store: b, log: () => {}, secret: 's' });
+    svc2.join('O2', ident(owner, 'Dono'), out('O2'));
+    await svc2.settled('O2');
+    expect(svc2.mutedBy('O2')).toMatchObject([{ ref, nick: 'Teste123' }]);
+    expect(conns.O2.find((m) => m.type === 'chat_mutes')?.msg.list).toHaveLength(1);
+    // denúncia guarda o apelido do momento
+    const rep = await b.reports.create({ reporterUserId: owner, targetUserId: target, targetType: 'CHAT_MESSAGE', targetRef: 'chat:t:1', category: 'SPAM', details: null, evidence: {}, eventId: null, reportedNicknameAtTime: 'Teste123' });
+    expect((await b.reports.list({ limit: 50 })).find((r) => r.id === rep.id)?.reportedNicknameAtTime).toBe('Teste123');
+    // desmutar remove; mutar de novo e apagar a conta do alvo → cascata
+    expect(await b.mutes.remove(owner, target)).toBe(true);
+    expect(await b.mutes.remove(owner, target)).toBe(false);
+    await b.mutes.add(owner, target, 'Teste123');
+    await b.db.user.delete({ where: { id: target } });
+    expect(await b.mutes.list(owner)).toEqual([]);
+    await b.mutes.add(owner, await mkUser(b, 'outro'), null);
+    await b.db.user.delete({ where: { id: owner } });
+    expect(await b.db.muteRelationship.count({ where: { ownerUserId: owner } })).toBe(0);
+    await b.close();
   });
 });
