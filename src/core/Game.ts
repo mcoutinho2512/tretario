@@ -35,6 +35,7 @@ const DEFAULT_PLAYER_APPEARANCE_LOCAL = DEFAULT_APPS.homem;
 import { ThirdPersonCamera } from '../camera/ThirdPersonCamera';
 import { InputManager } from '../input/InputManager';
 import { TouchControls } from '../ui/TouchControls';
+import { openCharacterEditor } from '../ui/editorBridge';
 import { ChatPanel } from '../ui/ChatPanel';
 import { DebugPanel } from '../debug/DebugPanel';
 import { HudShell } from '../ui/hud/HudShell';
@@ -370,6 +371,8 @@ export class Game {
     let touch: TouchControls | null = null;
     if (this.input.isTouch) { touch = new TouchControls(this.input); this.hud.appendChild(touch.el); } // embaixo de tudo
     const shell = (this.hudShell = new HudShell(this.hud, this.manifest, this.zones, { touch: this.input.isTouch, level: this.preset.level }));
+    // PERFIL/PERSONAGEM do menu abre o editor da conta (src/ui/editorBridge.ts — registrado pela tela inicial)
+    shell.hooks.openCharacterEditor = () => { if (!openCharacterEditor()) shell.flash('Entre na sua conta para editar o personagem'); };
     if (touch) shell.attachTouch(touch);
     shell.attachCrowd(this.crowd);
     shell.setEvent(this.events.current?.name);
