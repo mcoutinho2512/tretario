@@ -43,7 +43,8 @@ export const EVENT_VEHICLE_KINDS: ReadonlySet<string> = new Set(['soundcar', 'tr
 export const VEHICLE_STATE = { AVAILABLE: 0, OCCUPIED: 1, RESETTING: 2 } as const;
 
 export type Mode = 'pacifico' | 'interacao';
-export const STATUS = { OK: 0, DOWN: 1, GETUP: 2 } as const;
+/** estado físico (rodada 9 estende: 3 cambaleando, 4 ragdoll — src/combat/types.ts PHYS) */
+export const STATUS = { OK: 0, DOWN: 1, GETUP: 2, STAGGER: 3, RAGDOLL: 4 } as const;
 
 export interface Actor {
   id: string;

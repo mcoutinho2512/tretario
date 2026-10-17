@@ -30,6 +30,8 @@ export interface Group {
    */
   joinable?: boolean;
   neutral?: boolean;
+  /** rodada 9 — taxonomia genérica (src/events/schedule.ts GroupKind): POLITICAL/SUPPORTERS/NEUTRAL/CUSTOM; só dados */
+  kind?: import('./schedule').GroupKind;
   designKey?: string;
   /** designs oferecidos para bandeira/cartaz/faixa/camiseta a quem está no grupo (chaves de designs.ts) */
   suggestedDesigns?: string[];
@@ -157,4 +159,6 @@ export interface EventDef {
    */
   social?: import('../social/crowdSocial').SocialCrowdConfig;
   ambience?: { music?: string; crowd?: string };
+  /** rodada 9 — agenda de atividades dentro do mundo (src/events/schedule.ts) */
+  agenda?: import('./schedule').ScheduledEventDef[];
 }

@@ -16,6 +16,10 @@ export interface ZoneDefinition {
   halfWidth: number;
   /** ponto de câmera (espectador) e marcador do minimapa: fração do eixo + deslocamento lateral (m) */
   anchor?: { t: number; side: number };
+  /** rodada 9 — política de confronto da zona (src/combat/policy.ts); ausente = 'PEACE' */
+  combatPolicy?: import('../combat/policy').ZoneCombatPolicy;
+  /** rodada 9 — áreas de paz pontuais dentro da zona (palco, entrada, pontos sociais) */
+  peaceAreas?: import('../combat/policy').PeaceArea[];
 }
 
 type XZ = [number, number];

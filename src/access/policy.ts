@@ -17,7 +17,9 @@ export type Capability =
   | 'chat.read' | 'chat.write'
   | 'graffiti.create' | 'report.create'
   | 'vehicle.use' | 'action.perform' | 'item.hold' | 'push'
-  | 'profile.edit' | 'group.join';
+  | 'profile.edit' | 'group.join'
+  /** rodada 9: confronto (golpes/itens/esquiva), inscrição em eventos, debate (falar/reagir) */
+  | 'combat.act' | 'event.join' | 'debate.speak' | 'debate.react';
 
 export interface AccountFacts {
   status: AccountStatus;
@@ -47,13 +49,13 @@ const BY_STATE: Record<AccessState, readonly Capability[]> = {
   VISITOR: ['world.spectate', 'chat.read'],
   REGISTERED: ['world.spectate', 'chat.read', 'profile.edit', 'group.join', 'report.create'],
   PLAYER: ['world.spectate', 'world.play', 'chat.read', 'chat.write', 'profile.edit', 'group.join', 'report.create',
-    'graffiti.create', 'vehicle.use', 'action.perform', 'item.hold', 'push'],
+    'graffiti.create', 'vehicle.use', 'action.perform', 'item.hold', 'push', 'combat.act', 'event.join', 'debate.speak', 'debate.react'],
   SUSPENDED: ['world.spectate', 'chat.read', 'profile.edit'],
   BANNED: [],
 };
 
 /** capacidades que exigem ESTAR no mundo como jogador (espectador nunca tem, qualquer que seja a conta) */
-const PLAYER_ROLE_ONLY: readonly Capability[] = ['world.play', 'graffiti.create', 'vehicle.use', 'action.perform', 'item.hold', 'push'];
+const PLAYER_ROLE_ONLY: readonly Capability[] = ['world.play', 'graffiti.create', 'vehicle.use', 'action.perform', 'item.hold', 'push', 'combat.act', 'event.join', 'debate.speak'];
 
 /** pode? `role` = papel da conexão atual (um PLAYER assistindo como espectador não dirige) */
 export function can(state: AccessState, cap: Capability, role?: WorldRole): boolean {
