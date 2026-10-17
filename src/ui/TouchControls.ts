@@ -1,4 +1,4 @@
-/** Controles de toque: joystick virtual (esquerda), arrasto de câmera (direita), botões correr/pular. */
+/** Controles de toque: joystick virtual (esquerda), arrasto de câmera (direita), pular / usar / ações / chat / correr. */
 import type { InputManager } from '../input/InputManager';
 
 export class TouchControls {
@@ -10,6 +10,10 @@ export class TouchControls {
   private knob: HTMLDivElement;
   private base: HTMLDivElement;
   private pinchDist = 0;
+  private useBtn!: HTMLButtonElement;
+  /** botão CHAT (o HUD abre o painel do chat) */
+  onChat?: () => void;
+  onMenu?: () => void;
 
   constructor(private input: InputManager) {
     this.el = document.createElement('div');
@@ -20,22 +24,32 @@ export class TouchControls {
     this.knob.className = 'stick-knob';
     this.base.appendChild(this.knob);
     this.el.appendChild(this.base);
-    const runBtn = this.button('CORRER', 'touch-btn run');
+    // rodada 8: poucos botões fixos, ao alcance do polegar direito. USAR só aparece quando há algo para usar;
+    // CORRER é um alternador pequeno (o joystick no fim do curso já corre); o resto fica no menu ☰ do HUD.
     const jumpBtn = this.button('PULAR', 'touch-btn jump');
-    const useBtn = this.button('USAR', 'touch-btn use');
-    useBtn.addEventListener('touchstart', (e) => { e.preventDefault(); input.queueToggle('use'); });
-    const actBtn = this.button('AÇÕES', 'touch-btn actions');
-    actBtn.addEventListener('touchstart', (e) => { e.preventDefault(); input.queueToggle('wheel'); });
-    runBtn.addEventListener('touchstart', (e) => { e.preventDefault(); input.touchRun = !input.touchRun; runBtn.classList.toggle('on', input.touchRun); });
-    jumpBtn.addEventListener('touchstart', (e) => { e.preventDefault(); input.queueJump(); });
+    const useBtn = (this.useBtn = this.button('USAR', 'touch-btn use'));
+    useBtn.hidden = true;
+    useBtn.addEventListener('touchstart', (e) => { e.preventDefault(); e.stopPropagation(); input.queueToggle('use'); });
+    const actBtn = this.button('AÇÕES', 'touch-btn actions small');
+    actBtn.addEventListener('touchstart', (e) => { e.preventDefault(); e.stopPropagation(); input.queueToggle('wheel'); });
+    const chatBtn = this.button('CHAT', 'touch-btn chat small');
+    chatBtn.addEventListener('touchstart', (e) => { e.preventDefault(); e.stopPropagation(); this.onChat?.(); });
+    const runBtn = this.button('CORRER', 'touch-btn run small');
+    runBtn.setAttribute('aria-pressed', 'false');
+    runBtn.addEventListener('touchstart', (e) => { e.preventDefault(); e.stopPropagation(); input.touchRun = !input.touchRun; runBtn.classList.toggle('on', input.touchRun); runBtn.setAttribute('aria-pressed', String(input.touchRun)); });
+    jumpBtn.addEventListener('touchstart', (e) => { e.preventDefault(); e.stopPropagation(); input.queueJump(); });
     this.el.addEventListener('touchstart', this.onStart, { passive: false });
     this.el.addEventListener('touchmove', this.onMove, { passive: false });
     this.el.addEventListener('touchend', this.onEnd);
     this.el.addEventListener('touchcancel', this.onEnd);
   }
 
+  /** USAR só quando há algo perto (o HUD liga quando a ação contextual muda) */
+  setUseVisible(v: boolean) { if (this.useBtn.hidden === v) this.useBtn.hidden = !v; }
+
   private button(label: string, cls: string) {
     const b = document.createElement('button');
+    b.type = 'button';
     b.className = cls;
     b.textContent = label;
     this.el.appendChild(b);

@@ -30,6 +30,8 @@ import { packLook } from '../characters/garments';
 import { createAgent, type CrowdAgent } from '../characters/crowd/crowdBudget';
 import type { CrowdDirector } from '../characters/crowd/CrowdDirector';
 import type { SocialState } from '../social/types';
+import { NAME_LOD, selectNames, shortName, type NameCandidate, type NameTier, type NamesMode } from './nameLod';
+import { RateGate } from '../ui/hud/throttle';
 
 const BODY_LIST = ['homem', 'mulher', 'idoso', 'idosa'] as const;
 const bodyIndex = (b: string) => Math.max(0, BODY_LIST.indexOf(b as (typeof BODY_LIST)[number]));
@@ -67,6 +69,11 @@ interface Remote {
   state: PlayerState;
   buf: Snapshot[];
   label: HTMLDivElement;
+  /** faixa atual do rótulo (LOD dos apelidos, src/net/nameLod.ts) e último transform escrito */
+  labelTier: NameTier;
+  labelPos: string;
+  /** falando no chat até (ms, performance.now) — rótulo ganha prioridade */
+  speakingUntil: number;
   name: string;
   body: string;
   accessory: string;
@@ -145,7 +152,7 @@ export class NetworkClient {
     this.group.name = 'remote_players';
     this.labels = document.createElement('div');
     this.labels.className = 'name-labels';
-    hudRoot.appendChild(this.labels);
+    hudRoot.prepend(this.labels); // por baixo do HUD (menu, minimapa, ajustes)
   }
 
   get remoteCount() { return this.remotes.size; }
@@ -293,10 +300,10 @@ export class NetworkClient {
     const label = document.createElement('div');
     label.className = 'name-label';
     label.textContent = p.name || 'Visitante';
+    label.hidden = true;
     this.labels.appendChild(label);
-    label.style.display = 'none';
     const r: Remote = {
-      id, nid, visual: null, app, agent, state: createPlayerState(id, p.x, p.y, p.z, p.heading), buf: [], label, name: p.name, body: p.body, accessory: p.accessory || 'nenhum',
+      id, nid, visual: null, app, agent, state: createPlayerState(id, p.x, p.y, p.z, p.heading), buf: [], label, labelTier: 'hidden', labelPos: '', speakingUntil: 0, name: p.name, body: p.body, accessory: p.accessory || 'nenhum',
       interaction: p.interaction, status: p.status, vehicle: p.vehicle, platform: p.platform ?? '', lastArrival: performance.now(),
       soc: { act: p.act ?? 0, actAt: p.actAt ?? 0, actVar: p.actVar ?? 0, prop: p.prop ?? 0, design: p.design ?? 0 }, socApplied: null,
     };
@@ -376,7 +383,7 @@ export class NetworkClient {
       r.socApplied = null;
     }
     r.label.classList.toggle('combat', p.interaction === 'interacao');
-    if (p.name && p.name !== r.name) { r.name = p.name; r.label.textContent = p.name; }
+    if (p.name && p.name !== r.name) { r.name = p.name; if (r.labelTier !== 'hidden') this.setLabelTier(r, r.labelTier, true); }
   }
 
   private removeRemote(id: string) {
@@ -384,6 +391,7 @@ export class NetworkClient {
     if (!r) return;
     this.release(r);
     r.label.remove();
+    this.shownLabels.delete(r);
     if (r.nid) this.remoteNids.delete(r.nid);
     this.remotes.delete(id);
   }
@@ -432,7 +440,6 @@ export class NetworkClient {
     // interpolação adaptativa: patch (50 ms) + 2× jitter + folga
     this.interpDelay = THREE.MathUtils.clamp(70 + this.jitterMs * 2.5 + SIM.jitter * 0.5, 100, 300);
     const renderT = nowP - this.interpDelay;
-    const v = new THREE.Vector3();
     const cam = camera.position;
     this.lastCam.copy(cam);
     const crowd = this.crowd;
@@ -476,7 +483,7 @@ export class NetworkClient {
       crowd?.submit(ag, 'net');
       // representação decidida pelo orçamento no quadro anterior: esqueleto (tier 2) ou instanciado
       const skinned = !crowd || ag.tier === 2 || !!r.visual?.isDown;
-      if (!skinned) { if (r.visual) this.release(r); r.label.style.display = 'none'; continue; }
+      if (!skinned) { if (r.visual) this.release(r); continue; }
       const visual = r.visual ?? this.acquire(r);
       ag.skinReady = visual.ready;
       if (r.socApplied !== visual) { visual.setSocial(socialOf(r.soc)); r.socApplied = visual; }
@@ -488,11 +495,8 @@ export class NetworkClient {
         const seat = seatWorld(def, s.x, s.z, s.heading); // carro de som/trio: banco na cabine, longe do centro
         visual.updateRiding(seat.x, s.y, seat.z, s.heading, def.pose, s.speed, def.seatHeight, dt);
       } else visual.update(s, dt, crowd ? visual.root.visible && crowd.shouldAnimate(ag) : undefined);
-      v.set(s.x, s.y + 2.1, s.z).project(camera);
-      const vis = visual.root.visible && v.z < 1 && Math.hypot(s.x - cam.x, s.z - cam.z) < 70;
-      r.label.style.display = vis ? '' : 'none';
-      if (vis) r.label.style.transform = `translate(${((v.x + 1) / 2) * viewport.w}px, ${((1 - v.y) / 2) * viewport.h}px) translate(-50%, -100%)`;
     }
+    this.updateLabels(camera, viewport, nowP);
     // multidão distante: interpolação simples entre as duas últimas posições (2 Hz), só instanciada
     if (crowd) {
       const rt = nowP - FAR_DELAY_MS;
@@ -510,6 +514,82 @@ export class NetworkClient {
     }
   }
   private lastCam = new THREE.Vector3();
+
+  // ---------------------------------------------------------------- apelidos (LOD — src/net/nameLod.ts)
+  /** preferência NOMES DOS JOGADORES (HUD → ajustes) */
+  namesMode: NamesMode = 'PROXIMOS';
+  private labelGate = new RateGate(5);
+  private shownLabels = new Set<Remote>();
+  private labelCands: NameCandidate[] = [];
+  private labelRefs: Remote[] = [];
+  private labelScratch: { c: NameCandidate; t: NameTier; p: number }[] = [];
+  private labelV = new THREE.Vector3();
+  /** QA: rótulos visíveis, decisões e escritas de transform por segundo */
+  labelStats = { shown: 0, candidates: 0, decisions: 0, decideMs: 0, transforms: 0 };
+
+  /** o chat (agente C) avisa quem falou: o rótulo ganha prioridade/aparece até 50 m por `ms` */
+  markSpeaking(entityId: string, ms = 6000) {
+    const r = this.remotes.get(entityId);
+    if (!r) return;
+    r.speakingUntil = performance.now() + ms;
+    this.labelGate.poke();
+  }
+
+  private setLabelTier(r: Remote, t: NameTier, force = false) {
+    if (r.labelTier === t && !force) return;
+    const was = r.labelTier;
+    r.labelTier = t;
+    if (t === 'hidden') { r.label.hidden = true; r.labelPos = ''; this.shownLabels.delete(r); return; }
+    const name = r.name || 'Visitante';
+    r.label.textContent = t === 'short' ? shortName(name) : name;
+    if (t === 'short' || was === 'short' || force) r.label.classList.toggle('short', t === 'short');
+    r.label.hidden = false;
+    this.shownLabels.add(r);
+  }
+
+  /**
+   * decisões (quem tem rótulo e em que faixa) a 5 Hz; por quadro só o transform dos escolhidos (≤ NAME_LOD.cap),
+   * e só quando muda de pixel — nada de display/texto/classe por quadro.
+   */
+  private updateLabels(camera: THREE.Camera, viewport: { w: number; h: number }, now: number) {
+    const cam = camera.position, v = this.labelV;
+    if (this.labelGate.due(now)) {
+      const t0 = performance.now();
+      const cands = this.labelCands, refs = this.labelRefs;
+      cands.length = refs.length = 0;
+      if (this.namesMode !== 'NENHUM') {
+        // "interagindo" = falou no chat ou COMEÇOU uma ação há pouco (dançar sem parar não acende rótulo a 50 m)
+        const srvNow = worldClock.now();
+        for (const r of this.remotes.values()) {
+          const s = r.state;
+          const d = Math.hypot(s.x - cam.x, s.z - cam.z);
+          // tier 0 = fora do orçamento (não desenhado): sem rótulo flutuando no vazio
+          if (d > NAME_LOD.max + NAME_LOD.hyst || (r.agent.tier === 0 && !r.visual)) continue;
+          v.set(s.x, s.y + 2.1, s.z).project(camera);
+          cands.push({ key: refs.length, dist: d, nx: v.x, ny: v.y, front: v.z < 1, interacting: r.speakingUntil > now || (r.soc.act !== 0 && srvNow - r.soc.actAt < 4000), prev: r.labelTier });
+          refs.push(r);
+        }
+      }
+      const pick = selectNames(cands, this.namesMode, NAME_LOD.cap, this.labelScratch);
+      const keep = new Set<Remote>();
+      for (const k of pick.keys()) keep.add(refs[k]);
+      for (const r of [...this.shownLabels]) if (!keep.has(r)) this.setLabelTier(r, 'hidden');
+      for (const [k, t] of pick) this.setLabelTier(refs[k], t);
+      const st = this.labelStats;
+      st.shown = this.shownLabels.size; st.candidates = cands.length; st.decisions++;
+      st.decideMs = +(st.decideMs * 0.8 + (performance.now() - t0) * 0.2).toFixed(3);
+    }
+    for (const r of this.shownLabels) {
+      const s = r.state;
+      v.set(s.x, s.y + 2.1, s.z).project(camera);
+      if (v.z >= 1) continue; // atrás da câmera: a próxima decisão esconde
+      const pos = `translate3d(${Math.round(((v.x + 1) / 2) * viewport.w)}px,${Math.round(((1 - v.y) / 2) * viewport.h)}px,0) translate(-50%,-100%)`;
+      if (pos === r.labelPos) continue;
+      r.labelPos = pos;
+      r.label.style.transform = pos;
+      this.labelStats.transforms++;
+    }
+  }
 
   /** para QA */
   remotesInfo(): RemoteInfo[] {

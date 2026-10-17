@@ -8,7 +8,7 @@ Contratos ÚNICOS — nenhum módulo redefine usuário, sessão, identidade de j
 | Autorização central (`deriveAccessState`, `can(state, capacidade, papel)`, `resolveRole`) | `src/access/policy.ts` |
 | Moderação de texto central (apelido, chat, grafite, cartaz) | `src/moderation/text.ts` (`textModeration`) |
 | Chat: canais, limites, anti-flood, categorias de denúncia | `src/chat/protocol.ts` |
-| Zonas (dados em `public/world/zones.json`) | `src/world/zones.ts` |
+| Zonas (dados em `public/world/zones.json`) | `src/world/zones.ts` + rastreador com histerese `src/world/zoneTracker.ts` (HUD: `docs/HUD.md`) |
 | Grupos do evento (dados: `groups` em `public/events/<evento>.json`, `joinable/neutral/designKey/suggestedDesigns`) | `src/events/types.ts` |
 | Modelo de dados (PostgreSQL) | `server/prisma/schema.prisma` + migrations |
 | Acesso ao banco (ÚNICO caminho) | `server/src/data/types.ts` (`DataStore`): `PrismaDataStore` / `MemoryDataStore` |

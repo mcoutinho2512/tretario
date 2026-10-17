@@ -57,6 +57,10 @@ export class CrowdDirector {
   }
 
   private qaProps = 0;
+  private sampleFn: ((agents: readonly CrowdAgent[]) => void) | null = null;
+
+  /** pede UMA amostra dos agentes do próximo quadro (densidade do minimapa, 1–2 Hz) */
+  requestSample(fn: (agents: readonly CrowdAgent[]) => void) { this.sampleFn = fn; }
 
   submit(a: CrowdAgent, src: AgentSource) {
     if (this.qaProps && !a.prop) qaCrowdProp(a, this.qaProps);
@@ -94,6 +98,7 @@ export class CrowdDirector {
       props: this.props.stats.drawn, propCalls: this.props.stats.calls, ms: +(performance.now() - t0).toFixed(3),
     });
     this.othersCount = this.counts.net + this.counts.far;
+    if (this.sampleFn) { const fn = this.sampleFn; this.sampleFn = null; fn(this.list); }
     this.list.length = 0;
     this.counts.net = this.counts.far = this.counts.ped = 0;
     this.frame++;

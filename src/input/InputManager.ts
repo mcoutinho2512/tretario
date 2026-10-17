@@ -51,6 +51,7 @@ export class InputManager {
     if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
     if (e.code === 'Space') { if (!e.repeat) this.jumpQueued = true; e.preventDefault(); }
     if (e.code === 'F3') { e.preventDefault(); this.toggles.add('debug'); }
+    if (e.code === 'F1') { e.preventDefault(); this.toggles.add('controls'); }
     if (e.code === 'KeyM' && !e.repeat) this.toggles.add('map');
     if (e.code === 'KeyH' && !e.repeat) this.toggles.add('help');
     if (e.code === 'KeyP' && !e.repeat) this.toggles.add('photo');

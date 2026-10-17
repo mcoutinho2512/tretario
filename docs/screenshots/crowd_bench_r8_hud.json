@@ -1,0 +1,62 @@
+[
+  {
+    "bots": 500,
+    "preset": "medium",
+    "fps": 94.17,
+    "frameMs": 10.67,
+    "worstMs": 22.80000001192093,
+    "cpuMs": 10.07,
+    "gpuMs": 3.97,
+    "calls": 609,
+    "trianglesK": 1543,
+    "heapMB": 207.6,
+    "geometries": 742,
+    "textures": 370,
+    "remotes": 32,
+    "far": 468,
+    "humans": 504,
+    "skinned": 16,
+    "instanced": 235,
+    "instancedCalls": 8,
+    "hidden": 154,
+    "lods": [
+      0,
+      16,
+      0,
+      0
+    ],
+    "peds": 4,
+    "crowdMs": 0.39,
+    "netInKBps": 11.8
+  },
+  {
+    "bots": 500,
+    "preset": "high",
+    "fps": 32.98,
+    "frameMs": 30.53,
+    "worstMs": 76.90000003576279,
+    "cpuMs": 27.53,
+    "gpuMs": 6.47,
+    "calls": 1548,
+    "trianglesK": 4551,
+    "heapMB": 204.5,
+    "geometries": 839,
+    "textures": 609,
+    "remotes": 48,
+    "far": 452,
+    "humans": 556,
+    "skinned": 24,
+    "instanced": 236,
+    "instancedCalls": 8,
+    "hidden": 0,
+    "lods": [
+      6,
+      18,
+      0,
+      0
+    ],
+    "peds": 56,
+    "crowdMs": 0.46,
+    "netInKBps": 20.2
+  }
+]
