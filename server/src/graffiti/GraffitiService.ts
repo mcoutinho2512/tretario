@@ -19,6 +19,7 @@ import {
 } from '../../../src/graffiti/rules';
 import type { GfDelReason, GfRes, GfWire } from '../../../src/graffiti/protocol';
 import type { GraffitiStore, StoredGraffiti } from './store';
+import { REPORT_CATEGORIES, type ReportCategory } from '../../../src/chat/protocol';
 
 export interface GfViewer { send(type: string, msg: unknown): void }
 export interface GfAuthorPos { x: number; z: number; ok: boolean }
@@ -26,6 +27,8 @@ export interface GfAuthorPos { x: number; z: number; ok: boolean }
 interface Rec extends StoredGraffiti { bytes: Uint8Array }
 interface ViewerRT {
   sid: string; cid: string; name: string; out: GfViewer;
+  /** conta (login); null = anônimo (jogador de teste) */
+  userId: string | null;
   /** superfícies (índice) dentro do raio */
   surfIn: Set<number>;
   /** grafites que este cliente tem */
@@ -45,6 +48,14 @@ export interface GraffitiServiceOptions {
   rules?: GraffitiRules;
   adminToken?: string;
   log?: (m: string) => void;
+  /** denúncia aceita → a sala grava um Report (DataStore) com o autor identificado internamente */
+  onReport?: (r: GfReportEvent) => void;
+}
+
+/** denúncia aceita (dados INTERNOS: autor com userId/clientId — só para o Report no banco) */
+export interface GfReportEvent {
+  id: number; surface: string; author: StoredGraffiti['author']; reporterSid: string; reporterUserId: string | null; reporterCid: string;
+  category: ReportCategory; state: string; reports: number; hasText: boolean; createdAt: number; persistence: string;
 }
 
 const toB64 = (b: Uint8Array) => Buffer.from(b.buffer, b.byteOffset, b.byteLength).toString('base64');
@@ -75,6 +86,7 @@ export class GraffitiService {
   readonly rules: GraffitiRules;
   private adminToken: string;
   private log: (m: string) => void;
+  private onReport?: (r: GfReportEvent) => void;
   /** métricas (QA / docs) */
   stats = { created: 0, denied: 0, reports: 0, hidden: 0, removed: 0, expired: 0, evicted: 0, addMsgs: 0, addBytes: 0, delMsgs: 0 };
 
@@ -86,6 +98,7 @@ export class GraffitiService {
     this.rules = o.rules ?? GF_RULES;
     this.adminToken = o.adminToken ?? '';
     this.log = o.log ?? ((m) => console.log(`[graffiti] ${m}`));
+    this.onReport = o.onReport;
     this.sgrid = new SpatialGrid(Math.max(20, this.radius / 2));
     surfaces.forEach((sf) => {
       const i = this.surfList.length;
@@ -123,8 +136,9 @@ export class GraffitiService {
   get visibleCount() { let n = 0; for (const r of this.recs.values()) if (isVisibleState(r.state)) n++; return n; }
 
   // ------------------------------------------------------------------ clientes
-  join(sessionId: string, name: string, clientId: string, out: GfViewer) {
-    this.viewers.set(sessionId, { sid: sessionId, cid: clientId, name, out, surfIn: new Set(), known: new Set(), pending: [], idx: this.nextViewerIdx++ });
+  /** `userId`: conta autenticada (autoria e cota pela CONTA); ausente = anônimo de teste */
+  join(sessionId: string, name: string, clientId: string, out: GfViewer, userId: string | null = null) {
+    this.viewers.set(sessionId, { sid: sessionId, cid: clientId, name, out, userId, surfIn: new Set(), known: new Set(), pending: [], idx: this.nextViewerIdx++ });
   }
   leave(sessionId: string) { this.viewers.delete(sessionId); }
   rename(sessionId: string, name: string) { const v = this.viewers.get(sessionId); if (v) v.name = name; }
@@ -185,7 +199,7 @@ export class GraffitiService {
   }
 
   private wire(r: Rec, v: ViewerRT): GfWire {
-    return { i: r.id, s: r.surface, d: r.bytes, a: r.author.name, t: r.createdAt, e: r.expiresAt, st: r.state, ...(r.author.clientId === v.cid ? { m: 1 as const } : {}) };
+    return { i: r.id, s: r.surface, d: r.bytes, a: r.author.name, t: r.createdAt, e: r.expiresAt, st: r.state, ...(r.author.clientId === v.cid || (v.userId && r.author.userId === v.userId) ? { m: 1 as const } : {}) };
   }
 
   private sendDel(v: ViewerRT, ids: number[], r: GfDelReason) { v.out.send('gf_del', { i: ids, r }); this.stats.delMsgs++; }
@@ -208,7 +222,9 @@ export class GraffitiService {
     if (reach) return deny(reach);
     // cota/cooldown pelos DOIS: sessão (trocar o id anônimo não zera) e id anônimo (reconectar não zera)
     const active = this.activeBy(v.cid);
-    const q = checkQuota(this.lim(`c:${v.cid}`), active, now, this.rules) ?? checkQuota(this.lim(`s:${sessionId}`), active, now, this.rules);
+    // com conta: também pela CONTA (trocar de aparelho/sessão não zera)
+    const q = checkQuota(this.lim(`c:${v.cid}`), active, now, this.rules) ?? checkQuota(this.lim(`s:${sessionId}`), active, now, this.rules)
+      ?? (v.userId ? checkQuota(this.lim(`u:${v.userId}`), this.activeByUser(v.userId), now, this.rules) : null);
     if (q) return deny(q);
     // máximo por superfície: temporária recicla o mais antigo dela; autorizada (permanente) recusa
     const list = this.listFor(sf.id);
@@ -225,8 +241,9 @@ export class GraffitiService {
     }
     recordCreation(this.lim(`c:${v.cid}`), now);
     recordCreation(this.lim(`s:${sessionId}`), now);
+    if (v.userId) recordCreation(this.lim(`u:${v.userId}`), now);
     const rec: Rec = {
-      id: this.nextId++, surface: sf.id, author: { sessionId, name: v.name, clientId: v.cid }, rect: c.content.rect,
+      id: this.nextId++, surface: sf.id, author: { sessionId, name: v.name, clientId: v.cid, ...(v.userId ? { userId: v.userId } : {}) }, rect: c.content.rect,
       content: toB64(bytes!), bytes: bytes!.slice(), createdAt: now, expiresAt: expiresAtFor(sf, now, this.rules),
       state: GF_STATE.ACTIVE, reports: [], persistence: sf.persistence, ...(c.hasText ? { hasText: true } : {}),
     };
@@ -246,6 +263,8 @@ export class GraffitiService {
     this.log(`#${rec.id} em ${sf.id} por ${v.name} (${v.cid.slice(0, 8)}…) ${bytes!.length} B${c.hasText ? ' [texto]' : ''}`);
     return { op: 'new', ok: true, n, i: rec.id };
   }
+
+  private activeByUser(uid: string) { let n = 0; for (const r of this.recs.values()) if (r.author.userId === uid && isVisibleState(r.state)) n++; return n; }
 
   private activeBy(cid: string) { let n = 0; for (const r of this.recs.values()) if (r.author.clientId === cid && isVisibleState(r.state)) n++; return n; }
 
@@ -272,7 +291,8 @@ export class GraffitiService {
   }
 
   // ------------------------------------------------------------------ moderação
-  report(sessionId: string, id: unknown, now = Date.now()): GfRes {
+  /** `category`: REPORT_CATEGORIES (inválida/ausente → OUTRO) — vai para o Report no banco */
+  report(sessionId: string, id: unknown, now = Date.now(), category?: unknown): GfRes {
     const v = this.viewers.get(sessionId);
     const r = typeof id === 'number' ? this.recs.get(id) : undefined;
     if (!v || !r) return { op: 'report', ok: false, r: 'inexistente' };
@@ -283,6 +303,11 @@ export class GraffitiService {
     if (!res.changed) return { op: 'report', ok: false, i: r.id, r: res.reason };
     this.stats.reports++;
     this.afterStateChange(r, before);
+    this.onReport?.({
+      id: r.id, surface: r.surface, author: { ...r.author }, reporterSid: sessionId, reporterUserId: v.userId, reporterCid: v.cid,
+      category: REPORT_CATEGORIES.includes(category as ReportCategory) ? (category as ReportCategory) : 'OUTRO',
+      state: GF_STATE_NAME[r.state], reports: r.reports.length, hasText: !!r.hasText, createdAt: r.createdAt, persistence: r.persistence,
+    });
     this.log(`#${r.id} denunciado por ${v.name} (${r.reports.length}/${this.rules.reportThreshold}) → ${GF_STATE_NAME[r.state]}`);
     return { op: 'report', ok: true, i: r.id };
   }

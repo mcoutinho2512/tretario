@@ -83,6 +83,9 @@ interface Remote {
 
 export interface KnockMsg { target: string; by: string; kind: 'push' | 'impact'; dx: number; dz: number; strength: number; rx: number; rz: number; downMs: number; getupMs: number }
 
+/** QA (servidor PV_TEST=1): ?testGroup=chave → grupo do jogador anônimo (canal GRUPO do chat); o servidor real ignora */
+const testGroupOpt = (): { testGroup?: string } => { const g = new URLSearchParams(location.search).get('testGroup'); return g ? { testGroup: g } : {}; };
+
 export class NetworkClient {
   readonly group = new THREE.Group();
   private room: Room | null = null;
@@ -163,7 +166,7 @@ export class NetworkClient {
     this.status = 'connecting';
     try {
       const client = new Client(this.endpoint);
-      const opts: JoinOptions = { name, body: app.body, skin: app.skin, hair: app.hair, top: app.top, bottom: app.bottom, shoes: app.shoes, accessory: app.accessory ?? 'nenhum', acc: app.acc ?? 0x222222, topStyle: app.topStyle, bottomStyle: app.bottomStyle, shoeStyle: app.shoeStyle, hairStyle: app.hairStyle, shirtDesign: app.shirtDesign ?? 0, cid: anonymousClientId(), ...(testSpawn ? { testSpawn } : {}), ...(this.crowd ? { aoiMax: Math.max(16, Math.min(64, this.crowd.budget.skinned * 2)) } : {}) };
+      const opts: JoinOptions = { name, body: app.body, skin: app.skin, hair: app.hair, top: app.top, bottom: app.bottom, shoes: app.shoes, accessory: app.accessory ?? 'nenhum', acc: app.acc ?? 0x222222, topStyle: app.topStyle, bottomStyle: app.bottomStyle, shoeStyle: app.shoeStyle, hairStyle: app.hairStyle, shirtDesign: app.shirtDesign ?? 0, cid: anonymousClientId(), ...(testSpawn ? { testSpawn } : {}), ...testGroupOpt(), ...(this.crowd ? { aoiMax: Math.max(16, Math.min(64, this.crowd.budget.skinned * 2)) } : {}) };
       const room = await client.joinOrCreate(ROOM_NAME, opts);
       this.room = room;
       this.sessionId = room.sessionId;

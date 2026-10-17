@@ -78,14 +78,14 @@ Traços passam por Douglas-Peucker (tolerância 1,2 unidade) no editor. Medidos:
 | Direção | Mensagem | Conteúdo |
 |---|---|---|
 | C → S | `gf_new` | `{ s: superfície, d: Uint8Array, n: nonce }` |
-| C → S | `gf_report` | `{ i: id }` |
+| C → S | `gf_report` | `{ i: id, c?: categoria }` (`REPORT_CATEGORIES`; ausente/inválida → `OUTRO`) |
 | C → S | `gf_admin` | `{ token, op: 'list'\|'remove'\|'hide'\|'restore', i? }` — **só com `PV_ADMIN_TOKEN`** (dev) |
 | S → C | `gf_add` | `GfWire[]`: `{ i, s, d, a: nome do autor, t: criado, e: expira (0 = permanente), st, m?: 1 se é seu }` |
 | S → C | `gf_del` | `{ i: id[], r: 'aoi'\|'hidden'\|'removed'\|'expired'\|'evicted' }` |
 | S → C | `gf_state` | `{ i, st }` (ACTIVE ↔ REPORTED, ainda visível) |
 | S → C | `gf_res` | `{ op: 'new'\|'report'\|'admin', ok, n?, i?, r?: motivo, list? }` |
 
-O id anônimo do autor **nunca** sai do servidor (só o nome de exibição).
+O id anônimo e o `userId` do autor **nunca** saem do servidor (só o nome de exibição).
 
 ## Regras do servidor (autoridade)
 
@@ -93,9 +93,9 @@ Ao receber `gf_new`, em ordem: jogador de pé e fora de veículo · superfície 
 ≤ 4096 B, ≤ 64 itens, ≤ 1500 pontos, cores/espessuras/símbolos válidos, retângulo **dentro** da superfície, 0,3–2,4 m,
 proporção 2:1 · texto saneado e aprovado pelo filtro · autor a **≤ 3 m** da área pintada e **do lado pintável** (posição
 autoritativa do servidor) · cooldown (20 s) e cota (6 ativos, 12 por hora) **por sessão E por id anônimo** (reconectar não
-zera; trocar o id não zera a sessão) · máximo por superfície (temporária: sai o mais antigo dela — "repintar";
+zera; trocar o id não zera a sessão) e, com conta, **também pela conta** (trocar de aparelho não zera) · máximo por superfície (temporária: sai o mais antigo dela — "repintar";
 autorizada: recusa `superficie_cheia`) · total no mundo (2000: sai o temporário mais antigo; permanentes nunca).
-Só então ganha id único e é gravado `{ id, autor: { sessionId, nome, clientId }, superfície, retângulo, conteúdo,
+Só então ganha id único e é gravado `{ id, autor: { sessionId, nome, clientId, userId? }, superfície, retângulo, conteúdo,
 createdAt, expiresAt, estado, denúncias, persistência, hasText }`.
 
 Motivos de recusa (`gf_res.r`): `superficie`, `distancia`, `lado`, `formato`, `tamanho`, `retangulo`, `itens`,
@@ -124,7 +124,10 @@ REMOVED e EXPIRED são terminais (saem da memória e do armazenamento)
 ```
 
 - Denúncia: qualquer jogador que **tem** o grafite (está na área); não vale denunciar o próprio; o mesmo id anônimo conta
-  uma vez; ≤ 10 denúncias/min. Quem denuncia passa a não ver aquele grafite.
+  uma vez; ≤ 10 denúncias/min. Quem denuncia passa a não ver aquele grafite. Exige `report.create` (visitante não denuncia).
+- Rodada 8: cada denúncia aceita também grava um **Report** no DataStore (`targetType: GRAFFITI`, `targetRef: graffiti:<id>`,
+  `reporterUserId`, `targetUserId` = conta do autor, categoria, evidência: superfície, nome, `authorUserId` ou — para
+  anônimo de teste — `authorClientId`, estado, nº de denúncias, `hasText`, data). Gancho `onReport` do serviço → sala.
 - Ocultar para mim: lista por cliente em `localStorage['pv.graffiti.hidden']` (últimos 500 ids).
 - Texto: filtro de primeira linha (acentos, leetspeak e letras repetidas normalizados; palavras inteiras, raízes e
   texto sem espaços; links/telefones). Desenho livre não tem filtro automático — por isso existem denúncia e admin.
@@ -132,11 +135,15 @@ REMOVED e EXPIRED são terminais (saem da memória e do armazenamento)
   de desenvolvimento `gf_admin` exige `PV_ADMIN_TOKEN` (sem a variável fica desativada; token comparado em tempo
   constante; tentativas inválidas vão para o log). Cada ação registra autor (nome, id anônimo, sessão) no log.
 
-## Identidade (provisória)
+## Identidade (rodada 8)
 
-Não há login. Autor = **sessionId + nome + id anônimo estável** (UUID em `localStorage['pv.clientId']`, enviado no join
-como `cid`; inválido → `anon-<sessionId>`). Limpar o navegador gera outro id: é um limite de abuso, não identidade.
-Com login, a conta substitui o `clientId` nos mesmos campos (`author.clientId`) e nas chaves de cota.
+- Autor autenticado (identidade resolvida pelo servidor, `identity.userId`): `author.userId` gravado no registro —
+  **interno** (moderação/denúncias), nunca em `gf_add`/`gf_res`. Cota também pela chave `u:<userId>`; "é meu" (`m: 1`)
+  vale para a mesma conta em outro aparelho.
+- Jogador de teste (`PV_TEST=1`, anônimo): continua **sessionId + nome + id anônimo** (`cid` do `localStorage`).
+- Visitante/espectador **não cria** grafite: gate `graffiti.create` da sala (política central nega a `VISITOR`,
+  `REGISTERED`, `SUSPENDED` e a qualquer conexão com papel `spectator`) e o espectador nem entra no serviço
+  (`create` → `estado`). Testes: `tests/graffitiIdentity.test.ts`; QA: `tools/qa/chat_mp.mjs` (espectador → `denied`).
 
 ## Persistência
 
@@ -186,8 +193,7 @@ Variáveis: `PV_GRAFFITI_TTL_MS`, `PV_GRAFFITI_REPORTS`, `PV_GRAFFITI_COOLDOWN_M
 
 ## Limitações
 
-- Identidade é anônima por aparelho (sem login): quem limpa o navegador e reconecta ganha cota nova (cooldown da sessão
-  continua valendo só enquanto a sessão existe).
+- Anônimo de teste: quem limpa o navegador e reconecta ganha cota nova (com conta, a cota segue a conta).
 - Filtro de texto é básico (lista curta); desenho livre depende de denúncia/admin. Não há painel de moderação.
 - Grafites sobrepostos na mesma superfície não se recortam e a ordem entre eles não é garantida (a reciclagem do mais
   antigo e o máximo por superfície limitam o caso).
