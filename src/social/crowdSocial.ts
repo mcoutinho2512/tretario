@@ -142,6 +142,13 @@ export class SocialSchedule {
     return true;
   }
 
+  /** rodada 9 — reação a um estímulo (plateia do debate): ação `id` de `t` por `dur` s, depois a agenda normal segue */
+  force(t: number, id: number, dur: number) {
+    this.act = id;
+    this.startedAt = t;
+    this.until = t + dur;
+  }
+
   private end(t: number) {
     this.act = 0;
     this.startedAt = t;

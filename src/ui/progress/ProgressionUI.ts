@@ -59,7 +59,7 @@ export class ProgressionUI {
     this.tracker.addEventListener('click', () => this.open());
     this.tracker.title = 'Abrir PROGRESSO';
     shell.mountTracker({ el: this.tracker });
-    shell.addMenuItem('Progresso', () => this.open());
+    shell.addMenuItem('Progresso', () => this.open(), { top: true });
     net.on('prog', (m: ProgressionMessage) => this.onProg(m));
     net.on('prog_ev', (n: ProgressionNotice) => this.onNotice(n));
     void loadProgressionCatalog(base).then((c) => { this.cat = c; if (this.p) this.render(); });

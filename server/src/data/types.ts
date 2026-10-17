@@ -34,7 +34,7 @@ export interface PaymentRecord {
 }
 export interface EventGroupRecord { id: string; eventId: string; key: string; name: string; designKey: string | null; neutral: boolean; sort: number }
 export interface MembershipRecord { id: string; userId: string; eventId: string; groupId: string; createdAt: Date; updatedAt: Date }
-export type ReportTarget = 'CHAT_MESSAGE' | 'GRAFFITI' | 'USER';
+export type ReportTarget = 'CHAT_MESSAGE' | 'GRAFFITI' | 'USER' | 'DEBATE_LINE';
 export type ReportStatus = 'OPEN' | 'REVIEWED' | 'DISMISSED' | 'ACTIONED';
 export interface ReportRecord {
   id: string; reporterUserId: string | null; targetUserId: string | null; targetType: ReportTarget; targetRef: string;

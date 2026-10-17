@@ -17,6 +17,17 @@ O cliente **não tem como** subir de nível: campos extras no cadastro (`grant`,
 no ticket/entrada só rebaixa; não há botão nem rota HTTP que conceda acesso. Nesta rodada, só a CLI do operador grava
 `DEV_GRANTED`; `PAID` só nasce de um webhook confirmado por um `PaymentProvider` (hoje apenas o mock dos testes).
 
+## Capacidades da rodada 9 (debate)
+
+| Capacidade | Quem | Onde |
+|---|---|---|
+| `debate.speak` | PLAYER **no mundo** (espectador nunca, qualquer que seja a conta) — SUSPENDED/BANNED/REGISTERED/VISITOR não | entrar na fila (`dbt_queue`) e falar no turno (`dbt_say`); também o canal do pipeline de texto (`ChatService.screen`) |
+| `debate.react` | PLAYER, inclusive assistindo como espectador | reações da plateia (`dbt_react`), com limite por minuto dos dados |
+| `report.create` | conta ativa (REGISTERED/PLAYER) | denúncia de fala (`dbt_report` → Report `DEBATE_LINE`) |
+
+Suspensão/banimento feitos pela CLI chegam pela releitura periódica das identidades: o runner consulta a identidade
+ATUAL a cada mensagem e tira do palco o orador que perdeu `debate.speak` no segundo seguinte (`docs/DEBATES.md`).
+
 ## CLI do operador
 
 Lê `DATABASE_URL` de `server/.env` (só PostgreSQL). Recusa `NODE_ENV=production` sem `--operador-confirmado`.

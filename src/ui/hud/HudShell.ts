@@ -83,6 +83,7 @@ export class HudShell {
   private helpEl: HTMLDivElement;
   private chatSlot: HTMLDivElement;
   private specSlot: HTMLDivElement;
+  private nowSlot: HTMLDivElement;
   private chat: ChatPanelLike | null = null;
   private density: DensitySource | null = null;
   private focusProvider: (() => { x: number; z: number }) | null = null;
@@ -114,6 +115,7 @@ export class HudShell {
     this.eventText = new TextSlot(this.eventEl);
     this.statusText = new TextSlot(this.statusEl);
     this.trackerSlot = div('hud-slot-tracker', tl);
+    this.nowSlot = div('hud-slot-now hud-fadeable', tl); // rodada 9: "Acontecendo agora"
 
     // ---- aviso de zona (centro, alto)
     this.banner = div('zone-banner');
@@ -214,12 +216,6 @@ export class HudShell {
   /** rodada 9 — rastreador de missão (src/ui/progress), abaixo do estado no alto à esquerda */
   mountTracker(panel: HudPanel) { this.trackerSlot.replaceChildren(panel.el); }
 
-  /** rodada 9 — item extra no menu (ex.: PROGRESSO), logo depois de "Perfil / personagem" */
-  addMenuItem(label: string, fn: () => void) {
-    this.menuItem(label, fn);
-    const b = this.menu.lastElementChild!;
-    this.menu.insertBefore(b, this.menu.children[1] ?? null);
-  }
 
   /**
    * rodada 9 — aviso curto no alto ao centro (fila: um por vez, `ms` cada; no máximo 6 esperando). Aparece mesmo com
@@ -246,6 +242,21 @@ export class HudShell {
 
   /** seletor de câmeras do espectador (agente D), acima da ação contextual */
   mountSpectator(panel: HudPanel) { this.specSlot.replaceChildren(panel.el); }
+
+  /** rodada 9 — "Acontecendo agora" (src/ui/NowHappening.ts): abaixo do evento/estado, esmaece com o HUD */
+  mountNow(panel: HudPanel) { this.nowSlot.replaceChildren(panel.el); }
+
+  /** rodada 9 — painéis sobrepostos (agenda, debate): donos do próprio abrir/fechar; HUD limpo os esconde */
+  mountOverlay(panel: HudPanel) { this.root.appendChild(panel.el); }
+
+  /** rodada 9 — item no menu ☰: `top` logo depois de "Perfil / personagem" (PROGRESSO), senão no fim; "Sair" sempre por último */
+  addMenuItem(label: string, fn: () => void, opts: { top?: boolean } = {}) {
+    this.menuItem(label, fn);
+    const b = this.menu.lastElementChild!;
+    if (opts.top) this.menu.insertBefore(b, this.menu.children[1] ?? null);
+    const danger = this.menu.querySelector('button.danger');
+    if (danger) this.menu.appendChild(danger);
+  }
 
   /** posição que define a zona/minimapa (padrão: o jogador); câmera de espectador passa a sua. null = jogador */
   setFocusProvider(fn: (() => { x: number; z: number }) | null) { this.focusProvider = fn; this.zones.reset(); this.zoneGate.poke(); }

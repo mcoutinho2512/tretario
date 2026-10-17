@@ -103,6 +103,10 @@ game.hudShell.onZoneChange(({ from, to }) => …)   // ZoneDefinition | null
 game.hudShell.hooks.openCharacterEditor = () => openCharacterEditor()  // menu "Perfil / personagem"
 game.hudShell.hooks.logout = async () => …        // padrão: POST /api/auth/logout e volta à home
 game.hudShell.flash('mensagem')                   // aviso curto
+game.hudShell.mountNow(panel)           // rodada 9: "Acontecendo agora" (abaixo do evento/estado, esmaece com o HUD)
+game.hudShell.mountOverlay(panel)       // rodada 9: painéis sobrepostos (agenda, debate); HUD limpo os esconde
+game.hudShell.addMenuItem('Agenda da avenida', fn) // rodada 9: item no ☰ (antes de "Sair da conta")
+game.hudShell.minimap.setTarget({ x, z, label })  // rodada 9: destino (anel dourado; seta na borda se fora da vista)
 net.markSpeaking(entityId)              // o chat avisa quem falou: o rótulo dele ganha prioridade por 6 s
 ```
 
@@ -126,3 +130,28 @@ Sem regressão mensurável; no médio ficou mais leve (antes: texto da ação co
 projeção + `display` de todos os remotos por quadro e um `Vector3` novo por quadro). JSON: `docs/screenshots/crowd_bench_r8_hud.json`.
 
 QA: `__pv.hudInfo()` (estado, custo, rótulos) e `__pv.hudSet({ clean, map, settings, menu, help, names, autoHide, poke })`.
+
+## Rodada 9 — Acontecendo agora, agenda e painel do debate
+
+Montagem: `src/ui/agendaDebateMount.ts` (`mountAgendaDebate`, chamado UMA vez em `Game.mountHud`; `attach(net)` ao
+conectar). Formatação pura: `src/events/agendaFormat.ts` (`tests/agendaFormat.test.ts`). Capturas: `O_acontecendo_agora`,
+`P_agenda`, `U_debate`, `V_plateia`, `Y_telao_evento` em `docs/screenshots/round9/`.
+
+- **Acontecendo agora** (`NowHappening`, alto à esquerda, abaixo do evento/estado; `hud-fadeable` — some com o HUD):
+  até **3** itens da mensagem `agenda` do servidor — acontecendo primeiro, depois inscrições abertas, depois o que começa
+  em ≤ 30 min (inscritos primeiro em cada grupo). Linha: `DEBATE NO PALCO · acontecendo · 2/20` + zona;
+  `CAMINHADA · começa em 03:42`; `CORRIDA DE BICICLETA · inscrições 9/20`. **Clique → direção, sem teleporte**: alvo no
+  minimapa (anel dourado; mapa expandido) + aviso "TÍTULO: 320 m daqui · zona"; debate de longe abre o painel
+  (`dbt_watch`). Relógio por intervalo de 1 s só enquanto há item; cada texto escreve no DOM só quando muda (TextSlot).
+- **AGENDA DA AVENIDA** (☰ → "Agenda da avenida"; `AgendaPanel`, `role=dialog`, Esc fecha): **Agora / A seguir /
+  Encerrados há pouco** (≤ 45 min), estado ao vivo, botão **Participar / Sair** (`evt_join` / `evt_leave {inst}`; a
+  resposta `evt_res` vira aviso). Só envia se a agenda veio do servidor (`serverDriven`): mensagem sem handler no
+  servidor derruba a conexão (Colyseus). Alvos de 44 px; no toque, folha quase da largura da tela.
+- **Painel do debate** (`DebatePanel`, `mountOverlay`; ☰ → "Palco de debate" também abre): ver `docs/DEBATES.md`. À
+  direita abaixo do minimapa (desktop), folha no alto no celular (não cobre joystick/botões; nenhum botão fixo novo:
+  continua ≤ 4 fixos), recolhível. Abre sozinho na plateia; contagem regressiva a 1 Hz só aberto com orador.
+- **Palco no mundo** (`DebateStage`): marcas dos lugares (anéis no chão; orador em amarelo, com pulso por escala — nada
+  de DOM por quadro).
+
+Custo medido (QA `tools/qa/debate_mp.mjs`): "Acontecendo agora" = 2–3 renderizações em 2,1 s (1 Hz + mudanças); o
+painel do debate só escreve quando chega `dbt` (≤ 2 Hz) ou no relógio (1 Hz).

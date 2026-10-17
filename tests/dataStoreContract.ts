@@ -140,6 +140,9 @@ export function dataStoreContract(name: string, make: () => Promise<DataStore>) 
       const rr = (await s.reports.list({ status: 'REVIEWED', limit: 500 })).find((x) => x.id === r.id)!;
       expect(rr.reviewedAt).toBeInstanceOf(Date);
       expect(rr.evidence).toEqual({ text: 'oi' });
+      // rodada 9: fala do palco de debate (enum DEBATE_LINE, migração 20261017140000)
+      const d = await s.reports.create({ reporterUserId: a.id, targetUserId: b.id, targetType: 'DEBATE_LINE', targetRef: `debate:x:${uniq()}`, category: 'ASSEDIO', details: null, evidence: { kind: 'debate', text: 'fala' }, eventId: null });
+      expect((await s.reports.list({ status: 'OPEN', limit: 500 })).find((x) => x.id === d.id)).toMatchObject({ targetType: 'DEBATE_LINE', evidence: { kind: 'debate', text: 'fala' } });
       await s.moderation.create({ action: 'SUSPEND', targetUserId: b.id, targetType: 'USER', targetRef: null, reason: 'teste', actor: 'cli:t', expiresAt: null });
       expect((await s.moderation.forUser(b.id)).map((m) => m.action)).toEqual(['SUSPEND']);
       const tag = uniq();

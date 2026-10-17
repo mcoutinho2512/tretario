@@ -104,6 +104,16 @@ isolamento de grupo, espectador/suspenso não escrevem, mutar + persistência, d
 `tests/chatMuteServer.test.ts`: sala real no mesmo processo com contas reais (troca de apelido, logout/login, ref/userId
 forjados, desmutar); `npm run test:db`: persistência após reinício, par único, cascata.
 
+## Reuso pelo palco de debate (rodada 9)
+
+As falas do debate (`docs/DEBATES.md`) passam pelo **mesmo** pipeline — não há filtro paralelo:
+`ChatService.screen(sid, texto, 'debate.speak')` = capacidade do canal → cooldown vigente → caracteres inválidos →
+`textModeration.check(texto, 'chat')` → `floodCheck`, com penalidade adaptativa para texto bloqueado. O estado
+anti-flood é o **mesmo por autor** (spam no debate deixa o chat em cooldown e vice-versa). `send()` do chat usa o mesmo
+método interno (`pipeline`). Mute por identidade também: `ChatService.mutes(viewer, authorKey)` filtra as falas e
+`ChatService.onMute(fn)` avisa o debate para esconder as já recebidas (`dbt_hide`); o menu "⋯" da fala silencia com
+`chat_mute {nid}`. Denúncia de fala: `Report` `DEBATE_LINE` com evidência do servidor (anel de 15 min, como o chat).
+
 ## Limitações
 
 - Sem tradução/filtro semântico: só a lista central (`src/moderation/text.ts`).

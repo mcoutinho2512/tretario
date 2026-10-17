@@ -1,0 +1,25 @@
+{
+  "_doc": "Espaços de telão/painel (rodada 9) — FUNDAÇÃO, sem venda. Cada slot aponta para uma superfície que já existe (eventSpots / BillboardSlot.id / trio0). Nesta rodada o servidor só serve conteúdo INTERNO (SYSTEM, EVENT, CAMPAIGN). docs/AD_SLOTS.md",
+  "slots": [
+    { "id": "CENTRAL_SCREEN_01", "surface": "screen", "target": "screen0", "zone": "CAMPO_DE_SANTANA", "formats": ["SYSTEM", "EVENT", "CAMPAIGN", "IMAGE"], "rotateSeconds": 14 },
+    { "id": "CENTRO_SCREEN_01", "surface": "screen", "target": "screen1", "zone": "CENTRO", "formats": ["SYSTEM", "EVENT", "CAMPAIGN", "IMAGE"], "rotateSeconds": 14 },
+    { "id": "STAGE_SCREEN_01", "surface": "screen", "target": "stage0", "zone": "RIO_BRANCO", "formats": ["EVENT", "SYSTEM"], "rotateSeconds": 12 },
+    { "id": "TRIO_SIDE_01", "surface": "screen", "target": "trio0", "zone": "CAMPO_DE_SANTANA", "formats": ["EVENT", "SYSTEM", "CAMPAIGN"], "rotateSeconds": 16 },
+    { "id": "CANDELARIA_SCREEN_01", "surface": "billboard", "target": "bb_6434972_1", "zone": "CANDELARIA", "formats": ["SYSTEM", "EVENT", "IMAGE"], "rotateSeconds": 15 },
+    { "id": "CANDELARIA_LED_01", "surface": "billboard", "target": "bb_432943525_1", "zone": "CANDELARIA", "formats": ["SYSTEM", "EVENT"], "rotateSeconds": 18 },
+    { "id": "RIO_BRANCO_LED_01", "surface": "billboard", "target": "bb_433274998_2", "zone": "RIO_BRANCO", "formats": ["EVENT", "SYSTEM"], "rotateSeconds": 12 },
+    { "id": "RIO_BRANCO_LED_02", "surface": "billboard", "target": "bb_433273623_9", "zone": "RIO_BRANCO", "formats": ["SYSTEM", "EVENT"], "rotateSeconds": 16 },
+    { "id": "CENTRO_LED_01", "surface": "billboard", "target": "bb_433275194_0", "zone": "CENTRO", "formats": ["SYSTEM", "EVENT"], "rotateSeconds": 15 },
+    { "id": "CENTRO_LED_02", "surface": "billboard", "target": "bb_433502316_0", "zone": "CENTRO", "formats": ["SYSTEM", "EVENT"], "rotateSeconds": 17 }
+  ],
+  "notices": [
+    { "text": "AGENDA DA AVENIDA", "sub": "Menu ☰ → Agenda: veja o que acontece agora" },
+    { "text": "RESPEITE TODO MUNDO", "sub": "Denuncie e silencie pelo chat e pelo debate" },
+    { "text": "AVENIDA FECHADA", "sub": "Só pedestres, bicicletas e veículos do evento" }
+  ],
+  "tips": [
+    { "text": "PALCO DE DEBATE", "sub": "Chegue perto do palco e entre na fila para falar" },
+    { "text": "SUBA NO TRIO", "sub": "Aperte E perto da escada do trio elétrico" },
+    { "text": "CONHEÇA A AVENIDA", "sub": "Da Central do Brasil à Candelária a pé" }
+  ]
+}

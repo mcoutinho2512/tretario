@@ -57,9 +57,21 @@ clientId, e-mail, IP) a outros clientes. Identidade: `docs/IDENTITY.md`.
 - Logs do servidor: registram que houve denúncia (id do Report, categoria, id da mensagem, apelido de quem denunciou),
   não o texto das conversas.
 
+## Palco de debate (rodada 9)
+
+- **Falas: mesma retenção do chat.** Não são persistidas: últimas 8 por instância para quem chega (apelido, texto,
+  hora) e a cópia interna para denúncia por até 15 min / 600 falas (anel na memória da sala; some ao reiniciar).
+- O que vai a clientes: `{ id, inst, apelido, nid, texto, hora, turno }` e, no estado, só apelidos (orador, fila,
+  lugares). Nunca userId/sessionId; o estado vai só à plateia do palco (não é global).
+- **Reações: só agregadas.** O servidor guarda a contagem do turno (aplauso/positiva/negativa) e, para o limite por
+  minuto, os horários das últimas reações de cada autor na memória (some em 60 s; `sweep`). Nenhum registro de quem
+  reagiu a quem; nada é persistido; nada é exibido como votação ou resultado.
+- Gameplay: `debate_watch`/`debate_turn`/`debate_react` saem pelo barramento interno (progressão), sem texto.
+
 ## Denúncias (Report)
 
-- Origem: mensagem de chat (`CHAT_MESSAGE`) ou grafite (`GRAFFITI`). Exige conta (`report.create`).
+- Origem: mensagem de chat (`CHAT_MESSAGE`), fala do debate (`DEBATE_LINE`, rodada 9 — mesma evidência do chat:
+  cópia do servidor, tema, turno, até 3 falas anteriores do autor) ou grafite (`GRAFFITI`). Exige conta (`report.create`).
 - `reportedNicknameAtTime`: cópia do apelido do denunciado no momento (chat: o da mensagem; grafite: o do autor) para a
   revisão — a identidade continua sendo `targetUserId`. Aparece em `npm run dev:reports` (`apelido_na_hora=`).
 - **Evidência = cópia do servidor**, não o que o cliente envia: texto, canal, hora, apelido e userId do autor, grupo,

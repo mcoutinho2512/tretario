@@ -25,6 +25,7 @@ export interface AdSlotDefinition {
 /** conteúdo interno de um slot (gerado pelo jogo, nunca enviado por usuário) */
 export type AdContent =
   | { kind: 'SYSTEM'; text: string; sub?: string }
-  | { kind: 'EVENT'; inst: string }
+  /** rodada 9 (aditivo): instantâneo do item da agenda para o telão desenhar sem depender da agenda do cliente */
+  | { kind: 'EVENT'; inst: string; name?: string; format?: string; zone?: string; state?: import('../events/schedule').EventState; startsAt?: number; count?: number; capacity?: number }
   | { kind: 'CAMPAIGN'; designKey: string }
   | { kind: 'IMAGE'; url: string };

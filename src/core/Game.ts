@@ -81,6 +81,7 @@ import type { SpectatorMode } from '../spectator/SpectatorMode';
 import type { CellImpostors } from '../spectator/CellImpostors';
 import { ReconnectBadge } from '../net/ReconnectBadge';
 import { ProgressionUI } from '../ui/progress/ProgressionUI'; // rodada 9 — progressão
+import { mountAgendaDebate, type AgendaDebate } from '../ui/agendaDebateMount'; // rodada 9 — agenda/debate/telões
 
 export { DEFAULT_PLAYER_APPEARANCE } from '../characters/bodyTypes';
 
@@ -329,7 +330,7 @@ export class Game {
     // cenário de evento (caminhões de campanha, telões, palco) + telão do trio no mesmo canal
     this.scenery = new EventScenery(this.manifest, (x, z) => this.collision.groundHeight(x, z), this.collision);
     this.scenery.applyEvent(this.events.current);
-    for (const it of this.rideables.eventItems()) this.scenery.addScreens(it.model);
+    for (const it of this.rideables.eventItems()) this.scenery.addScreens(it.model, it.state.id);
     this.scene.add(this.scenery.group);
     screenFeed().info = () => ({ time: this.simTime.toTimeString().slice(0, 5), players: (this.spectator ? 0 : 1) + (this.net?.remoteCount ?? 0) + (this.net?.farCount ?? 0) });
     this.cam = new ThirdPersonCamera(this.camera, this.collision);
@@ -449,9 +450,23 @@ export class Game {
       shell.setFocusProvider(() => spec.cam.focus);
       this.hud.classList.add('spectating');
     }
+    this.mountRound9(shell, relock); // rodada 9 — agenda/debate/telões
     this.container.appendChild(this.hud);
     window.addEventListener('resize', () => { this.onResize(); shell.minimap.resize(); });
   }
+
+  // rodada 9 — agenda, "Acontecendo agora", palco de debate e telões (lógica em src/ui/agendaDebateMount.ts) ----------
+  r9: AgendaDebate | null = null;
+  private mountRound9(shell: HudShell, relock: (open: boolean) => void) {
+    this.r9 = mountAgendaDebate({
+      shell, manifest: this.manifest, zones: this.zones, isTouch: this.input.isTouch, input: this.input, now: () => worldClock.now(),
+      heightAt: (x, z) => this.collision.groundHeight(x, z), scene: this.scene, rallyCrowd: this.rallyCrowd,
+      billboards: this.billboards, scenery: this.scenery, playerPos: () => this.player, flash: (m, ms) => shell.flash(m, ms),
+      onModal: relock, base: import.meta.env.BASE_URL,
+    });
+    (window as any).__pvR9 = this.r9; // QA (tools/qa/debate_mp.mjs, agenda_shots.mjs)
+  }
+  // fim rodada 9 -------------------------------------------------------------------------------------------------------
 
   /** Para validação/screenshots: ?shot=central|avenue|mid|candelaria */
   private applyShotFromUrl() {
@@ -657,6 +672,7 @@ export class Game {
     mark('multidão');
     this.closure.update(this.camera.position);
     this.scenery.update(dt, this.camera.position, this.env.night);
+    this.r9?.update(dt); // rodada 9 — palco de debate
     this.props.updateSignals((j, ph) => this.signals.state(j, ph));
 
     // mundo
@@ -748,6 +764,7 @@ export class Game {
       const prog = new ProgressionUI(this.hudShell, this.net, import.meta.env.BASE_URL);
       (window as any).__pvProg = { ui: prog, notices: this.hudShell.noticeLog, tp: (x: number, z: number) => this.net?.send('test_tp', { x, z }) };
     }
+    this.r9?.attach(this.net); // rodada 9 — agenda/debate/telões
     // quem fala ganha prioridade de nome acima da cabeça por alguns segundos (LOD de nomes)
     this.net.on('chat', (m: { nid: number }) => { const id = this.net?.idByNid(m.nid); if (id) this.net!.markSpeaking(id); });
     this.scene.add(this.net.group);
