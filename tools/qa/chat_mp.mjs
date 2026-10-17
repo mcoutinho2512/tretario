@@ -14,7 +14,7 @@ import { mkdirSync, copyFileSync } from 'node:fs';
 import { Client } from '@colyseus/sdk';
 import { pack } from 'msgpackr';
 
-const base = process.argv[2] ?? 'http://localhost:5193';
+const base = process.argv[2] ?? 'http://localhost:5173';
 const PORT = Number(process.env.PV_CHAT_PORT ?? 2730);
 const chrome = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const w = (ms) => new Promise((r) => setTimeout(r, ms));
