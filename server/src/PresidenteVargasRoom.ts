@@ -1210,7 +1210,10 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
   /** o CombatSystem vê o mundo só por aqui (estado autoritativo da sala; candidatos pela grade espacial) */
   private setupCombat(W: ServerWorld) {
     const view = (sid: string) => { const r = this.rt.get(sid), p = this.state.players.get(sid); return r && p ? { r, p } : null; };
-    this.combat = new CombatSystem(new CombatTable(W.combat), {
+    // servidor de TESTE: proteção de retorno configurável (testes de rede sem esperar 5 s); produção usa os dados
+    const protect = process.env.PV_TEST === '1' && process.env.PV_PROTECT_MS ? Number(process.env.PV_PROTECT_MS) : NaN;
+    const data = Number.isFinite(protect) ? { ...W.combat, tuning: { ...W.combat.tuning, protectMs: protect } } : W.combat;
+    this.combat = new CombatSystem(new CombatTable(data), {
       actor: (sid) => { const v = view(sid); return v ? { x: v.r.last.x, z: v.r.last.z, heading: v.p.heading, status: v.p.status, vehicle: v.p.vehicle, platform: v.p.platform, mode: v.r.actor.mode, prop: v.p.prop, immuneUntil: v.r.actor.immuneUntil, nid: v.r.nid } : undefined; },
       forEachNear: (x, z, r, fn) => this.grid.forEachInRadius(x, z, r, (sl) => { const sid = this.slotIds[sl]; if (sid && this.rt.has(sid)) fn(sid); }),
       walls: W.walls,
