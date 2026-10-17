@@ -112,7 +112,17 @@ Sem gancho do editor, o menu dispara `window` `pv:open-character-editor` e mostr
 
 `tools/qa/hud_shots.mjs` (150 bots, 50 % com vida social, preset médio, M-series): minimapa **0,13 ms** por redesenho
 (~11/s), densidade **0,30 ms** por amostra (1,5/s), decisão dos nomes **0,003–0,024 ms** (5/s), ~210 escritas de
-transform/s (14 rótulos), zero escritas de texto por quadro (evento/estado/ação só quando mudam). Comparação com a
-bancada de 500 bots: ver `docs/STATUS.md`/relatório da rodada.
+transform/s (14 rótulos), zero escritas de texto por quadro (evento/estado/ação só quando mudam).
+
+Bancada de multidão (`tools/qa/crowd_bench.mjs`, 500 bots, 60 % com vida social, sem limite de FPS, 1280×720; duas
+medições do commit anterior intercaladas com a deste, máquina compartilhada → ruído de ±10 %):
+
+| Preset | Antes (fps · CPU ms) | Antes, 2ª (fps · CPU ms) | Com o HUD novo (fps · CPU ms) |
+|---|---|---|---|
+| médio | 80,3 · 12,2 | 78,9 · 12,2 | **94,2 · 10,1** |
+| alto | 37,3 · 25,4 | 32,7 · 29,2 | **33,0 · 27,5** |
+
+Sem regressão mensurável; no médio ficou mais leve (antes: texto da ação contextual e do modo escrito a cada quadro,
+projeção + `display` de todos os remotos por quadro e um `Vector3` novo por quadro). JSON: `docs/screenshots/crowd_bench_r8_hud.json`.
 
 QA: `__pv.hudInfo()` (estado, custo, rótulos) e `__pv.hudSet({ clean, map, settings, menu, help, names, autoHide, poke })`.
