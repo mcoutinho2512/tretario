@@ -831,7 +831,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     if (!p || !r || !id) return;
     const now = Date.now();
     p.link = LINK_WIRE.CONNECTED;
-    r.actor.immuneUntil = Math.max(r.actor.immuneUntil, this.combat.protectMsFrom(now)); // rodada 9 — proteção ao reentrar
+    r.actor.immuneUntil = Math.max(r.actor.immuneUntil, this.combat.protectMsFrom(now)); this.combat.wake(sid); // rodada 9 — proteção ao reentrar
     this.clients2.set(sid, client);
     r.crowdKnown.clear(); // as aparências da multidão distante voltam a ser enviadas
     r.last.t = now; // a validação de velocidade recomeça agora (o cliente volta para a posição do servidor)

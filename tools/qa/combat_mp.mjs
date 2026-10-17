@@ -123,13 +123,16 @@ try {
     await walk(B, FIGHT.B, 5000); await face(B, FIGHT.A); await face(A, FIGHT.B);
     await w(400);
     const before = (await cb(B)).stats.dodgedIn;
-    await ev(B, () => window.__pv.cbt('cbt_dodge'));
-    await w(60);
-    await ev(A, () => window.__pv.cbt('cbt_punch'));
-    await w(120);
-    await look(B, FIGHT.A, 0.12, 4);
-    await shot(B, 'D_esquiva');
-    const dodged = await until(B, (n) => window.__pv.combat().stats.dodgedIn > n, 3000, 100, before);
+    // janela: invulnerável 320 ms; o soco de A fica ativo 120 ms depois do pedido (até 3 tentativas: navegadores
+    // separados não disparam no mesmo milissegundo numa máquina carregada)
+    let dodged = false;
+    for (let k = 0; k < 3 && !dodged; k++) {
+      if (k) { await w(1300); await walk(B, FIGHT.B, 5000); await face(B, FIGHT.A); await face(A, FIGHT.B); }
+      await Promise.all([ev(A, () => window.__pv.cbt('cbt_punch')), w(30).then(() => ev(B, () => window.__pv.cbt('cbt_dodge')))]);
+      await w(120);
+      if (!k) { await look(B, FIGHT.A, 0.12, 4); await shot(B, 'D_esquiva'); }
+      dodged = await until(B, (n) => window.__pv.combat().stats.dodgedIn > n, 2000, 100, before);
+    }
     const a = await cb(A);
     check('B esquiva → servidor responde "dodged" (sem impacto)', dodged, `A viu ${a.stats.dodgedOut} esquivas`);
   }

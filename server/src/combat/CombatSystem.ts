@@ -93,6 +93,8 @@ export type CombatRequestResult = { ok: true; action: CombatActionDefinition } |
 
 export class CombatSystem {
   private f = new Map<string, Fighter>();
+  /** só quem tem algo correndo (fôlego/condição abaixo do máximo, fx, queda, golpe pendente) passa pelo tick */
+  private hot = new Set<string>();
   private dummies: Dummy[];
   /** evento de confronto ATIVO em que o jogador está inscrito (agente D liga; padrão: nenhum) */
   combatEventFor: (sid: string) => CombatEventRules | null = () => null;
@@ -116,8 +118,11 @@ export class CombatSystem {
       stamina: t.staminaMax, condition: t.conditionMax, spentAt: 0, hitAt: 0, req: [], spamAt: 0, busyUntil: 0, last: null, cd: new Map(),
       dodgeUntil: 0, staggerUntil: 0, disorientUntil: 0, engagedUntil: 0, downAt: 0, pending: null, fx: 0, sent: { st: t.staminaMax, cd: t.conditionMax, fx: 0 }, sentAt: 0,
     });
+    this.hot.add(sid); // proteção de entrada (fx)
   }
-  leave(sid: string) { this.f.delete(sid); for (const d of this.dummies) d.known.delete(sid); }
+  /** algo mudou fora do sistema (proteção ao reentrar): volta ao tick */
+  wake(sid: string) { if (this.f.has(sid)) this.hot.add(sid); }
+  leave(sid: string) { this.f.delete(sid); this.hot.delete(sid); for (const d of this.dummies) d.known.delete(sid); }
   /** proteção de retorno (entrou, reconectou) */
   protectMsFrom(now: number) { return now + this.tuning.protectMs; }
 
@@ -219,7 +224,9 @@ export class CombatSystem {
   // ---------------------------------------------------------------- tick (10 Hz) + agendado
   update(dtMs = 100) {
     const now = this.host.now();
-    for (const [sid, F] of this.f) {
+    for (const sid of this.hot) {
+      const F = this.f.get(sid);
+      if (!F) { this.hot.delete(sid); continue; }
       if (F.pending) this.advance(sid, F, now);
       this.refresh(sid, F, now, false, dtMs);
     }
@@ -231,7 +238,7 @@ export class CombatSystem {
   /** só as janelas ativas vencidas (chamado no instante exato pela sala) */
   resolveDue() {
     const now = this.host.now();
-    for (const [sid, F] of this.f) if (F.pending) this.advance(sid, F, now);
+    for (const sid of this.hot) { const F = this.f.get(sid); if (F?.pending) this.advance(sid, F, now); }
   }
 
   private advance(sid: string, F: Fighter, now: number) {
@@ -347,6 +354,8 @@ export class CombatSystem {
       F.sent = { st, cd, fx }; F.sentAt = now;
       this.host.send(sid, 'cbt_self', { st, cd, fx });
     }
+    const idle = !F.pending && !F.downAt && fx === 0 && me.status === PHYS.NORMAL && F.stamina >= t.staminaMax && F.condition >= t.conditionMax && st === F.sent.st && cd === F.sent.cd && fx === F.sent.fx;
+    if (idle) this.hot.delete(sid); else this.hot.add(sid);
   }
 
   // ---------------------------------------------------------------- bonecos de treino
@@ -409,7 +418,7 @@ export class CombatSystem {
   }
 
   /** caiu por outro motivo (veículo): condição volta ao levantar, preparação cancelada */
-  onKnockdown(sid: string) { const F = this.f.get(sid); if (F) { F.downAt = this.host.now(); F.pending = null; F.staggerUntil = 0; } }
+  onKnockdown(sid: string) { const F = this.f.get(sid); if (F) { F.downAt = this.host.now(); F.pending = null; F.staggerUntil = 0; this.hot.add(sid); } }
 
   /** QA/testes */
   fighter(sid: string) {

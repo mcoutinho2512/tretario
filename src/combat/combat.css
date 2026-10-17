@@ -17,10 +17,10 @@
 .cbt-peace { position: absolute; left: 50%; top: calc(var(--sat, 0px) + 118px); transform: translateX(-50%); padding: 5px 12px; border-radius: 12px; background: rgba(40, 110, 60, 0.55); color: #eaffef; font: 700 11px system-ui, sans-serif; letter-spacing: 0.14em; opacity: 0; transition: opacity 0.25s; pointer-events: none; }
 .cbt-peace.show { opacity: 1; }
 .hud.photo .cbt-hud, .hud.photo .cbt-peace { display: none; }
-/* toque: três botões pequenos à esquerda da coluna fixa (PULAR/AÇÕES/CORRER), só com contexto de confronto */
+/* toque: três botões acima da coluna fixa (PULAR/USAR · AÇÕES/CORRER), ao alcance do polegar direito, longe do joystick */
 .touch-combat[hidden] { display: none; }
 .touch-btn.cbt { width: 58px; height: 58px; font-size: 9.5px; background: rgba(150, 52, 40, 0.42); border-color: rgba(255, 170, 140, 0.5); }
-.touch-btn.cbt_punch { bottom: calc(var(--sab) + 30px); right: calc(var(--sar) + 196px); }
-.touch-btn.cbt_kick { bottom: calc(var(--sab) + 100px); right: calc(var(--sar) + 186px); }
-.touch-btn.cbt_dodge { bottom: calc(var(--sab) + 168px); right: calc(var(--sar) + 150px); }
+.touch-btn.cbt_punch { bottom: calc(var(--sab) + 204px); right: calc(var(--sar) + 28px); }
+.touch-btn.cbt_kick { bottom: calc(var(--sab) + 180px); right: calc(var(--sar) + 102px); }
+.touch-btn.cbt_dodge { bottom: calc(var(--sab) + 272px); right: calc(var(--sar) + 70px); }
 .hud.photo .touch-combat { display: none; }

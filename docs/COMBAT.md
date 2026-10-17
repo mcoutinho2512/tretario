@@ -142,3 +142,19 @@ preparação. Folgas de alcance (0,45 m) e arco (15°) cobrem o atraso de posiç
   `--combat-dense` (todos lutando, um pedido a cada 0,7–1,4 s); `server/tools/loadtest.ts` cenário `100c`
   (estresse) e `BOTS_COMBAT=F` nos cenários d/s; `/metrics` ganhou `combatAvgMs/MaxMs` (custo no tick),
   `hitValAvgMs/MaxMs/hitValsPerSec` (validação de cada janela ativa) e `cbtReqPerSec/cbtOkPerSec`.
+
+**Medições** (M5 Pro COMPARTILHADO com outros agentes — carga média do sistema 15–100 durante as medições, então tick/CPU
+são pessimistas; `docs/screenshots/loadtest_r9a_base.json`, `loadtest_r9a_combat.json`; 20 s por cenário, 60 % dos
+bots com vida social, 3 grupos, 30 msgs de chat/min):
+
+| Cenário | tick (média · máx) | CPU | banda/cliente | confronto no tick | validação de acerto | pedidos/s (aceitos) |
+|---|---|---|---|---|---|---|
+| 500 densos, sem confronto | 11,0 · 22,4 ms | 43 % | **20,4 KB/s** | 0,04 ms | — | — |
+| 500 densos, 10 % em confronto (50 lutadores) | 13,4 · 26,8 ms | 53 % | 19,8 KB/s | 0,40 ms | 0,96 ms (máx 3,0) · 14/s | 18 (16) |
+| 100 lutadores (estresse, `100c`) | 1,7 · 32,8 ms | 13 % | 5,0 KB/s | 0,35 ms | 0,37 ms (máx 5,7) · 63/s | 92 (68) |
+
+Sem confronto a banda do jogador comum fica igual à da rodada 8 (20,4 KB/s): `fx` só muda na entrada/proteção,
+`cbt_self` só quando algo muda, e só quem tem estado ativo passa pelo tick (conjunto "quente"). No estresse, 462 das
+negativas são `estado` (lutador caído/cambaleando tentando golpear) — esperado; as correções vêm dos bots, que não
+aplicam o empurrão/esquiva recebidos. A validação mais cara na multidão densa vem da grade espacial compartilhada
+(células de 110 m: a consulta de 5 m visita a célula toda); 14 validações/s × ~1 ms ≈ 1,4 % de um núcleo.
