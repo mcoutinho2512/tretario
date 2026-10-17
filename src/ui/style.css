@@ -225,7 +225,7 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); o
 .aw-hint { font-size: 10px; opacity: 0.75; text-shadow: 0 1px 2px #000; }
 @media (max-width: 640px) { .aw-opt { min-width: 70px; font-size: 11px; padding: 6px 8px; } }
 
-/* ---- rodada 9: zona (política), MÃOS / ITEM ATUAL, desorientação, ver docs/COMBAT_ITEMS_ZONES.md */
+/* ---- rodada 9: zona (política), MÃOS / ITEM ATUAL, desorientação, ver docs/COMBAT.md */
 .zb-policy { margin-top: 7px; font: 700 10.5px/1 system-ui, sans-serif; letter-spacing: 0.26em; text-transform: uppercase; color: rgba(190, 236, 205, 0.92); }
 .zb-policy:empty { display: none; }
 .zone-banner[data-policy="COMBAT"] .zb-policy { color: #ffb3a8; }
