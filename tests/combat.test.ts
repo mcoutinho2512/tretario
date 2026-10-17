@@ -379,3 +379,18 @@ describe('pulo (JumpValidator)', () => {
     expect(J.airborne('A', 1000 + JUMP_FLIGHT_MS + JUMP.lateMs + 1)).toBe(false);
   });
 });
+
+describe('empurrão antigo (push, tecla F) obedece à mesma política', () => {
+  it('zona de paz, área de paz e pacífico negam; zona de combate com consentimento permite', () => {
+    setup();
+    expect(C.pushPolicy('A', 'B')).toEqual({ ok: true });
+    W.players.get('B')!.zone = 'PRACA';
+    expect(C.pushPolicy('A', 'B')).toEqual({ ok: false, reason: 'zona_paz' });
+    W.players.get('B')!.zone = 'ARENA';
+    W.zones.ARENA.peaceAreas = [{ id: 'palco', x: 0, z: 0, r: 5 }];
+    expect(C.pushPolicy('A', 'B')).toEqual({ ok: false, reason: 'zona_paz' });
+    W.zones.ARENA.peaceAreas = [];
+    W.players.get('B')!.mode = 'pacifico';
+    expect(C.pushPolicy('A', 'B')).toEqual({ ok: false, reason: 'politica' });
+  });
+});

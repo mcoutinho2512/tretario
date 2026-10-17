@@ -1239,6 +1239,8 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     const now = Date.now();
     const v = canPush(r.actor, t?.actor, now, world().walls);
     if (!v.ok) { client.send('push_denied', v.reason); metrics.denied(); console.log(`[room] empurrão negado ${client.sessionId} → ${targetId}: ${v.reason}`); return; }
+    const pol = this.combat.pushPolicy(client.sessionId, targetId); // rodada 9 — confronto: zona de paz/evento valem para o empurrão
+    if (!pol.ok) { client.send('push_denied', pol.reason); metrics.denied(); return; }
     r.actor.lastActionAt = now;
     r.actor.actionTimes = [...r.actor.actionTimes.filter((x) => now - x < RULES.rateWindowMs), now];
     this.broadcast('action', { by: client.sessionId, type: 'push', target: targetId });

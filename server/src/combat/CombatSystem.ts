@@ -406,6 +406,14 @@ export class CombatSystem {
    * `push` antigo (F, alvo escolhido pelo cliente, regras canPush da rodada 5): continua aceito, mas o IMPACTO vem
    * da definição EMPURRÃO desta tabela (mesma queda, mesmo levantar/proteção).
    */
+  /** empurrão antigo (`push`, tecla F): mesma política dos golpes (zona + evento + estado + proteção) — antes do impacto */
+  pushPolicy(sid: string, tsid: string): { ok: true } | { ok: false; reason: string } {
+    const me = this.host.actor(sid), ta = this.host.actor(tsid);
+    if (!me || !ta) return { ok: false, reason: 'alvo_invalido' };
+    const ev = this.combatEventFor(sid);
+    return combatAllowed(this.zonePolicy, this.party(sid, me, ev), this.party(tsid, ta, ev), ev, this.host.now());
+  }
+
   legacyPushImpact(sid: string, tsid: string) {
     const def = this.table.byKey.get('empurrao');
     const me = this.host.actor(sid), ta = this.host.actor(tsid), T = this.f.get(tsid), F = this.f.get(sid);
