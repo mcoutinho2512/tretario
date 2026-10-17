@@ -39,12 +39,17 @@ export type ReportStatus = 'OPEN' | 'REVIEWED' | 'DISMISSED' | 'ACTIONED';
 export interface ReportRecord {
   id: string; reporterUserId: string | null; targetUserId: string | null; targetType: ReportTarget; targetRef: string;
   category: ReportCategory; details: string | null; evidence: Record<string, unknown>; status: ReportStatus; eventId: string | null;
+  /** apelido do denunciado no momento (cópia para revisão; a identidade é targetUserId) */
+  reportedNicknameAtTime?: string | null;
   createdAt: Date; reviewedAt: Date | null;
 }
 export interface ModerationActionRecord {
   id: string; action: string; targetUserId: string | null; targetType: string | null; targetRef: string | null; reason: string | null;
   actor: string; createdAt: Date; expiresAt: Date | null;
 }
+/** mute pessoal por IDENTIDADE (userId), nunca por apelido (rodada 8.1) */
+export interface MuteRecord { ownerUserId: string; mutedUserId: string; mutedNicknameAtTime: string | null; createdAt: Date }
+
 export interface AuditRecord { id: string; actor: string; action: string; targetType: string | null; targetId: string | null; meta: Record<string, unknown>; createdAt: Date }
 
 export interface DataStore {
@@ -71,12 +76,23 @@ export interface DataStore {
     touch(id: string, at: Date, expiresAt?: Date): Promise<void>;
     revoke(id: string): Promise<void>;
     revokeAllForUser(userId: string): Promise<number>;
+    /** limpeza (idempotente, em lotes): vencidas antes de `expiredBefore` ou revogadas antes de `revokedBefore` */
+    deleteExpired(expiredBefore: Date, revokedBefore: Date, limit: number): Promise<number>;
   };
   codes: {
     create(d: { userId: string; purpose: CodePurpose; codeHash: string; expiresAt: Date }): Promise<CodeRecord>;
     latest(userId: string, purpose: CodePurpose): Promise<CodeRecord | null>;
     attempt(id: string): Promise<number>;
     consume(id: string): Promise<void>;
+    /** limpeza (idempotente, em lotes): vencidos antes de `expiredBefore` ou usados antes de `consumedBefore` */
+    deleteExpired(expiredBefore: Date, consumedBefore: Date, limit: number): Promise<number>;
+  };
+  mutes: {
+    list(ownerUserId: string): Promise<MuteRecord[]>;
+    /** cria (ou mantém) — idempotente */
+    add(ownerUserId: string, mutedUserId: string, mutedNicknameAtTime: string | null): Promise<void>;
+    /** remove; devolve se existia */
+    remove(ownerUserId: string, mutedUserId: string): Promise<boolean>;
   };
   access: {
     active(userId: string, eventId: string | null, now: Date): Promise<AccessRecord[]>;

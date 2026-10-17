@@ -1,7 +1,7 @@
 /** DataStore em memória (testes unitários e servidores de teste). Mesma semântica do PrismaDataStore. */
 import { randomUUID } from 'node:crypto';
 import type {
-  AccessRecord, AuditRecord, CodeRecord, DataStore, EventGroupRecord, MembershipRecord, ModerationActionRecord, PaymentRecord,
+  MuteRecord, AccessRecord, AuditRecord, CodeRecord, DataStore, EventGroupRecord, MembershipRecord, ModerationActionRecord, PaymentRecord,
   ProfileRecord, ReportRecord, SessionRecord, UserRecord,
 } from './types';
 
@@ -22,6 +22,7 @@ export class MemoryDataStore implements DataStore {
   private r = new Map<string, ReportRecord>();
   private mod = new Map<string, ModerationActionRecord>();
   private log: AuditRecord[] = [];
+  private mu = new Map<string, MuteRecord>();
 
   users = {
     create: async (d: { email: string; passwordHash: string }) => {
@@ -83,6 +84,14 @@ export class MemoryDataStore implements DataStore {
       for (const rec of this.s.values()) if (rec.userId === userId && !rec.revokedAt) { rec.revokedAt = new Date(); n++; }
       return n;
     },
+    deleteExpired: async (expiredBefore: Date, revokedBefore: Date, limit: number) => {
+      let n = 0;
+      for (const [k, rec] of this.s) {
+        if (n >= limit) break;
+        if (rec.expiresAt < expiredBefore || (rec.revokedAt && rec.revokedAt < revokedBefore)) { this.s.delete(k); n++; }
+      }
+      return n;
+    },
   };
 
   codes = {
@@ -96,6 +105,23 @@ export class MemoryDataStore implements DataStore {
       clone([...this.c.values()].reverse().filter((x) => x.userId === userId && x.purpose === purpose).sort((a, b) => +b.createdAt - +a.createdAt)[0] ?? null),
     attempt: async (id: string) => { const rec = this.c.get(id); if (!rec) return 0; rec.attempts++; return rec.attempts; },
     consume: async (id: string) => { const rec = this.c.get(id); if (rec) rec.consumedAt = new Date(); },
+    deleteExpired: async (expiredBefore: Date, consumedBefore: Date, limit: number) => {
+      let n = 0;
+      for (const [k, rec] of this.c) {
+        if (n >= limit) break;
+        if (rec.expiresAt < expiredBefore || (rec.consumedAt && rec.consumedAt < consumedBefore)) { this.c.delete(k); n++; }
+      }
+      return n;
+    },
+  };
+
+  mutes = {
+    list: async (ownerUserId: string) => clone([...this.mu.values()].filter((m) => m.ownerUserId === ownerUserId)),
+    add: async (ownerUserId: string, mutedUserId: string, mutedNicknameAtTime: string | null) => {
+      const k = `${ownerUserId}|${mutedUserId}`;
+      if (!this.mu.has(k)) this.mu.set(k, { ownerUserId, mutedUserId, mutedNicknameAtTime, createdAt: new Date() });
+    },
+    remove: async (ownerUserId: string, mutedUserId: string) => this.mu.delete(`${ownerUserId}|${mutedUserId}`),
   };
 
   access = {
@@ -152,7 +178,7 @@ export class MemoryDataStore implements DataStore {
 
   reports = {
     create: async (d: Omit<ReportRecord, 'id' | 'createdAt' | 'reviewedAt' | 'status'>) => {
-      const rec: ReportRecord = { id: randomUUID(), ...d, status: 'OPEN', createdAt: new Date(), reviewedAt: null };
+      const rec: ReportRecord = { id: randomUUID(), reportedNicknameAtTime: null, ...d, status: 'OPEN', createdAt: new Date(), reviewedAt: null };
       this.r.set(rec.id, rec);
       return clone(rec);
     },

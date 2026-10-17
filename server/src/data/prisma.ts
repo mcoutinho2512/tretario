@@ -9,7 +9,7 @@
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient, Prisma } from '../generated/prisma/client.ts';
 import type {
-  AccessRecord, AuditRecord, CodeRecord, DataStore, EventGroupRecord, MembershipRecord, ModerationActionRecord, PaymentRecord,
+  AccessRecord, AuditRecord, CodeRecord, MuteRecord, DataStore, EventGroupRecord, MembershipRecord, ModerationActionRecord, PaymentRecord,
   ProfileRecord, ReportRecord, SessionRecord, UserRecord,
 } from './types.ts';
 import type { PlayerPreferences } from '../../../src/identity/types.ts';
@@ -89,6 +89,11 @@ export class PrismaDataStore implements DataStore {
     },
     revoke: async (id: string) => { await this.db.session.updateMany({ where: { id, revokedAt: null }, data: { revokedAt: new Date() } }); },
     revokeAllForUser: async (userId: string) => (await this.db.session.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: new Date() } })).count,
+    deleteExpired: async (expiredBefore: Date, revokedBefore: Date, limit: number) => {
+      const ids = (await this.db.session.findMany({ where: { OR: [{ expiresAt: { lt: expiredBefore } }, { revokedAt: { lt: revokedBefore } }] }, select: { id: true }, take: limit })).map((r) => r.id);
+      if (!ids.length) return 0;
+      return (await this.db.session.deleteMany({ where: { id: { in: ids } } })).count;
+    },
   };
 
   codes = {
@@ -99,6 +104,20 @@ export class PrismaDataStore implements DataStore {
       try { return (await this.db.verificationCode.update({ where: { id }, data: { attempts: { increment: 1 } } })).attempts; } catch { return 0; }
     },
     consume: async (id: string) => { await this.db.verificationCode.updateMany({ where: { id }, data: { consumedAt: new Date() } }); },
+    deleteExpired: async (expiredBefore: Date, consumedBefore: Date, limit: number) => {
+      // lote por ids (índice em expiresAt); deleteMany de ids já apagados por outra instância apaga 0 — idempotente
+      const ids = (await this.db.verificationCode.findMany({ where: { OR: [{ expiresAt: { lt: expiredBefore } }, { consumedAt: { lt: consumedBefore } }] }, select: { id: true }, take: limit })).map((r) => r.id);
+      if (!ids.length) return 0;
+      return (await this.db.verificationCode.deleteMany({ where: { id: { in: ids } } })).count;
+    },
+  };
+
+  mutes = {
+    list: async (ownerUserId: string) => this.db.muteRelationship.findMany({ where: { ownerUserId }, orderBy: { createdAt: 'asc' } }) as Promise<MuteRecord[]>,
+    add: async (ownerUserId: string, mutedUserId: string, mutedNicknameAtTime: string | null) => {
+      await this.db.muteRelationship.upsert({ where: { ownerUserId_mutedUserId: { ownerUserId, mutedUserId } }, create: { ownerUserId, mutedUserId, mutedNicknameAtTime }, update: {} });
+    },
+    remove: async (ownerUserId: string, mutedUserId: string) => (await this.db.muteRelationship.deleteMany({ where: { ownerUserId, mutedUserId } })).count > 0,
   };
 
   access = {

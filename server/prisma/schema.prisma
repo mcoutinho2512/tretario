@@ -82,6 +82,24 @@ model User {
   codes       VerificationCode[]
   reportsMade Report[]          @relation("reporter")
   reportsAbout Report[]         @relation("reported")
+  mutes       MuteRelationship[] @relation("muteOwner")
+  mutedBy     MuteRelationship[] @relation("muteTarget")
+}
+
+/// mute pessoal (rodada 8.1): identidade IMUTÁVEL (userId), nunca apelido. Apelido só como cópia para a UI.
+/// Mute ≠ ban: só esconde as mensagens do alvo para o dono da lista.
+model MuteRelationship {
+  id                  String   @id @default(uuid())
+  ownerUserId         String
+  owner               User     @relation("muteOwner", fields: [ownerUserId], references: [id], onDelete: Cascade)
+  mutedUserId         String
+  muted               User     @relation("muteTarget", fields: [mutedUserId], references: [id], onDelete: Cascade)
+  /// apelido do alvo no momento do mute (apresentação/auditoria; NÃO é chave)
+  mutedNicknameAtTime String?
+  createdAt           DateTime @default(now())
+
+  @@unique([ownerUserId, mutedUserId])
+  @@index([mutedUserId])
 }
 
 model Profile {
@@ -121,6 +139,8 @@ model Session {
   uaHash     String?
 
   @@index([userId])
+  /// limpeza de sessões vencidas (CleanupService)
+  @@index([expiresAt])
 }
 
 model VerificationCode {
@@ -135,6 +155,8 @@ model VerificationCode {
   createdAt  DateTime    @default(now())
 
   @@index([userId, purpose])
+  /// limpeza de códigos vencidos/usados (CleanupService)
+  @@index([expiresAt])
 }
 
 /// concessão de acesso (licença de participação). Rodada 8: DEV_GRANTED por CLI; PAID virá do PIX (rodada 9).
@@ -222,6 +244,8 @@ model Report {
   reporter       User?          @relation("reporter", fields: [reporterUserId], references: [id], onDelete: SetNull)
   targetUserId   String?
   target         User?          @relation("reported", fields: [targetUserId], references: [id], onDelete: SetNull)
+  /// apelido do denunciado no momento (cópia; a identidade é targetUserId)
+  reportedNicknameAtTime String?
   targetType     ReportTarget
   /// id da mensagem/grafite (interno)
   targetRef      String
