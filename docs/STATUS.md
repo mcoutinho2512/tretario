@@ -2,6 +2,36 @@
 
 _Atualizado em 2026-10-17 (rodada 8: identidade, grupos, chat, espectador e mundo persistente)._
 
+## Rodada 8.1 — hardening de identidade, limpeza e espectador aéreo
+
+| Item | Estado |
+|---|---|
+| Mute por IDENTIDADE | `MuteRelationship(ownerUserId, mutedUserId, mutedNicknameAtTime)`; alvo resolvido NO SERVIDOR (mensagem recebida, entidade no mundo ou `ref` da própria lista); `ref` opaco (HMAC) — nenhum userId sai para o cliente; filtro no servidor em GERAL, PROXIMIDADE, GRUPO e histórico; sobrevive a troca de apelido, logout/login e reinício do servidor; migração dos mutes antigos por apelido ([CHAT.md](CHAT.md)) |
+| Denúncias | `targetUserId` + `reportedNicknameAtTime` (cópia do apelido na hora) no chat e na pichação |
+| Limpeza | `CleanupService`: sessões vencidas/revogadas e códigos vencidos/usados (carência 60 min), tickets, limites de taxa e mapas do chat em memória; a cada `CLEANUP_INTERVAL_MINUTES` (10), primeira passada sem bloquear a subida; lotes idempotentes (várias instâncias); índices em `expiresAt`/`revokedAt`/`consumedAt`; log só com contagens; `npm run dev:cleanup` ([DATABASE.md](DATABASE.md)) |
+| Espectador aéreo | camadas NEAR/MID/FAR/AGGREGATE pela altitude (histerese); FAR/AGGREGATE recebem células agregadas de 40 m (`spec_cells`, binário, ≤ 6 KB/s), calculadas uma vez para todos; jogadores reais e multidão de ambiente separados; impostores determinísticos pela seed da célula; minimapa usa as células ([SPECTATOR.md](SPECTATOR.md)) |
+| Testes | **435** automatizados; `test:db` **15/15**; chat **24/24**; reconexão **18/18**; espectador **16/16**; espectador aéreo **17/17**; walkthrough **36/36**; persistência E2E **21/21**; build OK |
+
+**Desempenho** (M5 Pro; mesmas condições da rodada 8: 60 % sociais, 3 grupos, 30 msgs/min)
+
+| | Rodada 8 | Rodada 8.1 |
+|---|---|---|
+| Servidor 500 densos: tick · CPU · banda/jogador | 7,6 ms · 29 % · 20,36 KB/s | 8,1 ms · 32 % · **20,37 KB/s** |
+| Servidor 50 densos: banda/jogador | 4,96 KB/s | **4,92 KB/s** |
+| Cliente 500 LOW / HIGH (FPS sem vsync) | 436 / 75 | 408–434 / 70–74 (2 repetições)¹ |
+| Espectador no chão (Central) 50 / 500 bots | — | 1,9 / 8,9 KB/s · 60 FPS |
+| Espectador no alto (AGGREGATE) 50 / 500 bots | (500 entidades) | **0,3 / 1,15 KB/s** · **60 FPS** · 0 entidades, 916 impostores |
+| Soak de câmeras 22 min (215 trocas, 200 bots) | — | heap 51 → 73 MB nos 2 primeiros min, depois plano (±1,3 MB); tendência pós-aquecimento **+0,04 MB/min**; GPU ~389 MB estável; 0 erros |
+
+¹ Uma primeira medição deu 393/69 com outros apps pesados abertos na máquina (`docs/screenshots/crowd_bench_round8_1.json`);
+repetida em seguida dá os valores da tabela. Draw calls e triângulos são os mesmos da rodada 8: o jogador não desenha
+nada novo.
+
+**Limitações**: posições dentro de uma célula aérea são ilustrativas (contagem, grupos e densidade são reais); multidão
+de ambiente no alto é estimada pelos dados do evento; mute de visitante sem conta vale só na conexão; a lista de
+mutados mostra o apelido da hora do mute; métricas da limpeza só no log (sem endpoint de admin); limites da pichação e
+retenção de EventMembership sem limpeza; sem exclusão de conta.
+
 ## Rodada 8 — identidade, lados, chat, espectador e mundo persistente
 Detalhes: [IDENTITY.md](IDENTITY.md) · [AUTH.md](AUTH.md) · [ACCESS_CONTROL.md](ACCESS_CONTROL.md) · [DATABASE.md](DATABASE.md) ·
 [CHAT.md](CHAT.md) · [SPECTATOR.md](SPECTATOR.md) · [HUD.md](HUD.md) · [PRIVACY_ARCHITECTURE.md](PRIVACY_ARCHITECTURE.md)

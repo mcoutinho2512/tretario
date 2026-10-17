@@ -94,10 +94,11 @@ const half = Math.max(5, Math.floor(MIN / 2));
 const summary = {
   minutes: MIN, bots: BOTS, switches, samples: samples.length, errors: errors.slice(0, 10),
   heap: { first: samples[0].usedMB, last: samples.at(-1).usedMB, min: Math.min(...samples.map((s) => s.usedMB)), max: Math.max(...samples.map((s) => s.usedMB)) },
-  slopeMBperMin: { total: slope(0, MIN), firstHalf: slope(0, half), lastHalf: slope(MIN - half, MIN) },
+  // pós-aquecimento (a partir do 5º min): em soaks curtos a "metade final" pega só ruído (±1–2 MB entre amostras)
+  slopeMBperMin: { total: slope(0, MIN), firstHalf: slope(0, half), lastHalf: slope(MIN - half, MIN), afterWarmup: slope(5, MIN) },
   gpu: { first: gpuVals[0] ?? null, last: gpuVals.at(-1) ?? null, max: gpuVals.length ? Math.max(...gpuVals) : null },
 };
-summary.verdict = summary.slopeMBperMin.lastHalf !== null && Math.abs(summary.slopeMBperMin.lastHalf) < 0.1 ? 'ESTÁVEL' : 'CONTINUA CRESCENDO — investigar';
+summary.verdict = summary.slopeMBperMin.afterWarmup !== null && Math.abs(summary.slopeMBperMin.afterWarmup) < 0.1 ? 'ESTÁVEL' : 'CONTINUA CRESCENDO — investigar';
 writeFileSync(`screenshots/soak/${TAG}.json`, JSON.stringify({ summary, samples }, null, 1));
 console.log(JSON.stringify(summary, null, 1));
 await b.close();

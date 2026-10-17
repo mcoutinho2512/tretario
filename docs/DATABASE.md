@@ -41,6 +41,18 @@ PV_SESSION_SECRET="dev-only-change-me"
 
 Os scripts de teste recusam o schema `public`.
 
+## Mudanças da rodada 8.1 (migrations `20261017115838_hardening_identity_cleanup`, `20261017130000_cleanup_revoked_consumed_idx`)
+
+- **`MuteRelationship`** `(id, ownerUserId, mutedUserId, mutedNicknameAtTime?, createdAt)` — único por par
+  `(ownerUserId, mutedUserId)`, índice em `mutedUserId`, `onDelete: Cascade` nas duas contas. A identidade é o
+  `userId`; o apelido é só uma cópia para exibir. A migration converteu os mutes antigos por apelido
+  (`Profile.preferences.chatMuted`) em linhas desta tabela (apelido → conta pela `nicknameKey`) e removeu a chave.
+- **`Report.reportedNicknameAtTime`** — apelido do denunciado no momento da denúncia (revisão); o alvo continua sendo
+  `targetUserId`.
+- **Índices**: `Session(expiresAt)`, `Session(revokedAt)`, `VerificationCode(expiresAt)`,
+  `VerificationCode(consumedAt)` — usados pela limpeza (`BitmapOr`, sem varredura sequencial).
+- **DataStore**: `mutes.{list, add, remove}`, `sessions.deleteExpired`, `codes.deleteExpired` (memória e Prisma).
+
 ## Registros efêmeros e limpeza (rodada 8.1)
 
 Inventário de tudo que vence/expira no servidor e o destino de cada item. **Auditoria nunca é apagada.**
