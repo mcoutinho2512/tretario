@@ -5,3 +5,4 @@ router.add('GET', '/api/health', () => ({ body: { ok: true } }));
 
 import '../auth/routes.ts'; // contas, sessão, ticket de entrada (docs/AUTH.md)
 import './profile.ts'; // perfil, aparência, preferências, evento atual e grupo (rodada 8)
+import './publicMetricsRoute.ts'; // GET /api/metrics/public (rodada 8 — presença/espectador)

@@ -83,3 +83,22 @@ clientId, e-mail, IP) a outros clientes. Identidade: `docs/IDENTITY.md`.
 ## Perfil e aparência
 - Perfil público mínimo (`PublicProfile`): sem e-mail, ids internos, IP ou datas exatas (só AAAA-MM).
 - Sessão em cookie HttpOnly; o banco guarda só o hash do token. Nenhum token em localStorage.
+
+## Espectadores, presença e métricas públicas (rodada 8)
+
+- **Espectador visitante** (sem ticket) não tem conta nem identificador persistente: o servidor guarda só, em memória e
+  enquanto a conexão durar, o id da conexão, o papel, o foco da CÂMERA (x, z, preso aos limites do mapa) e o instante do
+  último `spec_cam`. Nada disso vai para o banco, para logs de longa duração nem para outros clientes — o espectador não
+  é entidade, ninguém o vê nem sabe para onde a câmera dele aponta. O `cid` anônimo do aparelho (grafites) só é usado
+  para a área de interesse de grafites; o espectador não pode criar nem denunciar grafites.
+- **Espectador com conta**: o mesmo; a conta só aparece na presença (abaixo) e nunca é revelada a outros jogadores.
+- **Presença** (`PresenceTracker`) é só memória: userId (quando há), papel, se é bot de teste, horários de atividade/
+  batimento. Desaparece quando a conexão sai. Não é gravada por quadro nem por mensagem; um `lastSeen` futuro no banco
+  deve ser grosso (saída ou a cada vários minutos) e entra na retenção da conta.
+- **Reconexão**: durante a graça (20 s) o servidor mantém a entidade (posição/estado de jogo), não dados novos; o token
+  de reconexão é do Colyseus (aleatório, da sessão) e expira junto com a graça.
+- **Métricas públicas** (`GET /api/metrics/public`): só CONTAGENS agregadas (jogadores, espectadores, conexões, bots de
+  teste, multidão simulada) + id/nome do evento. Nenhum nome, id, posição ou endereço; cache de 1,5 s (não permite
+  correlacionar a entrada/saída de uma pessoa específica com precisão de segundos).
+- **Logs do servidor** de desenvolvimento registram ids de conexão (efêmeros) em entrada/saída/queda/substituição —
+  nunca userId, e-mail ou IP.

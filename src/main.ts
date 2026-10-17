@@ -499,7 +499,9 @@ function showError(e: unknown) {
   $('error-msg').textContent = e instanceof Error ? e.message : String(e);
 }
 
+/** inicia o jogo; `role = 'spectator'` = ASSISTIR (src/spectator). `pv:click` → `pv:world-visible` = tempo até o 1º quadro */
 async function launch(choice: QualityChoice, role?: WorldRole) {
+  performance.mark('pv:click');
   saveQualityChoice(choice);
   saveLocalLook();
   preview?.dispose();
@@ -548,11 +550,12 @@ registerCharacterEditor(() => {
 });
 (window as any).pvOpenCharacterEditor = openCharacterEditor;
 
-// automação/validação: ?autostart=1&quality=high (jogo local, como antes)
+// automação/validação: ?autostart=1&quality=high (jogo local, como antes) · __pvLaunch({ role }) = mesmo caminho dos botões
+(window as any).__pvLaunch = (o: { role?: WorldRole } = {}) => launch((radios.find((r) => r.checked)?.value ?? 'auto') as QualityChoice, o.role);
 if (autostart) {
   const q = (params.get('quality') ?? 'auto') as QualityChoice;
   home.classList.add('hidden');
-  enginePromise.then(() => launch(q));
+  enginePromise.then(() => launch(q, params.get('spectate') === '1' ? 'spectator' : undefined)); // &spectate=1 = assistir
 } else {
   renderSwatches();
   void loadEvent().then(() => refreshMe());

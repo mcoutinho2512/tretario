@@ -138,3 +138,76 @@ continuam **locais e diferentes** em cada cliente. Desde a rodada 7 têm vida so
 pontos de concentração (trio, carro de som) registrados em `src/social/rally.ts`. Próximo passo: gerar no build uma grade de navegação
 (calçadas/faixas) usável pelo servidor e simular uma população global pequena perto dos jogadores, com o mesmo esquema
 de snapshot compacto (o mesmo formato que o antigo trânsito usava).
+
+## Espectadores (rodada 8)
+Mesmo mundo, sem corpo: ver `docs/SPECTATOR.md`. A área de interesse do espectador é a da **câmera** (`spec_cam`,
+validado e com taxa limitada), com o mesmo código dos jogadores (grade espacial + `StateView` + `crowd` + grafites).
+Espectadores não são entidades, não colidem e não contam como jogadores.
+
+## Reconexão (rodada 8)
+Regras puras em `src/net/reconnect.ts` (testes: `tests/reconnect.test.ts`); servidor em `PresidenteVargasRoom`
+(`onDrop` / `onReconnect` / `onLeave`); cliente em `NetworkClient` (`bind`, `onRoomLeft`, `rejoinFresh`).
+
+```
+cliente   CONNECTED ─queda─▶ RECONNECTING ─voltou─▶ CONNECTED (mesma entidade)
+                                 └─graça vencida/recusa─▶ EXPIRED ─entrada nova─▶ CONNECTED (entidade nova)
+servidor  CONNECTED ─queda─▶ DISCONNECTED_GRACE (20 s) ─voltou─▶ CONNECTED
+                                 └─prazo─▶ EXPIRED → entidade removida (sem fantasma)
+```
+- **Graça**: `PV_GRACE_S` (padrão 20 s). Na queda (`onDrop`, só jogador) a entidade FICA — congelada (velocidade 0,
+  ação em curso encerrada; veículo/trio/item mantidos, ninguém rouba o carro) e **marcada** (`NetPlayer.link = 1`; os
+  outros clientes mostram "· reconectando…" no nome). Nunca é duplicada: o `sessionId`/entityId é o mesmo na volta.
+- **Cliente**: reconexão automática do SDK com o token da sessão, atraso exponencial com jitter
+  (`backoffDelay`: 300 ms × 2ⁿ, teto 4 s, metade fixa + metade aleatória) e tentativas suficientes para cobrir a graça
+  inteira mesmo com o jitter mínimo (`retriesForGrace`) — o cliente só desiste depois que a graça certamente venceu.
+  Mensagens não são enfileiradas durante a queda (nada de movimentos velhos). Selo discreto **RECONECTANDO…**
+  (`src/net/ReconnectBadge.ts`).
+- **Volta** (`onReconnect`): `link = 0`, cliente novo nos mapas, grafites próximos reenviados, aparências da multidão
+  distante reenviadas, validação de velocidade recomeça agora; o servidor manda `resume {x,y,z,heading,vehicle,
+  platform,plx,plz,prop,design,seq}` e o cliente volta para a posição AUTORITATIVA (segura) se tiver andado offline.
+  O estado completo da sala volta pelo próprio Colyseus; `addRemote` é idempotente (nunca dois para o mesmo id).
+- **Graça vencida**: o Colyseus chama `onLeave` → `removePlayer` (libera veículo/trio, slot e nid; ninguém continua
+  "vendo"). O cliente, ao esgotar as tentativas, limpa remotos/veículos e **entra de novo** (`rejoinFresh`, backoff):
+  jogador autenticado pede um ticket NOVO (`GameOptions.ticketProvider` → `POST /api/session/ticket`, uso único);
+  jogador de teste entra anônimo. Espectador não tem graça: sai e entra de novo.
+
+Medido (`tools/qa/reconnect_mp.mjs`, navegadores reais, graça de teste 10 s: **18/18**): queda artificial de A
+(WebSocket derrubado + rede offline por CDP) → B vê A em graça (UMA entidade, `link = 1`) e A mostra RECONECTANDO; rede
+volta após ~3 s → A reconecta na **mesma** entidade 3,6 s depois da queda (mesmo id; posição restaurada com erro 0,00 m;
+bandeira na mão mantida) e B vê exatamente uma entidade de A; A volta a andar e B vê. Offline além da graça → a
+entidade some para B no prazo, o servidor a remove (sem fantasma) e, com a rede de volta, A entra como entidade nova
+(uma só). Login duplicado e aba de espectador da mesma conta: ver abaixo (mesmo teste). Também em
+`tests/spectatorServer.test.ts` (servidor real + SDK, roda no `npm run verify`).
+
+**Correção necessária no servidor:** o `@colyseus/core` 0.18 usa `WebSocket.OPEN` (global) na reconexão; o Node 20 não
+tem `WebSocket` global e TODA reconexão falhava (`ReferenceError`, o cliente perdia a entidade).
+`server/src/polyfills.ts` (importado primeiro em `server/src/index.ts`) define o global com o `ws`.
+
+## Login duplicado (rodada 8)
+**Uma entidade jogável por conta (userId).** Política: a sessão **nova assume** (mais robusta para quem trocou de
+aparelho/aba ou ficou com uma aba "zumbi"). Em `takeOver()` (no `onJoin` do jogador): a entidade antiga é removida
+ANTES de a nova ser criada (nunca há duas), a identidade antiga sai de `identities` (qualquer mensagem dela passa a ser
+negada; o `onLeave` dela fica inócuo), uma graça pendente é rejeitada, e a conexão antiga recebe `session_replaced` e é
+fechada com o código 4020 (`RECONNECT.replacedCloseCode`) — o cliente antigo **não** reconecta e mostra "SUA CONTA ENTROU
+EM OUTRA JANELA". Posição e item na mão passam para a nova; veículo/trio são liberados (a nova começa a pé ao lado,
+sem atravessar parede). **Abas de espectador da mesma conta são permitidas** e não afetam o jogador.
+
+## Presença (rodada 8)
+`server/src/presence/PresenceTracker.ts` — **só em memória**, nunca gravada por quadro/mensagem.
+`ONLINE` (autenticado, entrando) · `PLAYING` / `SPECTATING` (conexão viva e atividade recente) · `AWAY` (sem atividade
+de jogo/câmera há 120 s, ou sem nenhum batimento — ping, spec_cam — há 45 s) · `OFFLINE` (em graça ou sem sessão).
+Atividade = qualquer mensagem de jogo aceita por `gate()` ou `spec_cam` aceito; batimento = `ping`. `byUser(userId)`
+dá a presença mais forte entre as sessões da conta (perfil/amigos, rodada 9). Gravar `lastSeen` no banco, se vier,
+deve ser grosso (na saída ou a cada vários minutos), nunca por mensagem.
+
+## Métricas públicas (rodada 8)
+`GET /api/metrics/public` (`server/src/http/publicMetricsRoute.ts` → `server/src/presence/publicMetrics.ts`), cache
+de 1,5 s, contrato `PublicMetrics` (`src/identity/types.ts`), contagens **semânticas**:
+| campo | significado |
+|---|---|
+| `playersOnline` | pessoas jogando: entidades humanas (inclui quem está em graça de reconexão). **Nunca** bots ou NPCs |
+| `spectatorsOnline` | espectadores conectados |
+| `environmentCrowd` | multidão AMBIENTAL **simulada**, dos dados do evento: `social.rallyCrowd` + 56 pedestres NPC × `npcs.pedestrianDensity` (manifestação: 360 + 56 = 416) — número de simulação, rótulo próprio na UI |
+| `testBots` | bots de carga (`bot: true` no join, só em servidor de teste — `server/tools/bots.ts`) |
+| `totalConnections` | conexões abertas agora (jogadores + espectadores + bots; sem as em graça) |
+| `eventId`, `eventName`, `updatedAt` | evento atual (sem sala viva: evento padrão dos dados) |

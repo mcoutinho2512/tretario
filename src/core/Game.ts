@@ -77,6 +77,8 @@ export interface GameStartOptions extends IdentityJoinOptions {
   getTicket?: () => Promise<string | undefined>;
 }
 import type { TrafficData } from '../world/types';
+import type { SpectatorMode } from '../spectator/SpectatorMode';
+import { ReconnectBadge } from '../net/ReconnectBadge';
 
 export { DEFAULT_PLAYER_APPEARANCE } from '../characters/bodyTypes';
 
@@ -148,6 +150,11 @@ export class Game {
   private intro = { active: true, t: 0, fromYaw: 0, toYaw: 0 };
   private nearestVP: ValidationPoint | null = null;
   private running = false;
+
+  /** modo espectador (src/spectator) — null jogando */
+  private spec: SpectatorMode | null = null;
+  private linkBadge = new ReconnectBadge();
+  get spectator() { return this.startOpts.role === 'spectator'; }
 
   constructor(private container: HTMLElement, private preset: QualityPreset, appearance?: CharacterAppearance, private startOpts: GameStartOptions = {}) {
     // começa no LOD3 (barato) e sobe para o LOD0 depois de jogável: o detalhado não disputa banda com o mundo
@@ -231,6 +238,7 @@ export class Game {
     const heading = Math.atan2(Math.cos(spawn.yaw), Math.sin(spawn.yaw));
     this.player = createPlayerState('local', spawn.p[0], this.collision.groundHeight(spawn.p[0], spawn.p[1]), spawn.p[1], heading);
     this.scene.add(this.avatar.root);
+    this.avatar.root.visible = !this.spectator; // espectador não tem corpo
     // personagens: animações, LOD do próprio avatar e LODs baratos de todos os corpos antes de começar
     progress(0.7, 'Carregando personagens');
     const bodies = ['homem', 'mulher', 'idoso', 'idosa'] as const;
@@ -316,7 +324,7 @@ export class Game {
     this.scenery.applyEvent(this.events.current);
     for (const it of this.rideables.eventItems()) this.scenery.addScreens(it.model);
     this.scene.add(this.scenery.group);
-    screenFeed().info = () => ({ time: this.simTime.toTimeString().slice(0, 5), players: 1 + (this.net?.remoteCount ?? 0) + (this.net?.farCount ?? 0) });
+    screenFeed().info = () => ({ time: this.simTime.toTimeString().slice(0, 5), players: (this.spectator ? 0 : 1) + (this.net?.remoteCount ?? 0) + (this.net?.farCount ?? 0) });
     this.cam = new ThirdPersonCamera(this.camera, this.collision);
     // intro: começa olhando a Central, depois gira para a avenida (direção da Candelária)
     const central = this.manifest.landmarks.find((l) => l.key === 'LANDMARK_CENTRAL')!;
@@ -324,10 +332,26 @@ export class Game {
     this.intro = { active: true, t: 0, fromYaw: toC, toYaw: heading };
     this.cam.yaw = toC;
     this.cam.pitch = -0.32; // olhando para cima: torre inteira no quadro
+    if (this.spectator) {
+      // espectador: câmeras próprias (livre limitada, pontos fixos, trio/palco, aérea) — src/spectator
+      const { SpectatorMode } = await import('../spectator/SpectatorMode');
+      this.spec = await SpectatorMode.create({
+        base, camera: this.camera, canvas: this.canvas, input: this.input, bounds: this.manifest.bounds as [number, number, number, number],
+        manifest: { pvAxis: this.manifest.pvAxis as [number, number][], landmarks: this.manifest.landmarks, eventSpots: this.manifest.eventSpots },
+        ground: (x, z) => this.collision.groundHeight(x, z),
+        follow: () => { const it = this.rideables.eventItems().find((i) => i.def.kind === 'trio'); return it ? { x: it.state.x, z: it.state.z, heading: it.state.heading } : null; },
+      });
+      this.spec.cam.occlusion = (ax, ay, az, bx, by, bz) => this.collision.raycast(ax, ay, az, bx, by, bz);
+      this.intro.active = false;
+      const f = this.spec.cam.focus;
+      this.player.x = f.x; this.player.z = f.z; this.player.y = f.y;
+      this.avatar.root.position.set(f.x, f.y, f.z);
+      spawnXZ.set(f.x, f.z);
+    }
 
     // construir chunks próximos antes de mostrar
     progress(0.72, 'Montando ruas, calçadas e edifícios');
-    const camXZ = new THREE.Vector2(spawn.p[0], spawn.p[1]);
+    const camXZ = this.spec ? spawnXZ.clone() : new THREE.Vector2(spawn.p[0], spawn.p[1]);
     let guard = 0;
     this.chunks.update(camXZ, 0);
     const total = Math.max(1, this.chunks.pending);
@@ -339,7 +363,8 @@ export class Game {
 
     progress(0.94, 'Compilando shaders');
     this.onResize();
-    this.cam.update(new THREE.Vector3(this.player.x, this.player.y, this.player.z), 1 / 60);
+    if (this.spec) this.spec.cam.update(1 / 60);
+    else this.cam.update(new THREE.Vector3(this.player.x, this.player.y, this.player.z), 1 / 60);
     this.gr.setup(this.scene, this.camera);
     try {
       await this.gr.renderer.compileAsync(this.scene, this.camera);
@@ -387,13 +412,24 @@ export class Game {
     lock.className = 'lock-hint';
     lock.textContent = 'Clique para controlar a câmera';
     this.hud.appendChild(lock);
-    this.wheel = new ActionWheel(this.social);
     // roda/menu/ajustes abertos: solta o mouse para clicar; fechados: volta a controlar a câmera
     const relock = (open: boolean) => { if (open) document.exitPointerLock?.(); else if (!this.input.isTouch && !this.wheel?.open && !shell.anyModal) this.input.requestLock(); };
-    this.wheel.onToggle = (open) => { shell.poke(); relock(open); };
     shell.onModal = relock;
-    shell.onActions = () => this.input.queueToggle('wheel');
-    this.hud.appendChild(this.wheel.el);
+    if (!this.spectator) { // espectador não tem ações sociais
+      this.wheel = new ActionWheel(this.social);
+      this.wheel.onToggle = (open) => { shell.poke(); relock(open); };
+      shell.onActions = () => this.input.queueToggle('wheel');
+      this.hud.appendChild(this.wheel.el);
+    }
+    this.hud.appendChild(this.linkBadge.el);
+    if (this.spec) {
+      // seletor de câmeras no encaixe do HUD (HudShell.mountSpectator); zona/minimapa seguem o foco da câmera
+      const spec = this.spec;
+      spec.onLabel = (t) => shell.setMode(t, false);
+      spec.mountInSlot((el) => shell.mountSpectator({ el }));
+      shell.setFocusProvider(() => spec.cam.focus);
+      this.hud.classList.add('spectating');
+    }
     this.container.appendChild(this.hud);
     window.addEventListener('resize', () => { this.onResize(); shell.minimap.resize(); });
   }
@@ -521,7 +557,7 @@ export class Game {
     };
     requestAnimationFrame(loop);
     performance.mark('pv:playable');
-    setTimeout(() => { this.avatar.setDetail(0); preloadCrowd(['homem', 'mulher', 'idoso', 'idosa']); }, 1500);
+    setTimeout(() => { if (!this.spectator) this.avatar.setDetail(0); preloadCrowd(['homem', 'mulher', 'idoso', 'idosa']); }, 1500);
     setTimeout(() => { this.peds.maxDetail = this.deferredDetail; AvatarVisual.maxRemoteDetail = this.deferredDetail; this.crowd.detailFloor = this.deferredDetail; }, 6000);
     (window as any).__pvReady = true;
     if (new URLSearchParams(location.search).has('mem') || import.meta.env.DEV) (window as any).__pvScene = this.scene; // QA de memória
@@ -551,36 +587,39 @@ export class Game {
     if (this.input.consumeToggle('help') || this.input.consumeToggle('photo')) this.hudShell.toggleClean();
     this.hud.classList.toggle('locked', this.input.pointerLocked || this.input.isTouch);
 
-    // câmera: olhar/zoom
-    const look = this.input.consumeLook();
-    if (look.dx || look.dy) this.cam.rotate(look.dx, look.dy);
-    const z = this.input.consumeZoom();
-    if (z) this.cam.zoom(z);
-
-    // intro (gira da Central para a avenida)
-    if (this.intro.active) {
-      this.intro.t += dt;
-      if (this.input.hasActivity() || this.intro.t > 6.5) this.intro.active = false;
-      else if (this.intro.t > 2.8) {
-        const k = THREE.MathUtils.smoothstep(this.intro.t, 2.8, 6.2);
-        let d = this.intro.toYaw - this.intro.fromYaw;
-        while (d > Math.PI) d -= Math.PI * 2;
-        while (d < -Math.PI) d += Math.PI * 2;
-        this.cam.yaw = this.intro.fromYaw + d * k;
-        this.cam.pitch = -0.32 + 0.5 * k;
-      }
-    }
-
     const T: [string, number][] = [['início', performance.now()]];
     const mark = (n: string) => T.push([n, performance.now()]);
-    this.updateInteraction(dt);
-    this.updateMovement(dt);
-    // andar cancela ação incompatível; caído/veículo encerram (mesmas regras do servidor: deslocamento por mensagem
-    // de movimento = velocidade / NET_TICK_HZ)
-    this.social.update(Math.abs(this.player.speed) / NET_TICK_HZ, this.avatar.isDown || !!this.riding);
+    if (this.spec) this.spectatorFrame(dt);
+    else {
+      // câmera: olhar/zoom
+      const look = this.input.consumeLook();
+      if (look.dx || look.dy) this.cam.rotate(look.dx, look.dy);
+      const z = this.input.consumeZoom();
+      if (z) this.cam.zoom(z);
+
+      // intro (gira da Central para a avenida)
+      if (this.intro.active) {
+        this.intro.t += dt;
+        if (this.input.hasActivity() || this.intro.t > 6.5) this.intro.active = false;
+        else if (this.intro.t > 2.8) {
+          const k = THREE.MathUtils.smoothstep(this.intro.t, 2.8, 6.2);
+          let d = this.intro.toYaw - this.intro.fromYaw;
+          while (d > Math.PI) d -= Math.PI * 2;
+          while (d < -Math.PI) d += Math.PI * 2;
+          this.cam.yaw = this.intro.fromYaw + d * k;
+          this.cam.pitch = -0.32 + 0.5 * k;
+        }
+      }
+
+      this.updateInteraction(dt);
+      this.updateMovement(dt);
+      // andar cancela ação incompatível; caído/veículo encerram (mesmas regras do servidor: deslocamento por mensagem
+      // de movimento = velocidade / NET_TICK_HZ)
+      this.social.update(Math.abs(this.player.speed) / NET_TICK_HZ, this.avatar.isDown || !!this.riding);
+      this.cam.update(this.avatar.root.position, dt);
+    }
     mark('movimento');
     const ppos = this.avatar.root.position;
-    this.cam.update(ppos, dt);
     if (this.freeCam) { this.camera.position.set(...this.freeCam.p); this.camera.lookAt(...this.freeCam.t); }
     this.signals.setTime(worldClock.seconds());
     if (this.net) {
@@ -630,7 +669,7 @@ export class Game {
     // HUD
     this.updateValidation();
     const focus = this.freeCam ? this.camera.position : this.player;
-    this.hudShell.frame(tCpu, { x: focus.x, z: focus.z, heading: this.player.heading, camYaw: this.cam.yaw, moving: Math.abs(this.player.speed) > 0.6 });
+    this.hudShell.frame(tCpu, { x: focus.x, z: focus.z, heading: this.player.heading, camYaw: this.spec ? this.spec.cam.pose.yaw : this.cam.yaw, moving: Math.abs(this.player.speed) > 0.6 });
     const ll = worldProjection.toLatLon(this.player.x, this.player.z);
     const ck = this.chunks.chunkKeyAt(this.player.x, this.player.z);
     const lod = this.chunks.lodAt(this.player.x, this.player.z);
@@ -646,10 +685,20 @@ export class Game {
     });
   }
 
-  /** Multiplayer opcional (desenvolvimento): ?mp=1 conecta em ws://<host>:2567; ?mp=ws://… usa outro servidor. */
+  /** espectador: câmera em vez de corpo; o "jogador" local é só o foco (chunks, NPCs, minimapa e grafites seguem a câmera) */
+  private spectatorFrame(dt: number) {
+    const f = this.spec!.frame(dt);
+    this.player.x = f.x; this.player.y = f.y; this.player.z = f.z; this.player.speed = 0;
+    this.avatar.root.position.set(f.x, f.y, f.z);
+    if (this.net) this.net.spectatorFocus = { x: f.x, z: f.z };
+    this.rideables.sync(this.camera.position);
+    this.hudShell.setPrompt('');
+  }
+
+  /** Multiplayer opcional (desenvolvimento): ?mp=1 conecta em ws://<host>:2567; ?mp=ws://… usa outro servidor. Espectador sempre conecta. */
   private async connectMultiplayer() {
     const q = new URLSearchParams(location.search);
-    const mp = this.startOpts.mp ?? q.get('mp');
+    const mp = this.startOpts.mp ?? q.get('mp') ?? (this.spectator ? '1' : null); // espectador sempre conecta
     if (!mp) return;
     const endpoint = mp === '1' ? `ws://${location.hostname}:2567` : mp;
     const { NetworkClient } = await import('../net/NetworkClient');
@@ -698,6 +747,14 @@ export class Game {
     this.net.onKnock = (k, isSelf) => { if (isSelf) this.onSelfKnock(k); };
     this.net.onNotice = (m) => this.flash(m);
     this.net.onSelfSocial = () => this.social.fromServer(this.net!.self.social);
+    // rodada 8: reconexão (mesma entidade: volta para a posição do servidor) e sessão substituída
+    this.net.ticketProvider = this.startOpts.getTicket ?? null; // entrada NOVA depois da graça: ticket novo
+    this.net.onLink = (st) => this.linkBadge.set(st);
+    this.net.onResume = (r) => {
+      if (this.spectator) return;
+      if (!this.riding && !this.trio.active && Math.hypot(r.x - this.player.x, r.z - this.player.z) > 0.5) { this.player.x = r.x; this.player.z = r.z; this.player.y = this.collision.groundHeight(r.x, r.z); }
+      this.flash('Reconectado');
+    };
     this.net.onSocialDenied = (_k, reason) => this.social.denied(reason, this.net!.self.social);
     this.net.onEvent = (id) => {
       if (this.events.current?.id !== id) void this.events.load(id).then(() => { this.hudShell.setEvent(this.events.current?.name); this.interaction.setPolicy(this.events.current?.interaction); this.peds.setSocialConfig(this.events.current?.social); this.rallyCrowd?.setConfig(this.events.current?.social, RallyCrowd.presetScale(this.crowd.budget.total)); this.scenery.applyEvent(this.events.current); });
@@ -705,7 +762,10 @@ export class Game {
     void preloadRagdoll().catch(() => { /* fallback procedural */ });
     try {
       const sp = q.get('spawn')?.split(',').map(Number);
-      await this.net.connect(this.appearance ?? DEFAULT_PLAYER_APPEARANCE_LOCAL, q.get('name') ?? (this.playerName || `Visitante ${Math.floor(Math.random() * 900 + 100)}`), sp && sp.length === 2 && sp.every(Number.isFinite) ? { x: sp[0], z: sp[1] } : undefined, { ticket: this.startOpts.ticket ?? await this.startOpts.getTicket?.(), role: this.startOpts.role });
+      const f = this.spec?.cam.focus;
+      if (f) this.net.spectatorFocus = { x: f.x, z: f.z };
+      await this.net.connect(this.appearance ?? DEFAULT_PLAYER_APPEARANCE_LOCAL, q.get('name') ?? (this.playerName || `Visitante ${Math.floor(Math.random() * 900 + 100)}`), sp && sp.length === 2 && sp.every(Number.isFinite) ? { x: sp[0], z: sp[1] } : undefined,
+        { ticket: this.startOpts.ticket ?? await this.startOpts.getTicket?.(), role: this.startOpts.role ?? (q.get('spectate') === '1' ? 'spectator' : undefined), ...(f ? { specCam: { x: f.x, z: f.z } } : {}), ...(q.get('testUser') ? { testUser: q.get('testUser')! } : {}) });
       this.flash(`Multiplayer conectado (${endpoint})`);
     } catch (e) {
       this.flash(`Multiplayer indisponível: ${(e as Error).message ?? e}`);
@@ -1010,7 +1070,14 @@ export class Game {
       /** TESTE: cliente modificado pede empurrão em um alvo arbitrário */
       rawPush: (target: string) => this.net?.requestPush(target),
       lastDenial: () => this.net?.lastDenial ?? '',
-      mp: () => (this.net ? { session: this.net.sessionId, self: { ...this.net.self }, remotes: this.net.remotesInfo(), bandwidth: this.net.bandwidth, interpDelay: this.net.interpDelay, rtt: worldClock.rtt, clockOffset: worldClock.offsetMs, corrections: this.net.corrections, correctionReasons: this.net.correctionReasons, policy: this.net.policy, vehiclesInView: this.net.vehiclesInView() } : null),
+      // rodada 8: espectador e reconexão (QA)
+      spectator: () => (this.spec ? { mode: this.spec.cam.mode, focus: this.spec.cam.focus, altitude: +this.spec.cam.altitude.toFixed(1), camera: { x: +this.camera.position.x.toFixed(1), y: +this.camera.position.y.toFixed(1), z: +this.camera.position.z.toFixed(1) }, avatarVisible: this.avatar.root.visible } : null),
+      specSelect: (m: string) => this.spec?.select(m as Parameters<SpectatorMode['select']>[0]),
+      specGoto: (x: number, z: number, dist?: number, snap = false) => { if (!this.spec) return; this.spec.cam.goTo(x, z, dist); this.spec.select('livre'); if (snap) this.spec.cam.snap(); },
+      netDrop: () => this.net?.dropConnectionForTest(),
+      netAutoReconnect: (on: boolean) => this.net?.setAutoReconnect(on),
+      netSend: (type: string, payload?: unknown) => this.net?.send(type, payload),
+      mp: () => (this.net ? { session: this.net.sessionId, role: this.net.role, link: this.net.link, replaced: this.net.replaced, reconnects: this.net.reconnects, rejoins: this.net.rejoins, status: this.net.status, capDenials: [...this.net.capDenials], self: { ...this.net.self }, remotes: this.net.remotesInfo(), bandwidth: this.net.bandwidth, interpDelay: this.net.interpDelay, rtt: worldClock.rtt, clockOffset: worldClock.offsetMs, corrections: this.net.corrections, correctionReasons: this.net.correctionReasons, policy: this.net.policy, vehiclesInView: this.net.vehiclesInView() } : null),
       /** veículos dos jogadores (todos os tipos); `kind` opcional filtra */
       vehicles: (kind = 'car') => this.rideables.items.filter((i) => kind === 'all' || i.def.kind === kind).map((i) => ({ id: i.state.id, kind: i.def.kind, x: +i.state.x.toFixed(2), z: +i.state.z.toFixed(2), heading: +i.state.heading.toFixed(3), occupant: i.state.occupant, state: i.netState })),
       signalState: (j: number, ph: number) => this.signals.state(j, ph),

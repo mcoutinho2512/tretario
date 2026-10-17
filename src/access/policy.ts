@@ -53,7 +53,7 @@ const BY_STATE: Record<AccessState, readonly Capability[]> = {
 };
 
 /** capacidades que exigem ESTAR no mundo como jogador (espectador nunca tem, qualquer que seja a conta) */
-const PLAYER_ROLE_ONLY: readonly Capability[] = ['graffiti.create', 'vehicle.use', 'action.perform', 'item.hold', 'push'];
+const PLAYER_ROLE_ONLY: readonly Capability[] = ['world.play', 'graffiti.create', 'vehicle.use', 'action.perform', 'item.hold', 'push'];
 
 /** pode? `role` = papel da conexão atual (um PLAYER assistindo como espectador não dirige) */
 export function can(state: AccessState, cap: Capability, role?: WorldRole): boolean {

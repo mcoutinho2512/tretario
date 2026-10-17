@@ -8,6 +8,7 @@
  *            grafite: PV_GRAFFITI_FILE · PV_GRAFFITI_STORE=memory · PV_GRAFFITI_TTL_MS · PV_GRAFFITI_REPORTS · PV_ADMIN_TOKEN (docs/GRAFFITI.md)
  */
 import './env.ts'; // PRIMEIRO: server/.env antes de qualquer módulo ler process.env
+import './polyfills.ts'; // WebSocket global (reconexão do Colyseus no Node 20)
 import { createServer } from 'node:http';
 import { Server } from '@colyseus/core';
 import { WebSocketTransport } from '@colyseus/ws-transport';
