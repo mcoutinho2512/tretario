@@ -35,7 +35,7 @@ const DEFAULT_PLAYER_APPEARANCE_LOCAL = DEFAULT_APPS.homem;
 import { ThirdPersonCamera } from '../camera/ThirdPersonCamera';
 import { InputManager } from '../input/InputManager';
 import { TouchControls } from '../ui/TouchControls';
-import { mountChat, type ChatPanel } from '../ui/ChatPanel';
+import { ChatPanel } from '../ui/ChatPanel';
 import { DebugPanel } from '../debug/DebugPanel';
 import { HudShell } from '../ui/hud/HudShell';
 import { loadZones } from '../world/zoneTracker';
@@ -639,7 +639,12 @@ export class Game {
     this.net.crowd = this.peds.crowd;
     this.graffiti.attachNet(this.net);
     // chat (src/ui/ChatPanel): painel + botão CHAT no toque; digitar não move o jogador
-    this.chat = mountChat(this.hud, this.net, { isTouch: this.input.isTouch, input: this.input, onToggle: (open) => { if (open) document.exitPointerLock?.(); } });
+    // chat (agente C) no espaço do HUD (agente E): o botão CHAT do toque é o do HUD (chama toggle())
+    const chat = (this.chat = new ChatPanel({ isTouch: false, input: this.input, onToggle: (open) => { if (open) document.exitPointerLock?.(); } }));
+    chat.attach(this.net);
+    this.hudShell.mountChat(chat);
+    // quem fala ganha prioridade de nome acima da cabeça por alguns segundos (LOD de nomes)
+    this.net.on('chat', (m: { nid: number }) => { const id = this.net?.idByNid(m.nid); if (id) this.net!.markSpeaking(id); });
     this.scene.add(this.net.group);
     (window as any).__pvRemotes = () => this.net?.remotesInfo();
     this.net.onSpawn = (sp) => {

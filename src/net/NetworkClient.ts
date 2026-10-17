@@ -528,6 +528,13 @@ export class NetworkClient {
   labelStats = { shown: 0, candidates: 0, decisions: 0, decideMs: 0, transforms: 0 };
 
   /** o chat (agente C) avisa quem falou: o rótulo ganha prioridade/aparece até 50 m por `ms` */
+  /** id da entidade remota pelo id curto (nid) — mensagens de chat trazem só o nid */
+  idByNid(nid: number): string | null {
+    if (!nid) return null;
+    for (const r of this.remotes.values()) if (r.nid === nid) return r.id;
+    return null;
+  }
+
   markSpeaking(entityId: string, ms = 6000) {
     const r = this.remotes.get(entityId);
     if (!r) return;
