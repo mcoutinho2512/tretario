@@ -21,6 +21,7 @@ import type { EventDef } from '../../../src/events/types';
 import { groupRecordId, groupKeyOf, joinableGroups, type CurrentEventResponse } from '../../../src/events/groups';
 import type { PlayerPreferences, PublicProfile } from '../../../src/identity/types';
 import { textModeration } from '../../../src/moderation/text';
+import { entitlementsFor } from '../progression/entitlements'; // rodada 9 — itens liberados por progressão
 
 const PUBLIC = resolve(dirname(fileURLToPath(import.meta.url)), '../../../public');
 
@@ -92,7 +93,7 @@ export function sanitizePreferences(raw: unknown): PlayerPreferences {
 /** aparência salva da conta (validada de novo na leitura: dados antigos/listas mudaram) */
 export async function savedAppearance(store: DataStore, userId: string): Promise<CharacterAppearance | null> {
   const rec = await store.appearances.get(userId);
-  return rec ? validateAppearance(rec.data) : null;
+  return rec ? validateAppearance(rec.data, null, await entitlementsFor(store, userId)) : null;
 }
 
 /** campos de perfil para GET /api/me (o módulo de autenticação inclui na MeResponse) */
@@ -110,13 +111,13 @@ export async function meExtras(store: DataStore, userId: string) {
 // ------------------------------------------------------------------ aparência
 router.add('GET', '/api/me/appearance', (req) => withUser(req, null, async ({ user, store }) => {
   const rec = await store.appearances.get(user.id);
-  return { body: { appearance: rec ? validateAppearance(rec.data) : null, version: rec?.version ?? 0 } };
+  return { body: { appearance: rec ? validateAppearance(rec.data, null, await entitlementsFor(store, user.id)) : null, version: rec?.version ?? 0 } };
 }));
 
 router.add('PUT', '/api/me/appearance', (req) => withUser(req, 'profile.edit', async ({ user, store }) => {
   if (rateLimited(`ap:${user.id}`)) return err(429, 'muitas_alteracoes');
   const raw = req.body?.appearance ?? req.body;
-  const app = validateAppearance(raw);
+  const app = validateAppearance(raw, null, await entitlementsFor(store, user.id));
   if (!app) return err(400, 'aparencia_invalida');
   await store.appearances.put(user.id, app);
   const rec = await store.appearances.get(user.id);

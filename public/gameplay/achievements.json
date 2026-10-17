@@ -1,0 +1,84 @@
+[
+  {
+    "id": "primeiros_passos",
+    "title": "PRIMEIROS PASSOS",
+    "description": "Andou os primeiros metros na Presidente Vargas.",
+    "objectives": [{ "id": "andar", "label": "Caminhe 10 m", "on": "distance", "where": { "mode": "foot" }, "sumField": "meters", "count": 10 }],
+    "rewards": [{ "kind": "xp", "amount": 25 }]
+  },
+  {
+    "id": "inicio_ao_fim",
+    "title": "DO INÍCIO AO FIM",
+    "description": "Esteve na Central do Brasil e na Candelária na mesma visita.",
+    "session": true,
+    "objectives": [
+      { "id": "central", "label": "Central do Brasil", "on": "zone_enter", "where": { "zone": "CENTRAL" } },
+      { "id": "candelaria", "label": "Candelária", "on": "zone_enter", "where": { "zone": "CANDELARIA" } }
+    ],
+    "rewards": [{ "kind": "xp", "amount": 100 }, { "kind": "unlock", "item": "acc:bolsa" }]
+  },
+  {
+    "id": "no_meio_da_multidao",
+    "title": "NO MEIO DA MULTIDÃO",
+    "description": "Ficou numa concentração da avenida.",
+    "objectives": [{ "id": "concentracao", "label": "Fique numa concentração", "on": "rally_visit" }],
+    "rewards": [{ "kind": "xp", "amount": 50 }]
+  },
+  {
+    "id": "no_palco",
+    "title": "NO PALCO",
+    "description": "Subiu no trio elétrico.",
+    "objectives": [{ "id": "trio", "label": "Suba no trio", "on": "trio_board" }],
+    "rewards": [{ "kind": "xp", "amount": 50 }]
+  },
+  {
+    "id": "sobre_duas_rodas",
+    "title": "SOBRE DUAS RODAS",
+    "description": "Pedalou 200 m.",
+    "objectives": [{ "id": "pedal", "label": "Pedale 200 m", "on": "distance", "where": { "mode": "bicycle" }, "sumField": "meters", "count": 200 }],
+    "rewards": [{ "kind": "xp", "amount": 75 }]
+  },
+  {
+    "id": "primeiro_evento",
+    "title": "PRIMEIRO EVENTO",
+    "description": "Concluiu um evento da agenda.",
+    "objectives": [{ "id": "evento", "label": "Conclua um evento", "on": "event_complete" }],
+    "rewards": [{ "kind": "xp", "amount": 100 }, { "kind": "unlock", "item": "design:por_do_sol" }]
+  },
+  {
+    "id": "maratona",
+    "title": "PERNAS PARA QUE TE QUERO",
+    "description": "Caminhou 5 km na avenida (somando todas as visitas).",
+    "objectives": [{ "id": "andar", "label": "Caminhe 5 km", "on": "distance", "where": { "mode": "foot" }, "sumField": "meters", "count": 5000 }],
+    "rewards": [{ "kind": "xp", "amount": 150 }, { "kind": "title", "title": "Andarilho(a) da Vargas" }]
+  },
+  {
+    "id": "arte_na_avenida",
+    "title": "ARTE NA AVENIDA",
+    "description": "Deixou um grafite num tapume autorizado.",
+    "objectives": [{ "id": "grafite", "label": "Faça um grafite", "on": "graffiti" }],
+    "rewards": [{ "kind": "xp", "amount": 25 }]
+  },
+  {
+    "id": "boa_conversa",
+    "title": "BOA CONVERSA",
+    "description": "Mandou a primeira mensagem no chat.",
+    "objectives": [{ "id": "chat", "label": "Envie uma mensagem", "on": "chat" }],
+    "rewards": [{ "kind": "title", "title": "Boa de papo" }]
+  },
+  {
+    "id": "ouvinte_atento",
+    "title": "OUVINTE ATENTO",
+    "description": "Assistiu 10 minutos de debates.",
+    "objectives": [{ "id": "assistir", "label": "Assista 10 min", "on": "debate_watch", "sumField": "seconds", "count": 600 }],
+    "rewards": [{ "kind": "xp", "amount": 100 }]
+  },
+  {
+    "id": "na_reta_final",
+    "title": "NA RETA FINAL",
+    "description": "Terminou uma corrida.",
+    "hidden": true,
+    "objectives": [{ "id": "corrida", "label": "Termine uma corrida", "on": "race_finish" }],
+    "rewards": [{ "kind": "xp", "amount": 50 }]
+  }
+]

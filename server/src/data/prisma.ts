@@ -10,7 +10,7 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient, Prisma } from '../generated/prisma/client.ts';
 import type {
   AccessRecord, AuditRecord, CodeRecord, MuteRecord, DataStore, EventGroupRecord, MembershipRecord, ModerationActionRecord, PaymentRecord,
-  ProfileRecord, ReportRecord, SessionRecord, UserRecord,
+  ProfileRecord, ProgressionRecord, ProgressionSave, ReportRecord, SessionRecord, UserRecord,
 } from './types.ts';
 import type { PlayerPreferences } from '../../../src/identity/types.ts';
 import { storeFactories } from '../services.ts';
@@ -171,6 +171,33 @@ export class PrismaDataStore implements DataStore {
   moderation = {
     create: (d: Omit<ModerationActionRecord, 'id' | 'createdAt'>) => this.db.moderationAction.create({ data: d }) as Promise<ModerationActionRecord>,
     forUser: (userId: string) => this.db.moderationAction.findMany({ where: { targetUserId: userId }, orderBy: { createdAt: 'asc' } }) as Promise<ModerationActionRecord[]>,
+  };
+
+  progression = {
+    load: async (userId: string): Promise<ProgressionRecord | null> => {
+      const [p, c, a, g] = await Promise.all([
+        this.db.playerProgress.findUnique({ where: { userId } }),
+        this.db.completedMission.findMany({ where: { userId }, orderBy: { completedAt: 'asc' } }),
+        this.db.achievementUnlock.findMany({ where: { userId }, orderBy: { unlockedAt: 'asc' } }),
+        this.db.rewardGrant.findMany({ where: { userId }, orderBy: { grantedAt: 'asc' } }),
+      ]);
+      if (!p && !c.length && !a.length && !g.length) return null;
+      return {
+        xp: p?.xp ?? 0, level: p?.level ?? 1, data: (p?.data ?? {}) as unknown, updatedAt: p?.updatedAt ?? new Date(0),
+        completed: c.map((x) => ({ missionId: x.missionId, completedAt: x.completedAt })),
+        achievements: a.map((x) => ({ achievementId: x.achievementId, unlockedAt: x.unlockedAt })),
+        grants: g.map((x) => ({ item: x.item, source: x.source, grantedAt: x.grantedAt })),
+      };
+    },
+    save: async (userId: string, d: ProgressionSave) => {
+      // uma transação por lote: progresso + linhas novas; skipDuplicates respeita os pares únicos (sem recompensa dupla)
+      await this.db.$transaction([
+        this.db.playerProgress.upsert({ where: { userId }, create: { userId, xp: d.xp, level: d.level, data: json(d.data) }, update: { xp: d.xp, level: d.level, data: json(d.data) } }),
+        ...(d.completed.length ? [this.db.completedMission.createMany({ data: d.completed.map((x) => ({ userId, missionId: x.missionId, completedAt: x.at })), skipDuplicates: true })] : []),
+        ...(d.achievements.length ? [this.db.achievementUnlock.createMany({ data: d.achievements.map((x) => ({ userId, achievementId: x.achievementId, unlockedAt: x.at })), skipDuplicates: true })] : []),
+        ...(d.grants.length ? [this.db.rewardGrant.createMany({ data: d.grants.map((x) => ({ userId, item: x.item, source: x.source, grantedAt: x.at })), skipDuplicates: true })] : []),
+      ]);
+    },
   };
 
   audit = {

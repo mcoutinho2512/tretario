@@ -1,0 +1,5 @@
+{
+  "note": "XP total para chegar a cada nível (levels[0] = nível 1). Caminho pacífico (sem confronto nem eventos) soma ≥ 1000 XP → nível ≥ 5",
+  "levels": [0, 100, 250, 450, 700, 1000, 1400, 1900, 2500, 3200],
+  "maxLevel": 10
+}

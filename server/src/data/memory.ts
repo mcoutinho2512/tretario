@@ -2,7 +2,7 @@
 import { randomUUID } from 'node:crypto';
 import type {
   MuteRecord, AccessRecord, AuditRecord, CodeRecord, DataStore, EventGroupRecord, MembershipRecord, ModerationActionRecord, PaymentRecord,
-  ProfileRecord, ReportRecord, SessionRecord, UserRecord,
+  ProfileRecord, ProgressionRecord, ProgressionSave, ReportRecord, SessionRecord, UserRecord,
 } from './types';
 
 const clone = <T>(x: T): T => (x === null || x === undefined ? x : structuredClone(x));
@@ -23,6 +23,7 @@ export class MemoryDataStore implements DataStore {
   private mod = new Map<string, ModerationActionRecord>();
   private log: AuditRecord[] = [];
   private mu = new Map<string, MuteRecord>();
+  private pr = new Map<string, ProgressionRecord>();
 
   users = {
     create: async (d: { email: string; passwordHash: string }) => {
@@ -194,6 +195,19 @@ export class MemoryDataStore implements DataStore {
       return clone(rec);
     },
     forUser: async (userId: string) => clone([...this.mod.values()].filter((x) => x.targetUserId === userId)),
+  };
+
+  progression = {
+    load: async (userId: string) => clone(this.pr.get(userId) ?? null),
+    save: async (userId: string, d: ProgressionSave) => {
+      const cur = this.pr.get(userId) ?? { xp: 0, level: 1, data: {}, updatedAt: new Date(), completed: [], achievements: [], grants: [] };
+      cur.xp = d.xp; cur.level = d.level; cur.data = clone(d.data); cur.updatedAt = new Date();
+      // pares únicos (userId, id): repetido não entra (igual ao skipDuplicates do Prisma)
+      for (const c of d.completed) if (!cur.completed.some((x) => x.missionId === c.missionId)) cur.completed.push({ missionId: c.missionId, completedAt: c.at });
+      for (const a of d.achievements) if (!cur.achievements.some((x) => x.achievementId === a.achievementId)) cur.achievements.push({ achievementId: a.achievementId, unlockedAt: a.at });
+      for (const g of d.grants) if (!cur.grants.some((x) => x.item === g.item)) cur.grants.push({ item: g.item, source: g.source, grantedAt: g.at });
+      this.pr.set(userId, cur);
+    },
   };
 
   audit = {

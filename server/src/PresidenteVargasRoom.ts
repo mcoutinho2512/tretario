@@ -67,6 +67,9 @@ import { LINK_WIRE, RECONNECT } from '../../src/net/reconnect.ts';
 import { ZoneTracker } from '../../src/world/zoneTracker.ts';
 import type { ZoneDefinition } from '../../src/world/zones.ts';
 import { GameplayBus } from './gameplay/bus.ts';
+import { RoomProgression } from './progression/RoomProgression.ts'; // rodada 9 — progressão
+import { rallyRings } from './progression/emitters.ts';
+import type { ItemEntitlements } from '../../src/characters/unlocks.ts';
 
 const AOI_RADIUS = Number(process.env.PV_AOI ?? 220); // m — jogadores/veículos visíveis
 /** histerese da AOI: entra a ≤ R, sai só além de R × AOI_HYST */
@@ -197,16 +200,20 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
       // conta: o pedido é só um AVISO "salvei" — a aparência e o grupo vêm do banco (PUT /api/me/appearance)
       const id = this.identities.get(client.sessionId);
       if (id?.userId) { void this.reloadLook(client.sessionId, id.userId); return; }
-      if (opts) { this.applyAppearance(p, opts); this.graffiti.rename(client.sessionId, p.name); }
+      if (opts) { this.applyAppearance(p, opts, this.r9.ent(client.sessionId)); this.graffiti.rename(client.sessionId, p.name); } // rodada 9 — progressão
     },
     // pichação/grafite (server/src/graffiti): o desenho em andamento é local — só chega aqui o grafite pronto
-    gf_new: (client: Client, m: unknown) => this.gate(client, 'graffiti.create', () => client.send('gf_res', this.graffiti.create(client.sessionId, m, this.gfAuthor(client.sessionId)))),
+    gf_new: (client: Client, m: unknown) => this.gate(client, 'graffiti.create', () => { const r = this.graffiti.create(client.sessionId, m, this.gfAuthor(client.sessionId)); client.send('gf_res', r); this.r9.e.graffiti(client.sessionId, r.ok); }), // rodada 9 — progressão (grafite aceito)
     gf_report: (client: Client, m: { i?: unknown; c?: unknown }) => this.gate(client, 'report.create', () => client.send('gf_res', this.graffiti.report(client.sessionId, m?.i, Date.now(), m?.c))),
     gf_admin: (client: Client, m: unknown) => client.send('gf_res', this.graffiti.adminMessage(client.sessionId, m)),
     // chat (server/src/chat): o serviço checa `chat.write`/`report.create` e responde chat_denied / chat_report_res
-    chat_send: (client: Client, m: unknown) => { this.chat.send(client.sessionId, m); },
+    chat_send: (client: Client, m: unknown) => { this.r9.e.chat(client.sessionId, this.chat.send(client.sessionId, m).ok); }, // rodada 9 — progressão (chat aceito)
     chat_mute: (client: Client, m: unknown) => this.chat.mute(client.sessionId, m),
     chat_report: (client: Client, m: unknown) => { void this.chat.report(client.sessionId, m); },
+    // rodada 9 — progressão: preferências de UI (missão em destaque, telas vistas) e teleporte de QA (só PV_TEST=1)
+    mission_track: (client: Client, m: unknown) => this.r9.track(client.sessionId, m),
+    prog_seen: (client: Client, m: unknown) => this.r9.seen(client.sessionId, m),
+    test_tp: (client: Client, m: unknown) => this.r9TestTeleport(client, m),
   };
 
   /** chat: destinatários decididos aqui (PROXIMIDADE pela grade espacial `this.grid`), sem trabalho por tick */
@@ -300,6 +307,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     if (this.metricsSource) liveWorlds.delete(this.metricsSource);
     if (this.chat) liveMemorySweepers.delete(this.chat);
     await this.graffiti?.flushStore();
+    await this.r9.dispose(); // rodada 9 — progressão: grava tudo no desligamento
   }
 
   /** mede a codificação/envio dos patches (StateView por cliente): é o custo que cresce com a multidão */
@@ -361,6 +369,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     this.updateZones(this.tickN % ZONE_SLICES, ZONE_SLICES, now);
     // grafites: área de interesse por superfície (fatiada, 2 Hz por cliente) e expiração (1 Hz)
     this.graffiti.update(now, this.gfPos);
+    this.r9.tick(dtMs, now); // rodada 9 — progressão (envio ≤ 2 Hz, gravação em lote, concentrações 1 Hz, telemetria)
     metrics.tick(performance.now() - t0, this.state.players.size);
   }
 
@@ -510,12 +519,12 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
 
   // ---------------------------------------------------------------- jogadores
   /** aparência sempre pelo validador ÚNICO (src/characters/validateAppearance.ts — o mesmo da API) */
-  private applyAppearance(p: NetPlayer, o: Partial<JoinOptions> | CharacterAppearance) {
+  private applyAppearance(p: NetPlayer, o: Partial<JoinOptions> | CharacterAppearance, ent: ItemEntitlements = {}) {
     const cur = p.body ? validateAppearance({
       body: p.body, skin: p.skin, hair: p.hair, top: p.top, bottom: p.bottom, shoes: p.shoes, accessory: p.accessory, acc: p.acc,
       topStyle: p.topStyle, bottomStyle: p.bottomStyle, shoeStyle: p.shoeStyle, hairStyle: p.hairStyle, shirtDesign: p.shirtDesign,
     }) : null;
-    const a = validateAppearance(o, cur ?? DEFAULT_PLAYER_APPEARANCE.homem)!;
+    const a = validateAppearance(o, cur ?? DEFAULT_PLAYER_APPEARANCE.homem, ent)!;
     p.body = a.body; p.skin = a.skin; p.hair = a.hair; p.top = a.top; p.bottom = a.bottom; p.shoes = a.shoes;
     p.accessory = a.accessory ?? 'nenhum'; p.acc = a.acc ?? 0x222222;
     p.topStyle = a.topStyle ?? ''; p.bottomStyle = a.bottomStyle ?? ''; p.shoeStyle = a.shoeStyle ?? ''; p.hairStyle = a.hairStyle ?? '';
@@ -528,10 +537,10 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
 
   /** recarrega do banco aparência e grupo de uma conta já na sala (depois de salvar no editor) */
   private async reloadLook(sid: string, userId: string) {
-    const look = await loadPlayerLook(services().store, userId, this.state.eventId).catch(() => null);
+    const look = await loadPlayerLook(services().store, userId, this.state.eventId, this.r9.ent(sid)).catch(() => null); // rodada 9 — progressão
     const p = this.state.players.get(sid), id = this.identities.get(sid);
     if (!look || !p || !id || id.userId !== userId) return;
-    this.applyAppearance(p, look.appearance);
+    this.applyAppearance(p, look.appearance, this.r9.ent(sid)); // rodada 9 — progressão (itens liberados)
     id.groupKey = look.groupKey;
   }
 
@@ -546,7 +555,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
       if (tf.bot && id.role === 'player') id.bot = true;
       if (tf.testUser && !id.userId) { id.userId = `test:${tf.testUser}`; id.test = true; } // conta fictícia: fora da releitura do banco
       if (id.userId && !id.test) {
-        const look = await loadPlayerLook(services().store, id.userId, this.state.eventId);
+        const look = await loadPlayerLook(services().store, id.userId, this.state.eventId, await this.r9.preload(id)); // rodada 9 — progressão (direitos)
         this.savedLooks.set(_client.sessionId, look);
         id.groupKey = look.groupKey;
       }
@@ -701,7 +710,8 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     // conta: aparência do BANCO (as opções do cliente são ignoradas); anônimo de teste: opções validadas
     const saved = this.savedLooks.get(client.sessionId);
     this.savedLooks.delete(client.sessionId);
-    this.applyAppearance(p, id.userId ? (saved?.appearance ?? DEFAULT_PLAYER_APPEARANCE.homem) : (options ?? {}));
+    const ent = this.r9.join(client.sessionId, id); // rodada 9 — progressão (direitos antes da aparência)
+    this.applyAppearance(p, id.userId ? (saved?.appearance ?? DEFAULT_PLAYER_APPEARANCE.homem) : (options ?? {}), ent);
     const a = Math.random() * Math.PI * 2, rr = 2 + Math.random() * 5;
     p.x = this.spawn.x + Math.cos(a) * rr;
     p.z = this.spawn.z + Math.sin(a) * rr;
@@ -724,7 +734,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
       view, inView: makeSlotView(), vehInView: new Set(), rest: null, pendingIn: 0,
       nid: p.nid, overflow: [], crowdKnown: new Set(), slot: this.allocSlot(client.sessionId),
       aoiCap: clientCap(options?.aoiMax),
-      social: { act: 0, actAt: 0, prop: 0, design: 0, status: 0, vehicle: '', recent: [] },
+      social: { act: 0, actAt: 0, prop: 0, design: 0, status: 0, vehicle: '', recent: [], ent }, // rodada 9 — progressão: ações/designs liberados
       plat: null,
       zone: new ZoneTracker(this.zoneDefs, this.zoneAxis),
     };
@@ -798,6 +808,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     this.graffiti.leave(client.sessionId);
     this.chat.leave(client.sessionId); // volta no onReconnect (o anti-flood por conta continua)
     this.pres.drop(client.sessionId);
+    this.r9.drop(client.sessionId); // rodada 9 — progressão: grava já (pode não voltar)
     console.log(`[room] caiu ${client.sessionId} — em graça por ${GRACE_S} s`);
     try {
       const deferred = this.allowReconnection(client, GRACE_S);
@@ -859,6 +870,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
       this.freeSlots.push(slot);
     }
     this.graffiti.leave(sid);
+    this.r9.leave(sid); // rodada 9 — progressão (saída, graça vencida, sessão substituída)
     const existed = this.state.players.delete(sid);
     this.rt.delete(sid);
     this.clients2.delete(sid);
@@ -902,6 +914,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     p.loco = Math.max(0, Math.min(4, m.loco | 0));
     r.actor.x = res.x; r.actor.z = res.z; r.actor.heading = m.heading;
     r.last = { x: res.x, y: res.y, z: res.z, t: now, seq: m.seq };
+    this.r9.e.moved(client.sessionId, mode, Math.hypot(res.x - prevX, res.z - prevZ), dtS, now); // rodada 9 — progressão (distância aceita)
     if (!res.ok) {
       client.send('correct', [res.x, res.y, res.z, m.seq, res.reason ?? '']);
       metrics.correction();
@@ -945,6 +958,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     r.last = { x: v!.x, y: v!.y, z: v!.z, t: Date.now(), seq: Math.max(r.last.seq, Number.isFinite(seq) ? (seq as number) : r.last.seq) };
     p.x = v!.x; p.z = v!.z;
     client.send('enter_ok', { id, x: v!.x, z: v!.z, heading: v!.heading });
+    this.r9.e.vehicle(client.sessionId, v!.kind); // rodada 9 — progressão
     console.log(`[room] ${client.sessionId} entrou em ${id}`);
   }
 
@@ -1013,6 +1027,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     set.add(client.sessionId);
     this.carryRiders(id, true);
     client.send('board_ok', { id, lx: p.plx, lz: p.plz });
+    this.r9.e.trio(client.sessionId); // rodada 9 — progressão
     console.log(`[room] ${client.sessionId} subiu no ${id} (${set.size} em cima)`);
   }
 
@@ -1101,6 +1116,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     applyAction(s, m.a as number, now);
     const variation = typeof m.v === 'number' ? Math.max(0, Math.min(ACTION_RULES.maxVariation, m.v | 0)) : 0;
     this.setAct(p, r, m.a as number, now, variation);
+    this.r9.e.action(client.sessionId, m.a, now); // rodada 9 — progressão
   }
 
   private onProp(client: Client, m: { p?: unknown; d?: unknown }) {
@@ -1114,6 +1130,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     applyProp(s, m.p as number, typeof m.d === 'number' ? m.d : 0, now);
     p.prop = s.prop; p.design = s.design;
     if (p.act !== s.act) this.setAct(p, r, s.act, now);
+    this.r9.e.prop(client.sessionId, m.p, now); // rodada 9 — progressão
   }
 
   private knockdown(targetId: string, fromX: number, fromZ: number, distance: number, kind: 'push' | 'impact', by: string, strength: number) {
@@ -1180,5 +1197,34 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
       const hit = vehicleImpact(car, { x: a.x, z: a.z });
       if (hit.hit) this.knockdown(id, car.x - Math.sin(car.heading) * 3, car.z - Math.cos(car.heading) * 3, hit.strength, 'impact', driverId, hit.strength);
     }
+  }
+
+  // ---------------------------------------------------------------- rodada 9 — progressão
+  /**
+   * missões, XP/nível, conquistas, recompensas e telemetria (server/src/progression, server/src/telemetry): tudo fora
+   * daqui; a sala só repassa ciclo de vida e os caminhos de ACEITE (linhas marcadas "rodada 9 — progressão").
+   * Envia `prog`/`prog_ev` só ao dono. Grava em lotes (nunca por evento). docs/MISSIONS.md, docs/PROGRESSION.md
+   */
+  readonly r9 = new RoomProgression(this.gameplay, {
+    send: (sid, t, m) => this.clients2.get(sid)?.send(t, m),
+    store: storeOrNull(),
+    players: () => this.r9Players(),
+    rings: () => rallyRings(world().manifest.eventSpots ?? [], this.eventVehIds.map((id) => { const v = this.state.vehicles.get(id)!; return { id, kind: v.kind, x: v.x, z: v.z }; })),
+  });
+
+  private *r9Players(): Iterable<{ sid: string; x: number; z: number }> {
+    for (const [sid, r] of this.rt) { const p = this.state.players.get(sid); if (p && !p.vehicle && p.status === STATUS.OK) yield { sid, x: r.last.x, z: r.last.z }; }
+  }
+
+  /** QA (PV_TEST=1, nunca em produção): o SERVIDOR põe o jogador num ponto — como o testSpawn, sem contar distância */
+  private r9TestTeleport(client: Client, m: unknown) {
+    if (process.env.PV_TEST !== '1') return;
+    const p = this.state.players.get(client.sessionId), r = this.rt.get(client.sessionId);
+    const o = m as { x?: unknown; z?: unknown } | null;
+    if (!p || !r || p.vehicle || p.platform || !o || !Number.isFinite(o.x) || !Number.isFinite(o.z)) return;
+    const x = o.x as number, z = o.z as number, now = Date.now();
+    p.x = x; p.z = z; p.y = 0; r.actor.x = x; r.actor.z = z;
+    r.last = { x, y: 0, z, t: now, seq: r.last.seq };
+    client.send('correct', [x, 0, z, r.last.seq, 'teleporte']);
   }
 }

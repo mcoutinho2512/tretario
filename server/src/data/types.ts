@@ -50,6 +50,22 @@ export interface ModerationActionRecord {
 /** mute pessoal por IDENTIDADE (userId), nunca por apelido (rodada 8.1) */
 export interface MuteRecord { ownerUserId: string; mutedUserId: string; mutedNicknameAtTime: string | null; createdAt: Date }
 
+/** progressão (rodada 9): XP/nível + JSON do progresso em andamento; conclusões/conquistas/recompensas em tabelas
+ * com par ÚNICO (userId, id) — gravar de novo é inócuo (sem recompensa duplicada) */
+export interface ProgressionRecord {
+  xp: number; level: number; data: unknown; updatedAt: Date;
+  completed: { missionId: string; completedAt: Date }[];
+  achievements: { achievementId: string; unlockedAt: Date }[];
+  grants: { item: string; source: string; grantedAt: Date }[];
+}
+export interface ProgressionSave {
+  xp: number; level: number; data: unknown;
+  /** só as NOVAS desde a última gravação (duplicadas são ignoradas pelo par único) */
+  completed: { missionId: string; at: Date }[];
+  achievements: { achievementId: string; at: Date }[];
+  grants: { item: string; source: string; at: Date }[];
+}
+
 export interface AuditRecord { id: string; actor: string; action: string; targetType: string | null; targetId: string | null; meta: Record<string, unknown>; createdAt: Date }
 
 export interface DataStore {
@@ -120,6 +136,12 @@ export interface DataStore {
   moderation: {
     create(d: Omit<ModerationActionRecord, 'id' | 'createdAt'>): Promise<ModerationActionRecord>;
     forUser(userId: string): Promise<ModerationActionRecord[]>;
+  };
+  /** rodada 9 — progressão (server/src/progression): gravada em LOTES pelo ProgressionService, nunca por evento */
+  progression: {
+    load(userId: string): Promise<ProgressionRecord | null>;
+    /** upsert de PlayerProgress + inserção idempotente (pares únicos) de conclusões/conquistas/recompensas, numa transação */
+    save(userId: string, d: ProgressionSave): Promise<void>;
   };
   audit: {
     append(d: Omit<AuditRecord, 'id' | 'createdAt'>): Promise<void>;

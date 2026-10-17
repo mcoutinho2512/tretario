@@ -197,3 +197,7 @@
   .start * { transition: none !important; }
 }
 .start .page-foot a { color: inherit; }
+
+/* rodada 9 — item bloqueado no editor (recompensa de progressão): requisito no title/aria-label e na nota */
+.chip.locked { opacity: 0.55; }
+.chip.locked::after { content: ' 🔒'; font-size: 10px; }
