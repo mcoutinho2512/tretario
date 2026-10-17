@@ -1,0 +1,10 @@
+/* rodada 9 — painel de evento agendado (corrida, caminhada, confronto): discreto, alto-centro */
+.evt-panel {
+  position: absolute; top: 56px; left: 50%; transform: translateX(-50%); z-index: 6;
+  min-width: 220px; max-width: min(92vw, 420px); padding: 7px 12px; border-radius: 10px;
+  background: rgba(14, 18, 22, 0.78); color: #f1efe8; font: 13px/1.35 system-ui, sans-serif; text-align: center;
+  pointer-events: none; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+}
+.evt-panel b { color: #ffd23f; font-weight: 600; }
+.evt-panel div + div { margin-top: 2px; }
+@media (max-width: 640px) { .evt-panel { top: 48px; font-size: 12px; } }

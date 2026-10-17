@@ -47,6 +47,8 @@ export interface WalkSpec {
   paceMs: number;
   /** raio para contar como "acompanhando" (m) */
   followRadius: number;
+  /** fração da rota (distância do líder) acompanhada a ≤ followRadius para concluir (padrão 0,6) */
+  completeFraction?: number;
 }
 
 /** corrida de veículo leve (MESMO runner para bicicleta e patinete) */
@@ -58,6 +60,8 @@ export interface RaceSpec {
   start: Checkpoint;
   /** teto de tempo (s) para concluir */
   timeLimitS: number;
+  /** onde a torcida (NPCs simulados) assiste — fora da pista; ausente = ao lado da largada */
+  watchArea?: WorldPoint;
 }
 
 /** palco de debate em TEXTO */
@@ -151,3 +155,29 @@ export interface DebateStateMessage {
 }
 /** cliente → servidor: `dbt_queue {inst, on}`, `dbt_say {inst, text}`, `dbt_react {inst, r}` */
 export type DebateReaction = 'aplauso' | 'positiva' | 'negativa';
+
+/* ── rodada 9 (runtime de eventos) — mensagens adicionais, servidor → cliente ─────────────────────────────────── */
+
+/** concentração de evento (líder da caminhada, largada da corrida…): RallyPoint kind 'event' no cliente */
+export interface EventPointWire { id: string; inst: string; x: number; z: number; inner: number; radius: number; strength: number;
+  /** NPCs de ambiente reservados (simulados; nunca contados como jogadores) */
+  crowd: number; label: string }
+/** `evt_pts {list}` a todos: ≤ 1 Hz e só quando muda (posições arredondadas) */
+export interface EventPointsMessage { list: EventPointWire[] }
+/** `race_def` aos inscritos e a quem acompanha (evt_watch): geometria (marcadores no cliente) */
+export interface RaceDefMessage {
+  inst: string; vehicle: 'bicycle' | 'scooter'; laps: number; startsAt: number; timeLimitS: number;
+  start: { x: number; z: number; r: number };
+  cps: { x: number; z: number; r: number }[];
+  /** lugares da grade de largada (indicativos; ninguém é teleportado) */
+  grid: { x: number; z: number; heading: number }[];
+}
+/** `walk {inst, d, total, mine}` aos inscritos (1 Hz): distância do líder, total da rota e o quanto o próprio acompanhou */
+export interface WalkStateMessage { inst: string; x: number; z: number; d: number; total: number; mine: number; need: number; done?: boolean }
+/** `clash {inst, score, hold, t}` aos inscritos/acompanhantes (≤ 1 Hz, na mudança) */
+export interface ClashStateMessage { inst: string; score: Record<string, number>; hold: string | null; t: number; endsAt: number }
+export interface EventResultRow { name: string; rank: number; timeMs: number; status: 'ok' | 'dnf' | 'dq'; reason?: string; group?: string }
+/** `evt_result` no fim (corrida: classificação; confronto: pontos por grupo) */
+export interface EventResultMessage { inst: string; format: string; rows: EventResultRow[]; score?: Record<string, number> }
+/** cliente → servidor `evt_watch {inst, on}`: acompanhar sem se inscrever (marcadores, placar, resultado) */
+export interface EventWatchRequest { inst: string; on?: boolean }

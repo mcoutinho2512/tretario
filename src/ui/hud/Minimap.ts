@@ -24,6 +24,8 @@ const DENSITY_CELL = 10; // m por célula da grade de calor
 const COMPACT_PPM = 0.32; // px CSS por metro na visão compacta (~575 m de lado)
 
 export class Minimap {
+  /** rodada 9 — marcas de eventos agendados (escritas pelo EventClient; desenhadas no próximo quadro do mapa) */
+  eventMarks: { x: number; z: number; color: string; label?: string; r?: number }[] = [];
   readonly el: HTMLDivElement;
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
@@ -278,6 +280,11 @@ export class Minimap {
       c.beginPath(); c.arc(x, y, (off ? 5 : 9) * u, 0, Math.PI * 2); c.stroke();
       c.textBaseline = 'middle';
       if (!off || this.expanded) this.text(t.label, x + 12 * u, y, u, '#ffe9a8', 'left', true);
+    }
+    // rodada 9 — eventos agendados: concentração (caminhada/torcida) e checkpoints da corrida (src/events/EventClient.ts)
+    for (const m of this.eventMarks) {
+      const x = sx(m.x), y = sy(m.z);
+      if (inView(x, y, 20)) this.marker(x, y, u, m.color, m.label ?? '', m.r ?? 3);
     }
     // rótulos
     c.textBaseline = 'middle';

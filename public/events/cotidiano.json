@@ -72,5 +72,191 @@
       "name": "Trio elétrico",
       "spawn": "none"
     }
+  ],
+  "agenda": [
+    {
+      "id": "corrida-bicicleta-cidade-nova",
+      "format": "corrida",
+      "name": "Corrida de bicicleta · Cidade Nova",
+      "description": "Corrida de bicicleta nas pistas laterais da Cidade Nova (longe da concentração): largada, checkpoints em ordem e 2 voltas, tudo conferido pelo servidor. Monte no veículo e inscreva-se.",
+      "zones": [
+        "CIDADE_NOVA"
+      ],
+      "recurrence": {
+        "everyMin": 30,
+        "offsetMin": 10,
+        "registrationMin": 5,
+        "startingS": 20,
+        "durationMin": 8
+      },
+      "capacity": 12,
+      "minParticipants": 1,
+      "rewards": [
+        {
+          "kind": "xp",
+          "amount": 80
+        }
+      ],
+      "npcCrowd": 40,
+      "race": {
+        "vehicle": "bicycle",
+        "laps": 2,
+        "timeLimitS": 420,
+        "start": {
+          "id": "largada",
+          "at": {
+            "t": 0.03,
+            "side": 0
+          },
+          "radius": 9
+        },
+        "checkpoints": [
+          {
+            "id": "cp1",
+            "at": {
+              "t": 0.06,
+              "side": 10
+            },
+            "radius": 8
+          },
+          {
+            "id": "cp2",
+            "at": {
+              "t": 0.1,
+              "side": 10
+            },
+            "radius": 8
+          },
+          {
+            "id": "cp3",
+            "at": {
+              "t": 0.14,
+              "side": 10
+            },
+            "radius": 8
+          },
+          {
+            "id": "cp4",
+            "at": {
+              "t": 0.16,
+              "side": 0
+            },
+            "radius": 9
+          },
+          {
+            "id": "cp5",
+            "at": {
+              "t": 0.14,
+              "side": -10
+            },
+            "radius": 8
+          },
+          {
+            "id": "cp6",
+            "at": {
+              "t": 0.1,
+              "side": -10
+            },
+            "radius": 8
+          },
+          {
+            "id": "cp7",
+            "at": {
+              "t": 0.06,
+              "side": -10
+            },
+            "radius": 8
+          }
+        ],
+        "watchArea": {
+          "t": 0.036,
+          "side": 24
+        }
+      }
+    },
+    {
+      "id": "corrida-patinete-cidade-nova",
+      "format": "corrida",
+      "name": "Corrida de patinete · Cidade Nova",
+      "description": "Corrida de patinete nas pistas laterais da Cidade Nova (longe da concentração): largada, checkpoints em ordem e 2 voltas, tudo conferido pelo servidor. Monte no veículo e inscreva-se.",
+      "zones": [
+        "CIDADE_NOVA"
+      ],
+      "recurrence": {
+        "everyMin": 30,
+        "offsetMin": 25,
+        "registrationMin": 5,
+        "startingS": 20,
+        "durationMin": 6
+      },
+      "capacity": 12,
+      "minParticipants": 1,
+      "rewards": [
+        {
+          "kind": "xp",
+          "amount": 80
+        }
+      ],
+      "npcCrowd": 30,
+      "race": {
+        "vehicle": "scooter",
+        "laps": 2,
+        "timeLimitS": 330,
+        "start": {
+          "id": "largada",
+          "at": {
+            "t": 0.05,
+            "side": 0
+          },
+          "radius": 9
+        },
+        "checkpoints": [
+          {
+            "id": "cp1",
+            "at": {
+              "t": 0.08,
+              "side": 10
+            },
+            "radius": 8
+          },
+          {
+            "id": "cp2",
+            "at": {
+              "t": 0.12,
+              "side": 10
+            },
+            "radius": 8
+          },
+          {
+            "id": "cp3",
+            "at": {
+              "t": 0.14,
+              "side": 0
+            },
+            "radius": 9
+          },
+          {
+            "id": "cp4",
+            "at": {
+              "t": 0.12,
+              "side": -10
+            },
+            "radius": 8
+          },
+          {
+            "id": "cp5",
+            "at": {
+              "t": 0.08,
+              "side": -10
+            },
+            "radius": 8
+          }
+        ],
+        "watchArea": {
+          "t": 0.056,
+          "side": 24
+        }
+      }
+    }
   ]
 }

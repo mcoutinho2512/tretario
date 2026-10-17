@@ -9,7 +9,7 @@
       "id": "time-a",
       "name": "Time A",
       "colors": [
-        "#c8102e",
+        "#b0101f",
         "#111111"
       ]
     },
@@ -17,31 +17,96 @@
       "id": "time-b",
       "name": "Time B",
       "colors": [
-        "#ffffff",
-        "#111111"
+        "#7a1f2b",
+        "#0f6b3a"
       ]
     }
   ],
   "groups": [
     {
-      "id": "torcida-a",
-      "name": "Torcida do Time A",
+      "id": "mare-vermelha",
+      "name": "Maré Vermelha",
+      "kind": "SUPPORTERS",
       "colors": [
-        "#c8102e",
+        "#b0101f",
         "#111111"
       ],
-      "teamId": "time-a",
-      "npcShare": 0.3
+      "joinable": true,
+      "designKey": "fut_vermelha_lisa",
+      "suggestedDesigns": [
+        "fut_vermelha_lisa",
+        "fut_rubro_negro",
+        "brasil"
+      ],
+      "npcShare": 0.2,
+      "teamId": "time-a"
     },
     {
-      "id": "torcida-b",
-      "name": "Torcida do Time B",
+      "id": "onda-tricolor",
+      "name": "Onda Tricolor",
+      "kind": "SUPPORTERS",
       "colors": [
-        "#ffffff",
-        "#111111"
+        "#7a1f2b",
+        "#0f6b3a"
       ],
-      "teamId": "time-b",
-      "npcShare": 0.3
+      "joinable": true,
+      "designKey": "fut_tricolor",
+      "suggestedDesigns": [
+        "fut_tricolor",
+        "brasil"
+      ],
+      "npcShare": 0.2,
+      "teamId": "time-b"
+    },
+    {
+      "id": "coro-da-diagonal",
+      "name": "Coro da Diagonal",
+      "kind": "SUPPORTERS",
+      "colors": [
+        "#111111",
+        "#ffffff"
+      ],
+      "joinable": true,
+      "designKey": "fut_alvinegro_faixa",
+      "suggestedDesigns": [
+        "fut_alvinegro_faixa",
+        "fut_alvinegro_listras",
+        "fut_preta_lisa"
+      ],
+      "npcShare": 0.2
+    },
+    {
+      "id": "brisa-azul",
+      "name": "Brisa Azul",
+      "kind": "SUPPORTERS",
+      "colors": [
+        "#0b3d91",
+        "#ffffff"
+      ],
+      "joinable": true,
+      "designKey": "fut_azul_listras",
+      "suggestedDesigns": [
+        "fut_azul_listras",
+        "fut_amarela"
+      ],
+      "npcShare": 0.2
+    },
+    {
+      "id": "neutro",
+      "name": "Sem torcida",
+      "kind": "NEUTRAL",
+      "colors": [
+        "#f4f2ec",
+        "#1d3557"
+      ],
+      "joinable": true,
+      "neutral": true,
+      "designKey": "paz",
+      "suggestedDesigns": [
+        "paz",
+        "brasil"
+      ],
+      "npcShare": 0
     }
   ],
   "cosmetics": [
@@ -50,9 +115,9 @@
       "name": "Camisa Time A",
       "slot": "top",
       "colors": [
-        "#c8102e"
+        "#b0101f"
       ],
-      "groupId": "torcida-a",
+      "groupId": "mare-vermelha",
       "price": 0
     },
     {
@@ -60,9 +125,9 @@
       "name": "Camisa Time B",
       "slot": "top",
       "colors": [
-        "#ffffff"
+        "#7a1f2b"
       ],
-      "groupId": "torcida-b",
+      "groupId": "onda-tricolor",
       "price": 0
     }
   ],
@@ -146,6 +211,167 @@
       "kind": "trio",
       "name": "Trio elétrico",
       "spawn": "none"
+    }
+  ],
+  "agenda": [
+    {
+      "id": "confronto-campo-de-santana",
+      "format": "confronto_grupos",
+      "name": "Desafio das torcidas · Campo de Santana",
+      "description": "Protótipo de confronto entre DUAS torcidas inscritas, só na zona do Campo de Santana e só durante o evento. Pontos por segurar a área central e por derrubadas no evento (mesmo grupo não pontua; fogo amigo desligado). Quem é derrubado volta ao ponto do seu grupo, protegido. A recompensa é pela participação, nunca por golpe.",
+      "zones": [
+        "CAMPO_DE_SANTANA"
+      ],
+      "recurrence": {
+        "everyMin": 30,
+        "offsetMin": 15,
+        "registrationMin": 5,
+        "startingS": 15,
+        "durationMin": 6
+      },
+      "capacity": 40,
+      "minParticipants": 2,
+      "groupRules": {
+        "allowed": [
+          "mare-vermelha",
+          "onda-tricolor"
+        ],
+        "friendlyFire": false
+      },
+      "combatPolicy": "CONTESTED",
+      "rewards": [
+        {
+          "kind": "xp",
+          "amount": 60
+        }
+      ],
+      "npcCrowd": 0,
+      "clash": {
+        "zones": [
+          "CAMPO_DE_SANTANA"
+        ],
+        "respawn": [
+          {
+            "t": 0.355,
+            "side": -30
+          },
+          {
+            "t": 0.415,
+            "side": 30
+          }
+        ],
+        "protectMs": 4000,
+        "holdArea": {
+          "id": "area-central",
+          "at": {
+            "t": 0.385,
+            "side": 0
+          },
+          "radius": 12
+        },
+        "pointsPerKnockdown": 3,
+        "pointsPerHoldSecond": 1
+      }
+    },
+    {
+      "id": "corrida-bicicleta-cidade-nova",
+      "format": "corrida",
+      "name": "Corrida de bicicleta · Cidade Nova",
+      "description": "Corrida de bicicleta nas pistas laterais da Cidade Nova (longe da concentração): largada, checkpoints em ordem e 2 voltas, tudo conferido pelo servidor. Monte no veículo e inscreva-se.",
+      "zones": [
+        "CIDADE_NOVA"
+      ],
+      "recurrence": {
+        "everyMin": 30,
+        "offsetMin": 10,
+        "registrationMin": 5,
+        "startingS": 20,
+        "durationMin": 8
+      },
+      "capacity": 12,
+      "minParticipants": 1,
+      "rewards": [
+        {
+          "kind": "xp",
+          "amount": 80
+        }
+      ],
+      "npcCrowd": 40,
+      "race": {
+        "vehicle": "bicycle",
+        "laps": 2,
+        "timeLimitS": 420,
+        "start": {
+          "id": "largada",
+          "at": {
+            "t": 0.03,
+            "side": 0
+          },
+          "radius": 9
+        },
+        "checkpoints": [
+          {
+            "id": "cp1",
+            "at": {
+              "t": 0.06,
+              "side": 10
+            },
+            "radius": 8
+          },
+          {
+            "id": "cp2",
+            "at": {
+              "t": 0.1,
+              "side": 10
+            },
+            "radius": 8
+          },
+          {
+            "id": "cp3",
+            "at": {
+              "t": 0.14,
+              "side": 10
+            },
+            "radius": 8
+          },
+          {
+            "id": "cp4",
+            "at": {
+              "t": 0.16,
+              "side": 0
+            },
+            "radius": 9
+          },
+          {
+            "id": "cp5",
+            "at": {
+              "t": 0.14,
+              "side": -10
+            },
+            "radius": 8
+          },
+          {
+            "id": "cp6",
+            "at": {
+              "t": 0.1,
+              "side": -10
+            },
+            "radius": 8
+          },
+          {
+            "id": "cp7",
+            "at": {
+              "t": 0.06,
+              "side": -10
+            },
+            "radius": 8
+          }
+        ],
+        "watchArea": {
+          "t": 0.036,
+          "side": 24
+        }
+      }
     }
   ]
 }

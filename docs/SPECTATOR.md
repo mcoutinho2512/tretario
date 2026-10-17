@@ -113,6 +113,20 @@ Central, Campo de Santana e Candelária manda só ~30 células; descer na Candel
 impostores. Resultado completo: `docs/bench/round8_1_spectator_aerial.json`; capturas A–H em
 `docs/screenshots/round8_1/`.
 
+## Caminhada vista do alto (rodada 9)
+- A caminhada agendada (docs/EVENTS.md, docs/MANIFESTATION_SYSTEM.md) tem um líder virtual que anda pela rota; o
+  runtime de eventos expõe a concentração como `EnvRally` com `crowd` = `npcCrowd` (120 NPCs **simulados**, fora da
+  divisão de `social.rallyCrowd`). A sala soma esses pontos ao ambiente das células (`environment()`, posição
+  arredondada a 4 m: recalcula só quando o líder anda) — no alto (FAR/AGGREGATE) a mancha de densidade **anda** com a
+  caminhada; no chão o `RallyCrowd` do cliente faz os NPCs caminharem até o novo lugar no anel.
+- Medido (`tools/qa/events_mp.mjs`, espectador em AGGREGATE sobre a Central/Campo de Santana, ~60 s de caminhada a
+  3 m/s): as 120 pessoas de ambiente da concentração mudaram de célula; o centro das células que ganharam × o das que
+  perderam deslocou **178 m** rumo à Candelária (líder andou 183 m); 57–59 células, 576 de ambiente no total (não muda:
+  só se move). Captura: `docs/screenshots/round9/R_caminhada_aerea.jpg`.
+- Teste: `tests/eventRuntime.test.ts` (células de ambiente com o líder em dois instantes: total = 100 reservados nos dois,
+  centro de massa a menos de uma célula do líder, deslocamento > 250 m).
+- Espectador pode acompanhar uma corrida/confronto com `evt_watch` (marcadores e resultado), sem se inscrever.
+
 ## Câmeras (`src/spectator/SpectatorCamera.ts`, `anchors.ts`)
 | tecla | câmera | origem |
 |---|---|---|
