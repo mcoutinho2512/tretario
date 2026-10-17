@@ -1,6 +1,6 @@
 /**
  * Preferências do HUD (rodada 8): nomes dos jogadores, auto-ocultar, chat recolhido, som (reservado).
- * Guardadas no navegador; com sessão, os campos do perfil (`PlayerPreferences`: names/chatCollapsed/quality) também
+ * Guardadas no navegador; com sessão, os campos do perfil (`PlayerPreferences`: names/chatCollapsed/quality/reduceEffects) também
  * vão para PUT /api/me/preferences (sem sessão ou rota ausente: só local, em silêncio).
  */
 import { API, type PlayerPreferences } from '../../identity/types';
@@ -12,9 +12,11 @@ export interface HudPrefs {
   chatCollapsed: boolean;
   /** reservado: ainda não há áudio no jogo */
   sound: boolean;
+  /** rodada 9 — acessibilidade: efeitos de tela fortes (desorientação) viram só ícone + tom leve */
+  reduceEffects: boolean;
 }
 
-export const DEFAULT_HUD_PREFS: HudPrefs = { names: 'PROXIMOS', hudAutoHide: true, chatCollapsed: true, sound: true };
+export const DEFAULT_HUD_PREFS: HudPrefs = { names: 'PROXIMOS', hudAutoHide: true, chatCollapsed: true, sound: true, reduceEffects: false };
 const KEY = 'pv3d.hud';
 const NAMES: NamesMode[] = ['TODOS', 'PROXIMOS', 'NENHUM'];
 
@@ -24,7 +26,7 @@ export function mergePrefs(base: HudPrefs, raw: unknown): HudPrefs {
   if (!raw || typeof raw !== 'object') return out;
   const r = raw as Record<string, unknown>;
   if (NAMES.includes(r.names as NamesMode)) out.names = r.names as NamesMode;
-  for (const k of ['hudAutoHide', 'chatCollapsed', 'sound'] as const) if (typeof r[k] === 'boolean') out[k] = r[k] as boolean;
+  for (const k of ['hudAutoHide', 'chatCollapsed', 'sound', 'reduceEffects'] as const) if (typeof r[k] === 'boolean') out[k] = r[k] as boolean;
   return out;
 }
 
@@ -81,7 +83,7 @@ export class HudPrefsStore {
     if (!this.authenticated) return;
     clearTimeout(this.pushTimer);
     this.pushTimer = window.setTimeout(() => {
-      const body: PlayerPreferences = { names: this.p.names, chatCollapsed: this.p.chatCollapsed };
+      const body: PlayerPreferences = { names: this.p.names, chatCollapsed: this.p.chatCollapsed, reduceEffects: this.p.reduceEffects };
       void fetch(API.preferences, { method: 'PUT', credentials: 'same-origin', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }).catch(() => { /* só local */ });
     }, 800);
   }

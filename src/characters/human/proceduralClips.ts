@@ -861,9 +861,69 @@ export const SPECS: Record<string, ClipSpec> = {
     dur: 4.0, layer: 'upper',
     pose: (c) => {
       c.life(0.4);
-      // só visual: taco pendurado ao lado do corpo, ponta para baixo
+      // taco pendurado ao lado do corpo, ponta para baixo
       c.reach('r', 'shoulder', [0.08, -0.52, 0.06], ELBOW_DOWN, 0.6);
       c.fingers('r', 0.95, { thumb: 0.5 });
+    },
+  },
+  carry_bar: {
+    dur: 4.0, layer: 'upper',
+    pose: (c) => {
+      c.life(0.4);
+      // barra junto da perna, ponta para baixo (mais leve que o taco: braço menos esticado)
+      c.reach('r', 'shoulder', [0.07, -0.5, 0.08], ELBOW_DOWN, 0.55);
+      c.fingers('r', 0.97, { thumb: 0.5 });
+    },
+  },
+  carry_spray: {
+    dur: 4.0, layer: 'upper',
+    pose: (c) => {
+      const u = c.u;
+      c.life(0.4);
+      // lata na mão, antebraço um pouco à frente da cintura (bico para a frente/baixo)
+      c.reach('r', 'shoulder', [0.06, -0.44 + 0.008 * osc(u, 1), 0.2], ELBOW_DOWN, 0.75);
+      c.twist('r', 'lowerarm', 0.5);
+      c.fingers('r', 0.85, { index: 0.7, thumb: 0.4 });
+    },
+  },
+
+  // ------------------------------------------------------------------ confronto (rodada 9) — golpes e reações
+  // Clipes AVULSOS (HumanAnimator.playClip), nomes referenciados pelas CombatActionDefinitions (public/gameplay/
+  // combat.json `animation`). Estilo arcade: gesto amplo e legível, sem contato/lesão representados.
+  /** cambaleio curto (estado STAGGERED): tronco recua e oscila, braços abrem para equilibrar */
+  stagger: {
+    dur: 0.8, layer: 'upper', fade: 0.08,
+    pose: (c) => {
+      const t = c.t, e = env(t, 0, 0.08, 0.5, 0.78);
+      const wob = Math.exp(-t * 4) * sin(TAU * 2.2 * t);
+      c.bone('spine_02', 1, 0, 0, -0.18 * e);
+      c.bone('spine_03', 0, 0, 1, 0.12 * wob * e);
+      c.bone('head', 1, 0, 0, 0.12 * e);
+      c.bone('head', 0, 0, 1, -0.08 * wob * e);
+      c.limb('r', 'upperarm', 0, 0, 1, -0.45 * e);
+      c.limb('l', 'upperarm', 0, 0, 1, -0.45 * e);
+      c.limb('r', 'lowerarm', 0, 0, 1, -0.3 * e);
+      c.limb('l', 'lowerarm', 0, 0, 1, -0.3 * e);
+      c.fingers('r', 0.2, {}, e);
+      c.fingers('l', 0.2, {}, e);
+    },
+  },
+  /** desorientado (spray): mãos diante dos olhos, cabeça baixa e balançando devagar — sem lesão representada */
+  disoriented: {
+    dur: 2.4, layer: 'upper',
+    pose: (c) => {
+      const u = c.u;
+      c.life(0.5);
+      c.bone('spine_03', 1, 0, 0, 0.12);
+      c.bone('head', 1, 0, 0, 0.22 + 0.03 * osc(u, 2));
+      c.bone('head', 0, 1, 0, 0.08 * osc(u, 1, 0.25));
+      for (const s of ['r', 'l'] as Side[]) {
+        const ph = s === 'r' ? 0 : 0.5;
+        c.reach(s, 'head', [0.035, -0.05 + 0.012 * osc(u, 3, ph), 0.13], ELBOW_DOWN);
+        c.twist(s, 'lowerarm', 1.1);
+        c.limb(s, 'hand', 1, 0, 0, -0.3);
+        c.fingers(s, 0.25, { thumb: -0.2 });
+      }
     },
   },
 
@@ -928,19 +988,6 @@ export const SPECS: Record<string, ClipSpec> = {
       c.limb('r', 'hand', 1, 0, 0, 0.2 * k);
       c.fingers('r', 0.85, { index: 0.35, thumb: 0.3 }, k);
       c.reach('l', 'chest', [0.04, -0.1, 0.18], ELBOW_DOWN, 0.5 * k);
-    },
-  },
-  cbt_stagger: {
-    dur: 0.55, layer: 'upper',
-    pose: (c) => {
-      const t = c.t, k = env(t, 0.0, 0.07, 0.18, 0.55), wob = Math.sin(TAU * 2.5 * t) * env(t, 0.05, 0.12, 0.3, 0.55);
-      // recuo do tronco (sem expressão de dor): inclina para trás, cabeça acompanha, braços abrem
-      c.bone('spine_01', 1, 0, 0, -0.22 * k);
-      c.bone('spine_03', 0, 0, 1, 0.1 * wob);
-      c.bone('head', 1, 0, 0, -0.2 * k);
-      c.limb('r', 'upperarm', 0, 0, 1, -0.35 * k);
-      c.limb('l', 'upperarm', 0, 0, 1, -0.35 * k);
-      c.fingers('r', 0.4); c.fingers('l', 0.4);
     },
   },
 

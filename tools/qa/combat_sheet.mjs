@@ -12,8 +12,8 @@ const BASE = process.env.BASE ?? 'http://localhost:5173';
 const OUT = 'screenshots/round9/clips';
 mkdirSync(OUT, { recursive: true });
 const data = JSON.parse(readFileSync('public/gameplay/combat.json', 'utf8'));
-const dur = { cbt_punch: 0.45, cbt_punch2: 0.46, cbt_kick: 0.72, cbt_kick_final: 0.79, cbt_dodge: 0.5, cbt_bat: 0.8, cbt_bar: 0.9, cbt_spray: 0.92, cbt_stagger: 0.55 };
-const clips = [...new Set([...data.actions.map((a) => a.animation).filter((n) => n !== 'push'), 'cbt_stagger'])];
+const dur = { cbt_punch: 0.45, cbt_punch2: 0.46, cbt_kick: 0.72, cbt_kick_final: 0.79, cbt_dodge: 0.5, cbt_bat: 0.8, cbt_bar: 0.9, cbt_spray: 0.92, stagger: 0.55 };
+const clips = [...new Set([...data.actions.map((a) => a.animation).filter((n) => n !== 'push'), 'stagger'])];
 const b = await puppeteer.launch({ executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', headless: 'new', args: ['--use-angle=metal', '--enable-gpu'], defaultViewport: { width: 300, height: 420 } });
 const n = Number(nArg);
 for (const clip of clips) {

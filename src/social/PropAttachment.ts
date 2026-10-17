@@ -93,11 +93,23 @@ export class PropAttachment {
     this.design = design;
     this.clear();
     this.build();
+    if (this.hidden) this.applyVisible();
+  }
+
+  /** rodada 9 — esconde o item durante a queda (com o ragdoll ele atravessaria o chão); volta ao levantar */
+  private hidden = false;
+  setVisible(v: boolean) { if (this.hidden === !v) return; this.hidden = !v; this.applyVisible(); }
+  private applyVisible() {
+    const v = !this.hidden;
+    if (this.frame) this.frame.visible = v;
+    for (const x of this.extras) x.visible = v;
+    for (const m of this.strap) m.visible = v;
+    for (const c of this.cloth) c.pivot.visible = v;
   }
 
   /** animação do tecido etc. (t em segundos); `detail` = perto da câmera */
   update(dt: number, _t: number, detail: boolean) {
-    if (!this.frame && this.prop) this.build(); // esqueleto ainda carregando no `set`
+    if (!this.frame && this.prop) { this.build(); if (this.hidden) this.applyVisible(); } // esqueleto ainda carregando no `set`
     if (!this.frame || !this.kind) return;
     if (detail !== this.detail) this.setDetail(detail);
     const g = PROP_GRIPS[this.kind];

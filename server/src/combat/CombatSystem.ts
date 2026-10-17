@@ -39,6 +39,8 @@ export interface CombatHost {
   walls: WallGrid | null;
   zoneOf(sid: string): string | null;
   zoneDef(id: string | null): { combatPolicy?: ZoneCombatPolicy; peaceAreas?: PeaceArea[] } | undefined;
+  /** áreas de paz derivadas/móveis (trio, carros de som, spawn, palco, retornos) — opcional */
+  peaceAt?(x: number, z: number): boolean;
   groupKey(sid: string): string | null;
   /** tipo do prop pelo id (src/social/props.ts PropKind; agente B acrescenta barra/spray) */
   propKind(propId: number): string | undefined;
@@ -202,8 +204,9 @@ export class CombatSystem {
   private party(sid: string, a: CombatActorView, ev?: CombatEventRules | null): CombatParty {
     let zone = this.host.zoneOf(sid);
     const def = this.host.zoneDef(zone);
-    const peace = inPeaceArea(def?.peaceAreas ?? [], a.x, a.z);
-    if ((def?.combatPolicy ?? 'PEACE') === 'PEACE') { const d = inDummyArea(this.table.dummies, a.x, a.z); if (d) zone = TRAINING + d.key; }
+    const peace = inPeaceArea(def?.peaceAreas ?? [], a.x, a.z) || !!this.host.peaceAt?.(a.x, a.z);
+    // área de treino (boneco) vale como COMBAT dentro de zona PEACE ou CONTESTED (zonas: dados do agente B)
+    if ((def?.combatPolicy ?? 'PEACE') !== 'COMBAT') { const d = inDummyArea(this.table.dummies, a.x, a.z); if (d) zone = TRAINING + d.key; }
     const rules = ev === undefined ? this.combatEventFor(sid) : ev;
     return { zone, inPeaceArea: peace, mode: a.mode, groupKey: this.host.groupKey(sid), combatEventId: rules?.eventId ?? '', protectedUntil: a.immuneUntil };
   }

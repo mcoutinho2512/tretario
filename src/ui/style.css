@@ -224,3 +224,29 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); o
 .aw-design span { font-size: 10px; max-width: 64px; }
 .aw-hint { font-size: 10px; opacity: 0.75; text-shadow: 0 1px 2px #000; }
 @media (max-width: 640px) { .aw-opt { min-width: 70px; font-size: 11px; padding: 6px 8px; } }
+
+/* ---- rodada 9: zona (política), MÃOS / ITEM ATUAL, desorientação, ver docs/COMBAT_ITEMS_ZONES.md */
+.zb-policy { margin-top: 7px; font: 700 10.5px/1 system-ui, sans-serif; letter-spacing: 0.26em; text-transform: uppercase; color: rgba(190, 236, 205, 0.92); }
+.zb-policy:empty { display: none; }
+.zone-banner[data-policy="COMBAT"] .zb-policy { color: #ffb3a8; }
+.zone-banner[data-policy="CONTESTED"] .zb-policy { color: #ffd59a; }
+.hud-slot-hand { position: absolute; right: calc(var(--sar) + var(--gap)); bottom: calc(var(--sab) + 76px); }
+.hud-slot-hand:empty { display: none; }
+.hud-hand { min-width: 132px; max-width: 240px; padding: 6px 11px 7px; border-radius: 8px; background: var(--hud-bg); border: 1px solid var(--hud-line); text-align: right; }
+.hud-hand.empty { opacity: 0.55; }
+.hud.dim .hud-hand.armed { opacity: 0.55; }
+.hh-kicker { font: 700 9px/1 system-ui, sans-serif; letter-spacing: 0.26em; text-transform: uppercase; color: var(--hud-dim); }
+.hh-item { margin-top: 4px; font: 600 12.5px/1.2 system-ui, sans-serif; }
+.hud-hand.armed .hh-item { color: #ffd59a; }
+.hh-hint { margin-top: 3px; font-size: 11px; color: var(--hud-dim); }
+.hh-hint:empty { display: none; }
+.hud.touch .hud-slot-hand { bottom: auto; top: calc(var(--sat) + 200px); pointer-events: auto; }
+.fx-disorient {
+  position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity 0.6s ease;
+  -webkit-backdrop-filter: blur(2.5px) saturate(0.5) brightness(0.96); backdrop-filter: blur(2.5px) saturate(0.5) brightness(0.96);
+  background: radial-gradient(ellipse at 50% 46%, rgba(20, 16, 10, 0) 42%, rgba(30, 24, 14, 0.5) 100%);
+}
+.fx-disorient.on { opacity: 1; }
+.fx-disorient.reduced { -webkit-backdrop-filter: none; backdrop-filter: none; background: rgba(214, 178, 96, 0.07); }
+.fx-badge { position: absolute; left: 50%; top: calc(var(--sat) + 9vh + 70px); transform: translateX(-50%); display: none; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 12px; background: rgba(12, 15, 18, 0.6); color: #ffe2a0; font: 600 11.5px system-ui, sans-serif; }
+.fx-disorient.reduced .fx-badge { display: flex; }

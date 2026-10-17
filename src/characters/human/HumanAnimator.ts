@@ -20,7 +20,12 @@ const ACT_FADE = 0.32;
 
 /** uma camada de ação/pose de carregar: trilhas amostradas direto (sem mixer) e misturadas osso a osso */
 interface ActLayer {
-  kind: 'act' | 'carry' | 'combat';
+  /** fx (rodada 9): clipe avulso de confronto/estado (golpe, cambaleio, desorientado) — fora das ações sociais */
+  kind: 'act' | 'carry' | 'combat' | 'fx';
+  /** nome do clipe (camadas fx) */
+  name?: string;
+  /** QA: fase presa (s) — captura de um instante do golpe */
+  hold?: number;
   /** id da ação (ACTIONS) ou do item (PROPS) */
   id: number;
   variation: number;
@@ -284,7 +289,7 @@ export class HumanAnimator {
     return this.baseClip ? proceduralClip(name, this.root, this.baseClip) : null;
   }
 
-  private makeLayer(kind: 'act' | 'carry' | 'combat', id: number, name: string, full: boolean, variation: number, onceDur?: number): ActLayer | null {
+  private makeLayer(kind: ActLayer['kind'], id: number, name: string, full: boolean, variation: number, onceDur?: number): ActLayer | null {
     const spec = specFor(name);
     // variação (NPCs): espelho nos gestos assimétricos, deslocamento de fase e andamento ±3 % nos loops
     const clip = this.clipFor(spec?.mirror && variation & 1 ? name + MIRROR_SUFFIX : name);
@@ -330,7 +335,7 @@ export class HumanAnimator {
     if (!this.layers.length) return;
     const busy = this.layers.some((l) => l.kind !== 'carry' && l.target > 0);
     for (const l of this.layers) {
-      l.phase += dt;
+      l.phase = l.hold ?? l.phase + dt;
       // pose de carregar só sem ação ativa; ação `once` sai sozinha no fim da duração
       const want = l.target > 0 && (l.kind === 'carry' ? !busy : l.loop || l.phase < l.dur - l.fade);
       l.w = want ? Math.min(1, l.w + dt / l.fade) : Math.max(0, l.w - dt / l.fade);
@@ -374,6 +379,31 @@ export class HumanAnimator {
 
   /** pose de exibição (tela inicial) */
   setShow(p: ShowPose | null) { this.show = p; this.t = 0; }
+
+  /**
+   * rodada 9 — clipe procedural AVULSO (proceduralClips SPECS: cbt_bat, cbt_bar, cbt_spray, stagger, disoriented)
+   * numa camada própria por cima da locomoção/item; `loop` mantém até `stopClip`. Reiniciar o mesmo clipe recomeça.
+   * Não mexe nas ações sociais (setSocial não apaga camadas fx).
+   */
+  playClip(name: string, loop = false, hold?: number): boolean {
+    const spec = specFor(name);
+    if (!spec) return false;
+    const cur = this.layers.find((l) => l.kind === 'fx' && l.name === name && l.target > 0);
+    if (cur && loop && hold === undefined) return true;
+    if (cur) { cur.phase = hold ?? 0; cur.hold = hold; if (hold !== undefined) cur.w = 1; return true; }
+    const l = this.makeLayer('fx', -1, name, false, 0, loop ? undefined : spec.dur);
+    if (!l) return false;
+    l.name = name;
+    if (hold !== undefined) { l.hold = hold; l.phase = hold; l.w = 1; }
+    this.layers.push(l);
+    return true;
+  }
+
+  /** encerra (com crossfade) um clipe avulso — ou todos */
+  stopClip(name?: string) { for (const l of this.layers) if (l.kind === 'fx' && (!name || l.name === name)) l.target = 0; }
+
+  /** clipes avulsos ativos (QA) */
+  get fxClips(): string[] { return this.layers.filter((l) => l.kind === 'fx' && l.target > 0).map((l) => l.name ?? ''); }
 
   /** ação curta sobreposta (empurrão, impacto) */
   /**

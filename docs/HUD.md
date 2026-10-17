@@ -88,8 +88,10 @@ instanciados (antes só com esqueleto), nunca sobre quem está fora do orçament
 Qualidade gráfica (presets existentes; grava a escolha e oferece "Recarregar para aplicar" — preset, resolução dinâmica
 e LOD continuam decididos na carga), nomes dos jogadores, esconder o HUD sozinho, chat recolhido ao entrar, som
 (reservado). `role=dialog`, foco no controle marcado, Esc fecha, controles nativos (rádio/checkbox) para leitor de tela.
+Rodada 9: **Reduzir efeitos visuais** (`reduceEffects`, também no perfil): a desorientação vira só um ícone pequeno e
+um tom leve (sem desfoque/vinheta) — `docs/COMBAT_ITEMS_ZONES.md`.
 
-Preferências: `localStorage['pv3d.hud']`. Com sessão (descoberta em `GET /api/me`), `names` e `chatCollapsed` vão para
+Preferências: `localStorage['pv3d.hud']`. Com sessão (descoberta em `GET /api/me`), `names`, `chatCollapsed` e `reduceEffects` vão para
 `PUT /api/me/preferences` (800 ms depois da última mudança); as do perfil vencem as locais ao entrar. Sem sessão/rota:
 só local, em silêncio.
 
@@ -99,6 +101,7 @@ só local, em silêncio.
 game.hudShell.mountChat(panel)          // ChatPanelLike { el; toggle(open?); setCollapsed?(c) } — botão CHAT do celular chama toggle()
 game.hudShell.mountSpectator(panel)     // HudPanel { el; setCollapsed?(c) } — acima da ação contextual
 game.hudShell.mountCombat(panel, aviso) // rodada 9: HUD de confronto (acima do centro inferior) + aviso ZONA DE PAZ
+game.hudShell.mountHand(panel)          // rodada 9: MÃOS / ITEM ATUAL (canto inferior direito, acima de Ações)
 game.hudShell.setFocusProvider(() => ({ x, z }))  // câmera do espectador define zona/minimapa; null = jogador
 game.hudShell.onZoneChange(({ from, to }) => …)   // ZoneDefinition | null
 game.hudShell.hooks.openCharacterEditor = () => openCharacterEditor()  // menu "Perfil / personagem"

@@ -233,10 +233,8 @@ export class CombatClient {
       this.d.hud.pulse();
       this.dash = null;
       if (m.kb) this.knock = { dx: m.dx * m.kb, dz: m.dz * m.kb };
-      if (m.st === PHYS.STAGGERED) {
-        this.lockUntil = now + (def?.impact.staggerMs ?? 400);
-        this.d.avatar.playCombat('cbt_stagger');
-      }
+      // cambaleio: a animação vem da mudança de NetPlayer.status (AvatarVisual, vale para todos e para quem chega depois)
+      if (m.st === PHYS.STAGGERED) this.lockUntil = now + (def?.impact.staggerMs ?? 400);
       return;
     }
     if (m.by === self) {
@@ -245,7 +243,6 @@ export class CombatClient {
       else if (m.r === 'dodged') { this.stats.dodgedOut++; this.d.flash('Esquivou do seu golpe'); }
       else { this.stats.blocked++; this.d.flash('Sem efeito (modo pacífico, proteção ou regra do local)'); }
     }
-    if (m.r === 'hit' && m.st === PHYS.STAGGERED) this.d.net.combatVisual(m.tgt)?.visual.playCombat('cbt_stagger');
   }
   /** empurrão sofrido, aplicado no próximo `update` */
   private knock: { dx: number; dz: number } | null = null;

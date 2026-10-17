@@ -1,0 +1,59 @@
+{
+ "version": 1,
+ "note": "Rodada 9 — pontos de apoio (racks) dos itens de confronto, SÓ em zonas COMBAT/CONTESTED (Cidade Nova, Campo de Santana, Rio Branco), longe do spawn, do palco e do trajeto do trio — quem é pacífico nunca precisa deles. Os itens (propId, kind, ações, groundTtlMs) vêm de combat.json `props` (fonte única).",
+ "supply": {
+  "maxGround": 10,
+  "pickRangeM": 2.2,
+  "aoiM": 70,
+  "racks": [
+   {
+    "id": "apoio_cidade_nova_a",
+    "at": {
+     "t": 0.09,
+     "side": 12
+    },
+    "props": [
+     11,
+     12,
+     13
+    ]
+   },
+   {
+    "id": "apoio_cidade_nova_b",
+    "at": {
+     "t": 0.145,
+     "side": -12
+    },
+    "props": [
+     11,
+     12,
+     13
+    ]
+   },
+   {
+    "id": "apoio_campo_de_santana",
+    "at": {
+     "t": 0.4,
+     "side": 14
+    },
+    "props": [
+     11,
+     12,
+     13
+    ]
+   },
+   {
+    "id": "apoio_rio_branco",
+    "at": {
+     "t": 0.848,
+     "side": -12
+    },
+    "props": [
+     11,
+     12,
+     13
+    ]
+   }
+  ]
+ }
+}

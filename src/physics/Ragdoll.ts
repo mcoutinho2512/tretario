@@ -56,6 +56,9 @@ export interface RagdollParams {
 }
 
 export class Ragdoll {
+  /** mundos Rapier vivos (QA de vazamento: volta a 0 quando ninguém está caído) */
+  static live = 0;
+  private freed = false;
   private world: InstanceType<R['World']>;
   private bodies = new Map<BoneName, InstanceType<R['RigidBody']>>();
   private acc = 0;
@@ -67,6 +70,7 @@ export class Ragdoll {
   private constructor(private rig: CharacterRig, p: RagdollParams) {
     const RP = RAPIER!;
     this.world = new RP.World({ x: 0, y: -9.81, z: 0 });
+    Ragdoll.live++;
     // ambiente: chão + paredes próximas (grupo 1); corpos do boneco (grupo 2) só colidem com o ambiente
     const ENV = (0x0001 << 16) | 0xffff, BODY = (0x0002 << 16) | 0x0001;
     const mesh = rig.mesh;
@@ -165,7 +169,11 @@ export class Ragdoll {
     return new THREE.Vector3(t.x, t.y, t.z);
   }
 
+  /** libera o mundo WASM (idempotente) */
   dispose() {
+    if (this.freed) return;
+    this.freed = true;
+    Ragdoll.live--;
     this.world.free();
   }
 }

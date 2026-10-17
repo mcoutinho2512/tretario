@@ -70,6 +70,10 @@ export class InputManager {
     if (e.code === 'KeyR' && !e.repeat) this.toggles.add('cbt_punch');
     if (e.code === 'KeyQ' && !e.repeat) this.toggles.add('cbt_kick');
     if (e.code === 'KeyC' && !e.repeat) this.toggles.add('cbt_dodge');
+    // rodada 9: itens de confronto — T pegar/trocar, Z largar, X guardar/sacar
+    if (e.code === 'KeyT' && !e.repeat) this.toggles.add('item');
+    if (e.code === 'KeyZ' && !e.repeat) this.toggles.add('drop');
+    if (e.code === 'KeyX' && !e.repeat) this.toggles.add('stow');
     this.keys.add(e.code);
   };
 

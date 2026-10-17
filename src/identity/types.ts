@@ -48,6 +48,8 @@ export interface PlayerPreferences {
   names?: 'TODOS' | 'PROXIMOS' | 'NENHUM';
   chatCollapsed?: boolean;
   quality?: string;
+  /** rodada 9 — acessibilidade: reduzir efeitos visuais (desorientação só com ícone + tom leve) */
+  reduceEffects?: boolean;
 }
 
 /** resposta de GET /api/me (dados do PRÓPRIO usuário) */

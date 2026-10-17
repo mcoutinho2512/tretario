@@ -5,7 +5,7 @@
  * Tudo vem dos registros (actions.ts / props.ts / designs.ts) — ação nova aparece aqui sem mexer na UI.
  */
 import { ACTIONS, ACTION_CATEGORIES, type ActionCategory } from '../social/actions';
-import { PROPS, PROP_BY_ID } from '../social/props';
+import { PROP_BY_ID, SOCIAL_PROPS } from '../social/props';
 import { DESIGN_BY_ID } from '../social/designs';
 import type { SocialController } from '../social/SocialController';
 
@@ -17,6 +17,8 @@ export class ActionWheel {
   open = false;
   /** chamado ao abrir/fechar (o jogo solta/recaptura o mouse) */
   onToggle?: (open: boolean) => void;
+  /** rodada 9: itens além dos sociais — o item de confronto que o jogador POSSUI (pego no chão/apoio) */
+  extraProps: () => number[] = () => [];
 
   constructor(private social: SocialController) {
     this.el = document.createElement('div');
@@ -73,7 +75,7 @@ export class ActionWheel {
     const held = PROP_BY_ID.get(s.prop);
     const items = this.cat === 'itens'
       ? [{ label: 'Mãos vazias', active: s.prop === 0, disabled: false, pick: () => { if (s.prop) s.requestProp(0); } },
-        ...PROPS.map((p) => ({ label: p.label, active: p.id === s.prop, disabled: false, pick: () => s.requestProp(p.id) }))]
+        ...[...SOCIAL_PROPS, ...this.extraProps().map((id) => PROP_BY_ID.get(id)!).filter(Boolean)].map((p) => ({ label: p.label, active: p.id === s.prop, disabled: false, pick: () => s.requestProp(p.id) }))]
       : ACTIONS.filter((a) => a.category === this.cat).map((a) => ({
         label: a.label,
         active: a.id === s.act,
