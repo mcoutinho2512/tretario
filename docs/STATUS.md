@@ -1,6 +1,42 @@
 # STATUS — Presidente Vargas 3D
 
-_Atualizado em 2026-10-16 (rodada 7: vida da manifestação)._
+_Atualizado em 2026-10-17 (rodada 8: identidade, grupos, chat, espectador e mundo persistente)._
+
+## Rodada 8 — identidade, lados, chat, espectador e mundo persistente
+Detalhes: [IDENTITY.md](IDENTITY.md) · [AUTH.md](AUTH.md) · [ACCESS_CONTROL.md](ACCESS_CONTROL.md) · [DATABASE.md](DATABASE.md) ·
+[CHAT.md](CHAT.md) · [SPECTATOR.md](SPECTATOR.md) · [HUD.md](HUD.md) · [PRIVACY_ARCHITECTURE.md](PRIVACY_ARCHITECTURE.md)
+
+| Item | Resultado |
+|---|---|
+| Home | própria, fundo da avenida, contagem do servidor ("N jogadores na avenida · multidão simulada ~360"), ASSISTIR GRÁTIS / PARTICIPAR / ENTRAR |
+| Espectador | sem conta, mesmo mundo, sem corpo; 6 câmeras (livre limitada, Central, Campo de Santana, Candelária, trio/palco, aérea); clique → mundo em 3,3 s local · 5,2 s a 20 Mbit/s · 6,6 s a 10 Mbit/s — `spectator_mp` **16/16** |
+| Conta | e-mail + senha (scrypt), verificação por código (DevelopmentMailProvider), login, logout, sessão HttpOnly restaurada, recuperação de senha, apelido único com reservados/variações; Google preparado só como interface |
+| Banco | PostgreSQL local (docker-compose) + Prisma 7, migrations versionadas; `DataStore` único (Prisma / memória) |
+| Acesso | VISITOR/REGISTERED/PLAYER/SUSPENDED/BANNED derivados; AccountAccess (DEV_GRANTED/PAID/STAFF) só pela CLI do operador (`npm run dev:grant-access`) ou pagamento (só mock); PaymentProvider + MockPaymentProvider, sem PIX/PSP |
+| Avatar | editor do sistema modular, SURPREENDA-ME, salvo no servidor (validador único), igual em outro navegador |
+| Grupos | GRUPO 13 / GRUPO 22 / NEUTRO por evento (dados); só aparência; neutralidade testada |
+| Chat | GERAL / PROXIMIDADE (grade espacial, servidor escolhe destinatários) / GRUPO; anti-flood adaptativo; mutar, ocultar, denunciar (Report com evidência) — `chat_mp` **22/22** |
+| Reconexão | período de graça de 20 s, uma entidade só, volta em ~3,5 s com posição/item; login duplicado: sessão nova assume — `reconnect_mp` **18/18** |
+| HUD | concha própria que some sozinha, minimapa com manchas de densidade, zonas, nomes por distância (≤ 14, PRÓXIMOS por padrão), ajustes, layout de toque |
+| Pichação | autoria por conta (interna), visitante/espectador não picha, denúncias viram Report |
+| Testes | **408** automatizados; walkthrough **36/36**; ações 12/12; trio 24/24; pichação 26/26; veículos 24/24; persistência E2E 21/21; banco (`test:db`) 11/11; build OK |
+
+**Desempenho** (M5 Pro; 60 % dos bots com ações/itens, 3 grupos, 30 mensagens de chat/min na multidão)
+
+| | Rodada 7 | Rodada 8 |
+|---|---|---|
+| Servidor 500 densos: tick · CPU · banda/cliente | 8,5 ms · 31 % · 20,3 KB/s | 7,6 ms · 29 % · 20,4 KB/s |
+| Cliente 500 bots LOW / MEDIUM / HIGH (FPS sem vsync) | 438 / 210 / 80 | 436 / 202 / 75 |
+| Cliente 500 HIGH: CPU · GPU · draw calls | 11,9 · 7,6 ms · 1552 | 12,9 · 6,8 ms · 1518 |
+| Soak 60 min (heap pós-GC; tendência últimos 30 min) | 61 → 81 MB, +0,04 MB/min | 62 → 84 MB, +0,05 MB/min (com chat + espectador) |
+
+O "+0,49 MB/min" da rodada 7 era **aquecimento de cache**: nas duas medições de 60 min o heap sobe nos primeiros
+~6 min e fica plano (docs/soak/).
+
+**Limitações**: e-mail real (SMTP) e OAuth não implementados; limites de taxa/tickets em memória de um processo;
+sem limpeza automática de sessões/códigos vencidos nem exclusão de conta; mute por apelido; sem tela dedicada para
+"conta entrou em outra janela"; espectador com o mesmo raio de interesse dos jogadores; concessão nova vale na
+próxima entrada.
 
 ## Rodada 7 — vida da manifestação (detalhes em [MANIFESTATION_SYSTEM.md](MANIFESTATION_SYSTEM.md), [EMOTES.md](EMOTES.md), [GRAFFITI.md](GRAFFITI.md))
 
