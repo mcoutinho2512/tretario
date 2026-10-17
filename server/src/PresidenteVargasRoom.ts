@@ -414,7 +414,8 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     for (const a of W.events.get(ev)?.agenda ?? []) if (a.clash?.respawn?.length) this.zonePolicy.setEventAreas(`evento:${a.id}`, this.zonePolicy.respawnAreas(a.id, a.clash.respawn));
     this.items = new RoomItems({
       player: (sid) => { const p = this.state.players.get(sid), r = this.rt.get(sid); return p && r ? { p, x: r.last.x, z: r.last.z } : undefined; },
-      each: (fn) => { for (const [sid, r] of this.rt) fn(sid, r.slot, r.last.x, r.last.z); },
+      // bots de carga não desenham nada: sem lista de itens (a banda medida nos testes de carga não muda)
+      each: (fn) => { for (const [sid, r] of this.rt) if (!this.identities.get(sid)?.bot) fn(sid, r.slot, r.last.x, r.last.z); },
       send: (sid, type, msg) => this.clients2.get(sid)?.send(type, msg),
       setHand: (sid, prop, now) => {
         const p = this.state.players.get(sid), r = this.rt.get(sid);
