@@ -235,6 +235,8 @@ export class HudShell {
     const n = this.clean ? undefined : this.noticeQ.shift();
     if (!n) { this.noticeBusy = false; this.noticeEl.classList.remove('show'); if (this.clean && this.noticeQ.length) setTimeout(() => this.nextNotice(), 1000); return; }
     this.noticeBusy = true;
+    this.poke(); // aviso de progresso acorda o HUD (rastreador visível junto)
+    if (this.noticeQ.length >= 2) n.ms = Math.max(1400, n.ms * 0.55); // fila longa: anda mais rápido
     this.noticeEl.className = `hud-notice show k-${n.kind}`;
     this.noticeEl.textContent = n.text;
     this.noticeLog.push({ text: n.text, kind: n.kind, t: Date.now() });

@@ -53,6 +53,22 @@ Os scripts de teste recusam o schema `public`.
   `VerificationCode(consumedAt)` — usados pela limpeza (`BitmapOr`, sem varredura sequencial).
 - **DataStore**: `mutes.{list, add, remove}`, `sessions.deleteExpired`, `codes.deleteExpired` (memória e Prisma).
 
+## Mudanças da rodada 9 (migration `20261017134942_round9_progression`)
+
+Progressão de missões/XP (docs/PROGRESSION.md, docs/MISSIONS.md):
+
+- **`PlayerProgress`** `(userId PK, xp, level, data Json, updatedAt)` — `data` = progresso EM ANDAMENTO
+  (`{ v, active: MissionProgress[], ach, seen, tracked, evx }`), sem conteúdo privado.
+- **`CompletedMission`** `(id, userId, missionId, completedAt)` — único por `(userId, missionId)`.
+- **`AchievementUnlock`** `(id, userId, achievementId, unlockedAt)` — único por `(userId, achievementId)`.
+- **`RewardGrant`** `(id, userId, item, source, grantedAt)` — único por `(userId, item)`: o mesmo item nunca é concedido
+  duas vezes (fonte `mission:<id>` / `achievement:<id>`; títulos como `title:<texto>`).
+- Todas com `onDelete: Cascade` na conta.
+- **DataStore**: `progression.{load, save}` (memória e Prisma; contrato em `tests/dataStoreContract.ts`). `save` =
+  upsert + `createMany(skipDuplicates)` numa transação. Escrita **em lote** pelo `ProgressionService` (a cada
+  `PV_PROG_FLUSH_S`, padrão 15 s, e na queda/saída/fim da graça/desligamento) — nunca por evento nem por tick.
+- Testes: `server/test/progression.dbtest.ts` (pares únicos recusam duplicata no PostgreSQL, cascata, reinício).
+
 ## Registros efêmeros e limpeza (rodada 8.1)
 
 Inventário de tudo que vence/expira no servidor e o destino de cada item. **Auditoria nunca é apagada.**
@@ -68,6 +84,9 @@ Inventário de tudo que vence/expira no servidor e o destino de cada item. **Aud
 | `Payment`, `Report`, `ModerationAction`, `AuditLog` | banco | — | **mantidos** (auditoria/financeiro). `ModerationAction.expiresAt` é só o fim da sanção |
 | `EventMembership` | banco | duração do evento | **mantida** por ora — retenção pós-evento ainda não implementada (ver `PRIVACY_ARCHITECTURE.md`) |
 | `MuteRelationship` | banco | até o dono desfazer | mantido (preferência do usuário; some em cascata com a conta) |
+| `PlayerProgress`, `CompletedMission`, `AchievementUnlock`, `RewardGrant` (rodada 9) | banco | até a conta ser apagada | **mantidos** (progresso do jogador); somem em cascata com a conta. Visitantes/anônimos: nunca gravados |
+| progresso de visitante/anônimo; estado de progressão de conta sem conexão | memória (`ProgressionService`) | sessão / 30 s após a última conexão | visitante some na saída; conta é gravada e despejada |
+| telemetria de gameplay (rodada 9) | memória + `server/data/telemetry.jsonl` | — | **só agregados** (contadores/histogramas por período), sem identificador; arquivo local fora do git |
 | cópia de mensagens do chat para denúncia (15 min) | memória (`ChatService`) | 15 min / `keepMax` | autolimpante (poda por idade/quantidade a cada mensagem; limitada por `keepMax`) |
 | presença (`presence/PresenceTracker.ts`) | memória | batimento 45 s | sai no `leave` da conexão |
 | carência de reconexão (`PresidenteVargasRoom.grace`) | memória | `allowReconnection` | sai ao reconectar/expirar |

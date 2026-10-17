@@ -85,6 +85,7 @@ export class ProgressionUI {
   private onNotice(n: ProgressionNotice) {
     if (!n?.kind) return;
     this.stats.notices++;
+    this.expand();
     const xp = n.xp ? ` · +${n.xp} XP` : '';
     if (n.kind === 'objective') this.shell.notice(`✓ ${n.label}`, 'objective', 2400);
     else if (n.kind === 'mission') this.shell.notice(`MISSÃO CONCLUÍDA — ${n.label}${xp}`, 'mission', 3800);
@@ -124,7 +125,12 @@ export class ProgressionUI {
     const ul = el('ul', 'pt-objs');
     ul.append(...rows);
     this.tracker.replaceChildren(head, ul);
-    // mostra por inteiro ao mudar; recolhe para o título depois de 9 s
+    this.expand();
+  }
+
+  /** mostra o rastreador por inteiro (e tira o esmaecimento do HUD); recolhe para o título depois de 9 s */
+  private expand() {
+    this.shell.poke();
     this.tracker.classList.remove('collapsed');
     clearTimeout(this.collapseTimer);
     this.collapseTimer = window.setTimeout(() => this.tracker.classList.add('collapsed'), 9000);
