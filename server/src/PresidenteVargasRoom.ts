@@ -422,7 +422,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
       // servidor de TESTE: bot de carga / conta fictícia para QA (ignorado em produção — server/src/presence/testJoin.ts)
       const tf = testJoinFlags(options);
       if (tf.bot && id.role === 'player') id.bot = true;
-      if (tf.testUser && !id.userId) id.userId = `test:${tf.testUser}`;
+      if (tf.testUser && !id.userId) { id.userId = `test:${tf.testUser}`; id.test = true; } // conta fictícia: fora da releitura do banco
       return id;
     } catch (e) {
       if (e instanceof JoinRefused) throw new Error(e.reason);
@@ -566,6 +566,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     const id = this.identities.get(client.sessionId);
     if (!id) return; // sessão substituída: sai de vez
     if (id.role === 'spectator') return; // espectador não tem entidade: sai e o cliente entra de novo
+    if (!can(id.state, 'world.play', id.role)) return; // expulso/rebaixado pelo servidor (releitura): sem graça
     const p = this.state.players.get(client.sessionId), r = this.rt.get(client.sessionId);
     const now = Date.now();
     if (p && r) {

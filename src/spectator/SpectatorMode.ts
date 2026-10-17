@@ -14,6 +14,8 @@ import type { Bounds } from './bounds';
 export class SpectatorMode {
   readonly switcher = new CameraSwitcher();
   readonly badge = new SpectatorBadge();
+  /** texto de estado ("MODO ESPECTADOR · câmera") para o HUD geral (HudShell.setMode), quando não se usa o selo próprio */
+  onLabel: ((text: string) => void) | null = null;
   private drag: { x: number; y: number; id: number } | null = null;
 
   private constructor(readonly cam: SpectatorCamera, canvas: HTMLCanvasElement, private input: InputManager) {
@@ -49,12 +51,23 @@ export class SpectatorMode {
   select(m: SpecCamMode) {
     this.cam.setMode(m);
     this.switcher.setActive(m);
-    this.badge.set(SPEC_CAMS.find((c) => c.id === m)?.label.toLowerCase() ?? 'assistindo ao vivo');
+    const label = SPEC_CAMS.find((c) => c.id === m)?.label.toLowerCase() ?? 'assistindo ao vivo';
+    this.badge.set(label);
+    this.onLabel?.(`MODO ESPECTADOR · ${label}`);
   }
 
+  /** monta sozinho no HUD: selo + seletor flutuante (embaixo, ao centro) */
   mount(hud: HTMLElement) {
     hud.appendChild(this.badge.el);
+    this.switcher.el.classList.add('floating');
     this.switcher.mount(hud);
+  }
+
+  /** monta o seletor num encaixe do HUD geral (ex.: HudShell.mountSpectator) — o estado vai por `onLabel` */
+  mountInSlot(slot: (el: HTMLElement) => void) {
+    slot(this.switcher.el);
+    this.switcher.bindKeys();
+    this.select(this.cam.mode);
   }
 
   /** por quadro: entrada → câmera; devolve o foco (no chão) */
