@@ -12,7 +12,7 @@ import puppeteer, { KnownDevices } from 'puppeteer-core';
 import { spawn } from 'node:child_process';
 import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 
-const BASE = process.argv[2] ?? 'http://localhost:5195';
+const BASE = process.argv[2] ?? 'http://localhost:5173';
 const BOTS = Number(process.argv[3] ?? 150);
 const PORT = Number(process.env.HUD_PORT ?? 2750);
 const chrome = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';

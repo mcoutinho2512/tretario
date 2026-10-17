@@ -9,7 +9,7 @@ import puppeteer from 'puppeteer-core';
 import { spawn } from 'node:child_process';
 import { Client } from '@colyseus/sdk';
 
-const base = process.argv[2] ?? 'http://localhost:5195';
+const base = process.argv[2] ?? 'http://localhost:5173';
 const PORT = Number(process.env.PV_TTW_PORT ?? 2740);
 const chrome = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const w = (ms) => new Promise((r) => setTimeout(r, ms));

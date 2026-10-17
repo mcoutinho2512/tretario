@@ -1,0 +1,275 @@
+{
+ "summary": {
+  "minutes": 60,
+  "bots": 60,
+  "samples": 31,
+  "errors": [],
+  "heap": {
+   "first": 60.91,
+   "last": 80.7,
+   "min": 60.91,
+   "max": 86.69
+  },
+  "slopeMBperMin": {
+   "total": 0.091,
+   "first20": 0.625,
+   "last30": 0.041
+  },
+  "gpu": {
+   "first": 440.9,
+   "last": 717.6,
+   "max": 749.3
+  },
+  "verdict": "ESTABILIZOU (aquecimento de cache)"
+ },
+ "samples": [
+  {
+   "t": 0,
+   "usedMB": 60.91,
+   "gpuMB": 440.9,
+   "fps": 3,
+   "calls": 566,
+   "humans": 424
+  },
+  {
+   "t": 120,
+   "usedMB": 79.98,
+   "gpuMB": 663.5,
+   "fps": 58,
+   "calls": 907,
+   "humans": 424
+  },
+  {
+   "t": 245,
+   "usedMB": 86.49,
+   "gpuMB": 691.9,
+   "fps": 58,
+   "calls": 943,
+   "humans": 424
+  },
+  {
+   "t": 365,
+   "usedMB": 80.89,
+   "gpuMB": 706.9,
+   "fps": 59,
+   "calls": 955,
+   "humans": 424
+  },
+  {
+   "t": 484,
+   "usedMB": 79.69,
+   "gpuMB": 719.4,
+   "fps": 58,
+   "calls": 997,
+   "humans": 424
+  },
+  {
+   "t": 603,
+   "usedMB": 79.31,
+   "gpuMB": 719.2,
+   "fps": 59,
+   "calls": 885,
+   "humans": 424
+  },
+  {
+   "t": 722,
+   "usedMB": 80.46,
+   "gpuMB": 724.3,
+   "fps": 58,
+   "calls": 523,
+   "humans": 424
+  },
+  {
+   "t": 842,
+   "usedMB": 80.93,
+   "gpuMB": 742,
+   "fps": 59,
+   "calls": 472,
+   "humans": 424
+  },
+  {
+   "t": 962,
+   "usedMB": 80.39,
+   "gpuMB": 740.9,
+   "fps": 58,
+   "calls": 483,
+   "humans": 424
+  },
+  {
+   "t": 1082,
+   "usedMB": 86.69,
+   "gpuMB": 725.9,
+   "fps": 57,
+   "calls": 446,
+   "humans": 424
+  },
+  {
+   "t": 1210,
+   "usedMB": 82.57,
+   "gpuMB": 730.8,
+   "fps": 58,
+   "calls": 438,
+   "humans": 424
+  },
+  {
+   "t": 1323,
+   "usedMB": 80.4,
+   "gpuMB": 725.7,
+   "fps": 58,
+   "calls": 438,
+   "humans": 424
+  },
+  {
+   "t": 1452,
+   "usedMB": 81.55,
+   "gpuMB": 747.5,
+   "fps": 57,
+   "calls": 868,
+   "humans": 424
+  },
+  {
+   "t": 1565,
+   "usedMB": 80.75,
+   "gpuMB": 746,
+   "fps": 58,
+   "calls": 930,
+   "humans": 424
+  },
+  {
+   "t": 1689,
+   "usedMB": 80.28,
+   "gpuMB": 749,
+   "fps": 58,
+   "calls": 434,
+   "humans": 424
+  },
+  {
+   "t": 1802,
+   "usedMB": 81.1,
+   "gpuMB": 735.5,
+   "fps": 58,
+   "calls": 484,
+   "humans": 424
+  },
+  {
+   "t": 1921,
+   "usedMB": 81.09,
+   "gpuMB": 708.2,
+   "fps": 57,
+   "calls": 438,
+   "humans": 424
+  },
+  {
+   "t": 2041,
+   "usedMB": 80.47,
+   "gpuMB": 731.7,
+   "fps": 57,
+   "calls": 792,
+   "humans": 424
+  },
+  {
+   "t": 2162,
+   "usedMB": 84.91,
+   "gpuMB": 735.9,
+   "fps": 52,
+   "calls": 874,
+   "humans": 424
+  },
+  {
+   "t": 2282,
+   "usedMB": 83.65,
+   "gpuMB": 698.1,
+   "fps": 58,
+   "calls": 874,
+   "humans": 424
+  },
+  {
+   "t": 2401,
+   "usedMB": 82.1,
+   "gpuMB": 739.9,
+   "fps": 58,
+   "calls": 898,
+   "humans": 424
+  },
+  {
+   "t": 2521,
+   "usedMB": 80.83,
+   "gpuMB": 692.6,
+   "fps": 58,
+   "calls": 912,
+   "humans": 424
+  },
+  {
+   "t": 2640,
+   "usedMB": 81.5,
+   "gpuMB": 724.5,
+   "fps": 58,
+   "calls": 860,
+   "humans": 424
+  },
+  {
+   "t": 2765,
+   "usedMB": 82.57,
+   "gpuMB": 703.4,
+   "fps": 59,
+   "calls": 474,
+   "humans": 424
+  },
+  {
+   "t": 2885,
+   "usedMB": 81.21,
+   "gpuMB": 701.9,
+   "fps": 59,
+   "calls": 442,
+   "humans": 424
+  },
+  {
+   "t": 3005,
+   "usedMB": 83.06,
+   "gpuMB": 712.1,
+   "fps": 58,
+   "calls": 436,
+   "humans": 424
+  },
+  {
+   "t": 3124,
+   "usedMB": 85.46,
+   "gpuMB": 701.2,
+   "fps": 58,
+   "calls": 426,
+   "humans": 424
+  },
+  {
+   "t": 3252,
+   "usedMB": 82.88,
+   "gpuMB": 700.1,
+   "fps": 58,
+   "calls": 440,
+   "humans": 424
+  },
+  {
+   "t": 3365,
+   "usedMB": 82.49,
+   "gpuMB": 709.5,
+   "fps": 58,
+   "calls": 442,
+   "humans": 424
+  },
+  {
+   "t": 3494,
+   "usedMB": 81.41,
+   "gpuMB": 749.3,
+   "fps": 58,
+   "calls": 900,
+   "humans": 424
+  },
+  {
+   "t": 3608,
+   "usedMB": 80.7,
+   "gpuMB": 717.6,
+   "fps": 58,
+   "calls": 902,
+   "humans": 424
+  }
+ ]
+}

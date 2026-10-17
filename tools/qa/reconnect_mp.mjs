@@ -12,7 +12,7 @@
 import puppeteer from 'puppeteer-core';
 import { spawn } from 'node:child_process';
 
-const base = process.argv[2] ?? 'http://localhost:5194';
+const base = process.argv[2] ?? 'http://localhost:5173';
 const PORT = Number(process.env.PV_RECONNECT_PORT ?? 2740);
 const GRACE_S = 10; // curta para o teste (produção: 20 s); maior que o atraso máximo entre tentativas (4 s) + a queda simulada (~3 s)
 const chrome = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';

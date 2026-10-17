@@ -12,7 +12,7 @@ import puppeteer from 'puppeteer-core';
 import { spawn } from 'node:child_process';
 import { copyFileSync, mkdirSync, readFileSync } from 'node:fs';
 
-const base = process.argv[2] ?? 'http://localhost:5194';
+const base = process.argv[2] ?? 'http://localhost:5173';
 const PORT = Number(process.env.PV_SPEC_PORT ?? 2740);
 const chrome = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const w = (ms) => new Promise((r) => setTimeout(r, ms));

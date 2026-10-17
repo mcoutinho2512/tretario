@@ -40,7 +40,7 @@ const ev = (p, fn, ...a) => p.evaluate(fn, ...a);
 const me = (p) => ev(p, () => window.__pv.metrics().player);
 const until = async (p, fn, ms = 8000) => { const t0 = Date.now(); while (Date.now() - t0 < ms) { if (await ev(p, fn)) return true; await w(150); } return false; };
 
-for (const kind of ['car', 'moto', 'bicycle', 'scooter']) {
+for (const kind of (process.env.PV_KINDS ?? 'car,moto,bicycle,scooter').split(',')) {
   const v = manifest.vehicleSpawns.find((s) => s.kind === kind && (kind !== 'bicycle' && kind !== 'scooter' ? true : s.id.startsWith('st')));
   // A ao lado (lado esquerdo do veículo), B um pouco atrás
   const sideA = [v.x - Math.cos(v.heading) * (kind === 'car' ? 1.7 : 1.0), v.z + Math.sin(v.heading) * (kind === 'car' ? 1.7 : 1.0)];
@@ -55,8 +55,12 @@ for (const kind of ['car', 'moto', 'bicycle', 'scooter']) {
   await w(1000);
   check(`${kind}: B não entra no mesmo veículo`, (await ev(B, () => window.__pv.lastDenial())) === 'enter:ocupado' && (await ev(B, () => window.__pv.riding())) === null);
   const p0 = await me(A);
+  // NPCs de ambiente LOCAIS fora da medição: no modo pacífico o veículo para antes de encostar em quem cruza a frente
+  // (correto, coberto pelos testes de bloqueio) — aqui medimos o veículo, não o acaso dos pedestres
+  await ev(A, () => window.__pv.peds(0));
   await ev(A, () => window.__pv.press('KeyW', 3000));
-  await w(3400);
+  if (process.env.PV_TRACE) for (let i = 0; i < 7; i++) { await w(450); console.log('  trace', JSON.stringify(await ev(A, () => { const m = window.__pv.metrics(); return { x: +m.player.x.toFixed(2), z: +m.player.z.toFixed(2), fps: Math.round(m.fps), hold: window.__pv.mp()?.holdMoves, riding: window.__pv.riding() }; }))); }
+  else await w(3400);
   const p1 = await me(A);
   const corr = await ev(A, () => window.__pv.mp().correctionReasons);
   const seen = (await ev(B, (k) => window.__pv.vehicles(k), kind)).find((x) => x.id === v.id);
