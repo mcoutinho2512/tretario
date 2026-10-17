@@ -3,7 +3,7 @@
  "name": "Ato na Presidente Vargas",
  "category": "manifestacao",
  "description": "Manifestação/ato em período eleitoral (simulação). Conteúdo NEUTRO: as campanhas configuradas em public/designs/campaigns.json recebem o mesmo peso; bandeiras do Brasil, cartazes cívicos neutros e camisas com cores do futebol carioca. Nenhuma frase atribuída a pessoas reais.",
- "interaction": "pacifico",
+ "interaction": "opcional",
  "social": {
   "activity": 0.55,
   "propShare": 0.32,

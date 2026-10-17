@@ -1436,7 +1436,8 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
       if (id === driverId) return;
       const a = this.rt.get(id)?.actor;
       if (!a || a.vehicle || a.platform) return; // em veículo ou em cima do trio: não está no chão
-      const canHit = (kind === 'car' || kind === 'moto') && !!d && impactAllowed(d.actor.mode, a.mode) && a.status === STATUS.OK && now >= a.immuneUntil;
+      const canHit = (kind === 'car' || kind === 'moto') && !!d && impactAllowed(d.actor.mode, a.mode) && a.status === STATUS.OK && now >= a.immuneUntil
+        && this.combat.pushPolicy(driverId, id).ok; // rodada 9: em zona de paz o carro PARA (bloqueia), como para pacífico
       if (!canHit) out.push({ x: a.x, z: a.z });
     });
     return out;
@@ -1456,6 +1457,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
       if (!r || id === driverId) continue;
       const a = r.actor;
       if (a.mode !== 'interacao' || a.status !== STATUS.OK || a.vehicle || a.platform || now < a.immuneUntil) continue;
+      if (!this.combat.pushPolicy(driverId, id).ok) continue; // rodada 9: zona de paz/evento valem também para veículo
       const hit = vehicleImpact(car, { x: a.x, z: a.z });
       if (hit.hit) this.knockdown(id, car.x - Math.sin(car.heading) * 3, car.z - Math.cos(car.heading) * 3, hit.strength, 'impact', driverId, hit.strength);
     }
