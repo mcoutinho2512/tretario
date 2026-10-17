@@ -73,3 +73,19 @@ export function floodCheck(s: FloodState, text: string, now: number): { ok: true
   if (s.strikes && now - (s.blockedUntil || 0) > CHAT_RULES.cooldownMaxMs) s.strikes = 0;
   return { ok: true };
 }
+
+/* ── Mute por IDENTIDADE (rodada 8.1) ───────────────────────────────────────────────────────────────────────────────
+ * O alvo é sempre resolvido NO SERVIDOR para um userId (a partir de uma mensagem recebida ou de uma entidade no mundo);
+ * o cliente nunca envia userId. A lista devolvida usa `ref` OPACO (HMAC do par dono/alvo com o segredo do servidor),
+ * estável para o mesmo par e inútil fora dele. O apelido é só uma cópia para exibir (pode estar desatualizado).
+ * Mute ≠ ban: só filtra o que ESTE usuário recebe (GERAL, PROXIMIDADE e GRUPO), no servidor. */
+
+/** cliente → servidor (`chat_mute`): exatamente um alvo — `msg` (id de mensagem recebida), `nid` (entidade no mundo) ou `ref` (item da lista) */
+export interface ChatMuteRequest { msg?: string; nid?: number; ref?: string; on: boolean }
+/** item da lista de mutados (servidor → cliente) */
+export interface ChatMuteEntry { ref: string; nick: string; since: number }
+/** servidor → cliente (`chat_mutes`): lista completa após cada mudança e ao entrar */
+export interface ChatMuteList { list: ChatMuteEntry[] }
+export type ChatMuteRejection = 'sem_conta' | 'alvo_invalido' | 'proprio' | 'limite';
+/** teto de mutes por conta */
+export const CHAT_MUTE_MAX = 500;
