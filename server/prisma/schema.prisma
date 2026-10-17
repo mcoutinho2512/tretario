@@ -59,6 +59,8 @@ enum ReportTarget {
   CHAT_MESSAGE
   GRAFFITI
   USER
+  /// rodada 9 — fala do palco de debate (evidência: cópia do servidor, como o chat)
+  DEBATE_LINE
 }
 
 model User {

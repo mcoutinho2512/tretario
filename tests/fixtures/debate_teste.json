@@ -1,0 +1,17 @@
+{
+  "_doc": "Dados de TESTE do palco de debate (PV_TEST=1 + PV_DEBATE_FILE): sempre ativo, turno curto, poucas reações por minuto.",
+  "debates": [
+    {
+      "id": "debate_teste",
+      "format": "debate",
+      "name": "Debate no palco",
+      "description": "teste",
+      "zones": ["RIO_BRANCO"],
+      "recurrence": { "everyMin": 600, "offsetMin": 0, "registrationMin": 0, "startingS": 0, "durationMin": 600 },
+      "capacity": 10,
+      "minParticipants": 0,
+      "rewards": [],
+      "debate": { "stageSpot": "stage0", "turnSeconds": 8, "turns": 4, "seats": 5, "reactionsPerMin": 5, "topics": ["Calor na cidade: árvores, sombra e água nas ruas"] }
+    }
+  ]
+}

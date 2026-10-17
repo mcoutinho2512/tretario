@@ -14,7 +14,7 @@ import type { EventDef } from '../events/types';
 import { DESIGNS, DESIGN_BY_ID, DESIGN_BY_KEY } from '../social/designs';
 import { rallyPoints, RALLY_DEFAULT_WEIGHTS, RALLY_SHAPE } from '../social/rally';
 import { applyDesign, buildCampaignTruck, buildScreenStand, buildStage, screenMeshes, setEventNight } from '../vehicles/eventModels';
-import { screenFeed, type ScreenSlide } from '../events/screenFeed';
+import { ScreenFeed, screenFeed, type ScreenSlide } from '../events/screenFeed';
 
 type Spot = NonNullable<WorldManifest['eventSpots']>[number];
 interface Item { spot: Spot; root: THREE.Group; design: number }
@@ -23,8 +23,10 @@ export class EventScenery {
   readonly group = new THREE.Group();
   readonly items: Item[] = [];
   /** telões fora do cenário (o do trio): registrados pelo jogo */
-  private extraScreens: { mesh: THREE.Mesh; anchor: THREE.Object3D }[] = [];
-  private screens: { mesh: THREE.Mesh; anchor: THREE.Object3D }[] = [];
+  private extraScreens: { mesh: THREE.Mesh; anchor: THREE.Object3D; id: string }[] = [];
+  private screens: { mesh: THREE.Mesh; anchor: THREE.Object3D; id: string }[] = [];
+  /** rodada 9 — telão com AdSlot (src/ads): canal PRÓPRIO = programação do evento intercalada com o conteúdo do slot */
+  private adFeeds = new Map<string, { feed: ScreenFeed; slide: ScreenSlide }>();
 
   constructor(manifest: WorldManifest, heightAt: (x: number, z: number) => number, collision?: CollisionWorld) {
     this.group.name = 'event_scenery';
@@ -38,7 +40,7 @@ export class EventScenery {
       root.rotation.y = sp.heading;
       this.group.add(root);
       this.items.push({ spot: sp, root, design: 0 });
-      for (const m of screenMeshes(root)) this.screens.push({ mesh: m, anchor: root });
+      for (const m of screenMeshes(root)) this.screens.push({ mesh: m, anchor: root, id: sp.id });
       // colisão no cliente igual à do servidor (pipeline)
       if (collision) {
         const boxes = sp.kind === 'truck' ? [[0, 0, 4.25, 1.25, 3.8]] : sp.kind === 'stage' ? [[0, 0, 3.5, 5, 1.5]] : [[-2.6, 0, 0.3, 0.3, 6.5], [2.6, 0, 0.3, 0.3, 6.5]];
@@ -78,7 +80,35 @@ export class EventScenery {
     const feed = screenFeed();
     if (cfg?.screenSeconds) feed.rotateSeconds = cfg.screenSeconds;
     feed.setPlaylist(cfg?.screens?.map((k): ScreenSlide => (k === 'info' ? { type: 'info' } : k === 'eq' ? { type: 'eq', text: cfg.ticker } : { type: 'design', design: k })));
+    for (const [, a] of this.adFeeds) this.adPlaylist(a.feed, a.slide);
   }
+
+  /** conteúdo de um AdSlot num telão (id do spot / 'trio0'); null volta ao canal comum. Só slides internos */
+  setScreenAd(target: string, slide: ScreenSlide | null): boolean {
+    const known = this.screens.some((s) => s.id === target) || this.extraScreens.some((s) => s.id === target);
+    if (!known) return false;
+    const cur = this.adFeeds.get(target);
+    if (!slide) { if (cur) { cur.feed.material.map?.dispose(); cur.feed.material.dispose(); cur.feed.farMaterial.dispose(); this.adFeeds.delete(target); } return true; }
+    if (cur) { cur.slide = slide; this.adPlaylist(cur.feed, slide); return true; }
+    const shared = screenFeed();
+    const f = new ScreenFeed();
+    f.info = () => shared.info(); f.now = () => shared.now(); f.zoneName = (id) => shared.zoneName(id);
+    f.rotateSeconds = shared.rotateSeconds; f.nearDistance = shared.nearDistance;
+    this.adFeeds.set(target, { feed: f, slide });
+    this.adPlaylist(f, slide);
+    return true;
+  }
+
+  /** programação do evento com o slide do slot a cada dois (o slot aparece ~1/3 do tempo) */
+  private adPlaylist(f: ScreenFeed, slide: ScreenSlide) {
+    const base = screenFeed().playlist;
+    const out: ScreenSlide[] = [];
+    base.forEach((b, i) => { if (i % 2 === 0) out.push(slide); out.push(b); });
+    f.setPlaylist(out.length ? out : [slide]);
+  }
+
+  /** QA: telões com canal próprio (slot) */
+  adTargets() { return [...this.adFeeds.keys()]; }
 
   /** troca a arte de um item (id do spot) — só textura, a geometria não muda */
   setDesign(id: string, design: number | string) {
@@ -91,21 +121,25 @@ export class EventScenery {
   }
 
   /** o telão do trio (ou de outro veículo) entra no mesmo controle de perto/longe */
-  addScreens(root: THREE.Object3D) {
-    for (const m of screenMeshes(root)) this.extraScreens.push({ mesh: m, anchor: root });
+  addScreens(root: THREE.Object3D, id = '') {
+    for (const m of screenMeshes(root)) this.extraScreens.push({ mesh: m, anchor: root, id });
   }
 
   /** telões: perto → canal animado (2 Hz); longe → material liso. O canal só redesenha se algum estiver perto */
   update(dt: number, cam: THREE.Vector3, night = 0) {
     setEventNight(night);
-    const feed = screenFeed();
+    const shared = screenFeed();
     let anyNear = false;
+    const adNear = new Set<string>();
     for (const list of [this.screens, this.extraScreens]) for (const s of list) {
       const p = s.anchor.position;
+      const ad = this.adFeeds.get(s.id)?.feed;
+      const feed = ad ?? shared;
       const near = Math.hypot(p.x - cam.x, p.z - cam.z) < feed.nearDistance;
       s.mesh.material = near ? feed.material : feed.farMaterial;
-      if (near && s.anchor.visible) anyNear = true;
+      if (near && s.anchor.visible) { if (ad) adNear.add(s.id); else anyNear = true; }
     }
-    feed.update(dt, anyNear);
+    shared.update(dt, anyNear);
+    for (const [id, a] of this.adFeeds) a.feed.update(dt, adNear.has(id));
   }
 }

@@ -1,0 +1,32 @@
+{
+  "_doc": "Palco de debate em TEXTO (rodada 9) — docs/DEBATES.md. ScheduledEventDef com format 'debate' (src/events/schedule.ts). Temas: textos NEUTROS, sem frases atribuídas a pessoas reais nem nomes de grupos. Se o evento atual tiver itens 'debate' na agenda, eles valem no lugar deste arquivo.",
+  "debates": [
+    {
+      "id": "debate_palco",
+      "format": "debate",
+      "name": "Debate no palco",
+      "description": "Palco aberto em texto: entre na fila, fale no seu turno, a plateia reage.",
+      "zones": ["RIO_BRANCO"],
+      "recurrence": { "everyMin": 20, "offsetMin": 0, "registrationMin": 0, "startingS": 0, "durationMin": 18 },
+      "capacity": 20,
+      "minParticipants": 0,
+      "rewards": [],
+      "npcCrowd": 40,
+      "debate": {
+        "stageSpot": "stage0",
+        "turnSeconds": 75,
+        "turns": 6,
+        "seats": 5,
+        "reactionsPerMin": 12,
+        "topics": [
+          "Mobilidade: como melhorar o transporte no Centro?",
+          "Espaço público: o que a avenida precisa para quem anda a pé?",
+          "Calor na cidade: árvores, sombra e água nas ruas",
+          "Bicicleta e patinete: convivência segura na avenida",
+          "Cultura na rua: shows, feiras e encontros no Centro",
+          "Patrimônio: como cuidar dos prédios históricos da região"
+        ]
+      }
+    }
+  ]
+}

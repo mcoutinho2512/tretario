@@ -81,6 +81,7 @@ export class HudShell {
   private helpEl: HTMLDivElement;
   private chatSlot: HTMLDivElement;
   private specSlot: HTMLDivElement;
+  private nowSlot: HTMLDivElement;
   private chat: ChatPanelLike | null = null;
   private density: DensitySource | null = null;
   private focusProvider: (() => { x: number; z: number }) | null = null;
@@ -104,6 +105,7 @@ export class HudShell {
     this.statusEl.setAttribute('aria-live', 'polite');
     this.eventText = new TextSlot(this.eventEl);
     this.statusText = new TextSlot(this.statusEl);
+    this.nowSlot = div('hud-slot-now hud-fadeable', tl); // rodada 9: "Acontecendo agora"
 
     // ---- aviso de zona (centro, alto)
     this.banner = div('zone-banner');
@@ -200,6 +202,19 @@ export class HudShell {
 
   /** seletor de câmeras do espectador (agente D), acima da ação contextual */
   mountSpectator(panel: HudPanel) { this.specSlot.replaceChildren(panel.el); }
+
+  /** rodada 9 — "Acontecendo agora" (src/ui/NowHappening.ts): abaixo do evento/estado, esmaece com o HUD */
+  mountNow(panel: HudPanel) { this.nowSlot.replaceChildren(panel.el); }
+
+  /** rodada 9 — painéis sobrepostos (agenda, debate): donos do próprio abrir/fechar; HUD limpo os esconde */
+  mountOverlay(panel: HudPanel) { this.root.appendChild(panel.el); }
+
+  /** rodada 9 — item no menu ☰ (antes de "Sair da conta") */
+  addMenuItem(label: string, fn: () => void) {
+    this.menuItem(label, fn);
+    const danger = this.menu.querySelector('button.danger');
+    if (danger) this.menu.appendChild(danger);
+  }
 
   /** posição que define a zona/minimapa (padrão: o jogador); câmera de espectador passa a sua. null = jogador */
   setFocusProvider(fn: (() => { x: number; z: number }) | null) { this.focusProvider = fn; this.zones.reset(); this.zoneGate.poke(); }

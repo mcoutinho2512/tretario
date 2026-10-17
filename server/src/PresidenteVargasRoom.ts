@@ -67,6 +67,11 @@ import { LINK_WIRE, RECONNECT } from '../../src/net/reconnect.ts';
 import { ZoneTracker } from '../../src/world/zoneTracker.ts';
 import type { ZoneDefinition } from '../../src/world/zones.ts';
 import { GameplayBus } from './gameplay/bus.ts';
+// rodada 9 — debate e telões
+import { DebateHost, loadDebateDefs } from './debate/DebateHost.ts';
+import { AdSlotService, loadAdSlots } from './ads/AdSlotService.ts';
+import { ACTION_BY_KEY } from '../../src/social/actions.ts';
+import { designsFor } from '../../src/social/designs.ts';
 
 const AOI_RADIUS = Number(process.env.PV_AOI ?? 220); // m — jogadores/veículos visíveis
 /** histerese da AOI: entra a ≤ R, sai só além de R × AOI_HYST */
@@ -272,6 +277,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
       },
     }, { store: storeOrNull(), eventId: ev, secret: serverSecret() });
     liveMemorySweepers.add(this.chat);
+    this.setupDebateAds(W, ev); // rodada 9 — debate e telões
     this.patchRate = 50; // 20 Hz
     this.setSimulationInterval((dt) => this.tick(dt), 100); // 10 Hz
     // suspensão/banimento/revogação feitos pela CLI (outro processo) chegam aqui por releitura periódica do banco
@@ -299,6 +305,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
   async onDispose() {
     if (this.metricsSource) liveWorlds.delete(this.metricsSource);
     if (this.chat) liveMemorySweepers.delete(this.chat);
+    if (this.debate) liveMemorySweepers.delete(this.debate); // rodada 9 — debate
     await this.graffiti?.flushStore();
   }
 
@@ -361,6 +368,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     this.updateZones(this.tickN % ZONE_SLICES, ZONE_SLICES, now);
     // grafites: área de interesse por superfície (fatiada, 2 Hz por cliente) e expiração (1 Hz)
     this.graffiti.update(now, this.gfPos);
+    this.tickDebateAds(now); // rodada 9 — debate e telões
     metrics.tick(performance.now() - t0, this.state.players.size);
   }
 
@@ -371,6 +379,57 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
       if (ch?.to) this.gameplay.emit(sid, { type: 'zone_enter', zone: ch.to.id }, now);
     }
   }
+
+  // rodada 9 — debate e telões ------------------------------------------------------------------------------------
+  // Palco de debate em texto (server/src/debate, docs/DEBATES.md) e AdSlots internos (server/src/ads, docs/AD_SLOTS.md).
+  // Toda a lógica está nos serviços; aqui só ganchos (posição, vizinhos, envio, pipeline do chat) e o roteamento.
+  debate: DebateHost | null = null;
+  ads: AdSlotService | null = null;
+
+  private setupDebateAds(W: ServerWorld, ev: string) {
+    const defs = loadDebateDefs(W.events.get(ev)?.agenda);
+    this.debate = new DebateHost(defs, W.manifest, {
+      send: (sid, type, msg) => this.clientBySid(sid)?.send(type, msg),
+      who: (sid) => {
+        const id = this.identities.get(sid);
+        return id ? { nick: this.state.players.get(sid)?.name ?? id.nickname, nid: this.rt.get(sid)?.nid ?? 0, state: id.state, role: id.role, userId: id.userId } : undefined;
+      },
+      pos: (sid) => { const r = this.rt.get(sid); return r ? { x: r.last.x, z: r.last.z } : undefined; },
+      // plateia: jogadores pela grade + espectadores pela câmera (poucos; 1 Hz)
+      near: (x, z, r, fn) => {
+        this.grid.forEachInRadius(x, z, r, (sl) => { const sid = this.slotIds[sl]; if (sid && this.rt.has(sid)) fn(sid); });
+        for (const sp of this.specs.values()) if (Math.hypot(sp.cam.x - x, sp.cam.z - z) <= r) fn(sp.client.sessionId);
+      },
+      screen: (sid, text, cap, now) => this.chat.screen(sid, text, cap, now),
+      keyOf: (sid) => this.chat.keyOf(sid),
+      mutes: (viewer, key) => this.chat.mutes(viewer, key),
+      emit: (sid, e, now) => this.gameplay.emit(sid, e, now),
+      // gesto da reação: a MESMA validação das ações sociais (não interrompe veículo/queda)
+      gesture: (sid, key) => { const c = this.clients2.get(sid), a = ACTION_BY_KEY.get(key); if (c && a && this.allowed(c, 'action.perform') && this.state.players.get(sid)?.act !== a.id) this.onAct(c, { a: a.id }); },
+      log: (m) => console.log(`[debate] ${m}`),
+    }, { store: storeOrNull(), eventId: ev });
+    liveMemorySweepers.add(this.debate);
+    this.chat.onMute((owners, key, on) => this.debate?.muted(owners, key, on));
+    const run = (fn: (sid: string, m: unknown) => unknown) => (client: Client, m: unknown) => { fn(client.sessionId, m); };
+    const r = (m: unknown) => this.debate!.runner((m as { inst?: unknown } | null)?.inst);
+    const none = (sid: string, kind: string) => this.clientBySid(sid)?.send('dbt_denied', { kind, reason: 'inativo', retryMs: 0 });
+    this.onMessage('dbt_watch', run((sid, m) => r(m)?.watch(sid, m) ?? none(sid, 'watch')));
+    this.onMessage('dbt_queue', run((sid, m) => r(m)?.queueReq(sid, m) ?? none(sid, 'queue')));
+    this.onMessage('dbt_say', run((sid, m) => r(m)?.say(sid, m) ?? none(sid, 'say')));
+    this.onMessage('dbt_react', run((sid, m) => r(m)?.react(sid, m) ?? none(sid, 'react')));
+    this.onMessage('dbt_report', run((sid, m) => { const x = r(m); if (x) void x.report(sid, m); else none(sid, 'report'); }));
+    // telões/painéis: conteúdo INTERNO (agenda, avisos, dicas, designs cadastrados em rodízio igual + arte neutra)
+    const screenArt = designsFor('screen').filter((d) => d.key !== 'neutro_liso' && ['campaign', 'neutral', 'event'].includes(d.family)).sort((a, b) => a.id - b.id).map((d) => d.key);
+    this.ads = new AdSlotService(loadAdSlots(), { agenda: (now) => this.debate?.agenda(now) ?? [], designs: () => screenArt });
+    this.ads.update(Date.now(), true);
+  }
+
+  private tickDebateAds(now: number) {
+    this.debate?.tick(now);
+    const ch = this.ads?.update(now);
+    if (ch?.length) this.broadcast('ads', { slots: ch });
+  }
+  // fim rodada 9 — debate e telões ------------------------------------------------------------------------------------
 
   /** zona atual do jogador (id) — null fora das zonas ou desconhecido */
   zoneOf(sid: string): string | null { return this.rt.get(sid)?.zone.current?.id ?? null; }
@@ -692,6 +751,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     this.identities.set(client.sessionId, id);
     this.pres.join(client.sessionId, { userId: id.userId, role: id.role, bot: !!id.bot }, Date.now());
     this.chat.join(client.sessionId, id, client); // todas as conexões (espectador lê o GERAL)
+    if (this.ads) client.send('ads', { slots: this.ads.snapshot(), full: true }); // rodada 9 — telões
     if (id.role === 'spectator') { this.savedLooks.delete(client.sessionId); this.joinSpectator(client, id, options); return; }
     // login duplicado: UMA entidade jogável por conta — a sessão nova assume (a antiga recebe session_replaced)
     const taken = id.userId ? this.takeOver(id.userId, client.sessionId) : null;
@@ -832,6 +892,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     this.grace.delete(client.sessionId);
     this.pres.leave(client.sessionId);
     this.chat.leave(client.sessionId);
+    this.debate?.onLeave(client.sessionId); // rodada 9 — debate
     this.savedLooks.delete(client.sessionId);
     if (ident?.role === 'spectator') { this.leaveSpectator(client); return; }
     this.removePlayer(client.sessionId);

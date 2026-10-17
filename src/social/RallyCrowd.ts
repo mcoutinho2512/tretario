@@ -38,7 +38,7 @@ export class RallyCrowd {
   private time = 0;
   /** referência do evento para o preset ALTO (0 = desligado) */
   private target = 0;
-  stats = { members: 0, submitted: 0, points: 0 };
+  stats = { members: 0, submitted: 0, points: 0, reacted: 0 };
 
   constructor(private world: CollisionWorld, private crowd: CrowdDirector, private cfg: SocialCrowdConfig) {}
 
@@ -125,6 +125,25 @@ export class RallyCrowd {
       this.crowd.submit(ag, 'ped');
     }
     this.stats.submitted = n;
+  }
+
+  /**
+   * rodada 9 — a plateia NPC de um ponto REAGE (aplauso/comemoração do debate): uma fração determinística dos membros
+   * (semente comum → todos os clientes veem o mesmo grupo) entra na ação com fases desfasadas. Local, sem rede.
+   */
+  react(pointId: string, actionIds: readonly number[], seed: number, share = 0.45, dur = 3.2): number {
+    if (!actionIds.length) return 0;
+    let n = 0;
+    for (const m of this.members) {
+      if (m.point !== pointId) continue;
+      const h = Math.imul((m.seed ^ seed) >>> 0, 2654435761) >>> 0;
+      if ((h % 1000) / 1000 >= share) continue;
+      const phase = ((h >>> 10) % 700) / 1000; // fase desfasada: ninguém bate palma em uníssono
+      m.schedule.force(this.time - phase, actionIds[(h >>> 4) % actionIds.length], dur + ((h >>> 16) % 900) / 1000);
+      n++;
+    }
+    this.stats.reacted += n;
+    return n;
   }
 
   /** escala do preset em relação ao ALTO (teto total de humanos) */

@@ -139,6 +139,10 @@ export class Minimap {
     this.resize();
   }
 
+  /** rodada 9 — destino escolhido na agenda / "Acontecendo agora" (anel pulsante + rótulo); null tira */
+  target: { x: number; z: number; label: string } | null = null;
+  setTarget(t: { x: number; z: number; label: string } | null) { this.target = t; }
+
   setCaption(text: string) { if (this.caption.textContent !== text) this.caption.textContent = text; }
 
   toggleExpanded(v = !this.expanded) {
@@ -247,6 +251,17 @@ export class Minimap {
       else if (p.kind === 'soundcar') this.marker(x, y, u, '#ff8a3d', this.expanded && !narrow ? 'SOM' : '', 4.5);
       else if (p.kind === 'stage') this.marker(x, y, u, '#4fc3ff', 'PALCO', 5.5);
       else { c.fillStyle = 'rgba(255, 233, 168, 0.8)'; c.beginPath(); c.arc(x, y, 2.4 * u, 0, Math.PI * 2); c.fill(); }
+    }
+    // destino (agenda): anel dourado; fora da visão compacta, seta na borda apontando para ele
+    if (this.target) {
+      const t = this.target;
+      let x = sx(t.x), y = sy(t.z);
+      const off = !inView(x, y, -10 * u);
+      if (off) { const a = Math.atan2(y - H / 2, x - W / 2), m = Math.min(W, H) / 2 - 12 * u; x = W / 2 + Math.cos(a) * m; y = H / 2 + Math.sin(a) * m; }
+      c.strokeStyle = '#ffd34d'; c.lineWidth = 2.5 * u;
+      c.beginPath(); c.arc(x, y, (off ? 5 : 9) * u, 0, Math.PI * 2); c.stroke();
+      c.textBaseline = 'middle';
+      if (!off || this.expanded) this.text(t.label, x + 12 * u, y, u, '#ffe9a8', 'left', true);
     }
     // rótulos
     c.textBaseline = 'middle';

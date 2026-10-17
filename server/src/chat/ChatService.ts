@@ -25,7 +25,7 @@
 // imports SEM extensão: este módulo também é compilado pelo tsconfig da raiz (testes)
 import { CHAT_CHANNELS, CHAT_RULES, REPORT_CATEGORIES, floodCheck, newFloodState, type ChatChannel, type ChatMessage, type ChatRejection, type FloodState, type ReportCategory } from '../../../src/chat/protocol';
 import { textModeration } from '../../../src/moderation/text';
-import { can } from '../../../src/access/policy';
+import { can, type Capability } from '../../../src/access/policy';
 import type { PlayerIdentity } from '../../../src/identity/types';
 import { CHAT_MUTE_MAX, type ChatMuteEntry, type ChatMuteRejection } from '../../../src/chat/protocol';
 import type { DataStore } from '../data/types';
@@ -218,18 +218,8 @@ export class ChatService {
     if (!ch || typeof m.text !== 'string') return deny('vazio');
     if (ch === 'grupo' && !p.ident.groupKey) return deny('sem_grupo');
     if (ch === 'proximidade' && !this.hooks.posOf(sid)) return deny('sem_permissao');
-    let fs = this.flood.get(p.key);
-    if (!fs) this.flood.set(p.key, (fs = newFloodState()));
-    if (now < fs.blockedUntil) return deny('cooldown', fs.blockedUntil - now);
-    if (m.text.length > CHAT_RULES.maxChars * 4) return deny('longo');
-    if (invalidChatChars(m.text)) return deny('caracteres');
-    const v = textModeration.check(m.text, 'chat');
-    if (!v.ok) {
-      if (v.reason === 'bloqueado' || v.reason === 'spam') return deny(v.reason, penalize(fs, now));
-      return deny(v.reason === 'longo' ? 'longo' : v.reason === 'caracteres' ? 'caracteres' : 'vazio');
-    }
-    const f = floodCheck(fs, v.text, now);
-    if (!f.ok) return deny(f.reason, f.retryMs);
+    const v = this.pipeline(p, m.text, now);
+    if (!v.ok) return deny(v.reason, v.retryMs);
     if (ch === 'geral') {
       if (now - this.gen.windowStart >= 1000) { this.gen.windowStart = now; this.gen.n = 0; }
       if (this.gen.n >= this.generalPerSec) return deny('flood', 1000 - (now - this.gen.windowStart));
@@ -272,6 +262,52 @@ export class ChatService {
     const st = this.stats;
     st.sent[ch]++; st.deliveries += n; st.bytes += bytes; st.maxBytes = Math.max(st.maxBytes, bytes); st.costMs += cost; st.maxCostMs = Math.max(st.maxCostMs, cost);
     return { ok: true, id: wire.id, recipients: n };
+  }
+
+  /**
+   * O pipeline de TEXTO do chat (anti-flood por autor, caracteres inválidos, moderação central, penalidade adaptativa) —
+   * o MESMO para o chat e para as falas do debate (server/src/debate): um filtro só, um estado anti-flood por autor.
+   */
+  private pipeline(p: Peer, text: string, now: number): { ok: true; text: string } | { ok: false; reason: ChatRejection; retryMs: number } {
+    let fs = this.flood.get(p.key);
+    if (!fs) this.flood.set(p.key, (fs = newFloodState()));
+    const no = (reason: ChatRejection, retryMs = 0) => ({ ok: false as const, reason, retryMs });
+    if (now < fs.blockedUntil) return no('cooldown', fs.blockedUntil - now);
+    if (text.length > CHAT_RULES.maxChars * 4) return no('longo');
+    if (invalidChatChars(text)) return no('caracteres');
+    const v = textModeration.check(text, 'chat');
+    if (!v.ok) {
+      if (v.reason === 'bloqueado' || v.reason === 'spam') return no(v.reason, penalize(fs, now));
+      return no(v.reason === 'longo' ? 'longo' : v.reason === 'caracteres' ? 'caracteres' : 'vazio');
+    }
+    const f = floodCheck(fs, v.text, now);
+    if (!f.ok) return no(f.reason, f.retryMs);
+    return { ok: true, text: v.text };
+  }
+
+  /**
+   * rodada 9 — texto de OUTRO canal (fala do debate) pelo mesmo pipeline do chat, com a capacidade daquele canal
+   * (`debate.speak`). Devolve o texto moderado e a chave de autor (mutar/denunciar por identidade).
+   */
+  screen(sid: string, text: unknown, cap: Capability, now = Date.now()): { ok: true; text: string; key: string } | { ok: false; reason: ChatRejection; retryMs: number } {
+    const p = this.peers.get(sid);
+    if (!p || !can(p.ident.state, cap, p.ident.role)) { this.stats.denied++; return { ok: false, reason: 'sem_permissao', retryMs: 0 }; }
+    if (typeof text !== 'string') return { ok: false, reason: 'vazio', retryMs: 0 };
+    const v = this.pipeline(p, text, now);
+    if (!v.ok) this.stats.denied++;
+    return v.ok ? { ...v, key: p.key } : v;
+  }
+
+  private muteListeners = new Set<(ownerSids: string[], authorKey: string, on: boolean) => void>();
+  /** avisa mudanças de mute (conexões do dono, chave do alvo) — o debate esconde as falas do alvo na hora */
+  onMute(fn: (ownerSids: string[], authorKey: string, on: boolean) => void) { this.muteListeners.add(fn); return () => this.muteListeners.delete(fn); }
+
+  /** chave de autor da conexão (null = não está no chat) */
+  keyOf(sid: string): string | null { return this.peers.get(sid)?.key ?? null; }
+  /** `viewer` mutou (por identidade) o autor `authorKey`? Mutes ainda carregando contam como mutado (não entrega agora) */
+  mutes(viewer: string, authorKey: string): boolean {
+    const q = this.peers.get(viewer);
+    return !!q && q.key !== authorKey && (q.pending !== null || q.mutes.byKey.has(authorKey));
   }
 
   private keep(wire: ChatMessage, p: Peer, to: Set<string> | null, now: number) {
@@ -348,6 +384,8 @@ export class ChatService {
         .catch((e) => this.log(`falha ao gravar mute: ${(e as Error).message}`));
     }
     for (const q of this.peers.values()) if (q.mutes === ms && !q.pending) this.sendMutes(q, hide);
+    // rodada 9: outros canais com texto de autor (falas do debate) escondem/voltam a mostrar o alvo para o dono
+    if (this.muteListeners.size) { const owners = [...this.peers.values()].filter((q) => q.mutes === ms).map((q) => q.sid); for (const fn of this.muteListeners) fn(owners, target.key, on); }
     return { ok: true };
   }
 
