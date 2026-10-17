@@ -178,7 +178,7 @@ export class NetworkClient {
       this.room = room;
       this.sessionId = room.sessionId;
       this.status = 'online';
-      for (const [type, fn] of this.handlers) room.onMessage(type, fn);
+      for (const type of this.handlers.keys()) room.onMessage(type, (m: unknown) => this.dispatch(type, m));
       room.onMessage('spawn', (s: { x: number; y: number; z: number; heading: number; policy: 'pacifico' | 'opcional'; seed: number }) => {
         this.policy = s.policy; this.seed = s.seed;
         this.onSpawn?.(s);
@@ -255,8 +255,18 @@ export class NetworkClient {
 
   send(type: string, payload?: unknown) { this.room?.send(type, payload); }
   /** mensagens de outros sistemas (ex.: grafite, src/graffiti/GraffitiSystem.ts): registradas antes ou depois do connect */
-  private handlers = new Map<string, (msg: any) => void>();
-  on(type: string, fn: (msg: any) => void) { this.handlers.set(type, fn); this.room?.onMessage(type, fn); }
+  /** VÁRIOS ouvintes por tipo (chat: painel + prioridade de nomes) — um despachante por tipo na sala */
+  private handlers = new Map<string, Set<(msg: any) => void>>();
+  private dispatch(type: string, m: unknown) { for (const fn of this.handlers.get(type) ?? []) fn(m); }
+  on(type: string, fn: (msg: any) => void) {
+    let set = this.handlers.get(type);
+    if (!set) {
+      this.handlers.set(type, (set = new Set()));
+      this.room?.onMessage(type, (m: unknown) => this.dispatch(type, m));
+    }
+    set.add(fn);
+    return () => set!.delete(fn);
+  }
   requestMode(m: 'pacifico' | 'interacao') { this.send('mode', m); }
   /** entrar/sair levam o seq atual: o servidor descarta movimentos antigos ainda em trânsito */
   requestEnter(id: string) { this.holdMoves = true; this.send('enter', { id, seq: this.seq }); }
