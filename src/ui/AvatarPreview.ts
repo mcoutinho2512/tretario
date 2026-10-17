@@ -47,6 +47,12 @@ export class AvatarPreview {
   private last = performance.now();
   private ro: ResizeObserver;
   private disposed = false;
+  /** aproximação: 0 = corpo inteiro … 1 = rosto (roda do mouse, pinça, botões +/−) */
+  private zoomT = 0;
+  private zoomCur = 0;
+  private fit = 1;
+  private pts = new Map<number, [number, number]>();
+  private pinchD = 0;
 
   constructor(private canvas: HTMLCanvasElement, app: CharacterAppearance) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
@@ -66,8 +72,22 @@ export class AvatarPreview {
 
     // arrastar para girar (mouse e toque), com inércia
     canvas.style.touchAction = 'pan-y';
-    canvas.addEventListener('pointerdown', (e) => { this.drag = { x: e.clientX, t: performance.now() }; canvas.setPointerCapture(e.pointerId); });
+    canvas.addEventListener('pointerdown', (e) => {
+      this.drag = { x: e.clientX, t: performance.now() };
+      canvas.setPointerCapture(e.pointerId);
+      this.pts.set(e.pointerId, [e.clientX, e.clientY]);
+    });
+    canvas.addEventListener('wheel', (e) => { e.preventDefault(); this.zoom(-e.deltaY * 0.0015); }, { passive: false });
     canvas.addEventListener('pointermove', (e) => {
+      if (this.pts.has(e.pointerId)) this.pts.set(e.pointerId, [e.clientX, e.clientY]);
+      if (this.pts.size >= 2) {
+        // pinça (dois dedos): distância entre os dois primeiros ponteiros
+        const [a, b] = [...this.pts.values()];
+        const d = Math.hypot(a[0] - b[0], a[1] - b[1]);
+        if (this.pinchD) this.zoom((d - this.pinchD) * 0.004);
+        this.pinchD = d;
+        return;
+      }
       if (!this.drag) return;
       const dx = e.clientX - this.drag.x, now = performance.now();
       const d = dx * 0.012;
@@ -75,7 +95,7 @@ export class AvatarPreview {
       this.yawVel = d / Math.max(1, now - this.drag.t) * 16;
       this.drag = { x: e.clientX, t: now };
     });
-    const up = () => { this.drag = null; };
+    const up = (e: PointerEvent) => { this.drag = null; this.pts.delete(e.pointerId); this.pinchD = 0; };
     canvas.addEventListener('pointerup', up);
     canvas.addEventListener('pointercancel', up);
 
@@ -100,6 +120,20 @@ export class AvatarPreview {
 
   setPose(p: PreviewPose) { this.pose = p; this.human?.animator?.setShow(p); }
   rotate(by: number) { this.yawTarget += by; this.yawVel = 0; }
+  /** aproxima (+) ou afasta (−) a câmera; `to` fixa o valor (0 corpo inteiro, 1 rosto) */
+  zoom(by: number, to?: number) { this.zoomT = Math.max(0, Math.min(1, to ?? this.zoomT + by)); }
+  get zoomLevel() { return this.zoomT; }
+
+  /** câmera entre o corpo inteiro e o rosto (altura da cabeça pelo corpo atual) */
+  private placeCamera() {
+    const k = this.zoomCur;
+    const headY = (this.human?.bones.get('head')?.getWorldPosition(this.tmp).y ?? 1.55) + 0.02;
+    const e = k * k * (3 - 2 * k);
+    const fullZ = 6.2 * this.fit, faceZ = 2.4 * Math.min(1.3, this.fit);
+    this.camera.position.set(0, 1.05 + (headY - 0.1 - 1.05) * e, fullZ + (faceZ - fullZ) * e);
+    this.camera.lookAt(0, 0.8 + (headY - 0.22 - 0.8) * e, 0); // rosto e camisa
+  }
+  private tmp = new THREE.Vector3();
 
   private resize() {
     const w = this.canvas.clientWidth, h = this.canvas.clientHeight;
@@ -107,9 +141,8 @@ export class AvatarPreview {
     this.renderer.setSize(w, h, false);
     this.camera.aspect = w / h;
     // enquadra o corpo inteiro tanto em retrato (celular) quanto em paisagem (pés acima da barra de poses)
-    const fit = Math.max(1, 0.62 / this.camera.aspect);
-    this.camera.position.set(0, 1.05, 6.2 * fit);
-    this.camera.lookAt(0, 0.8, 0);
+    this.fit = Math.max(1, 0.62 / this.camera.aspect);
+    this.placeCamera();
     this.camera.updateProjectionMatrix();
   }
 
@@ -122,6 +155,7 @@ export class AvatarPreview {
     if (!this.drag) { this.yawTarget += this.yawVel; this.yawVel *= Math.exp(-dt * 4); }
     this.yaw += (this.yawTarget - this.yaw) * (1 - Math.exp(-dt * 12));
     this.holder.rotation.y = this.yaw;
+    if (Math.abs(this.zoomT - this.zoomCur) > 1e-4 || this.zoomCur > 0) { this.zoomCur += (this.zoomT - this.zoomCur) * (1 - Math.exp(-dt * 10)); this.placeCamera(); }
     this.human?.animator?.update(0, true, dt);
     this.renderer.render(this.scene, this.camera);
   };

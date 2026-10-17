@@ -32,6 +32,7 @@ import type { CrowdDirector } from '../characters/crowd/CrowdDirector';
 import type { SocialState } from '../social/types';
 import { NAME_LOD, selectNames, shortName, type NameCandidate, type NameTier, type NamesMode } from './nameLod';
 import { RateGate } from '../ui/hud/throttle';
+import type { IdentityJoinOptions } from '../identity/types';
 
 const BODY_LIST = ['homem', 'mulher', 'idoso', 'idosa'] as const;
 const bodyIndex = (b: string) => Math.max(0, BODY_LIST.indexOf(b as (typeof BODY_LIST)[number]));
@@ -169,11 +170,11 @@ export class NetworkClient {
   /** mensagens "crowd" recebidas (QA) */
   crowdMsgs = 0;
 
-  async connect(app: CharacterAppearance, name: string, testSpawn?: { x: number; z: number }): Promise<void> {
+  async connect(app: CharacterAppearance, name: string, testSpawn?: { x: number; z: number }, identity: IdentityJoinOptions = {}): Promise<void> {
     this.status = 'connecting';
     try {
       const client = new Client(this.endpoint);
-      const opts: JoinOptions = { name, body: app.body, skin: app.skin, hair: app.hair, top: app.top, bottom: app.bottom, shoes: app.shoes, accessory: app.accessory ?? 'nenhum', acc: app.acc ?? 0x222222, topStyle: app.topStyle, bottomStyle: app.bottomStyle, shoeStyle: app.shoeStyle, hairStyle: app.hairStyle, shirtDesign: app.shirtDesign ?? 0, cid: anonymousClientId(), ...(testSpawn ? { testSpawn } : {}), ...testGroupOpt(), ...(this.crowd ? { aoiMax: Math.max(16, Math.min(64, this.crowd.budget.skinned * 2)) } : {}) };
+      const opts: JoinOptions = { name, body: app.body, skin: app.skin, hair: app.hair, top: app.top, bottom: app.bottom, shoes: app.shoes, accessory: app.accessory ?? 'nenhum', acc: app.acc ?? 0x222222, topStyle: app.topStyle, bottomStyle: app.bottomStyle, shoeStyle: app.shoeStyle, hairStyle: app.hairStyle, shirtDesign: app.shirtDesign ?? 0, cid: anonymousClientId(), ...(testSpawn ? { testSpawn } : {}), ...testGroupOpt(), ...(identity.ticket ? { ticket: identity.ticket } : {}), ...(identity.role ? { role: identity.role } : {}), ...(this.crowd ? { aoiMax: Math.max(16, Math.min(64, this.crowd.budget.skinned * 2)) } : {}) };
       const room = await client.joinOrCreate(ROOM_NAME, opts);
       this.room = room;
       this.sessionId = room.sessionId;
@@ -246,6 +247,11 @@ export class NetworkClient {
   }
 
   // ---------------------------------------------------------------- comandos
+  /** rodada 8: visual salvo pelo editor — conta: o servidor relê do banco; teste anônimo: valida o enviado */
+  sendAppearance(app: CharacterAppearance) {
+    this.room?.send('appearance', { body: app.body, skin: app.skin, hair: app.hair, top: app.top, bottom: app.bottom, shoes: app.shoes, accessory: app.accessory ?? 'nenhum', acc: app.acc ?? 0x222222, topStyle: app.topStyle, bottomStyle: app.bottomStyle, shoeStyle: app.shoeStyle, hairStyle: app.hairStyle, shirtDesign: app.shirtDesign ?? 0 });
+  }
+
   /** TESTE: envia uma proposta de posição arbitrária (simula cliente modificado) */
   sendRawMove(x: number, z: number, heading = 0) {
     const seq = ++this.seq;
