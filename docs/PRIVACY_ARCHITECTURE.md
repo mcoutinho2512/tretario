@@ -50,14 +50,18 @@ clientId, e-mail, IP) a outros clientes. Identidade: `docs/IDENTITY.md`.
 - O que vai a clientes: `{ id, canal, apelido, nid (id curto da entidade no mundo), grupo (só no canal GRUPO), texto, hora }`.
   Nunca userId, sessionId ou clientId.
 - PROXIMIDADE/GRUPO: destinatários decididos pelo servidor; espectadores não recebem PROXIMIDADE (não estão no local).
-- Mutar: lista de apelidos normalizados no navegador (`localStorage`) e, com conta, em `preferences.chatMuted` do
-  perfil (só do próprio usuário; não é exposta a ninguém).
+- Mutar (8.1): por identidade. Com conta: tabela `MuteRelationship` (dono, mutado, apelido no momento), apagada em
+  cascata com qualquer das contas; sem conta: só na memória da conexão. O cliente recebe só `{ ref, apelido, desde }`
+  da PRÓPRIA lista — `ref` é HMAC opaco do par com o segredo do servidor; userId nunca sai do servidor nem é aceito do
+  cliente. Ninguém consulta a lista de outro; o mutado não é avisado.
 - Logs do servidor: registram que houve denúncia (id do Report, categoria, id da mensagem, apelido de quem denunciou),
   não o texto das conversas.
 
 ## Denúncias (Report)
 
 - Origem: mensagem de chat (`CHAT_MESSAGE`) ou grafite (`GRAFFITI`). Exige conta (`report.create`).
+- `reportedNicknameAtTime`: cópia do apelido do denunciado no momento (chat: o da mensagem; grafite: o do autor) para a
+  revisão — a identidade continua sendo `targetUserId`. Aparece em `npm run dev:reports` (`apelido_na_hora=`).
 - **Evidência = cópia do servidor**, não o que o cliente envia: texto, canal, hora, apelido e userId do autor, grupo,
   nº de destinatários e até 3 mensagens anteriores do autor (contexto). Grafite: superfície, nome, userId do autor (ou
   id anônimo do aparelho, só em servidor de teste), estado e nº de denúncias — o desenho continua no armazenamento de

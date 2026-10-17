@@ -22,11 +22,13 @@ O **servidor** decide quem recebe; o cliente só diz o canal e o texto. Capturas
 | Direção | Tipo | Conteúdo |
 |---|---|---|
 | C → S | `chat_send` | `{ ch: 'geral'\|'proximidade'\|'grupo', text }` |
-| C → S | `chat_mute` | `{ nick, on }` ou `{ list: nicks[] }` (sincroniza a lista local ao entrar) |
+| C → S | `chat_mute` | `{ msg \| nid \| ref, on }` — exatamente um alvo; qualquer `userId` enviado é ignorado |
 | C → S | `chat_report` | `{ id, category, details? }` |
 | S → C | `chat_hello` | `{ canWrite, why?: 'visitante'\|'suspenso'\|'sem_licenca', canReport, nick, group, radius, history: ChatMessage[] }` |
 | S → C | `chat` | `ChatMessage { id, ch, nick, nid, group?, text, t }` — sem userId, sessionId ou clientId |
 | S → C | `chat_denied` | `{ reason: ChatRejection, retryMs }` |
+| S → C | `chat_mutes` | `{ list: { ref, nick, since }[], hide?: id[] }` — ao entrar e após cada mudança (todas as conexões da conta) |
+| S → C | `chat_mute_denied` | `{ reason: 'alvo_invalido'\|'proprio'\|'limite' }` |
 | S → C | `chat_report_res` | `{ ok, id, r?: 'repetida'\|'limite'\|'inexistente'\|'propria'\|'sem_permissao'\|'erro' }` |
 
 **Tamanho medido** (QA, msgpack no fio): mensagem GERAL de 44 caracteres = **103 B**; o envelope é ≈ 60 B + texto UTF-8
@@ -56,10 +58,20 @@ vigilância). Espectador com conta e grupo lê o GRUPO; visitante só o GERAL. Q
 
 ## Moderação pessoal e denúncias
 
-- **Mutar** (menu da mensagem): some na hora no cliente (por apelido) **e** o servidor deixa de enviar mensagens desse
-  apelido a quem mutou (inclusive no GERAL). Lista: `localStorage` (`pv.chat.muted`, reenviada no `chat_hello`) e, com
-  conta, `preferences.chatMuted` do perfil (chaves normalizadas de apelido, máx. 200). Limitação: troca de apelido
-  escapa do mute.
+- **Mutar** (rodada 8.1) é por **identidade**, nunca por apelido. O cliente aponta o alvo por `msg` (id de mensagem
+  que ELE recebeu, ainda na cópia de 15 min), `nid` (entidade no mundo — `ChatPanel.muteEntity`) ou `ref` (item da
+  própria lista); o servidor resolve para a conta (`userId`) e nunca aceita userId do cliente. Recusas: a si mesmo
+  (`proprio`), alvo inexistente/não recebido (`alvo_invalido`), mais de `CHAT_MUTE_MAX` (500) ou 30 mudanças/min
+  (`limite`). Filtro no servidor em GERAL, PROXIMIDADE, GRUPO e no histórico do `chat_hello` (que só sai depois de
+  carregar a lista). Trocar de apelido não escapa. Mute ≠ ban: o mutado continua falando para os outros.
+- Persistência: com conta, `MuteRelationship(ownerUserId, mutedUserId, mutedNicknameAtTime)` (par único, cascata ao
+  apagar qualquer das contas), carregada na entrada e compartilhada pelas conexões da mesma conta. Sem conta
+  (visitante, jogador anônimo de teste): vale só para a conexão (decisão: não recusar — o visitante também lê o
+  GERAL); alvo sem conta é mutado por conexão. Nada em `localStorage`; `preferences.chatMuted` antigo é ignorado
+  (migrado pela migration `hardening_identity_cleanup`).
+- `ref` = HMAC-SHA256(`PV_SESSION_SECRET`, dono|alvo) truncado (16 chars base64url): estável para o par, inútil para
+  outro dono, não revela ids. A lista mostra o apelido do momento do mute (pode estar desatualizado).
+- Painel: "Mutar <apelido>" no menu da mensagem; botão **Mutados (n)** no cabeçalho lista e desmuta pelo `ref`.
 - **Ocultar**: só local (remove a linha).
 - **Denunciar** (categoria `REPORT_CATEGORIES`): exige `report.create` (visitante não denuncia). O servidor guarda uma
   cópia de cada mensagem por 15 min (máx. 2000) — a evidência é **essa cópia** (texto, canal, hora, apelido, userId do
@@ -88,10 +100,13 @@ ou posicionar `p.el` / `p.button` à mão (classes `.chat`, `.chat-btn`). QA: `w
 
 `npx vitest run tests/chatService.test.ts` (flood/cooldown/repetida, moderação, caracteres, proximidade pela grade,
 isolamento de grupo, espectador/suspenso não escrevem, mutar + persistência, denúncia com evidência e limites, custo).
-`node tools/qa/chat_mp.mjs http://localhost:5193` (vite rodando; sobe servidor PV_TEST próprio na 2730): 22 verificações.
+`node tools/qa/chat_mp.mjs http://localhost:5193` (vite rodando; sobe servidor PV_TEST próprio na 2730): 24 verificações.
+`tests/chatMuteServer.test.ts`: sala real no mesmo processo com contas reais (troca de apelido, logout/login, ref/userId
+forjados, desmutar); `npm run test:db`: persistência após reinício, par único, cascata.
 
 ## Limitações
 
 - Sem tradução/filtro semântico: só a lista central (`src/moderation/text.ts`).
-- Mute por apelido (não por conta) do lado de quem muta; mensagens não são persistidas (só a evidência denunciada).
+- Mute sem conta não sobrevive à conexão; mensagens não são persistidas (só a evidência denunciada).
+- `ChatService.sweep(now)` esquece anti-flood/denúncias ociosos (para a limpeza periódica).
 - Teto global do GERAL é por sala; com várias salas por evento cada uma tem o seu.

@@ -72,7 +72,7 @@ async function withUser(req: ApiRequest, cap: Capability | null, fn: (a: Authed)
 
 const NAMES = ['TODOS', 'PROXIMOS', 'NENHUM'] as const;
 const QUALITIES = ['auto', 'low', 'medium', 'high', 'ultra'];
-/** preferências: só campos conhecidos com valores da lista */
+/** preferências: só campos conhecidos com valores da lista (chaves antigas, ex. `chatMuted` de antes da 8.1, são descartadas) */
 export function sanitizePreferences(raw: unknown): PlayerPreferences {
   const o = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
   const out: PlayerPreferences = {};

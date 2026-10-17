@@ -89,12 +89,14 @@ export class AuthService {
     const [profile, app, mem, access] = await Promise.all([
       this.store.profiles.byUserId(user.id), this.store.appearances.get(user.id), this.store.events.membership(user.id, eventId), this.accessOf(user),
     ]);
+    // `chatMuted` (mute por apelido, antes da 8.1) é ignorado: os mutes vivem em MuteRelationship
+    const { chatMuted: _old, ...preferences } = (profile?.preferences ?? {}) as PlayerPreferences & { chatMuted?: unknown };
     return {
       authenticated: true,
       user: { nickname: profile?.nickname ?? null, emailVerified: user.emailVerified, status: user.status, createdAt: user.createdAt.toISOString() },
       access,
       appearance: (app?.data as MeResponse['appearance']) ?? null,
-      preferences: (profile?.preferences ?? {}) as PlayerPreferences,
+      preferences,
       membership: mem ? { eventId: mem.eventId, groupKey: mem.groupId.slice(mem.groupId.indexOf(':') + 1) } : null,
     };
   }

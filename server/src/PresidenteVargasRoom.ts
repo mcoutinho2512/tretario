@@ -38,6 +38,7 @@ import { CrowdTable } from '../../src/net/crowdCodec.ts';
 import { GraffitiService, sanitizeClientId } from './graffiti/GraffitiService.ts';
 import { JsonFileGraffitiStore, MemoryGraffitiStore } from './graffiti/store.ts';
 import { ChatService } from './chat/ChatService.ts';
+import { serverSecret } from './auth/service.ts';
 import type { GfReportEvent } from './graffiti/GraffitiService.ts';
 import { can, type Capability } from '../../src/access/policy.ts';
 import { resolveIdentity, JoinRefused, type ConnectionIdentity } from './identity/resolve.ts';
@@ -232,7 +233,12 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
       posOf: (sid) => { const r = this.rt.get(sid); return r ? { x: r.last.x, z: r.last.z } : undefined; },
       near: (x, z, r, fn) => this.grid.forEachInRadius(x, z, r, (sl) => { const sid = this.slotIds[sl]; if (sid) fn(sid); }),
       broadcast: (type, msg, except) => this.broadcast(type, msg, except.length ? { except: except.map((s) => this.clientBySid(s)).filter((c): c is Client => !!c) } : undefined),
-    }, { store: storeOrNull(), eventId: ev });
+      // mutar pela entidade: nid → conexão → conta (só o servidor conhece o userId)
+      identityOfNid: (nid) => {
+        for (const [sid, r] of this.rt) if (r.nid === nid) { const id = this.identities.get(sid); return id ? { sid, userId: id.userId, nickname: this.state.players.get(sid)?.name ?? id.nickname } : undefined; }
+        return undefined;
+      },
+    }, { store: storeOrNull(), eventId: ev, secret: serverSecret() });
     this.patchRate = 50; // 20 Hz
     this.setSimulationInterval((dt) => this.tick(dt), 100); // 10 Hz
     // suspensão/banimento/revogação feitos pela CLI (outro processo) chegam aqui por releitura periódica do banco
@@ -251,7 +257,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     if (!store) return;
     void store.reports.create({
       reporterUserId: e.reporterUserId, targetUserId: e.author.userId ?? null, targetType: 'GRAFFITI', targetRef: `graffiti:${e.id}`,
-      category: e.category, details: null, eventId: this.state.eventId || null,
+      category: e.category, details: null, eventId: this.state.eventId || null, reportedNicknameAtTime: e.author.name || null,
       evidence: { kind: 'graffiti', graffitiId: e.id, surface: e.surface, authorName: e.author.name, authorUserId: e.author.userId ?? null, ...(e.author.userId ? {} : { authorClientId: e.author.clientId }), state: e.state, reports: e.reports, hasText: e.hasText, createdAt: new Date(e.createdAt).toISOString(), persistence: e.persistence },
     }).then((r) => console.log(`[graffiti] denúncia ${r.id} (${e.category}) do grafite #${e.id}`))
       .catch((err) => console.warn(`[graffiti] falha ao gravar denúncia: ${(err as Error).message}`));

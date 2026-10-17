@@ -88,6 +88,8 @@
 .chat[data-state=open] .chat-head { padding: 4px 6px; border-radius: 8px 8px 0 0; background: rgba(10, 14, 18, 0.78); }
 .chat[data-state=open] .chat-pill { display: none; }
 .chat[data-state=open] .chat-tabs, .chat[data-state=open] .chat-x { display: flex; }
+.chat-mutes { font-size: 11px; align-items: center; }
+.chat-mutes + .chat-x { margin-left: 0; }
 .chat[data-state=open] .chat-log {
   max-height: min(42vh, 300px); overflow-y: auto; mask-image: none; padding: 4px 6px; background: rgba(10, 14, 18, 0.62);
   border-radius: 0 0 8px 8px; scrollbar-width: thin;

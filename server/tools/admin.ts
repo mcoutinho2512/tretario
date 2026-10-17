@@ -93,7 +93,7 @@ async function main() {
         if (st && !['OPEN', 'REVIEWED', 'DISMISSED', 'ACTIONED'].includes(st)) die('--status=OPEN|REVIEWED|DISMISSED|ACTIONED');
         const list = await listReports(ctx, st, num('limit') ?? 50);
         if (!list.length) console.log('[admin] nenhuma denúncia');
-        for (const r of list) console.log(`${r.createdAt.toISOString()}  ${r.status.padEnd(9)} ${r.category.padEnd(15)} ${r.targetType}:${r.targetRef}  denunciado=${r.targetUserId ?? '-'}  ${r.details ?? ''}  ${JSON.stringify(r.evidence)}  [${r.id}]`);
+        for (const r of list) console.log(`${r.createdAt.toISOString()}  ${r.status.padEnd(9)} ${r.category.padEnd(15)} ${r.targetType}:${r.targetRef}  denunciado=${r.targetUserId ?? '-'} apelido_na_hora=${r.reportedNicknameAtTime ?? '-'}  ${r.details ?? ''}  ${JSON.stringify(r.evidence)}  [${r.id}]`);
         break;
       }
       case 'remove-graffiti': {
