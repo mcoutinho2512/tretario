@@ -20,7 +20,8 @@ import './netWebSocket'; // precisa vir ANTES do SDK (instrumenta globalThis.Web
 import * as THREE from 'three';
 import { Client, Callbacks, type Room } from '@colyseus/sdk';
 import { ROOM_NAME, NET_TICK_HZ, LOCO, type JoinOptions } from './protocol';
-import { packMove } from './rules';
+import { packMove, RULES } from './rules';
+import { FallSync } from '../player/fallSync';
 import { netStats, SIM } from './netWebSocket';
 import { worldClock } from './clock';
 import { RIDEABLE_DEFS, seatWorld, type RideableKind } from '../vehicles/Rideable';
@@ -68,6 +69,8 @@ export interface RemoteInfo {
   wx: number; wz: number;
   /** 0 conectado · 1 caiu, em graça de reconexão (entidade congelada) */
   link: number;
+  /** rodada 9 — efeitos (NetPlayer.fx) e o que o esqueleto local aplicou */
+  fx: number; fxVisual: AvatarVisual['fxDebug'] | null;
 }
 
 /** estado autoritativo mandado pelo servidor ao reconectar (mesma entidade) */
@@ -111,6 +114,9 @@ interface Remote {
   soc: { act: number; actAt: number; actVar: number; prop: number; design: number };
   /** o esqueleto atual já recebeu o estado social atual */
   socApplied: AvatarVisual | null;
+  /** rodada 9 — efeitos (NetPlayer.fx) e entrada na queda sem duplicar (knock × status) */
+  fx: number;
+  fall: FallSync;
 }
 
 export interface KnockMsg { target: string; by: string; kind: 'push' | 'impact'; dx: number; dz: number; strength: number; rx: number; rz: number; downMs: number; getupMs: number }
@@ -135,7 +141,12 @@ export class NetworkClient {
   corrections = 0;
   correctionReasons: Record<string, number> = {};
   /** estado do PRÓPRIO jogador segundo o servidor */
-  self = { interaction: 'pacifico', status: 0, vehicle: '', platform: '', social: { act: 0, actAt: 0, actVar: 0, prop: 0, design: 0 } };
+  self = { interaction: 'pacifico', status: 0, vehicle: '', platform: '', fx: 0, social: { act: 0, actAt: 0, actVar: 0, prop: 0, design: 0 } };
+  /** rodada 9 — o próprio caiu por mudança de status SEM `knock` (queda decidida por outro sistema) */
+  onSelfStatusFall: (() => void) | null = null;
+  private selfFall = new FallSync();
+  /** QA: todos os bits de efeito que o próprio já recebeu */
+  selfFxSeen = 0;
   /** o servidor mudou a ação/item do próprio jogador (confirmação, fim, cancelamento) */
   onSelfSocial?: (s: SocialState) => void;
   /** pedido de ação/item negado (motivo) */
@@ -169,7 +180,8 @@ export class NetworkClient {
   onPlatformCorrect: ((lx: number, lz: number, reason: string) => void) | null = null;
   onEnter: ((ok: boolean, data: { id: string; reason?: string; x?: number; z?: number; heading?: number }) => void) | null = null;
   onExit: ((pos: { x: number; z: number }) => void) | null = null;
-  onKnock: ((k: KnockMsg, isSelf: boolean) => void) | null = null;
+  /** `refine`: a queda já tinha começado pela mudança de status — só corrige repouso/direção (não recomeça) */
+  onKnock: ((k: KnockMsg, isSelf: boolean, refine?: boolean) => void) | null = null;
   onNotice: ((msg: string) => void) | null = null;
   onEvent: ((eventId: string) => void) | null = null;
   // ---- rodada 8: papel, reconexão, sessão substituída
@@ -316,8 +328,12 @@ export class NetworkClient {
       cb.listen('eventId', (id: string) => { if (id) this.onEvent?.(id); });
       cb.onAdd('players', (p: any, id: string) => {
         if (id === this.sessionId) {
+          this.self.fx = p.fx ?? 0; this.selfFxSeen |= this.self.fx; // rodada 9: valor inicial (onChange só traz mudanças)
           cb.onChange(p, () => {
             this.self.interaction = p.interaction; this.self.status = p.status; this.self.vehicle = p.vehicle; this.self.platform = p.platform ?? '';
+            this.self.fx = p.fx ?? 0;
+            this.selfFxSeen |= this.self.fx;
+            if (this.selfFall.onStatus(p.status, performance.now()) === 'start') this.onSelfStatusFall?.();
             // ação/item autoritativos do próprio jogador (o servidor pode encerrar: andar, cair, entrar em veículo)
             const s = this.self.social;
             if (s.act !== p.act || s.actAt !== p.actAt || s.prop !== p.prop || s.design !== p.design) {
@@ -468,6 +484,7 @@ export class NetworkClient {
       id, nid, visual: null, app, agent, state: createPlayerState(id, p.x, p.y, p.z, p.heading), buf: [], label, labelTier: 'hidden', labelPos: '', speakingUntil: 0, name: p.name, body: p.body, accessory: p.accessory || 'nenhum',
       interaction: p.interaction, status: p.status, vehicle: p.vehicle, platform: p.platform ?? '', link: 0, lastArrival: performance.now(),
       soc: { act: p.act ?? 0, actAt: p.actAt ?? 0, actVar: p.actVar ?? 0, prop: p.prop ?? 0, design: p.design ?? 0 }, socApplied: null,
+      fx: p.fx ?? 0, fall: new FallSync(),
     };
     this.remotes.set(id, r);
     if (!this.crowd) this.acquire(r);
@@ -557,6 +574,10 @@ export class NetworkClient {
     if (ia < 1000) this.jitterMs = this.jitterMs * 0.9 + Math.abs(ia - 50) * 0.1;
     r.buf.push({ t: now, x: p.x, y: p.y, z: p.z, heading: p.heading, speed: p.speed, loco: p.loco, vehicle: p.vehicle, platform: p.platform ?? '', plx: p.plx ?? 0, plz: p.plz ?? 0, plh: p.plh ?? 0 });
     if (r.buf.length > 40) r.buf.shift();
+    // rodada 9 — queda pela mudança de status (sem `knock`), cambaleio e efeitos
+    if (r.fall.onStatus(p.status, now) === 'start') this.statusFall(r);
+    if ((p.fx ?? 0) !== r.fx) { r.fx = p.fx ?? 0; r.visual?.setFx(r.fx); }
+    r.visual?.setPhys(p.status);
     r.interaction = p.interaction; r.status = p.status; r.vehicle = p.vehicle; r.platform = p.platform ?? '';
     if ((p.link ?? 0) !== r.link) { r.link = p.link ?? 0; r.label.classList.toggle('away', r.link !== 0); if (r.labelTier !== 'hidden') this.setLabelTier(r, r.labelTier, true); }
     const so = r.soc;
@@ -579,18 +600,31 @@ export class NetworkClient {
   }
 
   private handleKnock(k: KnockMsg) {
-    if (k.target === this.sessionId) { this.onKnock?.(k, true); return; }
+    const now = performance.now();
+    if (k.target === this.sessionId) { const d = this.selfFall.onKnock(now); if (d !== 'ignore') this.onKnock?.(k, true, d === 'refine'); return; }
     const r = this.remotes.get(k.target);
     if (r) {
       // queda é rara e importante: ganha esqueleto na hora (o orçamento o mantém enquanto estiver caído)
       if (!r.visual && Math.hypot(r.state.x - this.lastCam.x, r.state.z - this.lastCam.z) < (this.crowd?.budget.skinnedMaxDist ?? 1e9)) this.acquire(r);
-      if (r.visual) void r.visual.knockdown({ dirX: k.dx, dirZ: k.dz, strength: k.strength, groundY: r.state.y, walls: [], downMs: k.downMs, getupMs: k.getupMs });
+      // rodada 9: a queda pode já ter começado pela mudança de status — não recomeça (FallSync)
+      if (r.visual && r.fall.onKnock(now) === 'start') void r.visual.knockdown({ dirX: k.dx, dirZ: k.dz, strength: k.strength, groundY: r.state.y, walls: [], downMs: k.downMs, getupMs: k.getupMs });
       // posição de repouso autoritativa: o buffer passa a apontar para ela
       r.buf.length = 0;
       r.buf.push({ t: performance.now(), x: k.rx, y: r.state.y, z: k.rz, heading: r.state.heading, speed: 0, loco: 0, vehicle: '', platform: '', plx: 0, plz: 0, plh: 0 });
     }
     this.onKnock?.(k, false);
   }
+
+  /** rodada 9 — queda sem `knock` (status DOWN/RAGDOLL): para trás, força média, tempos das regras */
+  private statusFall(r: Remote) {
+    if (!r.visual && Math.hypot(r.state.x - this.lastCam.x, r.state.z - this.lastCam.z) < (this.crowd?.budget.skinnedMaxDist ?? 1e9)) this.acquire(r);
+    if (!r.visual) return;
+    const h = r.state.heading;
+    void r.visual.knockdown({ dirX: -Math.sin(h), dirZ: -Math.cos(h), strength: 0.8, groundY: r.state.y, walls: [], downMs: RULES.downMs, getupMs: RULES.getupMs });
+    this.statusFalls++;
+  }
+  /** QA: quedas iniciadas pela mudança de status */
+  statusFalls = 0;
 
   // ---------------------------------------------------------------- por frame
   update(dt: number, local: PlayerState, riding: string | null, camera: THREE.Camera, viewport: { w: number; h: number }) {
@@ -669,7 +703,7 @@ export class NetworkClient {
       if (!skinned) { if (r.visual) this.release(r); continue; }
       const visual = r.visual ?? this.acquire(r);
       ag.skinReady = visual.ready;
-      if (r.socApplied !== visual) { visual.setSocial(socialOf(r.soc)); r.socApplied = visual; }
+      if (r.socApplied !== visual) { visual.setSocial(socialOf(r.soc)); visual.setFx(r.fx); visual.setPhys(r.status); r.socApplied = visual; }
       if (crowd) { visual.applyLod(ag.lod, d); visual.root.visible = ag.inView || d < 6 || visual.isDown; }
       else visual.setDistance(d);
       if (c.vehicle && !visual.isDown) {
@@ -801,7 +835,8 @@ export class NetworkClient {
       const c = r.buf[r.buf.length - 1];
       return { id: r.id, name: r.name, body: r.body, accessory: r.accessory, x: +r.state.x.toFixed(2), z: +r.state.z.toFixed(2), speed: +r.state.speed.toFixed(2), interaction: r.interaction, status: r.status, vehicle: r.vehicle, platform: r.platform, plx: +(c?.plx ?? 0).toFixed(3), plz: +(c?.plz ?? 0).toFixed(3), wx: +(c?.x ?? 0).toFixed(2), wz: +(c?.z ?? 0).toFixed(2), link: r.link,
         act: r.soc.act, actPhase: +socialOf(r.soc).phase.toFixed(2), prop: r.soc.prop, design: r.soc.design,
-        visualAct: r.visual ? r.visual.social.act : null, visualProp: r.visual ? r.visual.social.prop : null };
+        visualAct: r.visual ? r.visual.social.act : null, visualProp: r.visual ? r.visual.social.prop : null,
+        fx: r.fx, fxVisual: r.visual ? r.visual.fxDebug : null };
     });
   }
 

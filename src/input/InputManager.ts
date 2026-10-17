@@ -59,6 +59,10 @@ export class InputManager {
     if (e.code === 'KeyK' && !e.repeat) this.toggles.add('mode');
     if (e.code === 'KeyF' && !e.repeat) this.toggles.add('action');
     if (e.code === 'KeyG' && !e.repeat) this.toggles.add('wheel');
+    // rodada 9: itens de confronto — R pegar/trocar, Z largar, X guardar/sacar
+    if (e.code === 'KeyR' && !e.repeat) this.toggles.add('item');
+    if (e.code === 'KeyZ' && !e.repeat) this.toggles.add('drop');
+    if (e.code === 'KeyX' && !e.repeat) this.toggles.add('stow');
     this.keys.add(e.code);
   };
 

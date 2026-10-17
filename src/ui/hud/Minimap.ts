@@ -3,7 +3,7 @@
  *
  * Camadas:
  *  - estática (uma vez): ruas do OSM (`manifest.minimapRoads`), a Pres. Vargas e a Rio Branco em destaque, o Campo de
- *    Santana (miolo da Praça da República);
+ *    Santana (miolo da Praça da República); rodada 9: faixa tingida das zonas COMBAT/CONTESTED (zones.json);
  *  - calor (1–2 Hz): densidade da multidão agregada numa grade grossa (`DensityGrid`, 1 px por célula, borrada e
  *    ampliada com suavização) — manchas, nunca um ponto por pessoa;
  *  - marcadores (a cada redesenho, ≤ 10 Hz): Central, Candelária, nomes das zonas, trio (posição ao vivo), carros de
@@ -74,6 +74,22 @@ export class Minimap {
     g.lineCap = 'round';
     g.lineJoin = 'round';
     const toS = (p: XZ): XZ => [(p[0] - x0) * STATIC_PPM, (p[1] - z0) * STATIC_PPM];
+    // rodada 9: faixa tingida das zonas de CONFRONTO (vermelho) e DISPUTA (âmbar) ao longo do eixo — fraca, por baixo de tudo
+    for (const zn of zones) {
+      const pol = zn.combatPolicy ?? 'PEACE';
+      if (pol === 'PEACE') continue;
+      g.strokeStyle = pol === 'COMBAT' ? 'rgba(224, 70, 56, 0.22)' : 'rgba(240, 170, 60, 0.18)';
+      g.lineWidth = Math.min(zn.halfWidth, 120) * 2 * STATIC_PPM;
+      g.lineCap = 'butt';
+      g.beginPath();
+      for (let t = zn.from, i = 0; t <= zn.to + 1e-6; t += 0.004, i++) {
+        const q = pointOnAxis(manifest.pvAxis, Math.min(t, zn.to));
+        const [x, y] = toS([q.x, q.z]);
+        if (i === 0) g.moveTo(x, y); else g.lineTo(x, y);
+      }
+      g.stroke();
+    }
+    g.lineCap = 'round';
     // Campo de Santana: miolo do anel da Praça da República (dado do mapa, não posição fixa)
     const pr = manifest.minimapRoads.filter((r) => r.name === 'Praça da República').flatMap((r) => r.pts);
     if (pr.length) {

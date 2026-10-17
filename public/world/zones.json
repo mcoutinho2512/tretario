@@ -11,7 +11,8 @@
    "anchor": {
     "t": 0.28,
     "side": 0
-   }
+   },
+   "combatPolicy": "PEACE"
   },
   {
    "id": "CAMPO_DE_SANTANA",
@@ -22,7 +23,16 @@
    "anchor": {
     "t": 0.38,
     "side": 0
-   }
+   },
+   "combatPolicy": "CONTESTED",
+   "peaceAreas": [
+    {
+     "id": "telao_campo_de_santana",
+     "x": -262,
+     "z": 179,
+     "r": 22
+    }
+   ]
   },
   {
    "id": "CENTRO",
@@ -33,7 +43,16 @@
    "anchor": {
     "t": 0.64,
     "side": 0
-   }
+   },
+   "combatPolicy": "PEACE",
+   "peaceAreas": [
+    {
+     "id": "telao_centro",
+     "x": 29,
+     "z": 57,
+     "r": 22
+    }
+   ]
   },
   {
    "id": "RIO_BRANCO",
@@ -44,7 +63,8 @@
    "anchor": {
     "t": 0.885,
     "side": 0
-   }
+   },
+   "combatPolicy": "CONTESTED"
   },
   {
    "id": "CANDELARIA",
@@ -55,7 +75,8 @@
    "anchor": {
     "t": 0.954,
     "side": 0
-   }
+   },
+   "combatPolicy": "PEACE"
   },
   {
    "id": "CIDADE_NOVA",
@@ -66,7 +87,9 @@
    "anchor": {
     "t": 0.1,
     "side": 0
-   }
+   },
+   "combatPolicy": "COMBAT"
   }
- ]
+ ],
+ "combatNote": "Rodada 9 — combatPolicy (src/combat/policy.ts): PEACE nunca há impacto; CONTESTED só durante evento de confronto ativo; COMBAT entre quem aceitou (modo interação) ou inscritos. Entrada/spawn (Central), a passeata/trio (Centro) e o palco/Candelária são PAZ (~60% do eixo + áreas de paz). peaceAreas: pontos sociais fixos (telões); spawn, palco (eventSpots) e anéis do trio/carro de som são DERIVADOS no servidor (server/src/combat/zonePolicy.ts)."
 }

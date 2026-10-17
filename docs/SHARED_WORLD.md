@@ -89,6 +89,22 @@ Nada de ossos pela rede. Cada jogador tem, no estado da sala (só para quem est�
 - **Medido** (`tools/qa/social_mp.mjs`, 2 navegadores + 1 distante, 12/12): B vê a dança de A com a mesma fase
   (0,15 s × 0,15 s), braços, bandeira (item e design), andar balançando a bandeira, cartaz, megafone; andar encerra
   a dança dos dois lados; o jogador distante não recebe A detalhado.
+## Itens de confronto no mundo e política de zona (rodada 9)
+Detalhes: `docs/COMBAT_ITEMS_ZONES.md`.
+- **Itens no chão** (servidor autoritativo, `server/src/items`): taco/barra/spray (props `COMBAT_PROP`) existem em
+  número FIXO, em pontos de apoio definidos por dados (`public/gameplay/combat_props.json`, só em zonas de confronto/
+  disputa). Estados `RACK`/`GROUND`/`CARRIED`; um por jogador; pegar exige alcance (2,2 m da posição aceita); largado
+  volta à vaga depois de `groundTtlMs`; teto de largados (`maxGround`, o mais antigo volta já); quem cai, sai ou perde
+  a sessão larga onde estava. Mensagens `item_pick {i}` / `item_drop` → `item_list` (só itens a ≤ 70 m, **só quando
+  a lista muda** para aquele cliente, fatiado a 2 Hz) · `item_self {c,i}` · `item_denied`. A mão continua no `prop`
+  (item de confronto só para quem o possui — `actionRules.validateProp`).
+- **Política de zona** (`zones.json` `combatPolicy` + `peaceAreas`): PAZ (Central/spawn, Centro, Candelária),
+  DISPUTA (Campo de Santana, Rio Branco), CONFRONTO (Cidade Nova). Áreas de paz fixas (spawn, palco, telões), de
+  evento (pontos de retorno) e MÓVEIS (anéis do trio e do carro de som, acompanham o veículo). Consulta do servidor:
+  `room.zonePolicy.policyFor(zoneOf(sid))`, `room.zonePolicy.peaceAt(x, z)`.
+- **Proteção de retorno** (`NetPlayer.fx` bit PROTECTED): entrar/reconectar (sala), levantar (sistema de confronto),
+  retorno de evento — `room.applyProtection(sid)`; expira sozinha (tick).
+
 ## Grafites (rodada 7)
 Detalhes em `docs/GRAFFITI.md`. Todos que estão perto de uma superfície autorizada veem os mesmos grafites:
 - o desenho em andamento é **local**; só o grafite pronto (vetor compacto, ≤ 4 KB) vai ao servidor, que valida superfície,

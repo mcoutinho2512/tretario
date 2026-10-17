@@ -39,11 +39,15 @@ export const RALLY_DEFAULT_WEIGHTS: Record<RallyKind, Record<string, number>> = 
  * do objeto (o palco olha para +z local).
  */
 export const RALLY_SHAPE = {
-  trio: { kind: 'trio', inner: TRIO.len / 2 + 1.5, radius: 24, strength: 1, front: 0 },
-  soundcar: { kind: 'soundcar', inner: 3.5, radius: 14, strength: 0.75, front: 0 },
-  stage: { kind: 'stage', inner: 3, radius: 20, strength: 0.9, front: 9 },
-  truck: { kind: 'event', inner: 5.5, radius: 11, strength: 0.35, front: 0 },
-} as const satisfies Record<string, { kind: RallyKind; inner: number; radius: number; strength: number; front: number }>;
+  trio: { kind: 'trio', inner: TRIO.len / 2 + 1.5, radius: 24, strength: 1, front: 0, peaceR: 28 },
+  soundcar: { kind: 'soundcar', inner: 3.5, radius: 14, strength: 0.75, front: 0, peaceR: 18 },
+  stage: { kind: 'stage', inner: 3, radius: 20, strength: 0.9, front: 9, peaceR: 38 },
+  truck: { kind: 'event', inner: 5.5, radius: 11, strength: 0.35, front: 0, peaceR: 0 },
+} as const satisfies Record<string, { kind: RallyKind; inner: number; radius: number; strength: number; front: number; peaceR: number }>;
+/**
+ * rodada 9 — `peaceR` (m): a concentração é ÁREA DE PAZ (src/combat/policy.ts PeaceArea) nesse raio em volta do ponto,
+ * acompanhando o veículo quando ele anda (trio, carro de som); 0 = não é área de paz. Servidor: server/src/combat/zonePolicy.ts.
+ */
 
 export class RallyRegistry {
   private points = new Map<string, RallyPoint>();

@@ -35,6 +35,8 @@ export interface ActionActor {
   /** último pedido de cada tipo (o intervalo mínimo vale entre pedidos do MESMO tipo: "pegar item + usar" passa) */
   lastAct?: number;
   lastProp?: number;
+  /** rodada 9 — item de confronto que o jogador POSSUI (pegou no chão/apoio; server/src/items) — prop id, 0 = nenhum */
+  carried?: number;
 }
 
 export type RuleResult = { ok: true } | { ok: false; reason: string };
@@ -77,6 +79,8 @@ export function validateProp(a: ActionActor, propId: unknown, designId: unknown,
     const p = PROP_BY_ID.get(propId);
     if (!p) return { ok: false, reason: 'item_invalido' };
     if (a.vehicle && !a.onPlatform) return { ok: false, reason: 'em_veiculo' };
+    // item de confronto: só o que foi pego (nunca sai do nada pela roda)
+    if (p.category === 'COMBAT_PROP' && a.carried !== propId) return { ok: false, reason: 'sem_item' };
     if (designId !== undefined && designId !== NO_DESIGN) {
       const d = typeof designId === 'number' ? DESIGN_BY_ID.get(designId) : undefined;
       if (!d) return { ok: false, reason: 'design_invalido' };

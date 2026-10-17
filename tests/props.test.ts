@@ -81,6 +81,38 @@ describe('modelos dos itens', () => {
   });
 });
 
+describe('itens de confronto (rodada 9): categoria COMBAT_PROP no MESMO registro', () => {
+  it('taco, barra e spray: ids estáveis, categoria, fora da multidão, pegada de uma mão', async () => {
+    const { PROP_BY_KIND, SOCIAL_PROPS, isCombatProp } = await import('../src/social/props');
+    const want: [string, number][] = [['bat', 11], ['bar', 12], ['spray', 13]];
+    for (const [kind, id] of want) {
+      const p = PROP_BY_KIND.get(kind as never)!;
+      expect(p.id, kind).toBe(id);
+      expect(p.category).toBe('COMBAT_PROP');
+      expect(isCombatProp(id)).toBe(true);
+      expect(p.crowdWeight).toBe(0);
+      expect(p.grip).toBe('hand_r');
+      expect(PROP_GRIPS[p.kind].mode).toBe('bone');
+      expect(p.label).not.toMatch(/visual/i);
+      expect(SOCIAL_PROPS.includes(p)).toBe(false);
+    }
+    expect(PROP_BY_KIND.get('bar')!.carryClip).toBe('carry_bar');
+    expect(PROP_BY_KIND.get('spray')!.carryClip).toBe('carry_spray');
+    // ids únicos e nenhum item social marcado como de confronto
+    expect(new Set(PROPS.map((p) => p.id)).size).toBe(PROPS.length);
+    expect(PROPS.filter((p) => isCombatProp(p.id)).map((p) => p.kind).sort()).toEqual(['bar', 'bat', 'spray']);
+  });
+
+  it('modelos procedurais em escala real (barra ~0,8 m, lata ~0,2 m) e sem parte de design (sem rótulo/marca)', () => {
+    const size = (k: 'bar' | 'spray') => { const g = propModel(k, 'near').rigid; g.computeBoundingBox(); return g.boundingBox!.getSize(new THREE.Vector3()); };
+    expect(size('bar').y).toBeGreaterThan(0.7);
+    expect(size('bar').y).toBeLessThan(0.9);
+    expect(size('spray').y).toBeGreaterThan(0.15);
+    expect(size('spray').y).toBeLessThan(0.25);
+    expect(propModel('spray').parts).toEqual([]);
+  });
+});
+
 describe('LOD do tecido', () => {
   it('seleção por tier/detalhe', () => {
     expect(clothLodFor(true, true)).toBe(0);
@@ -150,7 +182,7 @@ describe('atlas de designs', () => {
       expect(root.getObjectByName(`prop_${p.kind}`), p.kind).toBeTruthy();
     }
     a.set(0, 0);
-    expect(root.getObjectByName('prop_bat')).toBeTruthy(); // b ainda segura o último
+    expect(root.getObjectByName(`prop_${PROPS[PROPS.length - 1].kind}`)).toBeTruthy(); // b ainda segura o último
     b.dispose();
     a.dispose();
     expect(designMaterialStats().refs).toBe(before);

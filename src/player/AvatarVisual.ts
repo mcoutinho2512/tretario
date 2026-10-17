@@ -14,6 +14,9 @@ import { HumanCharacter } from '../characters/human/HumanCharacter';
 import type { Lod } from '../characters/human/HumanAssets';
 import { PLAYER_CONSTANTS } from './PlayerState';
 import { Ragdoll, type RagdollParams } from '../physics/Ragdoll';
+import { FX } from '../combat/types';
+import { STATUS } from '../net/rules';
+import { ProtectedAura } from '../combat/fxVisuals';
 
 /** ossos do ragdoll (nomes do rig antigo) → rig "game_engine" do personagem humano */
 const HUMAN_BONES: Record<BoneName, string> = {
@@ -42,6 +45,14 @@ export class AvatarVisual {
   private fall: { phase: 'down' | 'getup' | 'none'; t: number; down: number; getup: number; captured: THREE.Quaternion[]; hipsFrom: THREE.Vector3 } =
     { phase: 'none', t: 0, down: 0, getup: 0, captured: [], hipsFrom: new THREE.Vector3() };
   private fallback = { tilt: 0 };
+  /** rodada 9: cada queda/reuso/descarte troca a geração — um ragdoll que termina de carregar depois é liberado */
+  private fallGen = 0;
+  /** rodada 9: efeitos (bits FX) e estado físico aplicados; brilho de proteção (criado no primeiro uso) */
+  private fx = 0;
+  private phys: number = STATUS.OK;
+  private aura: ProtectedAura | null = null;
+  /** QA: cambaleios tocados */
+  private staggers = 0;
   private animAcc = 0;
   private frame = 0;
 
@@ -96,8 +107,11 @@ export class AvatarVisual {
 
   /** devolve ao estado inicial para ser reaproveitado por outro jogador do mesmo corpo (pool) */
   resetForReuse() {
+    this.fallGen++;
     this.ragdoll?.dispose();
     this.ragdoll = null;
+    this.human?.propAttachment?.setVisible(true);
+    this.fx = 0; this.phys = STATUS.OK; this.aura?.set(false); this.human?.animator?.stopClip();
     this.fall = { phase: 'none', t: 0, down: 0, getup: 0, captured: [], hipsFrom: new THREE.Vector3() };
     const pivot = this.human?.armature ?? this.legacy?.rig.mesh;
     if (pivot) pivot.rotation.x = 0;
@@ -157,19 +171,56 @@ export class AvatarVisual {
    * Usa ragdoll Rapier quando disponível; senão uma queda procedural simples (mesmo tempo no chão).
    */
   async knockdown(p: RagdollParams & { downMs: number; getupMs: number }) {
+    const gen = ++this.fallGen;
     this.ragdoll?.dispose();
     this.ragdoll = null;
     this.fall = { phase: 'down', t: 0, down: p.downMs / 1000, getup: p.getupMs / 1000, captured: [], hipsFrom: new THREE.Vector3() };
     this.fallback = { tilt: 0 };
+    // item na mão: some durante a queda (o servidor larga o de confronto; o social volta ao levantar)
+    this.human?.propAttachment?.setVisible(false);
+    this.human?.animator?.stopClip('stagger');
     const rig = this.rigForRagdoll();
     if (!rig) return;
     try {
       this.root.updateMatrixWorld(true);
-      this.ragdoll = await Ragdoll.create(rig, p);
+      const rd = await Ragdoll.create(rig, p);
+      // outra queda, reuso ou descarte enquanto o Rapier carregava, ou a queda já acabou: libera na hora (sem vazamento)
+      if (gen !== this.fallGen || this.fall.phase !== 'down') { rd.dispose(); return; }
+      this.ragdoll = rd;
     } catch (e) {
       console.warn('[ragdoll] indisponível, usando queda procedural', e);
     }
   }
+
+  // ------------------------------------------------------------------ rodada 9: estados físicos e efeitos
+  /** golpe/uso de item (clipes procedurais swing_bat, swing_bar, spray_use…) por cima da locomoção */
+  playCombatClip(name: string, holdAt?: number) { return this.human?.animator?.playClip(name, false, holdAt) ?? false; }
+  /** encerra um clipe de confronto (ou todos) */
+  stopCombatClip(name?: string) { this.human?.animator?.stopClip(name); }
+
+  /** estado físico do servidor (NetPlayer.status): cambaleio toca `stagger` (a queda entra por FallSync/knockdown) */
+  setPhys(status: number) {
+    if (status === this.phys) return;
+    const prev = this.phys;
+    this.phys = status;
+    if (status === STATUS.STAGGER && prev !== STATUS.STAGGER && !this.isDown) { this.human?.animator?.playClip('stagger'); this.staggers++; }
+  }
+
+  /** efeitos (NetPlayer.fx): proteção = brilho sutil; desorientado = mãos no rosto (loop até o bit sair) */
+  setFx(fx: number) {
+    if (fx === this.fx) return;
+    const was = this.fx;
+    this.fx = fx;
+    const prot = !!(fx & FX.PROTECTED);
+    if (prot && !this.aura) this.aura = new ProtectedAura(this.root);
+    this.aura?.set(prot);
+    const dis = !!(fx & FX.DISORIENTED), wasDis = !!(was & FX.DISORIENTED);
+    if (dis && !wasDis) this.human?.animator?.playClip('disoriented', true);
+    else if (!dis && wasDis) this.human?.animator?.stopClip('disoriented');
+  }
+
+  /** QA: estado físico/efeitos aplicados e clipes avulsos ativos */
+  get fxDebug() { return { fx: this.fx, phys: this.phys, aura: !!this.aura?.on, clips: this.human?.animator?.fxClips ?? [], staggers: this.staggers, ragdoll: !!this.ragdoll, fall: this.fall.phase }; }
 
   /** atualiza queda; retorna true enquanto controla a pose */
   private updateFall(x: number, y: number, z: number, heading: number, dt: number): boolean {
@@ -198,6 +249,7 @@ export class AvatarVisual {
         this.root.updateMatrixWorld(true);
         f.hipsFrom = hipsWorld.applyMatrix4(hips.parent!.matrixWorld.clone().invert());
         f.captured = this.allBones().map((b) => b.quaternion.clone());
+        this.fallGen++; // um Ragdoll.create ainda pendente será descartado
         this.ragdoll?.dispose();
         this.ragdoll = null;
         f.phase = 'getup';
@@ -215,7 +267,7 @@ export class AvatarVisual {
     const e = k * k * (3 - 2 * k);
     this.allBones().forEach((bone, i) => { if (f.captured[i]) bone.quaternion.copy(f.captured[i].clone().slerp(bone.quaternion, e)); });
     if (hips) hips.position.lerpVectors(f.hipsFrom, hips.position.clone(), e);
-    if (f.t >= f.getup) f.phase = 'none';
+    if (f.t >= f.getup) { f.phase = 'none'; this.human?.propAttachment?.setVisible(true); }
     return true;
   }
 
@@ -279,6 +331,8 @@ export class AvatarVisual {
   }
 
   dispose() {
+    this.fallGen++;
+    this.aura?.dispose();
     this.ragdoll?.dispose();
     this.human?.dispose();
     this.legacy?.rig.dispose();

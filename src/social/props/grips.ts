@@ -49,6 +49,8 @@ export const PROP_GRIPS: Record<PropKind, GripSpec> = {
   umbrella: { mode: 'upright', hand: 'hand_r', slide: 0 },
   drum: { mode: 'waist', hand: 'hand_r', slide: 0 },
   bat: { mode: 'bone', hand: 'hand_r', slide: -0.02 },
+  bar: { mode: 'bone', hand: 'hand_r', slide: -0.03 },
+  spray: { mode: 'bone', hand: 'hand_r', slide: 0 },
 };
 
 /**
@@ -76,6 +78,9 @@ export const FAR_PLACEMENT: Record<PropKind, FarPlacement | null> = {
   umbrella: { at: [-0.22, 1.1, 0.12], raise: 0, tilt: 0.12 },
   drum: { at: [0.06, 0.86, 0.26], raise: 0, tilt: 0 },
   bat: { at: [-0.27, 0.92, 0.06], raise: 0.4, tilt: 0.5 },
+  bar: { at: [-0.27, 0.92, 0.06], raise: 0.4, tilt: 0.45 },
+  // lata pequena: não aparece de longe (como o apito)
+  spray: null,
 };
 
 /** ações (chave em actions.ts) que ERGUEM o item na multidão instanciada; as de balançar também oscilam */

@@ -23,6 +23,11 @@ import { Minimap } from './Minimap';
 import { SettingsPanel } from './SettingsPanel';
 import { HudPrefsStore } from './hudPrefs';
 import { AutoHide, RateGate, TextSlot, setClass } from './throttle';
+import type { ZoneCombatPolicy } from '../../combat/policy';
+
+/** rodada 9 — rótulo discreto da política de confronto da zona (aviso de zona e legenda do minimapa) */
+export const POLICY_LABEL: Record<ZoneCombatPolicy, string> = { PEACE: 'Zona de paz', CONTESTED: 'Disputa', COMBAT: 'Zona de confronto' };
+const POLICY_SHORT: Record<ZoneCombatPolicy, string> = { PEACE: 'paz', CONTESTED: 'disputa', COMBAT: 'confronto' };
 
 /** componente montado num encaixe do HUD */
 export interface HudPanel {
@@ -74,6 +79,8 @@ export class HudShell {
   private eventEl: HTMLDivElement;
   private banner: HTMLDivElement;
   private bannerName: HTMLDivElement;
+  private bannerPolicy: HTMLDivElement;
+  private handSlot: HTMLDivElement;
   private bannerTimer = 0;
   private flashUntil = 0;
   private menu: HTMLDivElement;
@@ -111,6 +118,7 @@ export class HudShell {
     const kicker = div('zb-kicker', this.banner);
     kicker.textContent = 'Presidente Vargas';
     this.bannerName = div('zb-name', this.banner);
+    this.bannerPolicy = div('zb-policy', this.banner);
 
     // ---- alto à direita: minimapa + botões
     const tr = div('hud-tr');
@@ -140,6 +148,7 @@ export class HudShell {
     this.specSlot = div('hud-slot-spectator', bc);
     this.promptEl = div('use-prompt', bc);
     this.promptText = new TextSlot(this.promptEl);
+    this.handSlot = div('hud-slot-hand');
     if (!opts.touch) {
       const br = div('hud-br hud-fadeable');
       const act = document.createElement('button');
@@ -160,7 +169,7 @@ export class HudShell {
     this.helpEl.hidden = true;
     this.helpEl.innerHTML = opts.touch
       ? '<b>Controles</b><br>Joystick: andar (até o fim corre) · Arraste: câmera · Pinça: zoom<br>PULAR · USAR (quando há algo perto) · AÇÕES · CHAT · ☰ menu'
-      : '<b>Controles</b><br><kbd>WASD</kbd> andar · <kbd>Shift</kbd> correr · <kbd>Espaço</kbd> pular · <kbd>Mouse</kbd> câmera · <kbd>Roda</kbd> zoom<br><kbd>E</kbd> usar / subir no trio / pichar · <kbd>G</kbd> ações · <kbd>K</kbd> modo · <kbd>F</kbd> empurrar (modo interação)<br><kbd>M</kbd> mapa · <kbd>H</kbd>/<kbd>P</kbd> HUD limpo · <kbd>F1</kbd> controles · <kbd>F3</kbd> debug · <kbd>Esc</kbd> soltar o mouse';
+      : '<b>Controles</b><br><kbd>WASD</kbd> andar · <kbd>Shift</kbd> correr · <kbd>Espaço</kbd> pular · <kbd>Mouse</kbd> câmera · <kbd>Roda</kbd> zoom<br><kbd>E</kbd> usar / subir no trio / pichar · <kbd>G</kbd> ações · <kbd>K</kbd> modo · <kbd>F</kbd> empurrar (modo interação) · <kbd>R</kbd> pegar item · <kbd>Z</kbd> largar · <kbd>X</kbd> guardar/sacar<br><kbd>M</kbd> mapa · <kbd>H</kbd>/<kbd>P</kbd> HUD limpo · <kbd>F1</kbd> controles · <kbd>F3</kbd> debug · <kbd>Esc</kbd> soltar o mouse';
     this.helpEl.addEventListener('click', () => this.toggleHelp(false));
     const restore = document.createElement('button');
     restore.type = 'button';
@@ -197,6 +206,9 @@ export class HudShell {
     this.chatSlot.replaceChildren(panel.el);
     panel.setCollapsed?.(this.prefs.value.chatCollapsed);
   }
+
+  /** rodada 9 — indicador MÃOS / ITEM ATUAL (canto inferior direito, acima de Ações) */
+  mountHand(panel: HudPanel) { this.handSlot.replaceChildren(panel.el); }
 
   /** seletor de câmeras do espectador (agente D), acima da ação contextual */
   mountSpectator(panel: HudPanel) { this.specSlot.replaceChildren(panel.el); }
@@ -292,10 +304,13 @@ export class HudShell {
 
   private onZone(ch: ZoneChange) {
     const z = ch.to;
-    this.minimap.setCaption(z ? z.name : '');
+    const pol = z?.combatPolicy ?? 'PEACE';
+    this.minimap.setCaption(z ? `${z.name} · ${POLICY_SHORT[pol]}` : '');
     for (const fn of this.zoneListeners) fn(ch);
     if (!z) return;
     this.bannerName.textContent = z.name;
+    this.bannerPolicy.textContent = POLICY_LABEL[pol];
+    this.banner.dataset.policy = pol;
     this.banner.classList.remove('show');
     void this.banner.offsetWidth; // reinicia a transição (só na troca de zona)
     this.banner.classList.add('show');
@@ -343,6 +358,7 @@ export class HudShell {
   info() {
     return {
       clean: this.clean, dim: this.autoHide.faded, expanded: this.minimap.expanded, zone: this.zones.current?.id ?? null,
+      policy: this.zones.current ? this.zones.current.combatPolicy ?? 'PEACE' : null, banner: { name: this.bannerName.textContent, policy: this.bannerPolicy.textContent, shown: this.banner.classList.contains('show') },
       prefs: { ...this.prefs.value }, minimap: { ...this.minimap.stats, drawMs: +this.minimap.stats.drawMs.toFixed(3), densityMs: +this.minimap.stats.densityMs.toFixed(3) },
       writes: { event: this.eventText.writes, status: this.statusText.writes, prompt: this.promptText.writes },
       focus: { x: Math.round(this.lastFocus.x), z: Math.round(this.lastFocus.z) },

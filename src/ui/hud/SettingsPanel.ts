@@ -55,6 +55,7 @@ export class SettingsPanel {
     el.appendChild(this.check('Esconder o HUD sozinho', 'Some quando você anda; volta ao mexer no mouse, tocar ou abrir algo', prefs.value.hudAutoHide, (v) => prefs.set({ hudAutoHide: v })));
     el.appendChild(this.check('Chat recolhido ao entrar', '', prefs.value.chatCollapsed, (v) => prefs.set({ chatCollapsed: v })));
     el.appendChild(this.check('Som', 'Em breve — o jogo ainda não tem áudio', prefs.value.sound, (v) => prefs.set({ sound: v })));
+    el.appendChild(this.check('Reduzir efeitos visuais', 'Desorientação vira só um ícone e um tom leve (sem desfoque nem vinheta)', prefs.value.reduceEffects, (v) => prefs.set({ reduceEffects: v })));
     const keys = document.createElement('p');
     keys.className = 'sheet-foot';
     keys.textContent = 'H ou P: HUD limpo · M: mapa · G: ações · F1: controles';

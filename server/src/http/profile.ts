@@ -85,6 +85,7 @@ export function sanitizePreferences(raw: unknown): PlayerPreferences {
   const out: PlayerPreferences = {};
   if ((NAMES as readonly unknown[]).includes(o.names)) out.names = o.names as PlayerPreferences['names'];
   if (typeof o.chatCollapsed === 'boolean') out.chatCollapsed = o.chatCollapsed;
+  if (typeof o.reduceEffects === 'boolean') out.reduceEffects = o.reduceEffects;
   if (typeof o.quality === 'string' && QUALITIES.includes(o.quality)) out.quality = o.quality;
   return out;
 }

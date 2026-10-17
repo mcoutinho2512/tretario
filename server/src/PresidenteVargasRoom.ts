@@ -67,6 +67,12 @@ import { LINK_WIRE, RECONNECT } from '../../src/net/reconnect.ts';
 import { ZoneTracker } from '../../src/world/zoneTracker.ts';
 import type { ZoneDefinition } from '../../src/world/zones.ts';
 import { GameplayBus } from './gameplay/bus.ts';
+// rodada 9 — itens de confronto, política de zona, proteção de retorno (agente B)
+import { ZonePolicy, type MovingRally } from './combat/zonePolicy.ts';
+import { ProtectionService } from './combat/protection.ts';
+import { RoomItems, loadCombatProps } from './items/RoomItems.ts';
+import { isCombatProp } from '../../src/social/props.ts';
+import { FX } from '../../src/combat/types.ts';
 
 const AOI_RADIUS = Number(process.env.PV_AOI ?? 220); // m — jogadores/veículos visíveis
 /** histerese da AOI: entra a ≤ R, sai só além de R × AOI_HYST */
@@ -207,6 +213,11 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     chat_send: (client: Client, m: unknown) => { this.chat.send(client.sessionId, m); },
     chat_mute: (client: Client, m: unknown) => this.chat.mute(client.sessionId, m),
     chat_report: (client: Client, m: unknown) => { void this.chat.report(client.sessionId, m); },
+    // rodada 9 — itens de confronto no mundo (server/src/items; a mão continua no `prop`)
+    item_pick: (client: Client, m: unknown) => this.gate(client, 'item.hold', () => this.items.onPick(client.sessionId, m, Date.now())),
+    item_drop: (client: Client) => this.gate(client, 'item.hold', () => this.items.onDrop(client.sessionId, Date.now())),
+    qa_fx: (client: Client, m: unknown) => this.r9bQa(client.sessionId, 'fx', m),
+    qa_status: (client: Client, m: unknown) => this.r9bQa(client.sessionId, 'status', m),
   };
 
   /** chat: destinatários decididos aqui (PROXIMIDADE pela grade espacial `this.grid`), sem trabalho por tick */
@@ -272,6 +283,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
       },
     }, { store: storeOrNull(), eventId: ev, secret: serverSecret() });
     liveMemorySweepers.add(this.chat);
+    this.r9bSetup(W, ev); // rodada 9 — itens/zonas/proteção
     this.patchRate = 50; // 20 Hz
     this.setSimulationInterval((dt) => this.tick(dt), 100); // 10 Hz
     // suspensão/banimento/revogação feitos pela CLI (outro processo) chegam aqui por releitura periódica do banco
@@ -359,6 +371,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     if (this.vehAcc >= 1000) { this.vehAcc = 0; this.rebuildVehicleGrid(); this.resetAbandoned(now); }
     // zonas por jogador (2 Hz, fatiado): base de missões de exploração, política de confronto e eventos
     this.updateZones(this.tickN % ZONE_SLICES, ZONE_SLICES, now);
+    this.r9bTick(now, dtMs); // rodada 9 — itens no mundo, proteção (expiração), efeitos de QA
     // grafites: área de interesse por superfície (fatiada, 2 Hz por cliente) e expiração (1 Hz)
     this.graffiti.update(now, this.gfPos);
     metrics.tick(performance.now() - t0, this.state.players.size);
@@ -377,6 +390,101 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
 
   /** definição da zona (política de confronto, áreas de paz) */
   zoneDef(id: string | null): ZoneDefinition | undefined { return id ? this.zoneDefs.find((z) => z.id === id) : undefined; }
+
+  // ---------------------------------------------------------------- rodada 9 — itens de confronto, zonas, proteção
+  /**
+   * Política de zona + áreas de paz (fixas, de evento, anéis móveis do trio/carro de som) — o CombatSystem pergunta
+   * `zonePolicy.policyFor(zoneOf(sid))` e `zonePolicy.peaceAt(x, z)`. Proteção de retorno: `applyProtection(sid)`
+   * (entrar/reconectar aqui; levantar: CombatSystem; retorno de evento: runner). Itens: server/src/items.
+   */
+  zonePolicy!: ZonePolicy;
+  readonly protection = new ProtectionService();
+  private items!: RoomItems;
+  /** QA (PV_TEST=1): bits de efeito temporários e estado físico forçado (sem o sistema de confronto) */
+  private qaFx = new Map<string, { bits: number; until: number }>();
+  private qaStatus = new Map<string, number>();
+
+  private r9bSetup(W: ServerWorld, ev: string) {
+    const rallies = (): MovingRally[] => {
+      const out: MovingRally[] = [];
+      for (const id of this.eventVehIds) { const v = this.state.vehicles.get(id); if (v) out.push({ id, kind: v.kind, x: v.x, z: v.z }); }
+      return out;
+    };
+    this.zonePolicy = new ZonePolicy({ zones: this.zoneDefs, axis: this.zoneAxis, spawn: W.manifest.spawn, spots: W.manifest.eventSpots, rallies });
+    for (const a of W.events.get(ev)?.agenda ?? []) if (a.clash?.respawn?.length) this.zonePolicy.setEventAreas(`evento:${a.id}`, this.zonePolicy.respawnAreas(a.id, a.clash.respawn));
+    this.items = new RoomItems({
+      player: (sid) => { const p = this.state.players.get(sid), r = this.rt.get(sid); return p && r ? { p, x: r.last.x, z: r.last.z } : undefined; },
+      each: (fn) => { for (const [sid, r] of this.rt) fn(sid, r.slot, r.last.x, r.last.z); },
+      send: (sid, type, msg) => this.clients2.get(sid)?.send(type, msg),
+      setHand: (sid, prop, now) => {
+        const p = this.state.players.get(sid), r = this.rt.get(sid);
+        if (!p || !r) return;
+        applyProp(r.social, prop, 0, now);
+        p.prop = r.social.prop; p.design = r.social.design;
+        if (p.act !== r.social.act) this.setAct(p, r, r.social.act, now);
+      },
+      raycast: (ax, az, bx, bz) => world().walls.raycast(ax, 0.6, az, bx, 0.6, bz),
+    }, loadCombatProps(), this.zoneAxis);
+  }
+
+  policyFor(zoneId: string | null) { return this.zonePolicy.policyFor(zoneId); }
+  peaceAt(x: number, z: number) { return this.zonePolicy.peaceAt(x, z); }
+
+  /** proteção de retorno (FX.PROTECTED por CombatTuning.protectMs) — devolve o fim (ms) */
+  applyProtection(sid: string, now = Date.now(), ms?: number): number {
+    const p = this.state.players.get(sid);
+    return p ? this.protection.apply(sid, p, now, ms) : 0;
+  }
+
+  private r9bJoin(sid: string, p: NetPlayer, now: number) {
+    // sessão assumida: item de confronto não "vem junto" (ficou no chão onde a antiga estava)
+    if (isCombatProp(p.prop) && this.items.carriedProp(sid) !== p.prop) { const r = this.rt.get(sid); p.prop = 0; p.design = 0; if (r) { r.social.prop = 0; r.social.design = 0; } }
+    this.applyProtection(sid, now);
+  }
+
+  private r9bReconnect(sid: string, now: number) {
+    this.items.reconnect(sid);
+    this.applyProtection(sid, now);
+  }
+
+  private r9bLeave(sid: string) {
+    this.items.leave(sid, Date.now());
+    this.protection.clear(sid);
+    this.qaFx.delete(sid); this.qaStatus.delete(sid);
+  }
+
+  private r9bTick(now: number, dtMs: number) {
+    this.items.tick(now, dtMs, this.tickN);
+    this.protection.tick(now, (sid) => this.state.players.get(sid));
+    for (const [sid, f] of this.qaFx) if (now >= f.until) { const p = this.state.players.get(sid); if (p) p.fx &= ~f.bits; this.qaFx.delete(sid); }
+    for (const [sid, until] of this.qaStatus) if (now >= until) {
+      const p = this.state.players.get(sid), r = this.rt.get(sid);
+      if (p && r && p.status === STATUS.STAGGER) { p.status = STATUS.OK; r.actor.status = STATUS.OK; }
+      this.qaStatus.delete(sid);
+    }
+  }
+
+  /** SÓ servidor de teste: efeito/estado forçados para QA visual (o sistema de confronto é quem aplica de verdade) */
+  private r9bQa(sid: string, kind: 'fx' | 'status', m: unknown) {
+    if (process.env.PV_TEST !== '1') return;
+    const p = this.state.players.get(sid), r = this.rt.get(sid);
+    const o = (m && typeof m === 'object' ? m : {}) as { fx?: unknown; st?: unknown; ms?: unknown };
+    if (!p || !r) return;
+    const now = Date.now(), ms = typeof o.ms === 'number' ? Math.max(100, Math.min(20_000, o.ms)) : 3000;
+    if (kind === 'fx' && typeof o.fx === 'number') {
+      const bits = o.fx & (FX.DISORIENTED | FX.PROTECTED | FX.DODGING | FX.ENGAGED);
+      if (bits & FX.PROTECTED) { this.applyProtection(sid, now, ms); return; }
+      p.fx |= bits;
+      this.qaFx.set(sid, { bits: (this.qaFx.get(sid)?.bits ?? 0) | bits, until: now + ms });
+    } else if (kind === 'status' && p.status === STATUS.OK && !p.vehicle && !p.platform) {
+      if (o.st === STATUS.STAGGER) { p.status = STATUS.STAGGER; r.actor.status = STATUS.STAGGER; this.qaStatus.set(sid, now + Math.min(ms, 1500)); }
+      else if (o.st === STATUS.DOWN) {
+        // queda SEM a mensagem `knock`: os clientes entram na queda pela mudança de NetPlayer.status
+        p.status = STATUS.DOWN; r.actor.status = STATUS.DOWN; r.actor.lastDown = now; p.speed = 0;
+        r.rest = { x: r.last.x, z: r.last.z };
+      }
+    }
+  }
 
   private rebuildVehicleGrid() {
     this.vgrid.clear();
@@ -734,6 +842,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     this.clients2.set(client.sessionId, client);
     this.grid.insert(r.slot, p.x, p.z);
     this.updateInterest(0, 1, client.sessionId); // só o novo cliente; os demais o encontram na sua fatia
+    this.r9bJoin(client.sessionId, p, Date.now()); // rodada 9 — proteção de retorno; item de confronto não passa na troca de sessão
     this.graffiti.join(client.sessionId, p.name, sanitizeClientId(options?.cid, client.sessionId), client, id.userId);
     this.graffiti.update(Date.now(), this.gfPos, client.sessionId); // quem entra já recebe os grafites próximos
     client.send('spawn', { x: p.x, y: p.y, z: p.z, heading: p.heading, sessionId: client.sessionId, policy: this.interactionPolicy, seed: this.state.seed, role: 'player', ...(taken ? { takeover: true } : {}) });
@@ -821,6 +930,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     this.chat.join(sid, id, client);
     this.updateInterest(0, 1, sid);
     this.pres.resume(sid, now);
+    this.r9bReconnect(sid, now); // rodada 9 — proteção de retorno + lista de itens/item próprio de novo
     // estado autoritativo para o cliente retomar (posição segura do servidor, veículo/trio, item)
     client.send('resume', { x: p.x, y: p.y, z: p.z, heading: p.heading, vehicle: p.vehicle || '', platform: p.platform || '', plx: p.plx ?? 0, plz: p.plz ?? 0, prop: p.prop ?? 0, design: p.design ?? 0, seq: r.last.seq });
     console.log(`[room] reconectou ${sid} (mesma entidade)`);
@@ -839,6 +949,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
 
   /** remove a entidade de um jogador (saída, graça vencida, sessão substituída) — idempotente */
   private removePlayer(sid: string) {
+    this.r9bLeave(sid); // rodada 9 — item de confronto cai onde estava; proteção encerrada
     const p = this.state.players.get(sid);
     if (p?.vehicle) {
       const v = this.state.vehicles.get(p.vehicle);
@@ -1109,6 +1220,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     const now = Date.now();
     const s = r.social;
     s.status = p.status; s.vehicle = p.vehicle; s.act = p.act; s.onPlatform = !!p.platform;
+    s.carried = this.items.carriedProp(client.sessionId); // rodada 9 — item de confronto: só o que possui
     const v = validateProp(s, m.p, m.d ?? 0, now);
     if (!v.ok) { client.send('prop_denied', v.reason); return; }
     applyProp(s, m.p as number, typeof m.d === 'number' ? m.d : 0, now);

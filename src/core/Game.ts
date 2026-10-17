@@ -69,6 +69,13 @@ import { distToPolyline } from '../geo/polyline';
 import { memoryReport } from '../debug/memoryReport';
 import { GraffitiSystem } from '../graffiti/GraffitiSystem';
 import type { IdentityJoinOptions } from '../identity/types';
+// rodada 9 — itens de confronto no mundo, MÃOS, efeitos (proteção/desorientação), queda por status (agente B)
+import { ItemsClient } from '../items/ItemsClient';
+import { HandIndicator } from '../ui/hud/HandIndicator';
+import { DisorientOverlay } from '../combat/fxVisuals';
+import { FX } from '../combat/types';
+import { RULES } from '../net/rules';
+import { Ragdoll } from '../physics/Ragdoll';
 
 /** rodada 8: como entrar no mundo compartilhado (tela inicial → jogo). `mp` = endereço do servidor (ws://…) */
 export interface GameStartOptions extends IdentityJoinOptions {
@@ -440,6 +447,7 @@ export class Game {
       this.hud.appendChild(this.wheel.el);
     }
     this.hud.appendChild(this.linkBadge.el);
+    this.r9bMount(); // rodada 9 — MÃOS / ITEM ATUAL, véu de desorientação
     if (this.spec) {
       // seletor de câmeras no encaixe do HUD (HudShell.mountSpectator); zona/minimapa seguem o foco da câmera
       const spec = this.spec;
@@ -634,6 +642,7 @@ export class Game {
       // andar cancela ação incompatível; caído/veículo encerram (mesmas regras do servidor: deslocamento por mensagem
       // de movimento = velocidade / NET_TICK_HZ)
       this.social.update(Math.abs(this.player.speed) / NET_TICK_HZ, this.avatar.isDown || !!this.riding);
+      this.r9bFrame(); // rodada 9 — itens (R/X), efeitos do próprio
       this.cam.update(this.avatar.root.position, dt);
     }
     mark('movimento');
@@ -773,7 +782,8 @@ export class Game {
       this.pendingEnter = null;
     };
     this.net.onExit = (pos) => this.dismountLocal(pos);
-    this.net.onKnock = (k, isSelf) => { if (isSelf) this.onSelfKnock(k); };
+    this.net.onKnock = (k, isSelf, refine) => { if (isSelf) this.onSelfKnock(k, refine); };
+    this.r9bNet(this.net); // rodada 9 — itens no mundo, queda por status
     this.net.onNotice = (m) => this.flash(m);
     this.net.onSelfSocial = () => this.social.fromServer(this.net!.self.social);
     // rodada 8: reconexão (mesma entidade: volta para a posição do servidor) e sessão substituída
@@ -824,13 +834,70 @@ export class Game {
   }
 
   /** queda do jogador local (decidida pelo servidor) */
-  private onSelfKnock(k: KnockMsg) {
+  private onSelfKnock(k: KnockMsg, refine = false) {
     if (this.riding) this.dismountLocal();
     const walls = this.collision.walls.near(this.player.x, this.player.z, 6);
-    void this.avatar.knockdown({ dirX: k.dx, dirZ: k.dz, strength: k.strength, groundY: this.player.y, walls, downMs: k.downMs, getupMs: k.getupMs });
+    // `refine`: a queda já começou pela mudança de status (rodada 9) — só a posição de repouso
+    if (!refine) void this.avatar.knockdown({ dirX: k.dx, dirZ: k.dz, strength: k.strength, groundY: this.player.y, walls, downMs: k.downMs, getupMs: k.getupMs });
     // posição de repouso é do servidor
     this.player.x = k.rx; this.player.z = k.rz; this.player.vx = this.player.vz = 0;
     this.flash(k.kind === 'impact' ? 'Você foi atingido por um carro! (sem dano — levante-se)' : 'Você foi empurrado!');
+  }
+
+  // ------------------------------------------------------------------ rodada 9 — itens de confronto, efeitos, queda por status
+  private items: ItemsClient | null = null;
+  private hand: HandIndicator | null = null;
+  private disorient: DisorientOverlay | null = null;
+  /** QA: a proteção de retorno chegou a aparecer no próprio personagem (bit + brilho) */
+  private r9bSeenProtected = false;
+
+  private r9bMount() {
+    if (this.spectator) return;
+    const hand = (this.hand = new HandIndicator(this.input.isTouch));
+    hand.onChange = () => this.hudShell.poke();
+    hand.onTap = () => this.input.queueToggle('item');
+    this.hudShell.mountHand(hand);
+    this.disorient = new DisorientOverlay(this.hud);
+    if (this.wheel) this.wheel.extraProps = () => this.items?.wheelExtra ?? [];
+  }
+
+  private r9bNet(net: NetworkClient) {
+    if (this.spectator || !this.hand) return;
+    const items = (this.items = new ItemsClient((x, z) => this.collision.groundHeight(x, z), this.hand, (m) => this.flash(m)));
+    items.attach(net);
+    this.scene.add(items.view.group);
+    void items.loadRacks(import.meta.env.BASE_URL, this.manifest.pvAxis as [number, number][]);
+    // queda sem `knock` (decidida por outro sistema): para trás, tempos das regras
+    net.onSelfStatusFall = () => {
+      if (this.riding) this.dismountLocal();
+      const h = this.player.heading, walls = this.collision.walls.near(this.player.x, this.player.z, 6);
+      void this.avatar.knockdown({ dirX: -Math.sin(h), dirZ: -Math.cos(h), strength: 0.8, groundY: this.player.y, walls, downMs: RULES.downMs, getupMs: RULES.getupMs });
+    };
+  }
+
+  private r9bFrame() {
+    const net = this.net;
+    if (this.items && net) {
+      this.items.update(this.player.x, this.player.z, this.social.prop);
+      if (this.input.consumeToggle('item') && !this.avatar.isDown) { if (this.mpOnline) this.items.pickOrDrop(); }
+      if (this.input.consumeToggle('drop') && !this.avatar.isDown && this.mpOnline) this.items.drop();
+      if (this.input.consumeToggle('stow') && !this.avatar.isDown) this.items.stowToggle(this.social.prop, (id) => this.social.requestProp(id));
+    } else { this.input.consumeToggle('item'); this.input.consumeToggle('drop'); this.input.consumeToggle('stow'); }
+    const fx = net?.self.fx ?? 0;
+    this.avatar.setFx(fx);
+    if (fx & FX.PROTECTED && this.avatar.fxDebug.aura) this.r9bSeenProtected = true;
+    this.avatar.setPhys(net?.self.status ?? 0);
+    this.disorient?.set(!!(fx & FX.DISORIENTED), this.hudShell.prefs.value.reduceEffects);
+  }
+
+  /** QA (rodada 9): itens, efeitos e quedas */
+  private r9bQa() {
+    return {
+      r9b: () => ({ items: this.items?.info() ?? null, fx: this.avatar.fxDebug, disorient: this.disorient?.state ?? null, statusFalls: this.net?.statusFalls ?? 0, seenProtected: this.r9bSeenProtected, fxSeen: this.net?.selfFxSeen ?? 0, ragdollsLive: Ragdoll.live, self: this.net ? { fx: this.net.self.fx, status: this.net.self.status, prop: this.net.self.social.prop ?? 0 } : null, reduceEffects: this.hudShell.prefs.value.reduceEffects }),
+      /** toca um clipe de confronto; `holdAt` (s) prende a fase (captura); null encerra */
+      r9bClip: (name: string | null, holdAt?: number) => (name ? this.avatar.playCombatClip(name, holdAt) : (this.avatar.stopCombatClip(), true)),
+      r9bPrefs: (o: { reduceEffects?: boolean }) => { if (o.reduceEffects !== undefined) this.hudShell.prefs.set({ reduceEffects: o.reduceEffects }); return this.hudShell.prefs.value; },
+    };
   }
 
   // ------------------------------------------------------------------ movimento e veículos
@@ -1054,7 +1121,7 @@ export class Game {
       camera: (yaw: number, pitch: number, dist: number) => { this.cam.maxDistance = Math.max(16, dist); this.cam.yaw = yaw; this.cam.pitch = pitch; this.cam.zoom(Math.log(dist / this.cam.distance)); this.intro.active = false; },
       /** QA: câmera livre (x,y,z) olhando para (tx,ty,tz); sem argumentos volta à câmera do jogador */
       lookFrom: (x?: number, y?: number, z?: number, tx = 0, ty = 0, tz = 0) => { this.freeCam = x === undefined ? null : { p: [x, y!, z!], t: [tx, ty, tz] }; this.intro.active = false; },
-      portrait: (dist = 3) => { this.cam.yaw = this.player.heading + Math.PI; this.cam.pitch = 0.08; this.cam.zoom(Math.log(dist / this.cam.distance)); this.intro.active = false; },
+      portrait: (dist = 3, yaw = Math.PI) => { this.cam.yaw = this.player.heading + yaw; this.cam.pitch = 0.08; this.cam.zoom(Math.log(dist / this.cam.distance)); this.intro.active = false; },
       /** teste: vai até a estação de bicicleta mais próxima e monta */
       ride: () => {
         const st = (this.manifest.bikeStations ?? []).slice().sort((a, b) => Math.hypot(a.p[0] - this.player.x, a.p[1] - this.player.z) - Math.hypot(b.p[0] - this.player.x, b.p[1] - this.player.z))[0];
@@ -1160,6 +1227,7 @@ export class Game {
         if (o.poke) h.poke();
         return h.info();
       },
+      ...this.r9bQa(), // rodada 9 — itens/efeitos/quedas
       /** painéis de LED: conteúdo por painel ('*' = todos). Preparado para o backend. */
       billboard: (id: string, content: unknown) => this.billboards.setPanelContent(id, content as never),
       billboards: () => this.manifest.billboards ?? [],

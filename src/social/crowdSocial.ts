@@ -72,7 +72,7 @@ export interface SocialProfile { prop: number; design: number }
 export function pickProfile(seed: number, cfg: SocialCrowdConfig): SocialProfile {
   const r = rng(seed ^ 0x9e3779b9);
   if (r() >= cfg.propShare) return { prop: 0, design: 0 };
-  const props = PROPS.filter((p) => (cfg.propWeights?.[p.kind] ?? p.crowdWeight) > 0);
+  const props = PROPS.filter((p) => p.category !== 'COMBAT_PROP' && (cfg.propWeights?.[p.kind] ?? p.crowdWeight) > 0); // item de confronto nunca na multidão
   const p = pickWeighted(props, (x) => cfg.propWeights?.[x.kind] ?? x.crowdWeight, r());
   if (!p) return { prop: 0, design: 0 };
   if (!p.designSlot) return { prop: p.id, design: 0 };

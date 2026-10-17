@@ -141,3 +141,29 @@ describe('clipes de ações sociais e itens', () => {
     expect(lift(m, 'r')).toBeLessThan(1.1);
   });
 });
+
+describe('clipes de confronto e estados (rodada 9)', () => {
+  const { arm, bones, idle } = fakeRig();
+  // nomes combinados com o sistema de confronto (CombatActionDefinition.animation) e com os estados físicos
+  const names = ['swing_bat', 'swing_bar', 'spray_use', 'stagger', 'disoriented', 'carry_bar', 'carry_spray'];
+  it.each(names)('%s: camada superior, ossos existentes, valores finitos, pose restaurada', (name) => {
+    expect(SPECS[name], name).toBeTruthy();
+    expect(SPECS[name].layer).toBe('upper');
+    const clip = proceduralClip(name, arm, idle)!;
+    for (const t of clip.tracks) {
+      expect(bones.has(t.name.slice(0, t.name.lastIndexOf('.')))).toBe(true);
+      expect(/^(thigh|calf|foot|ball)_|^pelvis\./.test(t.name), t.name).toBe(false);
+      for (const v of t.values) expect(Number.isFinite(v)).toBe(true);
+    }
+    expect(bones.get('hand_r')!.quaternion.toArray()).toEqual(new THREE.Quaternion().toArray());
+  });
+  it('golpes são curtos (≤ 1,2 s); desorientado emenda (loop)', () => {
+    for (const n of ['swing_bat', 'swing_bar', 'spray_use', 'stagger']) expect(SPECS[n].dur).toBeLessThanOrEqual(1.2);
+    const clip = proceduralClip('disoriented', arm, idle)!;
+    for (const t of clip.tracks) {
+      const k = t.getValueSize(), n = t.times.length;
+      if (n < 2) continue;
+      for (let i = 0; i < k; i++) expect(Math.abs(t.values[i] - t.values[(n - 1) * k + i]), t.name).toBeLessThan(2e-3);
+    }
+  });
+});

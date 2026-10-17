@@ -89,7 +89,7 @@ const RZ = (a: number) => M().makeRotationZ(a);
 const mul = (...ms: THREE.Matrix4[]) => ms.reduce((acc, m) => acc.multiply(m), M());
 
 /** cilindro ao longo de Y de y0 a y1 (raios r0 embaixo, r1 em cima) */
-function rod(r0: number, r1: number, y0: number, y1: number, seg: number, p: Paint, open = false) {
+function rod(r0: number, r1: number, y0: number, y1: number, seg: number, p: Paint | ((x: number, y: number, z: number) => Paint), open = false) {
   const g = new THREE.CylinderGeometry(r1, r0, y1 - y0, seg, 1, open);
   return piece(g, p, T(0, (y0 + y1) / 2, 0));
 }
@@ -328,9 +328,39 @@ function bat(q: GeoQuality): PropModel {
   return { rigid: merge(list, 'prop_bat'), parts: [] };
 }
 
+/** barra de ferro (rodada 9): tubo de aço genérico de 0,8 m com empunhadura de borracha e pontas tampadas */
+function bar(q: GeoQuality): PropModel {
+  const seg = q === 'near' ? 10 : 5;
+  const RUST = C(0x6f5a4a, 0.78, 0.55);
+  const list = [
+    rod(0.0135, 0.0135, -0.12, 0.68, seg, q === 'near' ? (_x, y) => (Math.sin(y * 37) > 0.93 ? RUST : STEEL) : STEEL),
+    rod(0.017, 0.017, -0.1, 0.1, seg, RUBBER),
+    rod(0.0145, 0.0145, -0.125, -0.115, seg, PLASTIC_DARK),
+    rod(0.0145, 0.0145, 0.675, 0.685, seg, PLASTIC_DARK),
+  ];
+  return { rigid: merge(list, 'prop_bar'), parts: [] };
+}
+
+/** spray (rodada 9): lata pequena GENÉRICA (sem marca/rótulo), tampa com gatilho e bico; pegada no meio do corpo */
+function spray(q: GeoQuality): PropModel {
+  const seg = q === 'near' ? 16 : 6;
+  const CAN = C(0xd8812b, 0.42, 0.35), BAND = C(0xe9e4d6, 0.5);
+  const list = [
+    // corpo (lata de alumínio pintada) com faixa clara sem texto, ombro e válvula
+    rod(0.023, 0.023, -0.07, 0.07, seg, (_x, y) => (Math.abs(y + 0.01) < 0.02 ? BAND : CAN)),
+    piece(new THREE.SphereGeometry(0.023, seg, q === 'near' ? 6 : 3, 0, Math.PI * 2, 0, Math.PI / 2), ALU, T(0, 0.07, 0)),
+    rod(0.019, 0.019, -0.075, -0.07, seg, ALU),
+    // tampa-gatilho preta e bico para a frente (+Z)
+    rod(0.012, 0.014, 0.088, 0.112, seg, PLASTIC_DARK),
+    piece(new THREE.BoxGeometry(0.016, 0.01, 0.026), PLASTIC_DARK, T(0, 0.116, 0.004)),
+    piece(new THREE.CylinderGeometry(0.003, 0.003, 0.012, 6), PLASTIC_RED, mul(T(0, 0.104, 0.016), RX(Math.PI / 2))),
+  ];
+  return { rigid: merge(list, 'prop_spray'), parts: [] };
+}
+
 const BUILDERS: Record<PropKind, (q: GeoQuality) => PropModel> = {
   flag_small: flagSmall, flag_large: flagLarge, sign_small: signSmall, sign_large: signLarge, sign_double: signDouble,
-  banner: bannerPole, megaphone, whistle, umbrella, drum, bat,
+  banner: bannerPole, megaphone, whistle, umbrella, drum, bat, bar, spray,
 };
 
 const models = new Map<string, PropModel>();

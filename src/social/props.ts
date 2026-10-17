@@ -3,17 +3,23 @@
  * é só o DESIGN (textura/atlas, ver designs.ts) — nunca uma geometria nova por design.
  *
  * Pegada (grip):
- *  - hand_r / hand_l: uma mão (bandeira pequena, megafone, apito, guarda-chuva, taco)
+ *  - hand_r / hand_l: uma mão (bandeira pequena, megafone, apito, guarda-chuva, taco, barra, spray)
  *  - two_hand: duas mãos (cartaz grande, placa dupla, faixa, bandeira grande, percussão)
  *  - back: nas costas (bandeira grande enrolada, por exemplo, quando não está em uso)
  *
- * IMPORTANTE — taco de beisebol: SOMENTE visual/carregável. Não existe ação de golpe, dano ou ataque com ele
- * (nenhuma ação lista 'bat' em `needs`, e o servidor não tem regra de impacto para itens).
+ * Categoria (rodada 9): `SOCIAL` (padrão — qualquer um pega pela roda de ações) ou `COMBAT_PROP` (item de confronto:
+ * taco, barra, spray). Item de confronto NÃO sai do nada: vem de um ponto de apoio/chão (server/src/items, mensagens
+ * `item_*`) e só vai para a mão de quem o possui (actionRules.validateProp). Os golpes são DEFINIÇÕES do sistema de
+ * confronto (src/combat/types.ts CombatActionDefinition, `requiredItem` = kind), resolvidos só no servidor e só onde
+ * a política de zona/evento permite (src/combat/policy.ts) — valores de jogo, sem lesão.
  */
 export type PropKind =
   | 'flag_small' | 'flag_large'
   | 'sign_small' | 'sign_large' | 'sign_double' | 'banner'
-  | 'megaphone' | 'whistle' | 'umbrella' | 'drum' | 'bat';
+  | 'megaphone' | 'whistle' | 'umbrella' | 'drum' | 'bat' | 'bar' | 'spray';
+
+/** categoria do item (rodada 9) */
+export type PropCategory = 'SOCIAL' | 'COMBAT_PROP';
 
 export type PropGrip = 'hand_r' | 'hand_l' | 'two_hand' | 'back';
 /** qual família de design o item aceita (atlas de texturas) */
@@ -32,6 +38,8 @@ export interface PropDefinition {
   size: [number, number, number];
   /** peso na multidão de NPCs que carrega algo */
   crowdWeight: number;
+  /** rodada 9 — ausente = 'SOCIAL'; 'COMBAT_PROP' só vem do chão/ponto de apoio (nunca da roda, nunca na multidão) */
+  category?: PropCategory;
 }
 
 const P = (d: PropDefinition) => d;
@@ -47,10 +55,17 @@ export const PROPS: readonly PropDefinition[] = [
   P({ id: 8, kind: 'whistle', label: 'Apito', grip: 'hand_r', carryClip: 'carry_small', size: [0.05, 0.03, 0.03], crowdWeight: 1 }),
   P({ id: 9, kind: 'umbrella', label: 'Guarda-chuva', grip: 'hand_r', carryClip: 'carry_umbrella', size: [1.0, 0.9, 1.0], crowdWeight: 1 }),
   P({ id: 10, kind: 'drum', label: 'Percussão', grip: 'two_hand', carryClip: 'carry_drum', size: [0.4, 0.3, 0.4], crowdWeight: 1 }),
-  // somente objeto carregável/visual — sem golpe, dano ou ataque (ver comentário do topo)
-  P({ id: 11, kind: 'bat', label: 'Taco (só visual)', grip: 'hand_r', carryClip: 'carry_bat', size: [0.07, 0.85, 0.07], crowdWeight: 0 }),
+  // itens de confronto (rodada 9): pegos no chão/apoio, golpes definidos em dados (public/gameplay/combat.json)
+  P({ id: 11, kind: 'bat', label: 'Taco', grip: 'hand_r', carryClip: 'carry_bat', size: [0.07, 0.85, 0.07], crowdWeight: 0, category: 'COMBAT_PROP' }),
+  P({ id: 12, kind: 'bar', label: 'Barra de ferro', grip: 'hand_r', carryClip: 'carry_bar', size: [0.04, 0.8, 0.04], crowdWeight: 0, category: 'COMBAT_PROP' }),
+  P({ id: 13, kind: 'spray', label: 'Spray de pimenta', grip: 'hand_r', carryClip: 'carry_spray', size: [0.05, 0.19, 0.05], crowdWeight: 0, category: 'COMBAT_PROP' }),
 ];
 
 export const PROP_BY_ID = new Map(PROPS.map((p) => [p.id, p]));
 export const PROP_BY_KIND = new Map(PROPS.map((p) => [p.kind, p]));
 export const NO_PROP = 0;
+
+/** item de confronto (categoria COMBAT_PROP) */
+export const isCombatProp = (id: number) => PROP_BY_ID.get(id)?.category === 'COMBAT_PROP';
+/** itens que qualquer um pega pela roda de ações (sociais) */
+export const SOCIAL_PROPS: readonly PropDefinition[] = PROPS.filter((p) => p.category !== 'COMBAT_PROP');
