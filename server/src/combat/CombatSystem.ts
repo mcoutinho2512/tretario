@@ -206,6 +206,8 @@ export class CombatSystem {
   // ---------------------------------------------------------------- esquiva
   private dodge(sid: string, me: CombatActorView, F: Fighter, def: CombatActionDefinition, h: number, now: number) {
     F.dodgeUntil = now + (def.iFramesMs ?? 0);
+    // esquiva tira do cambaleio (é a saída permitida: allowedStates)
+    if (F.staggerUntil > now) { F.staggerUntil = now; this.host.setStatus(sid, PHYS.NORMAL); }
     const d = def.dashM ?? 0;
     if (d > 0) {
       const to = { x: me.x + Math.sin(h) * d, z: me.z + Math.cos(h) * d };

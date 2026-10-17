@@ -98,6 +98,7 @@ só local, em silêncio.
 ```ts
 game.hudShell.mountChat(panel)          // ChatPanelLike { el; toggle(open?); setCollapsed?(c) } — botão CHAT do celular chama toggle()
 game.hudShell.mountSpectator(panel)     // HudPanel { el; setCollapsed?(c) } — acima da ação contextual
+game.hudShell.mountCombat(panel, aviso) // rodada 9: HUD de confronto (acima do centro inferior) + aviso ZONA DE PAZ
 game.hudShell.setFocusProvider(() => ({ x, z }))  // câmera do espectador define zona/minimapa; null = jogador
 game.hudShell.onZoneChange(({ from, to }) => …)   // ZoneDefinition | null
 game.hudShell.hooks.openCharacterEditor = () => openCharacterEditor()  // menu "Perfil / personagem"
@@ -107,6 +108,24 @@ net.markSpeaking(entityId)              // o chat avisa quem falou: o rótulo de
 ```
 
 Sem gancho do editor, o menu dispara `window` `pv:open-character-editor` e mostra "Editor de personagem: em breve".
+
+## HUD de confronto (rodada 9)
+
+`src/combat/CombatHud.ts`, montado por `hudShell.mountCombat(hud, hud.peaceEl)` acima do centro inferior (detalhes do
+sistema em [COMBAT.md](COMBAT.md)):
+
+- **painel** (discreto, some sozinho): estado da zona (ZONA DE COMBATE / ÁREA DE TREINO / ZONA DE DISPUTA / ZONA DE PAZ,
+  `· PROTEGIDO` com a proteção de retorno), barras de **CONDIÇÃO** e **FÔLEGO** (stamina) e o item de confronto na mão.
+  Só aparece quando importa: golpe/acerto/esquiva nos últimos 8 s, fx ENGAGED do servidor, valores abaixo do máximo
+  num contexto de confronto, ou item de confronto na mão numa zona de confronto. Fora disso, opacidade 0;
+- **aviso "ZONA DE PAZ"**: pílula verde curta (1,6 s) quando o servidor nega um golpe com `zona_paz`;
+- **toque**: SOCO / CHUTE / ESQUIVA (`TouchControls.setCombatVisible`) aparecem só com contexto de confronto (zona
+  COMBAT/CONTESTED, área de treino, evento de confronto ou modo interação) e somem fora dele — os quatro fixos
+  (PULAR, AÇÕES, CHAT, CORRER) não mudam;
+- HUD limpo (H/P) esconde tudo.
+
+Custo: `set()` roda a ≤ 10 Hz (RateGate) e só escreve o que mudou (TextSlot/setClass; barras por `transform` só quando
+o valor inteiro muda). Parado e cheio: zero escritas. QA: `__pv.combat().hud` (`shown`, `peace`, `writes`).
 
 ## Custo medido
 

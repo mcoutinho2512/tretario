@@ -10,7 +10,7 @@
  * Capturas reais: docs/screenshots/round9/A_pulo.jpg, B_soco.jpg, C_chute.jpg, D_esquiva.jpg, I_hud_confronto.jpg
  * uso: node tools/qa/combat_mp.mjs [baseUrl]   (imprime N/N)
  */
-import puppeteer from 'puppeteer-core';
+import puppeteer, { KnownDevices } from 'puppeteer-core';
 import { spawn } from 'node:child_process';
 import { mkdirSync, readFileSync } from 'node:fs';
 
@@ -39,10 +39,11 @@ const D = combat.dummies[0];
 const PEACE = { A: [D.x + 22, D.z], B: [D.x + 22, D.z + 1.1] };
 const FIGHT = { A: [D.x + 3.2, D.z], B: [D.x + 3.2, D.z + 1.1] };
 
-async function open(name, sp) {
-  const browser = await puppeteer.launch({ executablePath: chrome, headless: 'new', args: ['--use-angle=metal', '--enable-gpu'], defaultViewport: { width: 1100, height: 640 } });
+async function open(name, sp, phone = false) {
+  const browser = await puppeteer.launch({ executablePath: chrome, headless: 'new', args: ['--use-angle=metal', '--enable-gpu'], defaultViewport: { width: 1100, height: 640 }, protocolTimeout: 240000 });
   browsers.push(browser);
   const p = await browser.newPage();
+  if (phone) await p.emulate(KnownDevices['iPhone 14']);
   p.on('pageerror', (e) => console.log(`[${name}] ERR`, e.message));
   await p.goto(`${base}/?autostart=1&quality=low&time=15:30&mp=ws://127.0.0.1:${PORT}&name=${name}&spawn=${sp[0].toFixed(2)},${sp[1].toFixed(2)}`);
   await p.waitForFunction('window.__pvReady === true && window.__pv.mp()?.session && window.__pv.combat()', { timeout: 180000 });
@@ -201,6 +202,20 @@ try {
     check('B vê A no ar (servidor aceitou o y do pulo)', bPeak > 0.25, `pico visto ${bPeak.toFixed(2)} m`);
     const st = (await cb(A)).stats;
     check('servidor aceitou o pulo (sem jump_denied)', st.jumps >= 1 && st.jumpDenied.length === 0, JSON.stringify(st.jumpDenied));
+  }
+  // toque (iPhone emulado): SOCO/CHUTE/ESQUIVA só com contexto de confronto
+  {
+    const M = await open('Toque', [PEACE.A[0] + 3, PEACE.A[1] - 2], true);
+    const c0 = await cb(M);
+    check('toque: botões de confronto escondidos em zona de paz (modo pacífico)', c0.touch === false && !c0.context, JSON.stringify({ touch: c0.touch, ctx: c0.context }));
+    await walk(M, [FIGHT.A[0] + 2, FIGHT.A[1] - 3], 20000);
+    const shown = await until(M, () => window.__pv.combat().touch === true, 4000);
+    check('toque: botões aparecem na área de treino', shown);
+    await ev(M, () => window.__pv.cbt('cbt_punch'));
+    await w(250);
+    await shot(M, 'J_toque_confronto');
+    await walk(M, [PEACE.A[0] + 3, PEACE.A[1] - 2], 20000);
+    check('toque: somem ao sair', await until(M, () => window.__pv.combat().touch === false, 5000));
   }
 } catch (e) { console.error(e); check('roteiro sem exceção', false, String(e)); }
 const ok = results.filter((r) => r.ok).length;

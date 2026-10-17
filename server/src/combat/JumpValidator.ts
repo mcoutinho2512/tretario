@@ -1,13 +1,14 @@
 /**
  * PULO no servidor (rodada 9) — sem Colyseus. O cliente pede `jump {seq}` e já pula (predição); aqui:
  *  - valida: no chão, sem pulo seguido (JUMP.cooldownMs depois do pouso), estado normal, fora de veículo/trio;
- *  - acompanha a janela no ar (tempo de voo + atraso de rede) e a altura balística esperada;
+ *  - acompanha a janela no ar (tempo de voo + atraso de rede) e a altura balística esperada (curva do stepPlayer
+ *    no instante do movimento, com −300/+150 ms de tolerância — ninguém "paira" no pico);
  *  - prende o `y` dos movimentos: modelo de chão GROSSO (o servidor não tem malha de chão) — o y do último
  *    movimento aceito no chão, degrau de meio-fio (±0,2 m) e teto absoluto do nível mais alto do mapa (plataforma
  *    1,0 m). Sem pulo aceito ninguém "voa"; no ar, no máximo o pico do pulo + folga.
  * Recusa → `jump_denied {seq, reason}` (só para o próprio). Descer é livre (meio-fio, plataforma → rua).
  */
-import { JUMP, JUMP_FLIGHT_MS, JUMP_PEAK } from '../../../src/combat/data';
+import { JUMP, JUMP_FLIGHT_MS, JUMP_PEAK, jumpHeightAt } from '../../../src/combat/data';
 import type { JumpDenial } from '../../../src/combat/types';
 import { PLATFORM_HEIGHT } from '../../../src/world/types';
 
@@ -73,7 +74,9 @@ export class JumpValidator {
     if (!st) return y;
     let max: number;
     if (st.air && now - st.air.t0 <= JUMP_FLIGHT_MS + JUMP.lateMs) {
-      max = st.air.y0 + JUMP_PEAK + JUMP.slackM;
+      // altura balística esperada agora, com tolerância de rede (−300/+150 ms): sem "pairar" no pico
+      const el = now - st.air.t0, t1 = Math.max(0, el - 300), t2 = el + 150, tp = JUMP_FLIGHT_MS / 2;
+      max = st.air.y0 + (t1 <= tp && tp <= t2 ? JUMP_PEAK : Math.max(jumpHeightAt(t1), jumpHeightAt(t2))) + JUMP.slackM;
       const out = Math.min(y, max);
       if (out < y) this.stats.clamped++;
       // pousou: movimento no chão depois da janela mínima, perto (ou abaixo) do nível de partida

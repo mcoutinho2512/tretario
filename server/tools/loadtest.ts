@@ -10,7 +10,10 @@
  *   clientes  bytes/s e mensagens/s por cliente, jogadores visíveis (detalhados + multidão distante), correções
  *
  * uso: npx tsx tools/loadtest.ts [segundos=20] [cenários=50d,100d,250d,500d,50s,100s,250s,500s]
- *      (d = denso, s = espalhado; p.ex. "100d,500d")
+ *      (d = denso, s = espalhado, c = rodada 9: ESTRESSE DE CONFRONTO — todos em pares lutando, denso; p.ex. "100c")
+ *      BOTS_COMBAT=F: fração de bots em confronto nos cenários d/s (realista). Com confronto, o servidor sobe com
+ *      PV_COMBAT_ZONES=* (política COMBAT em todas as zonas) e PV_EVENT=cotidiano (modo interação permitido).
+ *      Mede também a validação de acerto (ms por janela ativa), pedidos/s e o custo do confronto no tick.
  * saída: docs/screenshots/loadtest.json (+ tabela no terminal)
  * Variáveis repassadas ao servidor: PV_AOI, PV_AOI_MAX, PV_CROWD_HZ, etc.
  */
@@ -19,13 +22,14 @@ import { writeFileSync, mkdirSync } from 'node:fs';
 import { createInterface } from 'node:readline';
 
 const SECS = Number(process.argv[2] ?? 20);
-const LIST = (process.argv[3] ?? '50d,100d,250d,500d,50s,100s,250s,500s').split(',').map((s) => ({ n: parseInt(s, 10), dense: s.endsWith('d') }));
+const LIST = (process.argv[3] ?? '50d,100d,250d,500d,50s,100s,250s,500s').split(',').map((s) => ({ n: parseInt(s, 10), dense: s.endsWith('d') || s.endsWith('c'), fight: s.endsWith('c') }));
+const COMBAT_ON = !!process.env.BOTS_COMBAT || LIST.some((s) => s.fight);
 const PORT = Number(process.env.PV_LOADTEST_PORT ?? 2620);
 const BOTS_PER_PROC = Number(process.env.BOTS_PER_PROC ?? 100);
 const w = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 try { await fetch(`http://127.0.0.1:${PORT + 1}/metrics`); console.error(`porta ${PORT} ocupada — abortando`); process.exit(2); } catch { /* livre */ }
-const srv = spawn('npx', ['tsx', 'src/index.ts'], { env: { ...process.env, PORT: String(PORT), PV_METRICS: '0', PV_TEST: '1' }, stdio: ['ignore', 'pipe', 'pipe'], detached: true });
+const srv = spawn('npx', ['tsx', 'src/index.ts'], { env: { ...process.env, PORT: String(PORT), PV_METRICS: '0', PV_TEST: '1', ...(COMBAT_ON ? { PV_COMBAT_ZONES: process.env.PV_COMBAT_ZONES ?? '*', PV_EVENT: process.env.PV_EVENT ?? 'cotidiano' } : {}) }, stdio: ['ignore', 'pipe', 'pipe'], detached: true });
 let ready = false;
 srv.stdout!.on('data', (d) => { if (d.toString().includes('[pv3d-server]')) ready = true; });
 srv.stderr!.on('data', (d) => process.stderr.write(`[srv] ${d}`));
@@ -50,7 +54,7 @@ for (const sc of LIST) {
   const tJoin = Date.now();
   for (let k = 0; k < nProcs; k++) {
     const n = Math.min(BOTS_PER_PROC, sc.n - k * BOTS_PER_PROC);
-    const p = spawn('npx', ['tsx', 'tools/bots.ts', String(n), String(SECS), `ws://127.0.0.1:${PORT}`, sc.dense ? 'dense' : 'spread', `--offset=${k * BOTS_PER_PROC}`, `--total=${sc.n}`, '--wait-go', '--hold', ...(process.env.BOTS_SOCIAL ? [`--social=${process.env.BOTS_SOCIAL}`] : []), ...(process.env.BOTS_GROUPS ? ['--groups'] : []), ...(process.env.BOTS_CHAT ? [`--chat=${process.env.BOTS_CHAT}`] : [])], { stdio: ['pipe', 'pipe', 'inherit'], detached: true });
+    const p = spawn('npx', ['tsx', 'tools/bots.ts', String(n), String(SECS), `ws://127.0.0.1:${PORT}`, sc.dense ? 'dense' : 'spread', `--offset=${k * BOTS_PER_PROC}`, `--total=${sc.n}`, '--wait-go', '--hold', ...(process.env.BOTS_SOCIAL ? [`--social=${process.env.BOTS_SOCIAL}`] : []), ...(process.env.BOTS_GROUPS ? ['--groups'] : []), ...(process.env.BOTS_CHAT ? [`--chat=${process.env.BOTS_CHAT}`] : []), ...(sc.fight ? ['--combat-dense'] : process.env.BOTS_COMBAT ? [`--combat=${process.env.BOTS_COMBAT}`] : [])], { stdio: ['pipe', 'pipe', 'inherit'], detached: true });
     procs.push(p);
     outs.push('');
     const rl = createInterface({ input: p.stdout! });
@@ -73,7 +77,7 @@ for (const sc of LIST) {
   const nb = bots.reduce((a, b) => a + b.bots, 0) || 1;
   const wavg = (f: (b: any) => number) => bots.reduce((a, b) => a + f(b) * b.bots, 0) / nb;
   const row = {
-    bots: nb, cenario: sc.dense ? 'denso' : 'espalhado', entrada_s: +joinS.toFixed(1),
+    bots: nb, cenario: sc.fight ? 'confronto denso' : sc.dense ? 'denso' : 'espalhado', entrada_s: +joinS.toFixed(1),
     srv_tick_ms: s.tickAvgMs, srv_tick_max_ms: s.tickMaxMs, srv_aoi_ms: s.aoiAvgMs, srv_aoi_max_ms: s.aoiMaxMs, srv_crowd_ms: s.crowdAvgMs,
     srv_patch_ms: s.patchAvgMs, srv_patch_max_ms: s.patchMaxMs,
     srv_cpu_pct: s.cpuPct, srv_elu: s.elu, srv_heap_MB: s.heapMB, srv_rss_pico_MB: s.rssPeakMB,
@@ -84,6 +88,11 @@ for (const sc of LIST) {
     visiveis_medio: +wavg((b) => b.visiblePlayers.avg).toFixed(1), detalhados_medio: +wavg((b) => b.visiblePlayers.detailedAvg).toFixed(1),
     visiveis_max: Math.max(...bots.map((b) => b.visiblePlayers.max)),
     correcoes: bots.reduce((a, b) => a + b.corrections, 0),
+    // rodada 9 — confronto: custo no tick, validação de acerto por janela ativa, pedidos e resultados
+    srv_combat_ms: s.combatAvgMs, srv_combat_max_ms: s.combatMaxMs, hit_val_ms: s.hitValAvgMs, hit_val_max_ms: s.hitValMaxMs, hit_vals_s: s.hitValsPerSec,
+    cbt_req_s: s.cbtReqPerSec, cbt_ok_s: s.cbtOkPerSec,
+    lutadores: bots.reduce((a, b) => a + (b.combat?.fighters ?? 0), 0), golpes_acertados: bots.reduce((a, b) => a + (b.combat?.hitsOut ?? 0), 0), esquivas: bots.reduce((a, b) => a + (b.combat?.dodged ?? 0), 0),
+    negados: bots.reduce((acc: Record<string, number>, b) => { for (const [k, v] of Object.entries(b.combat?.denied ?? {})) acc[k] = (acc[k] ?? 0) + (v as number); return acc; }, {}),
   };
   rows.push(row);
   console.log(JSON.stringify(row));
@@ -92,6 +101,6 @@ for (const sc of LIST) {
 mkdirSync('../docs/screenshots', { recursive: true });
 const tag = process.env.PV_LOADTEST_TAG ? `_${process.env.PV_LOADTEST_TAG}` : '';
 writeFileSync(`../docs/screenshots/loadtest${tag}.json`, JSON.stringify(rows, null, 2));
-console.table(rows.map((r) => ({ bots: r.bots, cen: r.cenario, tick: r.srv_tick_ms, tickMax: r.srv_tick_max_ms, patch: r.srv_patch_ms, patchMax: r.srv_patch_max_ms, cpu: r.srv_cpu_pct, elu: r.srv_elu, rss: r.srv_rss_pico_MB, outKBps: r.srv_out_KBps, cliKBps: r.cli_in_KBps, vis: r.visiveis_medio, det: r.detalhados_medio })));
+console.table(rows.map((r) => ({ bots: r.bots, cen: r.cenario, tick: r.srv_tick_ms, tickMax: r.srv_tick_max_ms, patch: r.srv_patch_ms, patchMax: r.srv_patch_max_ms, cpu: r.srv_cpu_pct, elu: r.srv_elu, rss: r.srv_rss_pico_MB, outKBps: r.srv_out_KBps, cliKBps: r.cli_in_KBps, vis: r.visiveis_medio, det: r.detalhados_medio, cbt: r.cbt_req_s, hitMs: r.hit_val_ms })));
 killAll();
 process.exit(0);

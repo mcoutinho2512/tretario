@@ -1213,12 +1213,14 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     // servidor de TESTE: proteção de retorno configurável (testes de rede sem esperar 5 s); produção usa os dados
     const protect = process.env.PV_TEST === '1' && process.env.PV_PROTECT_MS ? Number(process.env.PV_PROTECT_MS) : NaN;
     const data = Number.isFinite(protect) ? { ...W.combat, tuning: { ...W.combat.tuning, protectMs: protect } } : W.combat;
+    const forced = process.env.PV_TEST === '1' ? (process.env.PV_COMBAT_ZONES ?? '') : '';
     this.combat = new CombatSystem(new CombatTable(data), {
       actor: (sid) => { const v = view(sid); return v ? { x: v.r.last.x, z: v.r.last.z, heading: v.p.heading, status: v.p.status, vehicle: v.p.vehicle, platform: v.p.platform, mode: v.r.actor.mode, prop: v.p.prop, immuneUntil: v.r.actor.immuneUntil, nid: v.r.nid } : undefined; },
       forEachNear: (x, z, r, fn) => this.grid.forEachInRadius(x, z, r, (sl) => { const sid = this.slotIds[sl]; if (sid && this.rt.has(sid)) fn(sid); }),
       walls: W.walls,
       zoneOf: (sid) => this.zoneOf(sid),
-      zoneDef: (id) => this.zoneDef(id),
+      // servidor de TESTE (carga/QA): PV_COMBAT_ZONES=*|ID,ID força política COMBAT (as zonas reais são dados do agente B)
+      zoneDef: (id) => { const z = this.zoneDef(id); return forced && z && (forced === '*' || forced.split(',').includes(z.id)) ? { ...z, combatPolicy: 'COMBAT' as const } : z; },
       groupKey: (sid) => this.identities.get(sid)?.groupKey ?? null,
       propKind: (id) => PROP_BY_ID.get(id)?.kind,
       can: (sid) => { const id = this.identities.get(sid); return !!id && can(id.state, 'combat.act', id.role); },

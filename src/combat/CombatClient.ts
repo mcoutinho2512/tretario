@@ -165,6 +165,7 @@ export class CombatClient {
     if (!base) { this.buf = null; return; }
     if (this.d.avatar.isDown || this.d.net.self.vehicle || this.d.net.self.platform) { this.buf = null; return; }
     if (!p.grounded) return; // no ar: espera pousar (dentro do buffer)
+    if (this.locked && base.kind !== 'dodge') return; // cambaleando: só a esquiva sai (o resto espera no buffer)
     const def = this.d.table.resolve(base.id, this.last, now) ?? base;
     const combo = def.comboOf !== undefined;
     // recuperação/cooldown previstos (o servidor confere de novo): mantém no buffer até liberar
@@ -188,7 +189,7 @@ export class CombatClient {
     this.stamina -= def.staminaCost;
     this.predictedAt = now;
     this.d.avatar.playCombat(def.animation);
-    if (def.kind === 'dodge' && def.dashM) this.dash = { dx: Math.sin(h), dz: Math.cos(h), left: def.dashM };
+    if (def.kind === 'dodge') { this.lockUntil = 0; if (def.dashM) this.dash = { dx: Math.sin(h), dz: Math.cos(h), left: def.dashM }; }
   }
   private predictedAt = -1e9;
 

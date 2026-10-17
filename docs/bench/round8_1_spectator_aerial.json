@@ -1,13 +1,13 @@
 {
   "bots": 500,
-  "port": 2830,
-  "date": "2026-10-17T12:37:17.992Z",
+  "port": 2900,
+  "date": "2026-10-17T14:24:39.876Z",
   "groundCentral": {
-    "inBps": 8869,
+    "inBps": 9190,
     "outBps": 21,
-    "fps": 59.2,
-    "frameMs": 16.9,
-    "calls": 1408,
+    "fps": 55.9,
+    "frameMs": 18.4,
+    "calls": 1401,
     "tier": "NEAR",
     "remotes": 48,
     "impostors": 0,
@@ -15,7 +15,7 @@
     "cellMsgs": 0
   },
   "aerial": {
-    "inBps": 1152,
+    "inBps": 1050,
     "outBps": 23,
     "fps": 60,
     "frameMs": 16.7,
@@ -23,18 +23,18 @@
     "tier": "AGGREGATE",
     "remotes": 0,
     "impostors": 916,
-    "cellBytes": 12076,
-    "cellMsgs": 11
+    "cellBytes": 13341,
+    "cellMsgs": 12
   },
   "perZone": {
     "CANDELARIA": {
-      "cells": 10,
-      "players": 45,
+      "cells": 8,
+      "players": 42,
       "env": 15,
       "groups": {
         "grupo-13": 15,
-        "neutro": 14,
-        "grupo-22": 16
+        "neutro": 13,
+        "grupo-22": 14
       }
     },
     "RIO_BRANCO": {
@@ -43,72 +43,72 @@
       "env": 106,
       "groups": {
         "grupo-13": 16,
-        "grupo-22": 17,
-        "neutro": 18
+        "neutro": 18,
+        "grupo-22": 17
       }
     },
     "CENTRO": {
-      "cells": 43,
-      "players": 225,
+      "cells": 45,
+      "players": 229,
       "env": 233,
       "groups": {
-        "grupo-22": 74,
-        "grupo-13": 76,
-        "neutro": 75
+        "grupo-22": 76,
+        "neutro": 76,
+        "grupo-13": 77
       }
     },
     "CAMPO_DE_SANTANA": {
       "cells": 15,
-      "players": 87,
+      "players": 84,
       "env": 14,
       "groups": {
-        "grupo-13": 29,
-        "grupo-22": 29,
-        "neutro": 29
+        "grupo-13": 28,
+        "grupo-22": 28,
+        "neutro": 28
       }
     },
     "CENTRAL": {
-      "cells": 17,
+      "cells": 18,
       "players": 91,
       "env": 48,
       "groups": {
         "grupo-13": 30,
-        "grupo-22": 31,
-        "neutro": 30
+        "neutro": 30,
+        "grupo-22": 31
       }
     }
   },
   "groups": {
     "grupo-13": 166,
-    "neutro": 166,
-    "grupo-22": 167
+    "neutro": 165,
+    "grupo-22": 166
   },
   "minimap": {
-    "drawMs": 0.187,
-    "densityMs": 0.335,
-    "draws": 514,
-    "samples": 72,
+    "drawMs": 0.143,
+    "densityMs": 0.28,
+    "draws": 457,
+    "samples": 68,
     "densityTotal": 916,
     "densityPeak": 12
   },
   "far": {
     "CENTRAL": {
-      "cells": 30,
-      "players": 130,
+      "cells": 32,
+      "players": 132,
       "env": 53,
-      "impostors": 151
+      "impostors": 150
     },
     "CAMPO_DE_SANTANA": {
-      "cells": 31,
-      "players": 152,
+      "cells": 35,
+      "players": 154,
       "env": 195,
-      "impostors": 316
+      "impostors": 318
     },
     "CANDELARIA": {
-      "cells": 26,
-      "players": 116,
+      "cells": 28,
+      "players": 118,
       "env": 123,
-      "impostors": 207
+      "impostors": 209
     }
   },
   "descent": {
@@ -119,8 +119,8 @@
       "players": 500,
       "env": 416,
       "subtracted": 0,
-      "cells": 116,
-      "rebuilds": 108,
+      "cells": 113,
+      "rebuilds": 114,
       "fade": 0,
       "visible": false
     },
@@ -128,50 +128,50 @@
     "pedsVisible": true,
     "crowd": {
       "skinned": 19,
-      "instanced": 655,
+      "instanced": 656,
       "hidden": 0,
       "lod": [
-        1,
-        3,
-        15,
+        0,
+        2,
+        17,
         0
       ],
-      "submitted": 674,
+      "submitted": 675,
       "net": 48,
-      "far": 56,
+      "far": 57,
       "ped": 570,
-      "drawnInstanced": 68,
+      "drawnInstanced": 64,
       "instancedCalls": 4,
-      "props": 17,
-      "propCalls": 8,
-      "ms": 0.2,
-      "farNet": 56
+      "props": 16,
+      "propCalls": 10,
+      "ms": 0.1,
+      "farNet": 57
     }
   },
   "groundCandelaria": {
-    "inBps": 9012,
+    "inBps": 9584,
     "outBps": 21,
-    "fps": 59.8,
+    "fps": 60,
     "frameMs": 16.7,
-    "calls": 621,
+    "calls": 575,
     "tier": "NEAR",
     "remotes": 48,
     "impostors": 0,
-    "cellBytes": 45487,
-    "cellMsgs": 49
+    "cellBytes": 48036,
+    "cellMsgs": 48
   },
   "messages": {
-    "spec_cells_msgs": 61,
-    "spec_cells_bytes": 66625,
-    "avgBytes": 1092,
+    "spec_cells_msgs": 59,
+    "spec_cells_bytes": 67114,
+    "avgBytes": 1138,
     "fulls": 4
   },
   "summary": {
-    "groundInKBps": 8.7,
-    "aerialInKBps": 1.1,
+    "groundInKBps": 9,
+    "aerialInKBps": 1,
     "aerialFps": 60,
-    "groundFps": 59.2,
-    "avgCellMsgBytes": 1092
+    "groundFps": 55.9,
+    "avgCellMsgBytes": 1138
   },
   "results": [
     {
@@ -182,77 +182,77 @@
     {
       "name": "B no chão (Central): camada NEAR, sem células, entidades da rede",
       "ok": true,
-      "detail": "{\"inBps\":8869,\"outBps\":21,\"fps\":59.2,\"frameMs\":16.9,\"calls\":1408,\"tier\":\"NEAR\",\"remotes\":48,\"impostors\":0,\"cellBytes\":0,\"cellMsgs\":0}"
+      "detail": "{\"inBps\":9190,\"outBps\":21,\"fps\":55.9,\"frameMs\":18.4,\"calls\":1401,\"tier\":\"NEAR\",\"remotes\":48,\"impostors\":0,\"cellBytes\":0,\"cellMsgs\":0}"
     },
     {
       "name": "B e C no alto: camada AGGREGATE com células da avenida inteira",
       "ok": true,
-      "detail": "B 88 células (500 jogadores + 416 ambiente) · C 88"
+      "detail": "B 92 células (500 jogadores + 416 ambiente) · C 90"
     },
     {
       "name": "no alto: nenhuma entidade completa da rede, impostores desenhados",
       "ok": true,
-      "detail": "{\"inBps\":1152,\"outBps\":23,\"fps\":60,\"frameMs\":16.7,\"calls\":479,\"tier\":\"AGGREGATE\",\"remotes\":0,\"impostors\":916,\"cellBytes\":12076,\"cellMsgs\":11}"
+      "detail": "{\"inBps\":1050,\"outBps\":23,\"fps\":60,\"frameMs\":16.7,\"calls\":479,\"tier\":\"AGGREGATE\",\"remotes\":0,\"impostors\":916,\"cellBytes\":13341,\"cellMsgs\":12}"
     },
     {
       "name": "B e C veem a MESMA distribuição (células, contagens, grupos, seeds)",
       "ok": true,
-      "detail": "assinatura d2f097cf · 95 células · 500 jogadores"
+      "detail": "assinatura c5eac769 · 96 células · 500 jogadores"
     },
     {
       "name": "células com gente: Central do Brasil",
       "ok": true,
-      "detail": "{\"cells\":17,\"players\":91,\"env\":48,\"groups\":{\"grupo-13\":30,\"grupo-22\":31,\"neutro\":30}}"
+      "detail": "{\"cells\":18,\"players\":91,\"env\":48,\"groups\":{\"grupo-13\":30,\"neutro\":30,\"grupo-22\":31}}"
     },
     {
       "name": "células com gente: Campo de Santana",
       "ok": true,
-      "detail": "{\"cells\":15,\"players\":87,\"env\":14,\"groups\":{\"grupo-13\":29,\"grupo-22\":29,\"neutro\":29}}"
+      "detail": "{\"cells\":15,\"players\":84,\"env\":14,\"groups\":{\"grupo-13\":28,\"grupo-22\":28,\"neutro\":28}}"
     },
     {
       "name": "células com gente: Av. Rio Branco",
       "ok": true,
-      "detail": "{\"cells\":9,\"players\":51,\"env\":106,\"groups\":{\"grupo-13\":16,\"grupo-22\":17,\"neutro\":18}}"
+      "detail": "{\"cells\":9,\"players\":51,\"env\":106,\"groups\":{\"grupo-13\":16,\"neutro\":18,\"grupo-22\":17}}"
     },
     {
       "name": "células com gente: Candelária",
       "ok": true,
-      "detail": "{\"cells\":10,\"players\":45,\"env\":15,\"groups\":{\"grupo-13\":15,\"neutro\":14,\"grupo-22\":16}}"
+      "detail": "{\"cells\":8,\"players\":42,\"env\":15,\"groups\":{\"grupo-13\":15,\"neutro\":13,\"grupo-22\":14}}"
     },
     {
       "name": "grupos distribuídos sem vantagem (13 / 22 / neutro com a mesma contagem ±2 %)",
       "ok": true,
-      "detail": "{\"grupo-13\":166,\"neutro\":166,\"grupo-22\":167}"
+      "detail": "{\"grupo-13\":166,\"neutro\":165,\"grupo-22\":166}"
     },
     {
       "name": "teto de banda das células (≤ 6000 B/s)",
       "ok": true,
-      "detail": "11 msgs · 12076 B no total"
+      "detail": "12 msgs · 13341 B no total"
     },
     {
       "name": "minimapa no alto usa as células (calor com a passeata inteira)",
       "ok": true,
-      "detail": "{\"drawMs\":0.187,\"densityMs\":0.335,\"draws\":514,\"samples\":72,\"densityTotal\":916,\"densityPeak\":12}"
+      "detail": "{\"drawMs\":0.143,\"densityMs\":0.28,\"draws\":457,\"samples\":68,\"densityTotal\":916,\"densityPeak\":12}"
     },
     {
       "name": "FAR sobre Central do Brasil: só células perto do foco, com gente",
       "ok": true,
-      "detail": "{\"cells\":30,\"players\":130,\"env\":53,\"impostors\":151}"
+      "detail": "{\"cells\":32,\"players\":132,\"env\":53,\"impostors\":150}"
     },
     {
       "name": "FAR sobre Campo de Santana: só células perto do foco, com gente",
       "ok": true,
-      "detail": "{\"cells\":31,\"players\":152,\"env\":195,\"impostors\":316}"
+      "detail": "{\"cells\":35,\"players\":154,\"env\":195,\"impostors\":318}"
     },
     {
       "name": "FAR sobre Candelária: só células perto do foco, com gente",
       "ok": true,
-      "detail": "{\"cells\":26,\"players\":116,\"env\":123,\"impostors\":207}"
+      "detail": "{\"cells\":28,\"players\":118,\"env\":123,\"impostors\":209}"
     },
     {
       "name": "descida na Candelária: camada NEAR, entidades aparecem, sem impostores (sem duplicar), pedestres/concentração locais de volta",
       "ok": true,
-      "detail": "{\"tier\":\"NEAR\",\"remotes\":48,\"impostors\":{\"drawn\":0,\"players\":500,\"env\":416,\"subtracted\":0,\"cells\":116,\"rebuilds\":108,\"fade\":0,\"visible\":false},\"cells\":0,\"pedsVisible\":true,\"crowd\":{\"skinned\":19,\"instanced\":655,\"hidden\":0,\"lod\":[1,3,15,0],\"submitted\":674,\"net\":48,\"far\":56,\"ped\":570,\"drawnInstanced\":68,\"instancedCalls\":4,\"props\":17,\"propCalls\":8,\"ms\":0.2,\"farNet\":56}}"
+      "detail": "{\"tier\":\"NEAR\",\"remotes\":48,\"impostors\":{\"drawn\":0,\"players\":500,\"env\":416,\"subtracted\":0,\"cells\":113,\"rebuilds\":114,\"fade\":0,\"visible\":false},\"cells\":0,\"pedsVisible\":true,\"crowd\":{\"skinned\":19,\"instanced\":656,\"hidden\":0,\"lod\":[0,2,17,0],\"submitted\":675,\"net\":48,\"far\":57,\"ped\":570,\"drawnInstanced\":64,\"instancedCalls\":4,\"props\":16,\"propCalls\":10,\"ms\":0.1,\"farNet\":57}}"
     },
     {
       "name": "sem erros de página nos dois espectadores",

@@ -348,6 +348,8 @@ describe('pulo (JumpValidator)', () => {
     // no ar: até o pico + folga
     expect(J.clampY('A', 0.5, 3, t + 150)).toBe(0.5);
     expect(J.clampY('A', 5, 3, t + 250)).toBeCloseTo(JUMP_PEAK + JUMP.slackM, 5);
+    // perto do fim do voo não dá para "pairar" no pico
+    expect(J.clampY('A', JUMP_PEAK, 3, t + JUMP_FLIGHT_MS + 400)).toBeLessThan(JUMP_PEAK);
     // pousa
     t += JUMP_FLIGHT_MS + 20;
     expect(J.clampY('A', 0, 0, t)).toBe(0);
