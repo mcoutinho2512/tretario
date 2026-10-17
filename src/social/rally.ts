@@ -4,6 +4,8 @@
  * ponto e, chegando lá, escolhem uma ação social com os pesos do ponto (mais dança perto do trio, etc.).
  * Puro (sem three.js): usado pelos NPCs no cliente e, futuramente, por NPCs no servidor.
  */
+import { TRIO } from '../vehicles/platform';
+
 export type RallyKind = 'trio' | 'soundcar' | 'stage' | 'event';
 
 export interface RallyPoint {
@@ -30,6 +32,18 @@ export const RALLY_DEFAULT_WEIGHTS: Record<RallyKind, Record<string, number>> = 
   stage: { clap: 5, cheer: 4, arms_up: 4, phone: 3, flag_wave: 3, sign_raise: 3 },
   event: { talk: 4, clap: 2, sign_raise: 3, flag_wave: 3 },
 };
+
+/**
+ * forma da concentração por origem (cliente: Rideable/EventScenery; servidor: estimativa da multidão de ambiente nas
+ * células do espectador aéreo, src/spectator) — a MESMA tabela nos dois lados. `front`: deslocamento (m) à frente
+ * do objeto (o palco olha para +z local).
+ */
+export const RALLY_SHAPE = {
+  trio: { kind: 'trio', inner: TRIO.len / 2 + 1.5, radius: 24, strength: 1, front: 0 },
+  soundcar: { kind: 'soundcar', inner: 3.5, radius: 14, strength: 0.75, front: 0 },
+  stage: { kind: 'stage', inner: 3, radius: 20, strength: 0.9, front: 9 },
+  truck: { kind: 'event', inner: 5.5, radius: 11, strength: 0.35, front: 0 },
+} as const satisfies Record<string, { kind: RallyKind; inner: number; radius: number; strength: number; front: number }>;
 
 export class RallyRegistry {
   private points = new Map<string, RallyPoint>();

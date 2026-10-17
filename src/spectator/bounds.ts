@@ -1,7 +1,8 @@
 /**
  * Espectador (rodada 8) — limites e protocolo PUROS, compartilhados por cliente (câmera) e servidor (área de
- * interesse). O espectador não tem corpo: só manda a posição da câmera (`spec_cam {x, z}`) em baixa frequência;
- * o servidor limita aos limites do mapa e à taxa abaixo antes de usar como centro da área de interesse.
+ * interesse). O espectador não tem corpo: só manda a posição da câmera (`spec_cam {x, z, alt}`) em baixa frequência;
+ * o servidor limita aos limites do mapa e à taxa abaixo antes de usar como centro da área de interesse. `alt`
+ * (rodada 8.1) escolhe a camada de representação (src/spectator/tiers.ts) — ausente = rente ao chão (NEAR).
  */
 export type Bounds = readonly [number, number, number, number]; // [minX, minZ, maxX, maxZ] (manifest.bounds)
 
@@ -17,6 +18,8 @@ export const SPECTATOR = {
   /** cliente: envio de spec_cam (Hz) e deslocamento mínimo para reenviar antes do intervalo de manutenção */
   sendHz: 2,
   sendMinMoveM: 6,
+  /** variação de altitude (m) que também força reenvio (troca de camada no servidor) */
+  sendMinAltM: 8,
   keepAliveMs: 3000,
   /** servidor: intervalo mínimo entre spec_cam aceitos (ms) — o excesso é ignorado */
   serverMinIntervalMs: 200,
@@ -37,6 +40,13 @@ export function sanitizeSpecCam(raw: unknown, b: Bounds): { x: number; z: number
   const { x, z } = raw as { x?: unknown; z?: unknown };
   if (typeof x !== 'number' || typeof z !== 'number' || !Number.isFinite(x) || !Number.isFinite(z)) return null;
   return clampToBounds(x, z, b);
+}
+
+/** altitude informada no spec_cam: número finito → presa a [0, maxAlt + 40]; ausente/inválida → 0 (NEAR, cliente antigo) */
+export function sanitizeSpecAlt(raw: unknown): number {
+  const a = raw && typeof raw === 'object' ? (raw as { alt?: unknown }).alt : undefined;
+  if (typeof a !== 'number' || !Number.isFinite(a)) return 0;
+  return clamp(a, 0, SPECTATOR.maxAlt + 40);
 }
 
 /** limitação de taxa simples por conexão: aceita se passou o intervalo mínimo desde o último aceito */
