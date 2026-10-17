@@ -331,7 +331,10 @@ export class NetworkClient {
     }
   }
 
-  /** saiu de vez da sala: substituída → para; graça vencida/recusa → entrada nova (com backoff) */
+  /**
+   * saiu de vez da sala. Substituída → para. Fechada pelo SERVIDOR com a conexão boa (expulsão, rebaixamento de
+   * licença) → para (sem insistir). Só a saída DURANTE a reconexão (graça vencida, tentativas esgotadas) → entrada nova.
+   */
   private onRoomLeft(room: Room, code: number) {
     if (this.room !== room || this.leaving) return;
     this.status = 'offline';
@@ -339,6 +342,12 @@ export class NetworkClient {
       this.replaced = true;
       this.linkM.apply('replaced', Date.now());
       this.onLink?.('REPLACED');
+      return;
+    }
+    if (this.linkM.state === 'CONNECTED') {
+      this.linkM.apply('replaced', Date.now());
+      this.lastError = `saída pelo servidor (${code})`;
+      this.onLink?.('EXPIRED');
       return;
     }
     this.linkM.apply('replaced', Date.now()); // fora da sala de vez → EXPIRED (graça vencida ou recusa)
