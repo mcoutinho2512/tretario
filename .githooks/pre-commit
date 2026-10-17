@@ -5,6 +5,11 @@
 echo "[pre-commit] verificando o conteúdo staged (typecheck + testes + build + servidor)…"
 STASHED=0
 if ! git diff --quiet || [ -n "$(git ls-files --others --exclude-standard)" ]; then
+  # durante um merge o stash apagaria MERGE_HEAD (o commit perderia o segundo pai): exige árvore limpa
+  if [ -f "$(git rev-parse --git-path MERGE_HEAD)" ]; then
+    echo "[pre-commit] merge em andamento com alterações fora do staged/arquivos não rastreados: faça stage ou mova-os antes de commitar."
+    exit 1
+  fi
   git stash push --keep-index --include-untracked --quiet -m "pre-commit-verify" && STASHED=1
 fi
 npm run --silent verify
