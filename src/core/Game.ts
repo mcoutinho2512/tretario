@@ -745,6 +745,12 @@ export class Game {
     this.net.on('chat', (m: { nid: number }) => { const id = this.net?.idByNid(m.nid); if (id) this.net!.markSpeaking(id); });
     this.scene.add(this.net.group);
     (window as any).__pvRemotes = () => this.net?.remotesInfo();
+    // rodada 9 — eventos: agenda, concentrações (NPCs simulados), corrida/caminhada/confronto (src/events/EventClient.ts)
+    {
+      const { EventClient } = await import('../events/EventClient');
+      const evc = new EventClient(this.net, this.scene, this.hud, (m) => this.flash(m), this.hudShell.minimap);
+      (window as any).__pvEvents = evc;
+    }
     this.net.onSpawn = (sp) => {
       this.player.x = sp.x; this.player.z = sp.z; this.player.y = this.collision.groundHeight(sp.x, sp.z);
       this.interaction.setPolicy(this.net!.policy === 'pacifico' ? 'pacifico' : 'opcional');

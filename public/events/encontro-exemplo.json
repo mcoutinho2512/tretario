@@ -5,17 +5,146 @@
   "description": "Exemplo neutro de evento social na avenida (encontro, ato, manifestação). Grupos, cores e mensagens são definidos pelo organizador.",
   "interaction": "pacifico",
   "groups": [
-    { "id": "grupo-1", "name": "Grupo 1", "colors": ["#2e7dd1", "#ffffff"], "npcShare": 0.25 },
-    { "id": "grupo-2", "name": "Grupo 2", "colors": ["#f2b705", "#1b5e20"], "npcShare": 0.25 }
+    {
+      "id": "grupo-1",
+      "name": "Grupo 1",
+      "colors": [
+        "#2e7dd1",
+        "#ffffff"
+      ],
+      "npcShare": 0.25,
+      "kind": "CUSTOM"
+    },
+    {
+      "id": "grupo-2",
+      "name": "Grupo 2",
+      "colors": [
+        "#f2b705",
+        "#1b5e20"
+      ],
+      "npcShare": 0.25,
+      "kind": "CUSTOM"
+    }
   ],
   "decorations": [
-    { "type": "flag", "placement": "pv-lamps", "colors": ["#2e7dd1", "#f2b705", "#ffffff"], "every": 2 }
+    {
+      "type": "flag",
+      "placement": "pv-lamps",
+      "colors": [
+        "#2e7dd1",
+        "#f2b705",
+        "#ffffff"
+      ],
+      "every": 2
+    }
   ],
   "billboards": {
     "rotateSeconds": 10,
     "playlist": [
-      { "type": "text", "text": "ENCONTRO NA PRESIDENTE VARGAS", "subtext": "Concentração na Candelária", "colors": ["#0b2545", "#ffffff"] },
-      { "type": "text", "text": "PROGRAMAÇÃO", "subtext": "Palco • Candelária • 17h", "colors": ["#1b5e20", "#f2b705"] }
+      {
+        "type": "text",
+        "text": "ENCONTRO NA PRESIDENTE VARGAS",
+        "subtext": "Concentração na Candelária",
+        "colors": [
+          "#0b2545",
+          "#ffffff"
+        ]
+      },
+      {
+        "type": "text",
+        "text": "PROGRAMAÇÃO",
+        "subtext": "Palco • Candelária • 17h",
+        "colors": [
+          "#1b5e20",
+          "#f2b705"
+        ]
+      }
     ]
-  }
+  },
+  "agenda": [
+    {
+      "id": "caminhada-central-candelaria",
+      "format": "caminhada",
+      "name": "Caminhada Central → Candelária",
+      "description": "Caminhada coletiva pela Presidente Vargas: a concentração sai da Central do Brasil e segue até a Candelária no passo do grupo. Acompanhe a concentração por boa parte do trajeto para concluir.",
+      "zones": [
+        "CENTRAL",
+        "CAMPO_DE_SANTANA",
+        "CENTRO",
+        "RIO_BRANCO",
+        "CANDELARIA"
+      ],
+      "recurrence": {
+        "everyMin": 60,
+        "offsetMin": 30,
+        "registrationMin": 5,
+        "startingS": 60,
+        "durationMin": 22
+      },
+      "capacity": 300,
+      "minParticipants": 0,
+      "rewards": [
+        {
+          "kind": "xp",
+          "amount": 120
+        }
+      ],
+      "npcCrowd": 80,
+      "walk": {
+        "paceMs": 1.2,
+        "followRadius": 25,
+        "completeFraction": 0.6,
+        "route": [
+          {
+            "id": "central",
+            "at": {
+              "t": 0.28,
+              "side": 0
+            },
+            "radius": 20
+          },
+          {
+            "id": "campo-de-santana",
+            "at": {
+              "t": 0.38,
+              "side": 0
+            },
+            "radius": 20
+          },
+          {
+            "id": "centro",
+            "at": {
+              "t": 0.55,
+              "side": 0
+            },
+            "radius": 20
+          },
+          {
+            "id": "centro-2",
+            "at": {
+              "t": 0.7,
+              "side": 0
+            },
+            "radius": 20
+          },
+          {
+            "id": "rio-branco",
+            "at": {
+              "t": 0.86,
+              "side": 0
+            },
+            "radius": 20
+          },
+          {
+            "id": "candelaria",
+            "at": {
+              "t": 0.93,
+              "side": 0
+            },
+            "radius": 20
+          }
+        ]
+      }
+    }
+  ]
 }

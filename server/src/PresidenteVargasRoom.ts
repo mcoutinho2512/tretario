@@ -67,6 +67,10 @@ import { LINK_WIRE, RECONNECT } from '../../src/net/reconnect.ts';
 import { ZoneTracker } from '../../src/world/zoneTracker.ts';
 import type { ZoneDefinition } from '../../src/world/zones.ts';
 import { GameplayBus } from './gameplay/bus.ts';
+// rodada 9 — eventos agendados (server/src/events: agenda, runners caminhada/corrida/confronto)
+import { EventRuntime } from './events/EventRuntime.ts';
+import { loadAgenda } from './events/agenda.ts';
+import { FX } from '../../src/combat/types.ts';
 
 const AOI_RADIUS = Number(process.env.PV_AOI ?? 220); // m — jogadores/veículos visíveis
 /** histerese da AOI: entra a ≤ R, sai só além de R × AOI_HYST */
@@ -255,6 +259,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     this.specs = new SpectatorSessions(W.manifest.bounds as [number, number, number, number]);
     const evDef = W.events.get(ev) as (Parameters<typeof environmentCrowdFor>[0] & { name?: string }) | undefined;
     this.setupCells(W, evDef);
+    this.setupEvents(W, ev); // rodada 9 — eventos
     this.metricsSource = { counts: (now) => this.pres.counts(now), eventId: ev, eventName: evDef?.name ?? ev, environmentCrowd: environmentCrowdFor(evDef) };
     liveWorlds.add(this.metricsSource);
     const gfStore = process.env.PV_GRAFFITI_STORE === 'memory' ? new MemoryGraffitiStore() : new JsonFileGraffitiStore(process.env.PV_GRAFFITI_FILE ?? fileURLToPath(new URL('../data/graffiti.json', import.meta.url)));
@@ -359,6 +364,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     if (this.vehAcc >= 1000) { this.vehAcc = 0; this.rebuildVehicleGrid(); this.resetAbandoned(now); }
     // zonas por jogador (2 Hz, fatiado): base de missões de exploração, política de confronto e eventos
     this.updateZones(this.tickN % ZONE_SLICES, ZONE_SLICES, now);
+    this.evt.tick(now, dtMs); // rodada 9 — eventos (agenda, estados, runners)
     // grafites: área de interesse por superfície (fatiada, 2 Hz por cliente) e expiração (1 Hz)
     this.graffiti.update(now, this.gfPos);
     metrics.tick(performance.now() - t0, this.state.players.size);
@@ -377,6 +383,51 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
 
   /** definição da zona (política de confronto, áreas de paz) */
   zoneDef(id: string | null): ZoneDefinition | undefined { return id ? this.zoneDefs.find((z) => z.id === id) : undefined; }
+
+  // ---------------------------------------------------------------- rodada 9 — eventos
+  /**
+   * eventos agendados do mundo (server/src/events, sem Colyseus): agenda do EventDef, estados, inscrição, runners.
+   * Para o combate (agente A): `this.evt.combatEventFor(sid)`, `this.evt.zonePolicy(zone)`, `this.evt.protectedUntil(sid)`
+   * e `this.evt.onKnockdown(atacante, alvo)`. O cliente só PEDE inscrição/saída/acompanhar — nunca informa progresso.
+   */
+  evt!: EventRuntime;
+  private setupEvents(W: ServerWorld, ev: string) {
+    const ag = loadAgenda(W.events.get(ev)?.agenda);
+    this.evt = new EventRuntime(ag.defs, {
+      participant: (sid) => {
+        const p = this.state.players.get(sid), r = this.rt.get(sid);
+        if (!p || !r) return null;
+        return { sid, name: p.name, x: r.last.x, z: r.last.z, vehicleKind: p.vehicle ? this.state.vehicles.get(p.vehicle)?.kind ?? null : null, groupKey: this.identities.get(sid)?.groupKey ?? null, status: p.status, dropped: p.link !== LINK_WIRE.CONNECTED, onPlatform: !!p.platform };
+      },
+      players: () => this.rt.keys(),
+      audience: () => [...this.rt.keys(), ...[...this.specs.values()].map((s) => s.sid)],
+      send: (sid, type, msg) => (this.clients2.get(sid) ?? this.specs.get(sid)?.client)?.send(type, msg),
+      near: (x, z, r, fn) => this.grid.forEachInRadius(x, z, r, (sl) => { const s = this.slotIds[sl]; if (s) fn(s); }),
+      emit: (sid, e) => this.gameplay.emit(sid, e),
+      zoneOf: (sid) => this.zoneOf(sid),
+      // retorno do confronto: só a pé (veículo/trio ficam onde estão), sem atravessar parede a partir do ponto atual
+      teleport: (sid, x, z) => {
+        const p = this.state.players.get(sid), r = this.rt.get(sid);
+        if (!p || !r || p.vehicle || p.platform) return false;
+        const now = Date.now();
+        p.x = x; p.z = z; p.y = 0; r.actor.x = x; r.actor.z = z;
+        r.last = { x, y: 0, z, t: now, seq: r.last.seq };
+        this.clients2.get(sid)?.send('correct', [x, 0, z, r.last.seq, 'evento']);
+        return true;
+      },
+      // proteção de retorno: bit FX.PROTECTED no NetPlayer (o prazo fica no runtime: evt.protectedUntil)
+      protect: (sid, until) => { const p = this.state.players.get(sid); if (p) p.fx = until > 0 ? (p.fx | FX.PROTECTED) : (p.fx & ~FX.PROTECTED); },
+      log: (m) => console.log(`[eventos] ${m}`),
+    }, (W.manifest.pvAxis ?? []) as [number, number][], { epoch: ag.epoch });
+    // pedidos do cliente: inscrever/sair/acompanhar; mensagens do formato (debate) vão ao runner da instância
+    this.onMessage('evt_join', (c: Client, m: { inst?: unknown }) => this.evt.join(c.sessionId, m?.inst, this.allowed(c, 'event.join')));
+    this.onMessage('evt_leave', (c: Client, m: { inst?: unknown }) => this.evt.leave(c.sessionId, m?.inst));
+    this.onMessage('evt_watch', (c: Client, m: { inst?: unknown; on?: unknown }) => { if (this.allowed(c, 'world.spectate')) this.evt.watch(c.sessionId, m?.inst, m?.on !== false); });
+    this.onMessage('dbt_queue', (c: Client, m: unknown) => this.gate(c, 'debate.speak', () => this.evt.message(c.sessionId, 'dbt_queue', m)));
+    this.onMessage('dbt_say', (c: Client, m: unknown) => this.gate(c, 'debate.speak', () => this.evt.message(c.sessionId, 'dbt_say', m)));
+    this.onMessage('dbt_react', (c: Client, m: unknown) => this.gate(c, 'debate.react', () => this.evt.message(c.sessionId, 'dbt_react', m)));
+    console.log(`[eventos] agenda (${ag.source}): ${ag.defs.map((d) => `${d.id}/${d.format}`).join(', ') || '—'}${ag.epoch ? ` · epoch ${new Date(ag.epoch).toISOString()}` : ''}`);
+  }
 
   private rebuildVehicleGrid() {
     this.vgrid.clear();
@@ -650,6 +701,8 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
       rallies.push({ x: Math.round(v.x), z: Math.round(v.z), inner: sh.inner, radius: sh.radius, strength: sh.strength });
       key += `${id}:${Math.round(v.x)},${Math.round(v.z)};`;
     }
+    // rodada 9 — eventos: concentrações dos eventos vivos (líder da caminhada andando, torcida da corrida)
+    for (const p of this.evt.rallies()) { const x = Math.round(p.x / 4) * 4, z = Math.round(p.z / 4) * 4; rallies.push({ x, z, inner: p.inner, radius: p.radius, strength: p.strength, crowd: p.crowd }); key += `${p.id}:${x},${z};`; }
     if (key !== this.envKey || !this.envCells.size) { this.envKey = key; this.envCells = environmentCells({ ...this.envBase, rallies }); }
     return this.envCells;
   }
@@ -692,6 +745,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     this.identities.set(client.sessionId, id);
     this.pres.join(client.sessionId, { userId: id.userId, role: id.role, bot: !!id.bot }, Date.now());
     this.chat.join(client.sessionId, id, client); // todas as conexões (espectador lê o GERAL)
+    this.evt.hello(client.sessionId, (t, m) => client.send(t, m)); // rodada 9 — eventos: agenda e concentrações atuais
     if (id.role === 'spectator') { this.savedLooks.delete(client.sessionId); this.joinSpectator(client, id, options); return; }
     // login duplicado: UMA entidade jogável por conta — a sessão nova assume (a antiga recebe session_replaced)
     const taken = id.userId ? this.takeOver(id.userId, client.sessionId) : null;
@@ -827,6 +881,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
   }
 
   onLeave(client: Client) {
+    this.evt.gone(client.sessionId); // rodada 9 — eventos: saída de vez (graça vencida) desiste da inscrição
     const ident = this.identities.get(client.sessionId);
     this.identities.delete(client.sessionId);
     this.grace.delete(client.sessionId);
@@ -902,6 +957,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     p.loco = Math.max(0, Math.min(4, m.loco | 0));
     r.actor.x = res.x; r.actor.z = res.z; r.actor.heading = m.heading;
     r.last = { x: res.x, y: res.y, z: res.z, t: now, seq: m.seq };
+    this.evt.onMove(client.sessionId, res.x, res.z, mode, res.ok, res.reason ?? '', now); // rodada 9 — eventos (checkpoints)
     if (!res.ok) {
       client.send('correct', [res.x, res.y, res.z, m.seq, res.reason ?? '']);
       metrics.correction();

@@ -23,6 +23,10 @@ export interface RallyPoint {
   actionWeights?: Record<string, number>;
   /** direção para onde a multidão olha (rad); padrão: para o centro */
   faceCenter?: boolean;
+  /** rodada 9 — NPCs RESERVADOS para o ponto (evento agendado: caminhada, torcida da corrida), além de rallyCrowd */
+  crowd?: number;
+  /** rodada 9 — rótulo no minimapa (nome do evento) */
+  label?: string;
 }
 
 /** pesos típicos por tipo de ponto */

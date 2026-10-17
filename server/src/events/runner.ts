@@ -18,9 +18,9 @@
  *
  * Novo formato: implemente `EventRunner` e registre em server/src/events/runners.ts (`RUNNERS.set(format, () => …)`).
  */
-import type { EventJoinDenial, EventState, ScheduledEventDef, WorldPoint } from '../../../src/events/schedule.ts';
-import type { GameplayEvent } from '../../../src/gameplay/events.ts';
-import type { CombatEventRules } from '../../../src/combat/policy.ts';
+import type { EventJoinDenial, EventState, ScheduledEventDef, WorldPoint } from '../../../src/events/schedule';
+import type { GameplayEvent } from '../../../src/gameplay/events';
+import type { CombatEventRules } from '../../../src/combat/policy';
 
 /** o que o runtime sabe de um jogador — montado pela sala a partir do estado AUTORITATIVO */
 export interface ParticipantView {
@@ -46,6 +46,8 @@ export interface EventHost {
   participant(sid: string): ParticipantView | null;
   /** todos os jogadores com corpo (sessionIds) */
   players(): Iterable<string>;
+  /** todas as conexões (jogadores + espectadores): destinatários da agenda; ausente = players() */
+  audience?(): Iterable<string>;
   send(sid: string, type: string, msg: unknown): void;
   /** jogadores perto de um ponto (AOI do debate/espectadores) */
   near?(x: number, z: number, r: number, fn: (sid: string) => void): void;
@@ -80,7 +82,9 @@ export interface EventInstance {
 export interface RunnerContext {
   readonly inst: EventInstance;
   readonly host: EventHost;
-  /** eixo da avenida (WorldPoint {t, side}) */
+  /** eixo da avenida (manifest.pvAxis) */
+  readonly axis: readonly [number, number][];
+  /** WorldPoint ({x,z} ou {t, side} no eixo) → mundo */
   point(p: WorldPoint): { x: number; z: number };
   now(): number;
   /** participação concluída: emite `event_complete` (uma vez por inscrito) */
@@ -133,4 +137,4 @@ export interface EventRunner {
   watch?(ctx: RunnerContext, sid: string): void;
 }
 
-export type RunnerFactory = (def: ScheduledEventDef) => EventRunner;
+export type RunnerFactory = (def: ScheduledEventDef) => EventRunner | null;

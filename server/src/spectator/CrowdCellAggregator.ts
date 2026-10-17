@@ -20,7 +20,9 @@ import { pointOnAxis } from '../../../src/world/zones';
 /** jogador como o agregador o vê (atividade: índice em CELL_ACTIVITIES) */
 export interface CellPlayer { x: number; z: number; group: string; activity: number }
 /** concentração (mesma forma do cliente — src/social/rally.ts RALLY_SHAPE) */
-export interface EnvRally { x: number; z: number; inner: number; radius: number; strength: number }
+export interface EnvRally { x: number; z: number; inner: number; radius: number; strength: number;
+  /** rodada 9 — NPCs reservados do ponto (evento agendado: ScheduledEventDef.npcCrowd), fora da divisão de rallyCrowd */
+  crowd?: number }
 export interface EnvModel {
   rallies: readonly EnvRally[];
   /** pessoas de concentração (social.rallyCrowd do evento) */
@@ -61,11 +63,11 @@ export function environmentCells(m: EnvModel, size: number = CROWD_CELL.sizeM): 
   // concentrações: pessoas por ponto ∝ força × área do anel (igual a RallyCrowd.rebuild)
   const pts = m.rallies.filter((p) => p.strength > 0);
   const pw = new Map<number, number>();
-  pts.forEach((p, i) => pw.set(i, p.strength * (p.radius * p.radius - p.inner * p.inner)));
+  pts.forEach((p, i) => { if (!p.crowd) pw.set(i, p.strength * (p.radius * p.radius - p.inner * p.inner)); });
   const perPoint = new Map<number, number>();
   apportion(Math.max(0, Math.round(m.rallyCrowd)), pw, perPoint);
   pts.forEach((p, i) => {
-    const n = perPoint.get(i) ?? 0;
+    const n = p.crowd ? Math.round(p.crowd) : perPoint.get(i) ?? 0;
     if (!n) return;
     const w = new Map<number, number>();
     for (let a = 0; a < RING_A; a++) for (let r = 0; r < RING_R; r++) {

@@ -95,4 +95,45 @@ describe('grupos do evento: só aparência', () => {
     });
     expect(offenders).toEqual([]);
   });
+
+  it('rodada 9: tipos de grupo (POLITICAL/SUPPORTERS/NEUTRAL/CUSTOM) e torcidas fictícias são só dados', async () => {
+    const idx = JSON.parse(readFileSync('public/events/index.json', 'utf8')) as { events: string[] };
+    const all = idx.events.map((id) => JSON.parse(readFileSync(`public/events/${id}.json`, 'utf8')) as EventDef);
+    for (const e of all) for (const g of e.groups ?? []) expect(['POLITICAL', 'SUPPORTERS', 'NEUTRAL', 'CUSTOM'], `${e.id}/${g.id}`).toContain(g.kind);
+    expect(ev.groups!.map((g) => g.kind)).toEqual(['POLITICAL', 'POLITICAL', 'NEUTRAL']);
+    // torcidas: camisas de futebol SEM escudo (designs 200–207, alvo camisa), cores próprias
+    const sup = all.flatMap((e) => (e.groups ?? []).filter((g) => g.kind === 'SUPPORTERS'));
+    expect(sup.length).toBeGreaterThanOrEqual(2);
+    const { DESIGN_BY_KEY } = await import('../src/social/designs');
+    for (const g of sup) {
+      const d = DESIGN_BY_KEY.get(g.designKey ?? '')!;
+      expect(d.id, g.id).toBeGreaterThanOrEqual(200); expect(d.id).toBeLessThanOrEqual(207);
+      expect(d.targets).toContain('shirt');
+    }
+    // nenhum código decide por TIPO de grupo nem por chave de torcida
+    const walk = (d: string): string[] => readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? (e.name === 'node_modules' || e.name === 'generated' ? [] : walk(`${d}/${e.name}`)) : [`${d}/${e.name}`]));
+    const files = [...walk('src'), ...walk('server/src')].filter((f) => /\.ts$/.test(f));
+    const keys = sup.map((g) => g.id);
+    const bad = files.filter((f) => { const t = readFileSync(f, 'utf8'); return /['"`](POLITICAL|SUPPORTERS)['"`]\s*[!=]==|[!=]==\s*['"`](POLITICAL|SUPPORTERS)['"`]/.test(t) || keys.some((k) => t.includes(`'${k}'`) || t.includes(`"${k}"`)); });
+    expect(bad).toEqual([]);
+  });
+
+  it('rodada 9: confronto de grupos trata as torcidas por igualdade — mesmo resultado trocando os lados', async () => {
+    const { EventRuntime } = await import('../server/src/events/EventRuntime');
+    const k = JSON.parse(readFileSync('public/events/classico-exemplo.json', 'utf8')) as EventDef;
+    const clash = k.agenda!.find((d) => d.format === 'confronto_grupos')!;
+    const run = (order: string[]) => {
+      const ps = new Map(order.map((g, i) => [`p${i}`, { sid: `p${i}`, name: `P${i}`, x: 0, z: 0, vehicleKind: null, groupKey: g, status: 0, dropped: false, onPlatform: false }]));
+      const rt = new EventRuntime([{ ...clash, groupRules: { ...clash.groupRules!, allowed: order } }], { participant: (s) => ps.get(s) ?? null, players: () => ps.keys(), send: () => {}, emit: () => {}, zoneOf: () => clash.zones[0] }, JSON.parse(readFileSync('public/world/manifest.json', 'utf8')).pvAxis, { clock: () => t });
+      let t = (clash.recurrence.offsetMin - clash.recurrence.registrationMin / 2) * 60_000;
+      rt.tick(t);
+      const inst = rt.instances()[0].inst;
+      const joins = [...ps.keys()].map((s) => rt.join(s, inst));
+      t = rt.instances()[0].startsAt; rt.tick(t);
+      rt.onKnockdown('p0', 'p1');
+      return { joins, rules: [...ps.keys()].map((s) => ({ ...rt.combatEventFor(s)!, eventId: '' })), score: Object.values((rt.runnerState(inst) as { score: Record<string, number> }).score).sort() };
+    };
+    const g = clash.groupRules!.allowed!;
+    expect(run([g[0], g[1]])).toEqual(run([g[1], g[0]]));
+  });
 });
