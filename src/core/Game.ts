@@ -35,8 +35,12 @@ const DEFAULT_PLAYER_APPEARANCE_LOCAL = DEFAULT_APPS.homem;
 import { ThirdPersonCamera } from '../camera/ThirdPersonCamera';
 import { InputManager } from '../input/InputManager';
 import { TouchControls } from '../ui/TouchControls';
+import { openCharacterEditor } from '../ui/editorBridge';
+import { ChatPanel } from '../ui/ChatPanel';
 import { DebugPanel } from '../debug/DebugPanel';
-import { Minimap } from '../debug/Minimap';
+import { HudShell } from '../ui/hud/HudShell';
+import { loadZones } from '../world/zoneTracker';
+import type { ZoneDefinition } from '../world/zones';
 import { createLandmarkMaterials, loadLandmarkTextures } from '../world/landmarks/arch';
 import { buildCentral, type LandmarkInstance } from '../world/landmarks/central';
 import { buildCandelaria } from '../world/landmarks/candelaria';
@@ -64,8 +68,15 @@ import type { PropRec, BuildingRec } from '../world/types';
 import { distToPolyline } from '../geo/polyline';
 import { memoryReport } from '../debug/memoryReport';
 import { GraffitiSystem } from '../graffiti/GraffitiSystem';
+import type { IdentityJoinOptions } from '../identity/types';
+
+/** rodada 8: como entrar no mundo compartilhado (tela inicial → jogo). `mp` = endereço do servidor (ws://…) */
+export interface GameStartOptions extends IdentityJoinOptions {
+  mp?: string;
+  /** ticket pedido só na hora de conectar (vale 60 s; o carregamento pode demorar mais que isso) */
+  getTicket?: () => Promise<string | undefined>;
+}
 import type { TrafficData } from '../world/types';
-import type { WorldRole } from '../identity/types';
 import type { SpectatorMode } from '../spectator/SpectatorMode';
 import { ReconnectBadge } from '../net/ReconnectBadge';
 
@@ -87,13 +98,6 @@ const RIDE_HELP: Record<string, string> = {
   soundcar: 'E — sair · W acelerar · S frear/ré · A/D volante · passo de cortejo (até 15 km/h)',
   trio: 'E — sair · W andar · S frear/ré · A/D volante · trio elétrico: bem devagar (até 5 km/h)',
 };
-
-/** opções de início (rodada 8): `role: 'spectator'` = ASSISTIR (sem avatar/física; o servidor confirma o papel) */
-export interface GameOptions {
-  role?: WorldRole;
-  /** ticket de uso único para cada entrada nova na sala (jogador autenticado — POST /api/session/ticket) */
-  ticketProvider?: () => Promise<string | undefined>;
-}
 
 export class Game {
   /** nome escolhido na tela inicial (multiplayer); `?name=` tem prioridade */
@@ -129,15 +133,14 @@ export class Game {
   readonly interaction = new InteractionController();
   private net: NetworkClient | null = null;
   private appearance: CharacterAppearance | undefined;
-  private prompt!: HTMLDivElement;
-  private modeBadge!: HTMLDivElement;
-  private messageTimer = 0;
+  /** casca do HUD (rodada 8): minimapa, zonas, ajustes, encaixes de chat/espectador/perfil — src/ui/hud */
+  hudShell!: HudShell;
+  private zones: ZoneDefinition[] = [];
   private input: InputManager;
   private player!: PlayerState;
   private avatar: AvatarVisual;
   private cam!: ThirdPersonCamera;
   private debug = new DebugPanel();
-  private minimap!: Minimap;
   private hud: HTMLDivElement;
   private toast: HTMLDivElement;
   private clock = new THREE.Clock();
@@ -147,14 +150,13 @@ export class Game {
   private intro = { active: true, t: 0, fromYaw: 0, toYaw: 0 };
   private nearestVP: ValidationPoint | null = null;
   private running = false;
-  private photoMode = false;
 
   /** modo espectador (src/spectator) — null jogando */
   private spec: SpectatorMode | null = null;
   private linkBadge = new ReconnectBadge();
-  get spectator() { return this.opts.role === 'spectator'; }
+  get spectator() { return this.startOpts.role === 'spectator'; }
 
-  constructor(private container: HTMLElement, private preset: QualityPreset, appearance?: CharacterAppearance, private opts: GameOptions = {}) {
+  constructor(private container: HTMLElement, private preset: QualityPreset, appearance?: CharacterAppearance, private startOpts: GameStartOptions = {}) {
     // começa no LOD3 (barato) e sobe para o LOD0 depois de jogável: o detalhado não disputa banda com o mundo
     this.avatar = new AvatarVisual(appearance, { lod: 3 });
     this.appearance = appearance;
@@ -383,6 +385,7 @@ export class Game {
         for (const t of texs) { uploaded.add(t); this.gr.renderer.initTexture(t); await nextFrame(); }
       };
     } catch { /* compileAsync opcional */ }
+    this.zones = await loadZones(base).catch((e) => { console.warn('zonas não carregadas', e); return []; });
     progress(1, 'Pronto');
     this.mountHud();
     await this.connectMultiplayer();
@@ -390,28 +393,17 @@ export class Game {
   }
 
   private mountHud() {
-    this.minimap = new Minimap(this.manifest);
-    this.hud.appendChild(this.minimap.el);
+    let touch: TouchControls | null = null;
+    if (this.input.isTouch) { touch = new TouchControls(this.input); this.hud.appendChild(touch.el); } // embaixo de tudo
+    const shell = (this.hudShell = new HudShell(this.hud, this.manifest, this.zones, { touch: this.input.isTouch, level: this.preset.level }));
+    // PERFIL/PERSONAGEM do menu abre o editor da conta (src/ui/editorBridge.ts — registrado pela tela inicial)
+    shell.hooks.openCharacterEditor = () => { if (!openCharacterEditor()) shell.flash('Entre na sua conta para editar o personagem'); };
+    if (touch) shell.attachTouch(touch);
+    shell.attachCrowd(this.crowd);
+    shell.setEvent(this.events.current?.name);
+    void shell.prefs.syncFromServer();
     this.hud.appendChild(this.debug.el);
     this.hud.appendChild(this.toast);
-    const help = document.createElement('div');
-    help.className = 'help';
-    help.innerHTML = this.spectator
-      ? (this.input.isTouch ? 'Joystick: mover a câmera · Arraste: girar · Pinça: zoom' : '<b>WASD</b> mover a câmera · <b>Arrastar/Mouse</b> girar · <b>Roda</b> altura · <b>1–6</b> câmeras · <b>M</b> mapa · <b>H</b> ajuda')
-      : this.input.isTouch
-      ? 'Joystick: andar · Arraste: câmera · Pinça: zoom'
-      : '<b>WASD</b> andar · <b>Shift</b> correr · <b>Espaço</b> pular · <b>Mouse</b> câmera · <b>Roda</b> zoom · <b>E</b> usar veículo / subir no trio / pichar · <b>G</b> ações · <b>K</b> modo · <b>M</b> mapa · <b>F3</b> debug · <b>H</b> ajuda · <b>Esc</b> soltar mouse';
-    this.hud.appendChild(help);
-    this.prompt = document.createElement('div');
-    this.prompt.className = 'use-prompt';
-    this.hud.appendChild(this.prompt);
-    this.modeBadge = document.createElement('div');
-    this.modeBadge.className = 'mode-badge';
-    this.hud.appendChild(this.modeBadge);
-    const evb = document.createElement('div');
-    evb.className = 'event-badge';
-    evb.textContent = this.events.current ? `Evento: ${this.events.current.name}` : '';
-    this.hud.appendChild(evb);
     const attr = document.createElement('div');
     attr.className = 'attribution';
     attr.innerHTML = 'Dados do mapa © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a> (ODbL)';
@@ -420,18 +412,26 @@ export class Game {
     lock.className = 'lock-hint';
     lock.textContent = 'Clique para controlar a câmera';
     this.hud.appendChild(lock);
-    if (this.input.isTouch) this.hud.appendChild(new TouchControls(this.input).el);
+    // roda/menu/ajustes abertos: solta o mouse para clicar; fechados: volta a controlar a câmera
+    const relock = (open: boolean) => { if (open) document.exitPointerLock?.(); else if (!this.input.isTouch && !this.wheel?.open && !shell.anyModal) this.input.requestLock(); };
+    shell.onModal = relock;
     if (!this.spectator) { // espectador não tem ações sociais
       this.wheel = new ActionWheel(this.social);
-      // roda aberta: solta o mouse para clicar; fechada: volta a controlar a câmera
-      this.wheel.onToggle = (open) => { if (open) document.exitPointerLock?.(); else if (!this.input.isTouch) this.input.requestLock(); };
+      this.wheel.onToggle = (open) => { shell.poke(); relock(open); };
+      shell.onActions = () => this.input.queueToggle('wheel');
       this.hud.appendChild(this.wheel.el);
     }
     this.hud.appendChild(this.linkBadge.el);
-    if (this.spec) { this.spec.mount(this.hud); this.hud.classList.add('spectating'); }
+    if (this.spec) {
+      // seletor de câmeras no encaixe do HUD (HudShell.mountSpectator); zona/minimapa seguem o foco da câmera
+      const spec = this.spec;
+      spec.onLabel = (t) => shell.setMode(t, false);
+      spec.mountInSlot((el) => shell.mountSpectator({ el }));
+      shell.setFocusProvider(() => spec.cam.focus);
+      this.hud.classList.add('spectating');
+    }
     this.container.appendChild(this.hud);
-    setTimeout(() => help.classList.add('faded'), 12000);
-    window.addEventListener('resize', () => this.onResize());
+    window.addEventListener('resize', () => { this.onResize(); shell.minimap.resize(); });
   }
 
   /** Para validação/screenshots: ?shot=central|avenue|mid|candelaria */
@@ -528,6 +528,15 @@ export class Game {
   /** intervalos (ms) entre quadros RENDERIZADOS (benchmark) */
   private frameLog: number[] = [];
 
+  /** rodada 8: visual novo vindo do editor de personagem (já salvo no servidor) — avatar local + aviso à sala */
+  setAppearance(app: CharacterAppearance) {
+    this.appearance = app;
+    this.avatar.setAppearance(app);
+    this.net?.sendAppearance(app);
+  }
+  /** rodada 8: designs sugeridos pelo grupo do evento (bandeira/cartaz/faixa) — só a escolha padrão do item */
+  setPreferredDesigns(ids: number[]) { this.social.preferredDesigns = ids.slice(0, 16); }
+
   start() {
     this.running = true;
     this.clock.start();
@@ -557,6 +566,7 @@ export class Game {
   private cpuMs = 0;
   /** ações sociais / item na mão do jogador local (previsão + servidor) */
   private wheel: ActionWheel | null = null;
+  private chat: ChatPanel | null = null;
   private rallyCrowd: RallyCrowd | null = null;
   readonly social = new SocialController((s) => this.avatar.setSocial(s), () => (this.mpOnline ? this.net! : null), (m) => this.flash(m));
   /** quadros longos (> 34 ms de CPU) com a divisão por etapa */
@@ -570,10 +580,11 @@ export class Game {
 
     // toggles
     if (this.input.consumeToggle('debug')) this.debug.toggle();
-    if (this.input.consumeToggle('map')) this.minimap.toggleExpanded();
-    if (this.input.consumeToggle('help')) this.hud.querySelector('.help')?.classList.toggle('faded');
+    if (this.input.consumeToggle('map')) this.hudShell.toggleMap();
+    if (this.input.consumeToggle('controls')) this.hudShell.toggleHelp();
     if (this.input.consumeToggle('wheel')) this.wheel?.toggle();
-    if (this.input.consumeToggle('photo')) { this.photoMode = !this.photoMode; this.hud.classList.toggle('photo', this.photoMode); }
+    // H ou P: HUD limpo (só o cenário)
+    if (this.input.consumeToggle('help') || this.input.consumeToggle('photo')) this.hudShell.toggleClean();
     this.hud.classList.toggle('locked', this.input.pointerLocked || this.input.isTouch);
 
     const T: [string, number][] = [['início', performance.now()]];
@@ -657,7 +668,8 @@ export class Game {
 
     // HUD
     this.updateValidation();
-    if (!this.photoMode) this.minimap.draw(this.player.x, this.player.z, this.player.heading, this.spec ? this.spec.cam.pose.yaw : this.cam.yaw);
+    const focus = this.freeCam ? this.camera.position : this.player;
+    this.hudShell.frame(tCpu, { x: focus.x, z: focus.z, heading: this.player.heading, camYaw: this.spec ? this.spec.cam.pose.yaw : this.cam.yaw, moving: Math.abs(this.player.speed) > 0.6 });
     const ll = worldProjection.toLatLon(this.player.x, this.player.z);
     const ck = this.chunks.chunkKeyAt(this.player.x, this.player.z);
     const lod = this.chunks.lodAt(this.player.x, this.player.z);
@@ -680,21 +692,28 @@ export class Game {
     this.avatar.root.position.set(f.x, f.y, f.z);
     if (this.net) this.net.spectatorFocus = { x: f.x, z: f.z };
     this.rideables.sync(this.camera.position);
-    this.prompt.classList.remove('show');
-    this.messageTimer -= dt;
-    if (this.messageTimer <= 0) this.modeBadge.textContent = '';
+    this.hudShell.setPrompt('');
   }
 
   /** Multiplayer opcional (desenvolvimento): ?mp=1 conecta em ws://<host>:2567; ?mp=ws://… usa outro servidor. Espectador sempre conecta. */
   private async connectMultiplayer() {
     const q = new URLSearchParams(location.search);
-    const mp = q.get('mp') ?? (this.spectator ? '1' : null);
+    const mp = this.startOpts.mp ?? q.get('mp') ?? (this.spectator ? '1' : null); // espectador sempre conecta
     if (!mp) return;
     const endpoint = mp === '1' ? `ws://${location.hostname}:2567` : mp;
     const { NetworkClient } = await import('../net/NetworkClient');
     this.net = new NetworkClient(endpoint, this.hud);
+    this.net.namesMode = this.hudShell.prefs.value.names;
+    this.hudShell.prefs.onChange((p) => { if (this.net) this.net.namesMode = p.names; });
     this.net.crowd = this.peds.crowd;
     this.graffiti.attachNet(this.net);
+    // chat (src/ui/ChatPanel): painel + botão CHAT no toque; digitar não move o jogador
+    // chat (agente C) no espaço do HUD (agente E): o botão CHAT do toque é o do HUD (chama toggle())
+    const chat = (this.chat = new ChatPanel({ isTouch: false, input: this.input, onToggle: (open) => { if (open) document.exitPointerLock?.(); } }));
+    chat.attach(this.net);
+    this.hudShell.mountChat(chat);
+    // quem fala ganha prioridade de nome acima da cabeça por alguns segundos (LOD de nomes)
+    this.net.on('chat', (m: { nid: number }) => { const id = this.net?.idByNid(m.nid); if (id) this.net!.markSpeaking(id); });
     this.scene.add(this.net.group);
     (window as any).__pvRemotes = () => this.net?.remotesInfo();
     this.net.onSpawn = (sp) => {
@@ -729,7 +748,7 @@ export class Game {
     this.net.onNotice = (m) => this.flash(m);
     this.net.onSelfSocial = () => this.social.fromServer(this.net!.self.social);
     // rodada 8: reconexão (mesma entidade: volta para a posição do servidor) e sessão substituída
-    this.net.ticketProvider = this.opts.ticketProvider ?? null;
+    this.net.ticketProvider = this.startOpts.getTicket ?? null; // entrada NOVA depois da graça: ticket novo
     this.net.onLink = (st) => this.linkBadge.set(st);
     this.net.onResume = (r) => {
       if (this.spectator) return;
@@ -738,7 +757,7 @@ export class Game {
     };
     this.net.onSocialDenied = (_k, reason) => this.social.denied(reason, this.net!.self.social);
     this.net.onEvent = (id) => {
-      if (this.events.current?.id !== id) void this.events.load(id).then(() => { this.interaction.setPolicy(this.events.current?.interaction); this.peds.setSocialConfig(this.events.current?.social); this.rallyCrowd?.setConfig(this.events.current?.social, RallyCrowd.presetScale(this.crowd.budget.total)); this.scenery.applyEvent(this.events.current); });
+      if (this.events.current?.id !== id) void this.events.load(id).then(() => { this.hudShell.setEvent(this.events.current?.name); this.interaction.setPolicy(this.events.current?.interaction); this.peds.setSocialConfig(this.events.current?.social); this.rallyCrowd?.setConfig(this.events.current?.social, RallyCrowd.presetScale(this.crowd.budget.total)); this.scenery.applyEvent(this.events.current); });
     };
     void preloadRagdoll().catch(() => { /* fallback procedural */ });
     try {
@@ -746,7 +765,7 @@ export class Game {
       const f = this.spec?.cam.focus;
       if (f) this.net.spectatorFocus = { x: f.x, z: f.z };
       await this.net.connect(this.appearance ?? DEFAULT_PLAYER_APPEARANCE_LOCAL, q.get('name') ?? (this.playerName || `Visitante ${Math.floor(Math.random() * 900 + 100)}`), sp && sp.length === 2 && sp.every(Number.isFinite) ? { x: sp[0], z: sp[1] } : undefined,
-        { ...(this.spectator ? { role: 'spectator' as const, specCam: f ? { x: f.x, z: f.z } : undefined } : {}), ...(q.get('testUser') ? { testUser: q.get('testUser')! } : {}) });
+        { ticket: this.startOpts.ticket ?? await this.startOpts.getTicket?.(), role: this.startOpts.role ?? (q.get('spectate') === '1' ? 'spectator' : undefined), ...(f ? { specCam: { x: f.x, z: f.z } } : {}), ...(q.get('testUser') ? { testUser: q.get('testUser')! } : {}) });
       this.flash(`Multiplayer conectado (${endpoint})`);
     } catch (e) {
       this.flash(`Multiplayer indisponível: ${(e as Error).message ?? e}`);
@@ -860,7 +879,7 @@ export class Game {
       this.player.speed = 0;
       this.player.locomotion = 'idle';
       this.avatar.update(this.player, dt);
-      this.prompt.textContent = 'Caído… levantando em instantes';
+      this.hudShell.setPrompt('Caído… levantando em instantes');
     } else if (this.trio.active) {
       // em cima do trio: anda no piso (posição LOCAL); o mundo vem da pose do trio
       const it = this.rideables.byId.get(this.trio.state!.id);
@@ -870,7 +889,7 @@ export class Game {
         this.trio.step(this.player, it.state, fx * ax.y + -Math.cos(this.cam.yaw) * ax.x, fz * ax.y + Math.sin(this.cam.yaw) * ax.x, this.input.running(), dt);
         if (this.net) this.net.platform = this.trio.state;
         this.avatar.update(this.player, dt);
-        this.prompt.textContent = this.pendingBoard ? 'Aguardando o servidor…' : 'E — DESCER DO TRIO · WASD andar em cima';
+        this.hudShell.setPrompt(this.pendingBoard ? 'Aguardando o servidor…' : 'E — DESCER DO TRIO · WASD andar em cima');
       }
     } else if (this.riding) {
       const v = this.riding;
@@ -908,7 +927,7 @@ export class Game {
       while (dyaw > Math.PI) dyaw -= Math.PI * 2;
       while (dyaw < -Math.PI) dyaw += Math.PI * 2;
       if (Math.abs(v.state.speed) > 1) this.cam.yaw += dyaw * Math.min(1, dt * (v.def.kind === 'car' ? 2.2 : 1.5));
-      this.prompt.textContent = RIDE_HELP[v.def.kind];
+      this.hudShell.setPrompt(RIDE_HELP[v.def.kind]);
     } else {
       const intent = {
         dirX: fx * ax.y + -Math.cos(this.cam.yaw) * ax.x,
@@ -928,13 +947,10 @@ export class Game {
       this.avatar.update(this.player, dt);
       const near = this.rideables.nearest(this.player.x, this.player.z);
       const ladder = this.rideables.nearestLadder(this.player.x, this.player.z);
-      this.prompt.textContent = this.pendingEnter || this.pendingBoard ? 'Aguardando o servidor…' : ladder ? 'E — SUBIR NO TRIO' : near ? (near.def.kind === 'trio' ? 'E — DIRIGIR O TRIO ELÉTRICO' : `E — USAR ${near.def.label.toUpperCase()}`) : this.graffiti.promptText();
+      this.hudShell.setPrompt(this.pendingEnter || this.pendingBoard ? 'Aguardando o servidor…' : ladder ? 'E — SUBIR NO TRIO' : near ? (near.def.kind === 'trio' ? 'E — DIRIGIR O TRIO ELÉTRICO' : `E — USAR ${near.def.label.toUpperCase()}`) : this.graffiti.promptText());
     }
     this.rideables.sync(this.camera.position);
-    this.prompt.classList.toggle('show', !!this.prompt.textContent);
-    this.messageTimer -= dt;
-    if (this.messageTimer <= 0) this.modeBadge.textContent = this.interaction.mode === 'pacifico' ? 'Modo pacífico' : 'Modo interação';
-    this.modeBadge.classList.toggle('combat', this.interaction.mode === 'interacao');
+    this.hudShell.setMode(this.interaction.mode === 'pacifico' ? 'Modo pacífico' : 'Modo interação', this.interaction.mode === 'interacao');
   }
 
   /** piloto automático para testes reproduzíveis (anda até um ponto usando o movimento normal) */
@@ -943,8 +959,7 @@ export class Game {
 
   /** mensagem curta no selo de modo */
   private flash(msg: string) {
-    this.modeBadge.textContent = msg;
-    this.messageTimer = 2.5;
+    this.hudShell?.flash(msg);
   }
 
   private updateValidation() {
@@ -953,6 +968,8 @@ export class Game {
       const d = Math.hypot(v.p[0] - this.player.x, v.p[1] - this.player.z);
       if (d < v.radius && d < bd) { bd = d; best = v; }
     }
+    // pontos de validação do mapa: aviso só com o painel de debug (F3) — o jogador vê o aviso de zona
+    if (!this.debug.visible) best = null;
     if (best !== this.nearestVP) {
       this.nearestVP = best;
       if (best) {
@@ -984,9 +1001,13 @@ export class Game {
   debugApi() {
     return {
       setShot: (n: string) => this.setShot(n),
+      /** QA rodada 8: aplica um visual (já salvo no servidor) ao avatar local e avisa a sala */
+      setAppearance: (a: CharacterAppearance) => this.setAppearance(a),
       /** QA: grafites conhecidos por este cliente (estado, autor, bytes, tile) e ganchos (superfícies próximas, editor…) */
       graffiti: () => this.graffiti.info(),
       gf: this.graffiti.qa,
+      /** QA: chat (mensagens recebidas/visíveis, abrir, digitar, mutar, denunciar) */
+      chat: () => this.chat?.qa ?? null,
       /** QA: intervalos dos quadros renderizados desde a última chamada */
       takeFrames: () => this.frameLog.splice(0),
       /** QA: altura do chão sob o jogador e alturas do personagem (contato com o chão) */
@@ -1084,6 +1105,20 @@ export class Game {
         };
       },
       hud: (v: boolean) => { this.hud.style.display = v ? '' : 'none'; },
+      /** QA do HUD (rodada 8): estado/custo e controle (limpo, mapa expandido, ajustes, menu, preferências) */
+      hudInfo: () => ({ ...this.hudShell.info(), labels: this.net?.labelStats ?? null }),
+      hudSet: (o: { clean?: boolean; map?: boolean; settings?: boolean; menu?: boolean; help?: boolean; names?: 'TODOS' | 'PROXIMOS' | 'NENHUM'; autoHide?: boolean; poke?: boolean }) => {
+        const h = this.hudShell;
+        if (o.clean !== undefined) h.toggleClean(o.clean);
+        if (o.map !== undefined) h.toggleMap(o.map);
+        if (o.settings !== undefined) h.settings.toggle(o.settings);
+        if (o.menu !== undefined) h.toggleMenu(o.menu);
+        if (o.help !== undefined) h.toggleHelp(o.help);
+        if (o.names) h.prefs.set({ names: o.names });
+        if (o.autoHide !== undefined) h.prefs.set({ hudAutoHide: o.autoHide });
+        if (o.poke) h.poke();
+        return h.info();
+      },
       /** painéis de LED: conteúdo por painel ('*' = todos). Preparado para o backend. */
       billboard: (id: string, content: unknown) => this.billboards.setPanelContent(id, content as never),
       billboards: () => this.manifest.billboards ?? [],

@@ -13,6 +13,7 @@
  *               com estado completo (20 Hz); o resto da área vai como multidão compacta ("crowd", 2 Hz). Veículos também pela grade
  *  grafite      server/src/graffiti: gf_new validado (superfície autorizada, alcance, conteúdo, cota), interesse por
  *               superfície, moderação e persistência (JSON local em dev) — docs/GRAFFITI.md
+ *  chat         server/src/chat: GERAL / PROXIMIDADE (grade espacial) / GRUPO, anti-flood, mutar, denúncias — docs/CHAT.md
  *  rede adversa PV_JITTER / PV_LOSS (ms / 0–1) além de COLYSEUS_LATENCY (RTT nativo)
  *  rodada 8     espectadores (server/src/spectator: sem corpo, AOI pela câmera), reconexão com graça (PV_GRACE_S, 20 s),
  *               login duplicado (a sessão nova ASSUME a entidade), presença em memória e métricas públicas
@@ -23,7 +24,10 @@ import { Room, type Client } from '@colyseus/core';
 import { StateView } from '@colyseus/schema';
 import { WorldState, NetPlayer, NetVehicle } from './state.ts';
 import { loadWorld, type ServerWorld } from './world.ts';
-import { BODIES, NET_ACCESSORIES, MAX_SPEED, sanitizeColor, sanitizeName, sanitizeShirtDesign, sanitizeStyle, type JoinOptions, type MoveMode } from '../../src/net/protocol.ts';
+import { BODIES, MAX_SPEED, sanitizeName, type JoinOptions, type MoveMode } from '../../src/net/protocol.ts';
+import { validateAppearance } from '../../src/characters/validateAppearance.ts';
+import { DEFAULT_PLAYER_APPEARANCE, type CharacterAppearance } from '../../src/characters/bodyTypes.ts';
+import { loadPlayerLook } from './identity/appearance.ts';
 import { validateMoveInWorld } from '../../src/net/authority.ts';
 import { RULES, STATUS, VEHICLE_BOX, VEHICLE_STATE, EVENT_VEHICLE_KINDS, boxesOverlap, canPush, canEnter, impactAllowed, knockdownOutcome, pushOutOfBox, shouldResetVehicle, vehicleBlock, vehicleImpact, unpackMove, type Actor, type Mode, type VehicleKind } from '../../src/net/rules.ts';
 import { TRIO, canBoard, exitPoints, localToWorld, unpackPlatformMove, validatePlatformMove } from '../../src/vehicles/platform.ts';
@@ -33,12 +37,18 @@ import { SpatialGrid, selectInterest, selectInterestSlots, InterestScratch, make
 import { CrowdTable } from '../../src/net/crowdCodec.ts';
 import { GraffitiService, sanitizeClientId } from './graffiti/GraffitiService.ts';
 import { JsonFileGraffitiStore, MemoryGraffitiStore } from './graffiti/store.ts';
+import { ChatService } from './chat/ChatService.ts';
+import type { GfReportEvent } from './graffiti/GraffitiService.ts';
 import { can, type Capability } from '../../src/access/policy.ts';
 import { resolveIdentity, JoinRefused, type ConnectionIdentity } from './identity/resolve.ts';
 
 /** identidade da conexão + marca de bot de carga (só servidor de teste) */
 type RoomIdentity = ConnectionIdentity & { bot?: boolean };
 import { services } from './services.ts';
+import { recheckIdentities, IDENTITY_RECHECK_MS, CLOSE_BANNED, CLOSE_DOWNGRADED } from './identity/recheck.ts';
+
+/** banco (DataStore) se os serviços foram iniciados (sala de teste sem initServices: sem gravação) */
+const storeOrNull = () => { try { return services().store; } catch { return null; } };
 import { ACTION_RULES, applyAction, applyProp, cancelsOnMove, onceFinished, validateAction, validateProp, type ActionActor } from '../../src/social/actionRules.ts';
 import { SpectatorSessions, type SpectatorSession } from './spectator/SpectatorSession.ts';
 import { PresenceTracker } from './presence/PresenceTracker.ts';
@@ -153,13 +163,24 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     appearance: (client: Client, opts: Partial<JoinOptions>) => {
       if (!this.allowed(client, 'profile.edit')) return;
       const p = this.state.players.get(client.sessionId);
-      if (p && opts) { this.applyAppearance(p, opts); this.graffiti.rename(client.sessionId, p.name); }
+      if (!p) return;
+      // conta: o pedido é só um AVISO "salvei" — a aparência e o grupo vêm do banco (PUT /api/me/appearance)
+      const id = this.identities.get(client.sessionId);
+      if (id?.userId) { void this.reloadLook(client.sessionId, id.userId); return; }
+      if (opts) { this.applyAppearance(p, opts); this.graffiti.rename(client.sessionId, p.name); }
     },
     // pichação/grafite (server/src/graffiti): o desenho em andamento é local — só chega aqui o grafite pronto
     gf_new: (client: Client, m: unknown) => this.gate(client, 'graffiti.create', () => client.send('gf_res', this.graffiti.create(client.sessionId, m, this.gfAuthor(client.sessionId)))),
-    gf_report: (client: Client, m: { i?: unknown }) => this.gate(client, 'report.create', () => client.send('gf_res', this.graffiti.report(client.sessionId, m?.i))),
+    gf_report: (client: Client, m: { i?: unknown; c?: unknown }) => this.gate(client, 'report.create', () => client.send('gf_res', this.graffiti.report(client.sessionId, m?.i, Date.now(), m?.c))),
     gf_admin: (client: Client, m: unknown) => client.send('gf_res', this.graffiti.adminMessage(client.sessionId, m)),
+    // chat (server/src/chat): o serviço checa `chat.write`/`report.create` e responde chat_denied / chat_report_res
+    chat_send: (client: Client, m: unknown) => { this.chat.send(client.sessionId, m); },
+    chat_mute: (client: Client, m: unknown) => this.chat.mute(client.sessionId, m),
+    chat_report: (client: Client, m: unknown) => { void this.chat.report(client.sessionId, m); },
   };
+
+  /** chat: destinatários decididos aqui (PROXIMIDADE pela grade espacial `this.grid`), sem trabalho por tick */
+  private chat!: ChatService;
 
   /** grafites: autoridade, interesse, moderação e persistência (JSON local em dev; PV_GRAFFITI_STORE=memory para testes) */
   private graffiti!: GraffitiService;
@@ -204,13 +225,36 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     this.metricsSource = { counts: (now) => this.pres.counts(now), eventId: ev, eventName: evDef?.name ?? ev, environmentCrowd: environmentCrowdFor(evDef) };
     liveWorlds.add(this.metricsSource);
     const gfStore = process.env.PV_GRAFFITI_STORE === 'memory' ? new MemoryGraffitiStore() : new JsonFileGraffitiStore(process.env.PV_GRAFFITI_FILE ?? fileURLToPath(new URL('../data/graffiti.json', import.meta.url)));
-    this.graffiti = new GraffitiService(W.graffitiSurfaces, gfStore, { radius: Number(process.env.PV_GRAFFITI_AOI ?? 120), adminToken: process.env.PV_ADMIN_TOKEN ?? '' });
+    this.graffiti = new GraffitiService(W.graffitiSurfaces, gfStore, { radius: Number(process.env.PV_GRAFFITI_AOI ?? 120), adminToken: process.env.PV_ADMIN_TOKEN ?? '', onReport: (e) => this.gfReported(e) });
     void this.graffiti.init();
+    this.chat = new ChatService({
+      nidOf: (sid) => this.rt.get(sid)?.nid ?? 0,
+      posOf: (sid) => { const r = this.rt.get(sid); return r ? { x: r.last.x, z: r.last.z } : undefined; },
+      near: (x, z, r, fn) => this.grid.forEachInRadius(x, z, r, (sl) => { const sid = this.slotIds[sl]; if (sid) fn(sid); }),
+      broadcast: (type, msg, except) => this.broadcast(type, msg, except.length ? { except: except.map((s) => this.clientBySid(s)).filter((c): c is Client => !!c) } : undefined),
+    }, { store: storeOrNull(), eventId: ev });
     this.patchRate = 50; // 20 Hz
     this.setSimulationInterval((dt) => this.tick(dt), 100); // 10 Hz
+    // suspensão/banimento/revogação feitos pela CLI (outro processo) chegam aqui por releitura periódica do banco
+    this.clock.setInterval(() => void this.recheckIdentities(), IDENTITY_RECHECK_MS);
     const kinds: Record<string, number> = {};
     this.state.vehicles.forEach((v) => { kinds[v.kind] = (kinds[v.kind] ?? 0) + 1; });
     console.log(`[room] ${this.roomId} evento=${ev} (interação: ${this.interactionPolicy}) sem trânsito NPC · veículos ${JSON.stringify(kinds)} AOI=${AOI_RADIUS} m`);
+  }
+
+  /** conexão pelo sessionId (jogadores e espectadores) */
+  private clientBySid(sid: string): Client | undefined { return this.clients2.get(sid) ?? this.clients.find((c) => c.sessionId === sid); }
+
+  /** denúncia de grafite aceita → Report no banco (autor identificado internamente; nunca enviado a clientes) */
+  private gfReported(e: GfReportEvent) {
+    const store = storeOrNull();
+    if (!store) return;
+    void store.reports.create({
+      reporterUserId: e.reporterUserId, targetUserId: e.author.userId ?? null, targetType: 'GRAFFITI', targetRef: `graffiti:${e.id}`,
+      category: e.category, details: null, eventId: this.state.eventId || null,
+      evidence: { kind: 'graffiti', graffitiId: e.id, surface: e.surface, authorName: e.author.name, authorUserId: e.author.userId ?? null, ...(e.author.userId ? {} : { authorClientId: e.author.clientId }), state: e.state, reports: e.reports, hasText: e.hasText, createdAt: new Date(e.createdAt).toISOString(), persistence: e.persistence },
+    }).then((r) => console.log(`[graffiti] denúncia ${r.id} (${e.category}) do grafite #${e.id}`))
+      .catch((err) => console.warn(`[graffiti] falha ao gravar denúncia: ${(err as Error).message}`));
   }
 
   async onDispose() {
@@ -399,18 +443,30 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
   }
 
   // ---------------------------------------------------------------- jogadores
-  private applyAppearance(p: NetPlayer, o: Partial<JoinOptions>) {
-    p.body = (BODIES as readonly string[]).includes(o.body as string) ? (o.body as string) : (p.body || 'homem');
-    p.skin = sanitizeColor(o.skin, p.skin || 0xb98a68);
-    p.hair = sanitizeColor(o.hair, p.hair || 0x1d1714);
-    p.top = sanitizeColor(o.top, p.top || 0x2f6f8f);
-    p.bottom = sanitizeColor(o.bottom, p.bottom || 0x2c3a52);
-    p.shoes = sanitizeColor(o.shoes, p.shoes || 0xe8e8e2);
-    p.accessory = (NET_ACCESSORIES as readonly string[]).includes(o.accessory as string) ? (o.accessory as string) : (p.accessory || 'nenhum');
-    p.acc = sanitizeColor(o.acc, p.acc || 0x222222);
-    for (const f of ['topStyle', 'bottomStyle', 'shoeStyle', 'hairStyle'] as const) p[f] = sanitizeStyle(f, o[f]);
-    p.shirtDesign = sanitizeShirtDesign(o.shirtDesign);
-    if (o.name !== undefined) p.name = sanitizeName(o.name);
+  /** aparência sempre pelo validador ÚNICO (src/characters/validateAppearance.ts — o mesmo da API) */
+  private applyAppearance(p: NetPlayer, o: Partial<JoinOptions> | CharacterAppearance) {
+    const cur = p.body ? validateAppearance({
+      body: p.body, skin: p.skin, hair: p.hair, top: p.top, bottom: p.bottom, shoes: p.shoes, accessory: p.accessory, acc: p.acc,
+      topStyle: p.topStyle, bottomStyle: p.bottomStyle, shoeStyle: p.shoeStyle, hairStyle: p.hairStyle, shirtDesign: p.shirtDesign,
+    }) : null;
+    const a = validateAppearance(o, cur ?? DEFAULT_PLAYER_APPEARANCE.homem)!;
+    p.body = a.body; p.skin = a.skin; p.hair = a.hair; p.top = a.top; p.bottom = a.bottom; p.shoes = a.shoes;
+    p.accessory = a.accessory ?? 'nenhum'; p.acc = a.acc ?? 0x222222;
+    p.topStyle = a.topStyle ?? ''; p.bottomStyle = a.bottomStyle ?? ''; p.shoeStyle = a.shoeStyle ?? ''; p.hairStyle = a.hairStyle ?? '';
+    p.shirtDesign = a.shirtDesign ?? 0;
+    if ('name' in o && o.name !== undefined) p.name = sanitizeName(o.name);
+  }
+
+  /** aparência salva + grupo do evento das contas, carregados no onAuth (sessionId → dados do banco) */
+  private savedLooks = new Map<string, { appearance: CharacterAppearance; groupKey: string | null }>();
+
+  /** recarrega do banco aparência e grupo de uma conta já na sala (depois de salvar no editor) */
+  private async reloadLook(sid: string, userId: string) {
+    const look = await loadPlayerLook(services().store, userId, this.state.eventId).catch(() => null);
+    const p = this.state.players.get(sid), id = this.identities.get(sid);
+    if (!look || !p || !id || id.userId !== userId) return;
+    this.applyAppearance(p, look.appearance);
+    id.groupKey = look.groupKey;
   }
 
   /** identidade resolvida pelo SERVIDOR (ticket → conta; sem ticket → espectador) — ver server/src/identity */
@@ -422,12 +478,32 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
       // servidor de TESTE: bot de carga / conta fictícia para QA (ignorado em produção — server/src/presence/testJoin.ts)
       const tf = testJoinFlags(options);
       if (tf.bot && id.role === 'player') id.bot = true;
-      if (tf.testUser && !id.userId) id.userId = `test:${tf.testUser}`;
+      if (tf.testUser && !id.userId) { id.userId = `test:${tf.testUser}`; id.test = true; } // conta fictícia: fora da releitura do banco
+      if (id.userId && !id.test) {
+        const look = await loadPlayerLook(services().store, id.userId, this.state.eventId);
+        this.savedLooks.set(_client.sessionId, look);
+        id.groupKey = look.groupKey;
+      }
       return id;
     } catch (e) {
       if (e instanceof JoinRefused) throw new Error(e.reason);
       throw e;
     }
+  }
+
+  private rechecking = false;
+  /** relê contas conectadas (server/src/identity/recheck.ts): atualiza o estado ou desconecta (4002 rebaixado / 4003 banido) */
+  private async recheckIdentities() {
+    if (this.rechecking || !this.identities.size) return;
+    this.rechecking = true;
+    try {
+      for (const a of await recheckIdentities(services(), this.identities, this.state.eventId)) {
+        if (!this.identities.has(a.sessionId)) continue;
+        this.identities.set(a.sessionId, a.identity); // gate() passa a negar já, antes da desconexão
+        if (a.kind !== 'update') this.clients.getById(a.sessionId)?.leave(a.kind === 'kick' ? CLOSE_BANNED : CLOSE_DOWNGRADED);
+      }
+    } catch (e) { console.warn('[room] releitura de identidades falhou', (e as Error).message); }
+    finally { this.rechecking = false; }
   }
 
   /** pode? (política central src/access/policy.ts, com o papel desta conexão) */
@@ -475,15 +551,21 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
 
   onJoin(client: Client, options: JoinOptions, auth?: RoomIdentity) {
     const id = auth ?? { userId: null, authSessionId: null, nickname: sanitizeName(options?.name), state: 'PLAYER', grant: 'NONE', role: 'player', groupKey: null, test: true } as RoomIdentity;
+    // TESTE (PV_TEST=1): grupo do jogador anônimo para QA do canal GRUPO; contas reais vêm do EventMembership
+    if (id.test && process.env.PV_TEST === '1' && typeof options?.testGroup === 'string') id.groupKey = options.testGroup.replace(/[^a-z0-9_-]/gi, '').slice(0, 32) || null;
     this.identities.set(client.sessionId, id);
     this.pres.join(client.sessionId, { userId: id.userId, role: id.role, bot: !!id.bot }, Date.now());
-    if (id.role === 'spectator') { this.joinSpectator(client, id, options); return; }
+    this.chat.join(client.sessionId, id, client); // todas as conexões (espectador lê o GERAL)
+    if (id.role === 'spectator') { this.savedLooks.delete(client.sessionId); this.joinSpectator(client, id, options); return; }
     // login duplicado: UMA entidade jogável por conta — a sessão nova assume (a antiga recebe session_replaced)
     const taken = id.userId ? this.takeOver(id.userId, client.sessionId) : null;
     const p = new NetPlayer();
     // apelido: da CONTA (o cliente não escolhe o nome exibido); anônimo só em servidor de teste
     p.name = id.test ? sanitizeName(options?.name) : id.nickname;
-    this.applyAppearance(p, options ?? {});
+    // conta: aparência do BANCO (as opções do cliente são ignoradas); anônimo de teste: opções validadas
+    const saved = this.savedLooks.get(client.sessionId);
+    this.savedLooks.delete(client.sessionId);
+    this.applyAppearance(p, id.userId ? (saved?.appearance ?? DEFAULT_PLAYER_APPEARANCE.homem) : (options ?? {}));
     const a = Math.random() * Math.PI * 2, rr = 2 + Math.random() * 5;
     p.x = this.spawn.x + Math.cos(a) * rr;
     p.z = this.spawn.z + Math.sin(a) * rr;
@@ -515,7 +597,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     this.clients2.set(client.sessionId, client);
     this.grid.insert(r.slot, p.x, p.z);
     this.updateInterest(0, 1, client.sessionId); // só o novo cliente; os demais o encontram na sua fatia
-    this.graffiti.join(client.sessionId, p.name, sanitizeClientId(options?.cid, client.sessionId), client);
+    this.graffiti.join(client.sessionId, p.name, sanitizeClientId(options?.cid, client.sessionId), client, id.userId);
     this.graffiti.update(Date.now(), this.gfPos, client.sessionId); // quem entra já recebe os grafites próximos
     client.send('spawn', { x: p.x, y: p.y, z: p.z, heading: p.heading, sessionId: client.sessionId, policy: this.interactionPolicy, seed: this.state.seed, role: 'player', ...(taken ? { takeover: true } : {}) });
     this.pres.enterWorld(client.sessionId, Date.now());
@@ -566,6 +648,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     const id = this.identities.get(client.sessionId);
     if (!id) return; // sessão substituída: sai de vez
     if (id.role === 'spectator') return; // espectador não tem entidade: sai e o cliente entra de novo
+    if (!can(id.state, 'world.play', id.role)) return; // expulso/rebaixado pelo servidor (releitura): sem graça
     const p = this.state.players.get(client.sessionId), r = this.rt.get(client.sessionId);
     const now = Date.now();
     if (p && r) {
@@ -576,6 +659,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     }
     this.clients2.delete(client.sessionId);
     this.graffiti.leave(client.sessionId);
+    this.chat.leave(client.sessionId); // volta no onReconnect (o anti-flood por conta continua)
     this.pres.drop(client.sessionId);
     console.log(`[room] caiu ${client.sessionId} — em graça por ${GRACE_S} s`);
     try {
@@ -597,6 +681,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     r.last.t = now; // a validação de velocidade recomeça agora (o cliente volta para a posição do servidor)
     this.graffiti.join(sid, p.name, sanitizeClientId(undefined, sid), client);
     this.graffiti.update(now, this.gfPos, sid); // grafites próximos de novo
+    this.chat.join(sid, id, client);
     this.updateInterest(0, 1, sid);
     this.pres.resume(sid, now);
     // estado autoritativo para o cliente retomar (posição segura do servidor, veículo/trio, item)
@@ -609,6 +694,8 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     this.identities.delete(client.sessionId);
     this.grace.delete(client.sessionId);
     this.pres.leave(client.sessionId);
+    this.chat.leave(client.sessionId);
+    this.savedLooks.delete(client.sessionId);
     if (ident?.role === 'spectator') { this.leaveSpectator(client); return; }
     this.removePlayer(client.sessionId);
   }

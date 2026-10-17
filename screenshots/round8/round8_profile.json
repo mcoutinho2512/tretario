@@ -1,0 +1,80 @@
+{
+ "base": "http://localhost:5192",
+ "steps": [
+  {
+   "k": "home.live",
+   "v": "1 jogador na avenida · multidão simulada ~360"
+  },
+  {
+   "k": "home.event",
+   "v": "ATO NA PRESIDENTE VARGAS"
+  },
+  {
+   "k": "nick.reservado",
+   "v": "Este apelido é reservado. Escolha outro."
+  },
+  {
+   "k": "nick.livre",
+   "v": "Verificando disponibilidade…"
+  },
+  {
+   "k": "editor.title",
+   "v": "CRIE SEU PERSONAGEM"
+  },
+  {
+   "k": "surpreenda.diferentes",
+   "v": true
+  },
+  {
+   "k": "player.load_ms",
+   "v": 7171
+  },
+  {
+   "k": "me.membership",
+   "v": {
+    "eventId": "manifestacao",
+    "groupKey": "grupo-13"
+   }
+  },
+  {
+   "k": "me.appearance_igual_editor_exceto_camisa",
+   "v": true
+  },
+  {
+   "k": "me.camisa_cor_grupo13",
+   "v": true
+  },
+  {
+   "k": "persist.appearance_igual",
+   "v": true
+  },
+  {
+   "k": "persist.membership_igual",
+   "v": true
+  },
+  {
+   "k": "persist.prefs",
+   "v": {}
+  },
+  {
+   "k": "session.restore_reload",
+   "v": "Olá, Cariocap6kei"
+  },
+  {
+   "k": "localStorage.sem_token",
+   "v": []
+  },
+  {
+   "k": "spectator.ms_navegacao_ate_mundo",
+   "v": 9127
+  },
+  {
+   "k": "spectator.ms_clique_ate_mundo",
+   "v": 8092
+  },
+  {
+   "k": "spectator.ms_home_pronta",
+   "v": 825
+  }
+ ]
+}

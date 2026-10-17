@@ -9,11 +9,14 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 
-/** registro persistido (identidade do autor: sessão + nome + id anônimo do aparelho — identidade real virá com login) */
+/**
+ * registro persistido. Autor: sessão + nome + id anônimo do aparelho e, com login (rodada 8), `userId` da conta —
+ * INTERNO (moderação/denúncias); nunca vai para clientes. Jogador de teste (PV_TEST) não tem userId.
+ */
 export interface StoredGraffiti {
   id: number;
   surface: string;
-  author: { sessionId: string; name: string; clientId: string };
+  author: { sessionId: string; name: string; clientId: string; userId?: string };
   rect: { s: number; t: number; w: number; h: number };
   /** conteúdo vetorial v1 (src/graffiti/codec.ts) em base64 */
   content: string;

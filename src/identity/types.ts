@@ -47,6 +47,8 @@ export interface PlayerPreferences {
   /** nomes acima dos jogadores */
   names?: 'TODOS' | 'PROXIMOS' | 'NENHUM';
   chatCollapsed?: boolean;
+  /** apelidos mutados no chat (chaves normalizadas; o servidor não envia mensagens deles — docs/CHAT.md) */
+  chatMuted?: string[];
   quality?: string;
 }
 

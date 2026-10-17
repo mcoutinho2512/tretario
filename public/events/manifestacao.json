@@ -164,5 +164,36 @@
    ],
    "npcShare": 0
   }
- ]
+ ],
+ "format": "manifestacao",
+ "zones": [
+  "CENTRAL",
+  "CAMPO_DE_SANTANA",
+  "CENTRO",
+  "RIO_BRANCO",
+  "CANDELARIA"
+ ],
+ "phases": [
+  {
+   "id": "concentracao",
+   "name": "Concentração no trio",
+   "zones": [
+    "CENTRO"
+   ],
+   "rallyPoints": [
+    "veh_trio0"
+   ]
+  },
+  {
+   "id": "ato",
+   "name": "Ato na Candelária",
+   "zones": [
+    "CANDELARIA"
+   ],
+   "rallyPoints": [
+    "stage_stage0"
+   ]
+  }
+ ],
+ "membershipRetentionDays": 30
 }

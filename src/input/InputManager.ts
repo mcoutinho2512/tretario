@@ -46,8 +46,12 @@ export class InputManager {
   }
 
   private onKeyDown = (e: KeyboardEvent) => {
+    // digitando num campo (chat, apelido…): a tecla é do campo, não do jogo
+    const t = e.target as HTMLElement | null;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
     if (e.code === 'Space') { if (!e.repeat) this.jumpQueued = true; e.preventDefault(); }
     if (e.code === 'F3') { e.preventDefault(); this.toggles.add('debug'); }
+    if (e.code === 'F1') { e.preventDefault(); this.toggles.add('controls'); }
     if (e.code === 'KeyM' && !e.repeat) this.toggles.add('map');
     if (e.code === 'KeyH' && !e.repeat) this.toggles.add('help');
     if (e.code === 'KeyP' && !e.repeat) this.toggles.add('photo');
@@ -87,6 +91,8 @@ export class InputManager {
   }
 
   queueJump() { this.jumpQueued = true; }
+  /** solta tudo que estava pressionado (o chat abriu: W segurado não continua andando) */
+  releaseAll() { this.keys.clear(); this.jumpQueued = false; this.touchMove.x = this.touchMove.y = 0; }
   queueToggle(name: string) { this.toggles.add(name); }
 
   addLook(dx: number, dy: number) { this.lookDX += dx; this.lookDY += dy; }

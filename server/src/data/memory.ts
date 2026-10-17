@@ -92,7 +92,8 @@ export class MemoryDataStore implements DataStore {
       return clone(rec);
     },
     latest: async (userId: string, purpose: CodeRecord['purpose']) =>
-      clone([...this.c.values()].filter((x) => x.userId === userId && x.purpose === purpose).sort((a, b) => +b.createdAt - +a.createdAt)[0] ?? null),
+      // empate no mesmo ms: vale o inserido por último
+      clone([...this.c.values()].reverse().filter((x) => x.userId === userId && x.purpose === purpose).sort((a, b) => +b.createdAt - +a.createdAt)[0] ?? null),
     attempt: async (id: string) => { const rec = this.c.get(id); if (!rec) return 0; rec.attempts++; return rec.attempts; },
     consume: async (id: string) => { const rec = this.c.get(id); if (rec) rec.consumedAt = new Date(); },
   };
@@ -101,6 +102,8 @@ export class MemoryDataStore implements DataStore {
     active: async (userId: string, eventId: string | null, now: Date) =>
       clone([...this.a.values()].filter((x) => x.userId === userId && !x.revokedAt && (!x.expiresAt || x.expiresAt > now) && (x.eventId === null || x.eventId === eventId))),
     grant: async (d: { userId: string; grant: AccessRecord['grant']; eventId: string | null; source: string; expiresAt?: Date | null; paymentId?: string | null }) => {
+      // paymentId é único no schema (uma licença por pagamento)
+      if (d.paymentId && [...this.a.values()].some((x) => x.paymentId === d.paymentId)) throw Object.assign(new Error('pagamento já usado'), { code: 'P2002' });
       const rec: AccessRecord = { id: randomUUID(), userId: d.userId, grant: d.grant, eventId: d.eventId, source: d.source, createdAt: new Date(), expiresAt: d.expiresAt ?? null, revokedAt: null, paymentId: d.paymentId ?? null };
       this.a.set(rec.id, rec);
       return clone(rec);
@@ -111,6 +114,7 @@ export class MemoryDataStore implements DataStore {
 
   payments = {
     create: async (d: Omit<PaymentRecord, 'id' | 'createdAt' | 'updatedAt'>) => {
+      if (d.providerRef && [...this.pay.values()].some((x) => x.provider === d.provider && x.providerRef === d.providerRef)) throw Object.assign(new Error('referência duplicada'), { code: 'P2002' });
       const now = new Date();
       const rec: PaymentRecord = { id: randomUUID(), ...d, createdAt: now, updatedAt: now };
       this.pay.set(rec.id, rec);

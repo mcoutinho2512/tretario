@@ -13,6 +13,9 @@
  *            --hold       depois de medir, espera "bye" na entrada padrão antes de sair (o pai coordena)
  *            --social=F   fração F dos bots com vida de manifestação (rodada 7): dançando, com bandeira, com cartaz,
  *                         gesticulando (pedidos 'act'/'prop' reais, validados pelo servidor)
+ *            --groups     rodada 8: bots distribuídos entre os grupos do evento (13 / 22 / neutro; opção só de teste)
+ *            --chat=M     rodada 8: mensagens de chat por MINUTO na multidão inteira (realista: poucos falam; padrão 0),
+ *                         espalhadas no tempo e entre bots, canais GERAL/PROXIMIDADE/GRUPO
  *
  * Movimento de multidão: caminhada lenta (0,5–1,4 m/s), paradas de 1–6 s, pequenas variações de rumo,
  * e volta para a área da concentração quando sai dela. Ao receber correção do servidor (parede), muda de rumo.
@@ -38,6 +41,10 @@ const TOTAL = flagNum('total', N);
 const WAIT_GO = !!flag('wait-go');
 const HOLD = !!flag('hold');
 const SOCIAL = flagNum('social', 0);
+const GROUPS = !!flag('groups');
+const CHAT_PER_MIN = flagNum('chat', 0);
+const GROUP_KEYS = ['grupo-13', 'grupo-22', 'neutro'];
+const CHAT_LINES = ['bora pro trio', 'que dia bonito', 'alguém perto da Central?', 'chegando na Candelária', 'olha o carro de som', 'boa tarde', 'muita gente hoje', 'onde fica o palco?'];
 // ids dos registros (src/social): dança, bandeira, cartaz, gestos
 import { ACTION_BY_KEY } from '../../src/social/actions.ts';
 import { PROP_BY_KIND } from '../../src/social/props.ts';
@@ -98,8 +105,9 @@ async function startBot(i: number) {
   const app = randomAppearance(gi * 7919 + 13, (['homem', 'mulher', 'idoso', 'idosa'] as const)[gi % 4], { football: 0.2 });
   const room = await client.joinOrCreate(ROOM_NAME, {
     ...app, name: `bot${gi}`, accessory: app.accessory ?? 'nenhum',
-    bot: true, // bot de carga: contado como testBots nas métricas públicas, nunca como jogador (só servidor de teste)
     ...(sp ? { testSpawn: sp } : {}),
+    ...(GROUPS ? { testGroup: GROUP_KEYS[gi % GROUP_KEYS.length] } : {}),
+    bot: true,
   });
   const b: Bot = {
     room, x: sp?.x ?? 0, z: sp?.z ?? 0, h: r() * Math.PI * 2, seq: 0, corrections: 0, detailed: 0, far: 0, crowdMsgs: 0, trafficMsgs: 0,
@@ -114,6 +122,7 @@ async function startBot(i: number) {
   room.onMessage('crowd', (buf: Uint8Array) => { b.crowdMsgs++; b.far = decodeCrowd(buf instanceof Uint8Array ? buf : new Uint8Array(buf)).length; });
   for (const t of ['pong', 'knock', 'action', 'enter_ok', 'enter_denied', 'exit_ok', 'mode_ok', 'mode_denied', 'push_denied']) room.onMessage(t, () => {});
   room.onMessage('act_denied', () => { b.denied++; });
+  for (const t of ['chat', 'chat_hello', 'chat_denied', 'chat_report_res', 'denied', 'gf_add', 'gf_del', 'gf_state', 'gf_res', 'presence', 'metrics']) room.onMessage(t, () => {});
   room.onMessage('prop_denied', () => { b.denied++; });
   if (b.role === 'flag') room.send('prop', { p: PROP('flag_small'), d: 0 });
   if (b.role === 'sign') room.send('prop', { p: PROP('sign_small'), d: 0 });
@@ -138,9 +147,21 @@ function socialBot(b: Bot, dt: number) {
   b.room.send('act', { a, v: Math.floor(b.r() * 8) });
 }
 
+/** chat realista: a multidão INTEIRA manda CHAT_PER_MIN mensagens/min, cada bot com chance proporcional */
+let chatSent = 0;
+function chatBot(b: Bot, dt: number) {
+  if (!CHAT_PER_MIN || !bots.length) return;
+  if (b.r() < (CHAT_PER_MIN / 60) * dt / bots.length) {
+    const u = b.r();
+    b.room.send('chat_send', { ch: u < 0.6 ? 'geral' : u < 0.9 ? 'proximidade' : (GROUPS ? 'grupo' : 'geral'), text: CHAT_LINES[Math.floor(b.r() * CHAT_LINES.length)] + (b.r() < 0.5 ? '' : ` ${Math.floor(b.r() * 100)}`) });
+    chatSent++;
+  }
+}
+
 /** um passo de "multidão": anda devagar, para às vezes, varia o rumo, volta para a concentração */
 function stepBot(b: Bot, dt: number) {
   socialBot(b, dt);
+  chatBot(b, dt);
   if (b.pause > 0) { b.pause -= dt; b.speed = Math.max(0, b.speed - dt * 2); }
   else {
     b.speed += (b.cruise - b.speed) * Math.min(1, dt * 2);
@@ -189,6 +210,7 @@ const res = {
   totals: { bytesIn: inB, bytesOut: outB, msgsIn: mIn, msgsOut: mOut },
   visiblePlayers: { min: Math.min(...vis), max: Math.max(...vis), avg: avg(visSamples), detailedAvg: avg(detSamples) },
   corrections: bots.reduce((s, b) => s + b.corrections, 0),
+  chat: { perMin: CHAT_PER_MIN, sent: chatSent }, groups: GROUPS,
   social: { share: SOCIAL, roles: Object.fromEntries(['dancer', 'flag', 'sign', 'gesture'].map((k) => [k, bots.filter((b) => b.role === k).length])), actsSent: bots.reduce((s, b) => s + b.acts, 0), denied: bots.reduce((s, b) => s + b.denied, 0) },
   crowdMsgsPerBot: +(bots.reduce((s, b) => s + b.crowdMsgs, 0) / n / secs).toFixed(2),
   trafficSnapshotsPerBot: +(bots.reduce((s, b) => s + b.trafficMsgs, 0) / n / secs).toFixed(2),

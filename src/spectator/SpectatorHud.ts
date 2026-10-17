@@ -40,7 +40,9 @@ export class CameraSwitcher {
   };
 
   /** monta no elemento dado e liga os atalhos de teclado */
-  mount(parent: HTMLElement) { parent.appendChild(this.el); window.addEventListener('keydown', this.onKey); }
+  mount(parent: HTMLElement) { parent.appendChild(this.el); this.bindKeys(); }
+  /** só os atalhos 1–6 (quando outro componente posiciona o elemento) */
+  bindKeys() { window.removeEventListener('keydown', this.onKey); window.addEventListener('keydown', this.onKey); }
   unmount() { this.el.remove(); window.removeEventListener('keydown', this.onKey); }
 }
 
