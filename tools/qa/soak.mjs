@@ -86,7 +86,7 @@ const heap = async () => {
   let r9 = {};
   if (R9) {
     const pm = Object.fromEntries((await cdp.send('Performance.getMetrics')).metrics.map((m) => [m.name, m.value]));
-    const x = await page.evaluate(() => ({ intervals: window.__pvIntervals?.() ?? null, ragdolls: window.__pv.r9b?.().ragdollsLive ?? null, remotes: window.__pv.mp()?.remotes?.length ?? null, items: window.__pv.r9b?.().items?.items?.length ?? null })).catch(() => ({}));
+    const x = await page.evaluate(() => ({ dom: (() => { const m = {}; for (const e of document.querySelectorAll('body *')) { const ch = []; for (let n = e; n && n !== document.body; n = n.parentElement) ch.unshift(n); const k = ch.slice(0, 2).map((n) => (n.classList?.[0] ?? n.tagName.toLowerCase())).join('>'); m[k] = (m[k] ?? 0) + 1; } return m; })(), intervals: window.__pvIntervals?.() ?? null, ragdolls: window.__pv.r9b?.().ragdollsLive ?? null, remotes: window.__pv.mp()?.remotes?.length ?? null, items: window.__pv.r9b?.().items?.items?.length ?? null })).catch(() => ({}));
     r9 = { listeners: pm.JSEventListeners, nodes: pm.Nodes, ...x };
   }
   return { usedMB: +(u.usedSize / 1048576).toFixed(2), gpuMB: gpu, ...mt, ...r9 };

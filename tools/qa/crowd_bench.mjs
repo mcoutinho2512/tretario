@@ -9,6 +9,7 @@
  * uso (com o cliente rodando, p.ex. `npx vite --port 5192`):
  *   node tools/qa/crowd_bench.mjs [baseUrl=http://localhost:5192] [contagens=50,100,250,500] [presets=low,medium,high] [extra=]
  *   extra: parâmetros de URL adicionais (p.ex. "crowd=0" desliga o orçamento de multidão → comparação antes/depois)
+ *   BOTS_COMBAT=0.08 (rodada 9): 8 % dos bots em pares de confronto (zonas forçadas a COMBAT no servidor de teste)
  *   BOTS_SOCIAL=0.6: 60 % dos bots dançando / com bandeira / com cartaz / gesticulando (cenário da manifestação)
  * saída: docs/screenshots/crowd_bench.json (+ CROWD_BENCH_TAG) e uma captura por cenário em screenshots/crowd_bench/
  */
@@ -43,7 +44,9 @@ process.on('exit', cleanup);
 process.on('SIGINT', () => { cleanup(); process.exit(130); });
 process.on('uncaughtException', (e) => { console.error(e); cleanup(); process.exit(1); });
 
-const server = start('npx', ['tsx', 'src/index.ts'], { PORT: String(PORT), PV_TEST: '1', PV_METRICS: '0' });
+// rodada 9: BOTS_COMBAT=F → fração F em confronto (pares); zonas forçadas a COMBAT no servidor de teste
+const COMBAT = process.env.BOTS_COMBAT ?? '';
+const server = start('npx', ['tsx', 'src/index.ts'], { PORT: String(PORT), PV_TEST: '1', PV_METRICS: '0', ...(COMBAT ? { PV_COMBAT_ZONES: '*', PV_EVENT: 'cotidiano' } : {}) });
 let up = false;
 server.stdout.on('data', (d) => { if (d.toString().includes('[pv3d-server]')) up = true; });
 for (let i = 0; i < 150 && !up; i++) await w(200);
@@ -60,7 +63,7 @@ async function startBots(n) {
   const ready = [];
   for (let k = 0; k * 100 < n; k++) {
     const cnt = Math.min(100, n - k * 100);
-    const p = start('npx', ['tsx', 'tools/bots.ts', String(cnt), '3600', `ws://127.0.0.1:${PORT}`, 'dense', `--offset=${k * 100}`, `--total=${n}`, '--wait-go', ...(SOCIAL ? [`--social=${SOCIAL}`] : []), ...(process.env.BOTS_GROUPS ? ['--groups'] : []), ...(process.env.BOTS_CHAT ? [`--chat=${process.env.BOTS_CHAT}`] : [])], {}, ['pipe', 'pipe', 'inherit']);
+    const p = start('npx', ['tsx', 'tools/bots.ts', String(cnt), '3600', `ws://127.0.0.1:${PORT}`, 'dense', `--offset=${k * 100}`, `--total=${n}`, '--wait-go', ...(SOCIAL ? [`--social=${SOCIAL}`] : []), ...(process.env.BOTS_GROUPS ? ['--groups'] : []), ...(process.env.BOTS_CHAT ? [`--chat=${process.env.BOTS_CHAT}`] : []), ...(COMBAT ? [`--combat=${COMBAT}`] : [])], {}, ['pipe', 'pipe', 'inherit']);
     const rl = createInterface({ input: p.stdout });
     ready.push(new Promise((res) => rl.on('line', (l) => { if (l.trim() === 'READY') res(); })));
     list.push(p);

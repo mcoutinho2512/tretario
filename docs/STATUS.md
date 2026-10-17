@@ -2,6 +2,43 @@
 
 _Atualizado em 2026-10-17 (rodada 8: identidade, grupos, chat, espectador e mundo persistente)._
 
+## Rodada 9 — gameplay, confronto arcade, missões, progressão e eventos ([GAMEPLAY.md](GAMEPLAY.md))
+
+| Item | Estado |
+|---|---|
+| Pulo | servidor valida chão, recarga (sem bunny hop), estado, veículo; altura balística conferida; outros veem impulso/trajetória/pouso (`jump_start`/`jump_land`) |
+| Confronto | CombatSystem único por DADOS (`public/gameplay/combat.json`): soco, chute, empurrão, esquiva, combos, taco, barra, spray; preparação → janela ativa → recuperação; fôlego e condição abstratos; cambaleio, queda (ragdoll Rapier existente) e levantar com teto de segurança; proteção de retorno ([COMBAT.md](COMBAT.md)) |
+| Autoridade | o cliente só pede "ação X nesta orientação"; alvo, alcance, arco, parede, janela, estado, zona/evento, fôlego e recarga no servidor; candidatos pela grade espacial; cliente forjado testado (100 m, zona de paz, 30 pedidos/s, item que não tem, alvo/dano inventados, teleporte) |
+| Zonas | política por dados: PEACE / CONTESTED / COMBAT + áreas de paz (spawn, palco, anéis do trio e carros de som, retornos); a MESMA política vale para golpes, empurrão antigo e atropelamento |
+| Itens | taco/barra/spray na MESMA tabela de props (categoria COMBAT_PROP), pegos em pontos de apoio só em zonas de disputa/confronto; largar/trocar/guardar; voltam ao apoio |
+| Grupos | genéricos (POLITICAL/SUPPORTERS/NEUTRAL/CUSTOM); torcidas com nomes fictícios e camisas sem escudo; fogo amigo pela regra do evento; nenhuma diferença mecânica (testado com lados trocados) |
+| Missões e progressão | 10 missões, 11 conquistas, níveis 1–10, recompensas cosméticas novas (camisas 208–211, designs); XP só por objetivo/missão/conquista/evento; persistente (lotes); caminho pacífico chega ao nível 6 ([MISSIONS.md](MISSIONS.md), [PROGRESSION.md](PROGRESSION.md)) |
+| Eventos | agenda recorrente no servidor (SCHEDULED → REGISTRATION → STARTING → ACTIVE → FINISHED/CANCELLED); caminhada Central → Candelária (vista do alto pelas células), corridas de bicicleta e patinete (mesmo runner, checkpoints autoritativos, DQ por teleporte), confronto de grupos (protótipo) ([EVENTS.md](EVENTS.md), [RACES.md](RACES.md)) |
+| Debate | palco em texto: fila, turnos com cronômetro (dados), moderação/denúncia/mute do chat, reações da plateia (não é pesquisa) ([DEBATES.md](DEBATES.md)) |
+| HUD | Acontecendo agora, Agenda da avenida, rastreador de missão, PROGRESSO, HUD de confronto, MÃOS, controles de toque contextuais, "Reduzir efeitos visuais" |
+| Telões | AdSlots (fundação, só conteúdo interno: agenda, eventos, avisos, arte) ([AD_SLOTS.md](AD_SLOTS.md)) |
+| Testes | **587** automatizados (152 novos); `test:db` **18/18**; combat_mp **27/27**; items_zones_mp **35/35**; missions_mp **25/25**; events_mp **32/32**; debate_mp **24/24**; walkthrough **36/36**; chat **24/24**; reconexão **18/18**; espectador **16/16**; aéreo **17/17**; social **12/12**; trio **24/24**; pichação **26/26**; veículos **24/24**; persistência E2E **21/21**; build OK |
+
+**Desempenho** (M5 Pro, máquina parada; `docs/screenshots/loadtest_round9*.json`, `crowd_bench_round9*.json`)
+
+| | Rodada 8.1 | Rodada 9 |
+|---|---|---|
+| Servidor 500 densos (mesmas condições da 8.1): tick · CPU · banda/jogador | 8,1 ms · 32 % · 20,37 KB/s | 9,2 ms · 36 % · 20,59 KB/s |
+| Servidor 500 densos realista (20 % social, grupos, chat, 8 % em confronto) | — | 9,3 ms · 39 % · 21,08 KB/s · validação de golpe 0,54 ms |
+| Servidor 50 densos realista | — | 1,1 ms · 10 % · 5,77 KB/s |
+| Cliente 500 LOW / MEDIUM / HIGH (realista, FPS sem vsync) | 408–434 / 197 / 70–74 | 405 / 197 / 71 (1528 draw calls) |
+| Cliente 50 LOW / MEDIUM / HIGH | — | 456 / 241 / 78 |
+| Estresse de confronto (todos em pares, denso) 100 / 200 / 400 / 600 / 800 | — | tick 2,1 / 4,0 / 7,4 / 12,8 / 19,1 ms · CPU 19 / 27 / 38 / 52 / 67 % · ELU 0,65 em 800 · banda/cliente 4,8 → 21 KB/s |
+| Cliente com 100 lutadores perto (LOW / HIGH) | — | 449 / 81 FPS |
+| Espectador aéreo 500 bots | 1,15 KB/s | spectator_aerial_mp 17/17 |
+| Soak rodada 9 (32 min: missões, eventos, debate, treino de confronto, itens, quedas, espectador aéreo; 100 bots com 8 % em confronto) | — | 0 erros · 58 FPS · heap 66 → ~93 MB nos 4 primeiros min, depois 88–97 MB (deriva +0,16 MB/min) · GPU ~780–800 MB após 15 min · listeners 142 constantes · intervals 2–3 · ragdolls vivos 0 · DOM acompanha só os remotos (`docs/soak/round9.json`) |
+
+**Limitações**: posições/NPCs de ambiente são locais por cliente; bots de carga não aplicam o próprio recuo (geram
+correções no servidor); validação de golpe usa a grade de 110 m (≈ 0,3–0,5 ms por resolução); agenda/"Acontecendo agora"
+nas capturas O/P vêm do roteiro de debate (agenda simulada para layout); NEGATIVA usa o gesto `talk`; o palco fica na
+zona RIO_BRANCO; inscrição em evento não migra para a sessão nova no login duplicado; limites de pichação e retenção
+de EventMembership sem limpeza; sem exclusão de conta; sem som.
+
 ## Rodada 8.1 — hardening de identidade, limpeza e espectador aéreo
 
 | Item | Estado |
