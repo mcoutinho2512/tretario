@@ -18,7 +18,7 @@ const spot = (id) => manifest.eventSpots.find((v) => v.id === id);
 const browser = await puppeteer.launch({ executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', headless: 'new', args: ['--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist'], defaultViewport: { width: 1600, height: 900 } });
 const page = await browser.newPage();
 page.on('pageerror', (e) => console.log('ERR', e.message));
-await page.goto(`${base}/?autostart=1&quality=high&time=${process.env.TIME ?? '16:40'}`);
+await page.goto(`${base}/?autostart=1&welcome=0&quality=high&time=${process.env.TIME ?? '16:40'}`);
 await page.waitForFunction('window.__pvReady === true', { timeout: 120000 });
 await page.evaluate(() => window.__pv.hud(false));
 

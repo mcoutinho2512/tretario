@@ -22,7 +22,7 @@ const open = async (avatar, name, x) => {
   const b = await puppeteer.launch({ executablePath: chrome, headless: 'new', args: ['--use-angle=metal', '--enable-gpu', '--enable-precise-memory-info'], defaultViewport: { width: 1280, height: 720 } });
   const p = await b.newPage();
   p.on('pageerror', (e) => errors.push(`[${name}] ${e.message}`));
-  await p.goto(`${BASE}/?autostart=1&quality=medium&time=10:30&mp=ws://localhost:${PORT}&avatar=${avatar}&name=${name}&spawn=${x},280`);
+  await p.goto(`${BASE}/?autostart=1&welcome=0&quality=medium&time=10:30&mp=ws://localhost:${PORT}&avatar=${avatar}&name=${name}&spawn=${x},280`);
   await p.waitForFunction('window.__pvReady === true', { timeout: 180000 });
   return { b, p };
 };

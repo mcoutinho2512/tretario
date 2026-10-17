@@ -66,7 +66,7 @@ try {
     const p = await browser.newPage();
     await p.setViewport({ width: 1600, height: 900 });
     p.on('pageerror', (e) => console.log('ERRO', e.message));
-    await p.goto(`${BASE}/?autostart=1&quality=medium&time=16:30`);
+    await p.goto(`${BASE}/?autostart=1&welcome=0&quality=medium&time=16:30`);
     await p.waitForFunction('window.__pvReady === true', { timeout: 120000 });
     await w(3000);
     // O — Central no minimapa (perto da estação, olhando para a torre)
@@ -94,7 +94,7 @@ try {
     const p = await browser.newPage();
     await p.setViewport({ width: 1600, height: 900 });
     p.on('pageerror', (e) => console.log('ERRO', e.message));
-    await p.goto(`${BASE}/?autostart=1&quality=medium&time=16:30&mp=ws://127.0.0.1:${PORT}&name=Repórter&spawn=${(C.x - 14 * Math.sin(along)).toFixed(1)},${(C.z - 14 * Math.cos(along)).toFixed(1)}`);
+    await p.goto(`${BASE}/?autostart=1&welcome=0&quality=medium&time=16:30&mp=ws://127.0.0.1:${PORT}&name=Repórter&spawn=${(C.x - 14 * Math.sin(along)).toFixed(1)},${(C.z - 14 * Math.cos(along)).toFixed(1)}`);
     await p.waitForFunction('window.__pvReady === true && window.__pv.mp()?.session', { timeout: 180000 });
     await p.evaluate((yaw) => { window.__pv.camera(yaw, 0.16, 6); window.__pv.hudSet({ poke: true }); }, along);
     await w(8000);
@@ -143,7 +143,7 @@ try {
     const p = await browser.newPage();
     await p.emulate(KnownDevices['iPhone 14']);
     p.on('pageerror', (e) => console.log('ERRO', e.message));
-    await p.goto(`${BASE}/?autostart=1&quality=low&time=16:30&mp=ws://127.0.0.1:${PORT}&name=Celular&spawn=${(C.x - 16 * Math.sin(along)).toFixed(1)},${(C.z - 16 * Math.cos(along)).toFixed(1)}`);
+    await p.goto(`${BASE}/?autostart=1&welcome=0&quality=low&time=16:30&mp=ws://127.0.0.1:${PORT}&name=Celular&spawn=${(C.x - 16 * Math.sin(along)).toFixed(1)},${(C.z - 16 * Math.cos(along)).toFixed(1)}`);
     await p.waitForFunction('window.__pvReady === true && window.__pv.mp()?.session', { timeout: 180000 });
     await p.evaluate((yaw) => { window.__pv.camera(yaw, 0.18, 6); window.__pv.hudSet({ poke: true }); }, along);
     await w(7000);

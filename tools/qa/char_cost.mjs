@@ -6,7 +6,7 @@ import puppeteer from 'puppeteer-core';
 const quality = process.argv[2] ?? 'high';
 const b = await puppeteer.launch({ executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', headless: 'new', args: ['--use-angle=metal', '--enable-gpu'], defaultViewport: { width: 1600, height: 900 } });
 const p = await b.newPage();
-await p.goto(`${process.env.BASE ?? 'http://localhost:5173'}/?autostart=1&quality=${quality}&time=10:30`);
+await p.goto(`${process.env.BASE ?? 'http://localhost:5173'}/?autostart=1&welcome=0&quality=${quality}&time=10:30`);
 await p.waitForFunction('window.__pvReady === true', { timeout: 240000 });
 await p.evaluate("window.__pv.hud(false); window.__pv.setShot('mid')");
 const w = (ms) => new Promise((r) => setTimeout(r, ms));

@@ -20,7 +20,7 @@ const yaw = sf.kind === 'ground' ? Math.PI : Math.atan2(sf.u[2], -sf.u[0]);
 const browser = await puppeteer.launch({ executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', headless: 'new', args: ['--use-angle=metal', '--enable-gpu'], defaultViewport: { width: 1280, height: 720 } });
 const p = await browser.newPage();
 p.on('pageerror', (e) => console.log('ERR', e.message));
-await p.goto(`${base}/?autostart=1&quality=${quality}&time=10:30`);
+await p.goto(`${base}/?autostart=1&welcome=0&quality=${quality}&time=10:30`);
 await p.waitForFunction('window.__pvReady === true', { timeout: 120000 });
 await p.evaluate((x, z, y) => window.__pv.teleport(x, z, y), front[0], front[1], yaw);
 await w(4000);

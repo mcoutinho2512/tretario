@@ -16,7 +16,7 @@ import puppeteer from 'puppeteer-core';
 import { spawn } from 'node:child_process';
 import { mkdirSync, readFileSync } from 'node:fs';
 
-const base = process.argv[2] ?? 'http://localhost:5302';
+const base = process.argv[2] ?? 'http://localhost:5173';
 const PORT = Number(process.env.PV_ITEMS_PORT ?? 2971);
 const SHOTS = 'docs/screenshots/round9';
 mkdirSync(SHOTS, { recursive: true });
@@ -47,7 +47,7 @@ const supply = JSON.parse(readFileSync('public/gameplay/combat_props.json', 'utf
 const rackDef = supply.racks.find((r) => r.id === 'apoio_campo_de_santana');
 const RACK = pointOnAxis(rackDef.at.t, rackDef.at.side);
 
-const server = spawn('npx', ['tsx', 'src/index.ts'], { cwd: 'server', env: { ...process.env, PORT: String(PORT), PV_TEST: '1', PV_STORE: 'memory', PV_EVENT: 'cotidiano' }, stdio: ['ignore', 'pipe', 'pipe'], detached: true });
+const server = spawn('npx', ['tsx', 'src/index.ts'], { cwd: 'server', env: { ...process.env, PORT: String(PORT), PV_TEST: '1', PV_STORE: 'memory', PV_EVENT: 'cotidiano', PV_COMBAT_ZONES: 'CAMPO_DE_SANTANA' /* mecânica de queda/item; a política de zona é testada em combat_mp */ }, stdio: ['ignore', 'pipe', 'pipe'], detached: true });
 const log = [];
 server.stdout.on('data', (d) => log.push(...d.toString().split('\n').filter(Boolean)));
 server.stderr.on('data', (d) => log.push(...d.toString().split('\n').filter(Boolean)));
@@ -66,7 +66,7 @@ async function open(name, sp, vp = { width: 1000, height: 620 }) {
   return p;
 }
 async function goto(p, name, sp) {
-  await p.goto(`${base}/?autostart=1&quality=low&time=10:30&mp=ws://127.0.0.1:${PORT}&name=${name}&spawn=${sp.x.toFixed(1)},${sp.z.toFixed(1)}`);
+  await p.goto(`${base}/?autostart=1&welcome=0&quality=low&time=10:30&mp=ws://127.0.0.1:${PORT}&name=${name}&spawn=${sp.x.toFixed(1)},${sp.z.toFixed(1)}`);
   await p.waitForFunction('window.__pvReady === true && window.__pv.mp()?.session', { timeout: 240000 });
 }
 const ev = (p, fn, ...a) => p.evaluate(fn, ...a);

@@ -38,7 +38,7 @@ for (const q of ['low', 'medium', 'high', 'ultra']) {
     await cdp.send('Network.enable');
     cdp.on('Network.loadingFinished', (e) => { http += e.encodedDataLength; });
     const t0 = Date.now();
-    await p.goto(`${BASE}/?autostart=1&quality=${q}&mp=ws://localhost:${PORT}&name=Bench&spawn=${x.toFixed(1)},${z.toFixed(1)}`);
+    await p.goto(`${BASE}/?autostart=1&welcome=0&quality=${q}&mp=ws://localhost:${PORT}&name=Bench&spawn=${x.toFixed(1)},${z.toFixed(1)}`);
     await p.waitForFunction('window.__pvReady === true', { timeout: 180000 });
     const loadS = (Date.now() - t0) / 1000;
     await w(5000);

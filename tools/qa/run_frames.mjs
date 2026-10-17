@@ -6,7 +6,7 @@ const secs = Number(process.argv[3] ?? 12);
 mkdirSync(OUT, { recursive: true });
 const b = await puppeteer.launch({ executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', headless: 'new', args: ['--use-angle=metal', '--enable-gpu'], defaultViewport: { width: 640, height: 400 } });
 const p = await b.newPage();
-await p.goto(`${process.env.BASE ?? 'http://localhost:5173'}/?autostart=1&quality=high&time=10:30`);
+await p.goto(`${process.env.BASE ?? 'http://localhost:5173'}/?autostart=1&welcome=0&quality=high&time=10:30`);
 await p.waitForFunction('window.__pvReady === true', { timeout: 180000 });
 await p.evaluate(() => { window.__pv.hud(false); window.__pv.teleport(-540, 255, 2.0); });
 await new Promise((r) => setTimeout(r, 5000));

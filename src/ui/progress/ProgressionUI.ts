@@ -142,6 +142,8 @@ export class ProgressionUI {
     if (!p || this.welcome || !this.cat) return;
     const seen = new Set([...(p.seen ?? []), ...(this.persistent ? [] : local.get())]);
     if (seen.has('welcome')) return;
+    // QA/capturas: `?welcome=0` não mostra o cartão (o progresso continua normal; nada é marcado como visto)
+    if (new URLSearchParams(location.search).get('welcome') === '0') return;
     const m = this.def('boas_vindas');
     if (!m || !p.active.some((a) => a.missionId === m.id)) { this.markSeen(); return; } // já passou da primeira missão
     const w = (this.welcome = el('div', 'prog-welcome'));

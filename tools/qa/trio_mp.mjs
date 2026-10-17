@@ -45,7 +45,7 @@ async function open(name, sp) {
   browsers.push(browser);
   const p = await browser.newPage();
   p.on('pageerror', (e) => console.log(`[${name}] ERR`, e.message));
-  await p.goto(`${base}/?autostart=1&quality=low&time=16:30&mp=ws://127.0.0.1:${PORT}&name=${name}&spawn=${sp[0].toFixed(2)},${sp[1].toFixed(2)}`);
+  await p.goto(`${base}/?autostart=1&welcome=0&quality=low&time=16:30&mp=ws://127.0.0.1:${PORT}&name=${name}&spawn=${sp[0].toFixed(2)},${sp[1].toFixed(2)}`);
   await p.waitForFunction('window.__pvReady === true && window.__pv.mp()?.session', { timeout: 120000 });
   return p;
 }

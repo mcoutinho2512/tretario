@@ -36,7 +36,7 @@ async function open(name, sp, extra = '') {
   const cdp = await p.target().createCDPSession();
   await cdp.send('Network.enable');
   p.offline = (on) => cdp.send('Network.emulateNetworkConditions', { offline: on, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });
-  await p.goto(`${base}/?autostart=1&quality=low&time=10:30&mp=ws://127.0.0.1:${PORT}&name=${name}&spawn=${sp[0]},${sp[1]}${extra}`);
+  await p.goto(`${base}/?autostart=1&welcome=0&quality=low&time=10:30&mp=ws://127.0.0.1:${PORT}&name=${name}&spawn=${sp[0]},${sp[1]}${extra}`);
   await p.waitForFunction('window.__pvReady === true && window.__pv.mp()?.session', { timeout: 120000 });
   return p;
 }
@@ -113,7 +113,7 @@ check('servidor registrou a substituição', log.some((l) => l.includes('substit
 const SB = await puppeteer.launch({ executablePath: chrome, headless: 'new', args: ['--use-angle=metal', '--enable-gpu'], defaultViewport: { width: 640, height: 400 } });
 browsers.push(SB);
 const sp = await SB.newPage();
-await sp.goto(`${base}/?autostart=1&spectate=1&quality=low&mp=ws://127.0.0.1:${PORT}&testUser=qa_a`);
+await sp.goto(`${base}/?autostart=1&welcome=0&spectate=1&quality=low&mp=ws://127.0.0.1:${PORT}&testUser=qa_a`);
 await sp.waitForFunction('window.__pvReady === true && window.__pv.mp()?.session', { timeout: 120000 });
 await w(1500);
 check('aba de espectador da mesma conta: permitida, jogador segue', (await mp(A2)).replaced === false && (await mp(A2)).status === 'online' && (await ev(sp, () => window.__pv.mp().role)) === 'spectator');

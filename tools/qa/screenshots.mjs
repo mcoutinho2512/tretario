@@ -24,7 +24,7 @@ const logs = [];
 page.on('console', (m) => logs.push(`[${m.type()}] ${m.text()}`));
 page.on('pageerror', (e) => logs.push(`[pageerror] ${e.message}`));
 const t0 = Date.now();
-await page.goto(`${base}/?autostart=1&quality=${quality}&time=${time}`, { waitUntil: 'domcontentloaded' });
+await page.goto(`${base}/?autostart=1&welcome=0&quality=${quality}&time=${time}`, { waitUntil: 'domcontentloaded' });
 await page.waitForFunction('window.__pvReady === true', { timeout: 240000 });
 const loadMs = Date.now() - t0;
 const results = { quality, time, loadMs, shots: {} };

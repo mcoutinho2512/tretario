@@ -77,7 +77,7 @@ async function open(avatar, name, sp, look = null) {
   cdp.on('Network.loadingFinished', (e) => { net.http += e.encodedDataLength; });
   // visual salvo pela tela inicial (localStorage) — testa a sincronização do acessório
   if (look) await p.evaluateOnNewDocument((l) => localStorage.setItem('pv3d.look', l), JSON.stringify(look));
-  await p.goto(`${base}/?autostart=1&quality=low&time=16:30&mp=ws://127.0.0.1:${PORT}&avatar=${avatar}&name=${name}&spawn=${sp[0].toFixed(2)},${sp[1].toFixed(2)}${lag ? `&jitter=${jitter}` : ''}`);
+  await p.goto(`${base}/?autostart=1&welcome=0&quality=low&time=16:30&mp=ws://127.0.0.1:${PORT}&avatar=${avatar}&name=${name}&spawn=${sp[0].toFixed(2)},${sp[1].toFixed(2)}${lag ? `&jitter=${jitter}` : ''}`);
   await p.waitForFunction('window.__pvReady === true && window.__pv.mp()?.session', { timeout: 120000 });
   return { b, p, name, net };
 }

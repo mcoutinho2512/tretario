@@ -19,7 +19,7 @@ const browser = await puppeteer.launch({
 });
 const page = await browser.newPage();
 page.on('pageerror', (e) => console.log('ERR', e.message));
-await page.goto(`${base}/?autostart=1&quality=${quality}&time=${time}`);
+await page.goto(`${base}/?autostart=1&welcome=0&quality=${quality}&time=${time}`);
 await page.waitForFunction('window.__pvReady === true', { timeout: 240000 });
 await page.evaluate(() => window.__pv.hud(false));
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));

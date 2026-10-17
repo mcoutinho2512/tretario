@@ -94,7 +94,7 @@ for (const preset of PRESETS) {
   await cdp.send('HeapProfiler.enable');
   if (flags.profile) await cdp.send('HeapProfiler.startSampling', { samplingInterval: 65536 });
   const t0 = Date.now();
-  await page.goto(`${BASE}/?autostart=1&quality=${preset}&time=10:30&mem=1`);
+  await page.goto(`${BASE}/?autostart=1&welcome=0&quality=${preset}&time=10:30&mem=1`);
   await page.waitForFunction('window.__pvReady === true', { timeout: 240000 });
   const loadS = (Date.now() - t0) / 1000;
   await w(SETTLE);

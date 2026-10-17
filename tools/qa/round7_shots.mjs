@@ -22,7 +22,7 @@ const shots = [
 const b = await puppeteer.launch({ executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', headless: 'new', args: ['--use-angle=metal', '--enable-gpu'], defaultViewport: { width: 1600, height: 900 } });
 for (const [name, p, h, cam, js] of shots) {
   const page = await b.newPage();
-  await page.goto(`${BASE}/?autostart=1&quality=high&time=16:00`);
+  await page.goto(`${BASE}/?autostart=1&welcome=0&quality=high&time=16:00`);
   await page.waitForFunction('window.__pvReady === true', { timeout: 180000 });
   await page.evaluate((p, h, cam, js) => { window.__pv.hud(false); window.__pv.teleport(p[0], p[1], h); window.__pv.camera(...cam); if (js) eval(js); }, p, h, cam, js);
   await new Promise((r) => setTimeout(r, 30000)); // a concentração se forma e o LOD chega

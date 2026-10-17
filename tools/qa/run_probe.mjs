@@ -10,7 +10,7 @@ const b = await puppeteer.launch({ executablePath: '/Applications/Google Chrome.
 const p = await b.newPage();
 p.on('pageerror', (e) => console.log('ERR', e.message));
 p.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') console.log('console', m.text().slice(0, 200)); });
-await p.goto(`http://localhost:5173/?autostart=1&quality=high&time=10:30&avatar=${process.argv[3] ?? 'homem'}`);
+await p.goto(`http://localhost:5173/?autostart=1&welcome=0&quality=high&time=10:30&avatar=${process.argv[3] ?? 'homem'}`);
 await p.waitForFunction('window.__pvReady === true', { timeout: 180000 });
 await p.evaluate(() => { window.__pv.hud(false); window.__pv.teleport(-540, 255, 2.0); });
 await new Promise((r) => setTimeout(r, 6000));

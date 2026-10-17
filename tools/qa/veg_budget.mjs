@@ -19,7 +19,7 @@ const browser = await puppeteer.launch({
 });
 const page = await browser.newPage();
 const t0 = Date.now();
-await page.goto(`${base}/?autostart=1&quality=${quality}&time=10:30`);
+await page.goto(`${base}/?autostart=1&welcome=0&quality=${quality}&time=10:30`);
 await page.waitForFunction('window.__pvReady === true', { timeout: 240000 });
 console.log('load', Date.now() - t0, 'ms');
 for (const [k, js] of Object.entries(SHOTS)) {

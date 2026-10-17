@@ -9,7 +9,7 @@ const b = await puppeteer.launch({ executablePath: '/Applications/Google Chrome.
 const stat = (a) => { const s = [...a].sort((x, y) => x - y); return { min: +s[0].toFixed(3), p50: +s[Math.floor(s.length / 2)].toFixed(3), max: +s.at(-1).toFixed(3), range: +(s.at(-1) - s[0]).toFixed(3) }; };
 for (const body of bodies) {
   const p = await b.newPage();
-  await p.goto(`${process.env.BASE ?? 'http://localhost:5173'}/?autostart=1&quality=high&time=10:30&avatar=${body}`);
+  await p.goto(`${process.env.BASE ?? 'http://localhost:5173'}/?autostart=1&welcome=0&quality=high&time=10:30&avatar=${body}`);
   await p.waitForFunction('window.__pvReady === true', { timeout: 180000 });
   await p.evaluate(() => { window.__pv.hud(false); window.__pv.teleport(-540, 255, 2.0); });
   await new Promise((r) => setTimeout(r, 8000)); // LOD0 chega depois de jogável

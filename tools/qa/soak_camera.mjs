@@ -41,7 +41,7 @@ const b = await puppeteer.launch({ executablePath: chrome, headless: 'new', args
 const page = await b.newPage();
 const errors = [];
 page.on('pageerror', (e) => errors.push(e.message));
-await page.goto(`${BASE}/?autostart=1&spectate=1&quality=medium&time=12:00&mem=1&mp=ws://127.0.0.1:${PORT}`);
+await page.goto(`${BASE}/?autostart=1&welcome=0&spectate=1&quality=medium&time=12:00&mem=1&mp=ws://127.0.0.1:${PORT}`);
 await page.waitForFunction('window.__pvReady === true', { timeout: 240000 });
 await w(3000);
 const cdp = await page.createCDPSession();

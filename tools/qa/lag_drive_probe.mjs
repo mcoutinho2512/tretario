@@ -12,7 +12,7 @@ const car = m.vehicleSpawns.find((v) => v.id === 'car0');
 const sp = [car.x - Math.sin(car.heading) * 3.3, car.z - Math.cos(car.heading) * 3.3];
 const b = await puppeteer.launch({ executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', headless: 'new', args: ['--use-angle=metal'], defaultViewport: { width: 800, height: 500 } });
 const p = await b.newPage();
-await p.goto(`http://localhost:5173/?autostart=1&quality=low&mp=ws://127.0.0.1:2630&name=D&spawn=${sp[0]},${sp[1]}&jitter=${jit}`);
+await p.goto(`http://localhost:5173/?autostart=1&welcome=0&quality=low&mp=ws://127.0.0.1:2630&name=D&spawn=${sp[0]},${sp[1]}&jitter=${jit}`);
 await p.waitForFunction('window.__pvReady === true && window.__pv.mp()?.session', { timeout: 120000 });
 await w(1500);
 console.log('antes de entrar', JSON.stringify(await p.evaluate(() => window.__pv.mp().correctionReasons)));

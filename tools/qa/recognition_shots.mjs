@@ -50,7 +50,7 @@ const browser = await puppeteer.launch({
 const page = await browser.newPage();
 const errors = [];
 page.on('pageerror', (e) => errors.push(e.message));
-await page.goto(`${base}/?autostart=1&quality=${quality}&time=${time}`);
+await page.goto(`${base}/?autostart=1&welcome=0&quality=${quality}&time=${time}`);
 await page.waitForFunction('window.__pvReady === true', { timeout: 240000 });
 const metrics = { quality, time, shots: {} };
 for (const k of only) {

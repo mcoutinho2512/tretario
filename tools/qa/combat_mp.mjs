@@ -35,8 +35,28 @@ process.on('SIGINT', async () => { await cleanup(); process.exit(130); });
 
 const combat = JSON.parse(readFileSync('public/gameplay/combat.json', 'utf8'));
 const D = combat.dummies[0];
-// paz: 22 m a leste do boneco (fora da área de treino, r = areaR); combate: 3 m a leste do boneco
-const PEACE = { A: [D.x + 22, D.z], B: [D.x + 22, D.z + 1.1] };
+// paz: ao lado do spawn (zona CENTRAL PEACE + área de paz do spawn — dados do agente B); combate: 3 m a leste do boneco
+const MANIFEST = JSON.parse(readFileSync('public/world/manifest.json', 'utf8'));
+const SPN = MANIFEST.spawn.p;
+const PEACE = { A: [SPN[0] + 6, SPN[1]], B: [SPN[0] + 6, SPN[1] + 1.1] };
+// ponto de apoio de itens de confronto mais perto do boneco (combat_props.json supply.racks; mesma conta de pointOnAxis)
+const AX = MANIFEST.pvAxis;
+function pointOnAxis(t, side = 0) {
+  const seg = []; let total = 0;
+  for (let i = 0; i < AX.length - 1; i++) { const l = Math.hypot(AX[i + 1][0] - AX[i][0], AX[i + 1][1] - AX[i][1]); seg.push(l); total += l; }
+  let want = Math.max(0, Math.min(1, t)) * total;
+  for (let i = 0; i < seg.length; i++) {
+    if (want <= seg[i] || i === seg.length - 1) {
+      const [ax, az] = AX[i], [bx, bz] = AX[i + 1];
+      const u = seg[i] ? Math.min(1, want / seg[i]) : 0, dx = (bx - ax) / (seg[i] || 1), dz = (bz - az) / (seg[i] || 1);
+      return { x: ax + (bx - ax) * u - dz * side, z: az + (bz - az) * u + dx * side };
+    }
+    want -= seg[i];
+  }
+  return { x: AX[0][0], z: AX[0][1] };
+}
+const rackDef = JSON.parse(readFileSync('public/gameplay/combat_props.json', 'utf8')).supply.racks.find((r) => r.id === 'apoio_campo_de_santana');
+const RACK = pointOnAxis(rackDef.at.t, rackDef.at.side);
 const FIGHT = { A: [D.x + 3.2, D.z], B: [D.x + 3.2, D.z + 1.1] };
 
 async function open(name, sp, phone = false) {
@@ -45,7 +65,7 @@ async function open(name, sp, phone = false) {
   const p = await browser.newPage();
   if (phone) await p.emulate(KnownDevices['iPhone 14']);
   p.on('pageerror', (e) => console.log(`[${name}] ERR`, e.message));
-  await p.goto(`${base}/?autostart=1&quality=low&time=15:30&mp=ws://127.0.0.1:${PORT}&name=${name}&spawn=${sp[0].toFixed(2)},${sp[1].toFixed(2)}`);
+  await p.goto(`${base}/?autostart=1&welcome=0&quality=low&time=15:30&mp=ws://127.0.0.1:${PORT}&name=${name}&spawn=${sp[0].toFixed(2)},${sp[1].toFixed(2)}`);
   await p.waitForFunction('window.__pvReady === true && window.__pv.mp()?.session && window.__pv.combat()', { timeout: 180000 });
   return p;
 }
@@ -63,6 +83,8 @@ async function walk(p, to, ms = 15000) {
 const face = async (p, to) => { const m = await me(p); await ev(p, (y) => window.__pv.face(y), Math.atan2(to[0] - m.x, to[1] - m.z)); await w(250); };
 /** câmera atrás do jogador olhando para o ponto */
 const look = async (p, to, pitch = 0.12, dist = 4.2) => { const m = await me(p); await ev(p, (y, pi, d) => window.__pv.camera(y, pi, d), Math.atan2(to[0] - m.x, to[1] - m.z), pitch, dist); };
+/** teleporte do servidor de TESTE (PV_TEST=1; o servidor põe o jogador no ponto) — trechos longos do roteiro */
+const tp = async (p, to) => { await ev(p, (x, z) => window.__pvProg.tp(x, z), to[0], to[1]); await w(700); };
 const shot = (p, name) => p.screenshot({ path: `${OUT}/${name}.jpg`, type: 'jpeg', quality: 82 });
 
 const A = await open('Ana', PEACE.A);
@@ -88,7 +110,7 @@ try {
   }
 
   // ---------------------------------------------------------------- 2. área de treino (COMBAT)
-  await Promise.all([walk(A, FIGHT.A), walk(B, FIGHT.B)]);
+  await tp(A, FIGHT.A); await tp(B, FIGHT.B);
   await w(1800); // zona com histerese (servidor 2 Hz, 1,2 s de permanência)
   {
     const a = await cb(A), b = await cb(B);
@@ -140,8 +162,16 @@ try {
   {
     await w(1000);
     await walk(B, FIGHT.B, 5000);
-    await ev(A, () => window.__pv.prop('bat'));
-    check('A pega o taco (servidor confirma o item)', await until(A, () => window.__pv.social().server?.prop === 11, 3000));
+    // taco só se pega num ponto de apoio (posse no servidor — server/src/items): A vai até o apoio, T, e volta
+    await tp(A, [RACK.x + 1, RACK.z]);
+    await until(A, () => (window.__pv.r9b().items?.items ?? []).some((it) => it.prop === 11), 5000);
+    const bat = await ev(A, () => (window.__pv.r9b().items?.items ?? []).find((it) => it.prop === 11) ?? null);
+    if (bat) await tp(A, [bat.x + 0.4, bat.z]);
+    await until(A, () => window.__pv.r9b().items?.near?.prop === 11, 4000);
+    await ev(A, () => window.__pv.key('KeyT'));
+    check('A pega o taco (servidor confirma o item)', await until(A, () => window.__pv.social().server?.prop === 11, 4000));
+    await tp(A, FIGHT.A);
+    await w(1800); // zona com histerese
     await face(A, FIGHT.B); await face(B, FIGHT.A);
     await w(300);
     const before = (await cb(B)).stats.hitsIn;
@@ -211,13 +241,13 @@ try {
     const M = await open('Toque', [PEACE.A[0] + 3, PEACE.A[1] - 2], true);
     const c0 = await cb(M);
     check('toque: botões de confronto escondidos em zona de paz (modo pacífico)', c0.touch === false && !c0.context, JSON.stringify({ touch: c0.touch, ctx: c0.context }));
-    await walk(M, [FIGHT.A[0] + 2, FIGHT.A[1] - 3], 20000);
+    await tp(M, [FIGHT.A[0] + 2, FIGHT.A[1] - 3]);
     const shown = await until(M, () => window.__pv.combat().touch === true, 4000);
     check('toque: botões aparecem na área de treino', shown);
     await ev(M, () => window.__pv.cbt('cbt_punch'));
     await w(250);
     await shot(M, 'J_toque_confronto');
-    await walk(M, [PEACE.A[0] + 3, PEACE.A[1] - 2], 20000);
+    await tp(M, [PEACE.A[0] + 3, PEACE.A[1] - 2]);
     check('toque: somem ao sair', await until(M, () => window.__pv.combat().touch === false, 5000));
   }
 } catch (e) { console.error(e); check('roteiro sem exceção', false, String(e)); }

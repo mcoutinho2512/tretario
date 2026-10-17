@@ -32,7 +32,7 @@ for (const run of RUNS) {
     page.on('pageerror', (e) => r.errors.push(`pageerror: ${e.message}`.slice(0, 240)));
     page.on('console', (m) => { if (m.type() === 'error') r.errors.push(m.text().slice(0, 240)); });
     const t0 = Date.now();
-    await page.goto(`${BASE}/?autostart=1&quality=auto&time=10:30`);
+    await page.goto(`${BASE}/?autostart=1&welcome=0&quality=auto&time=10:30`);
     await page.waitForFunction('window.__pvReady === true', null, { timeout: 240000 });
     r.loadS = +((Date.now() - t0) / 1000).toFixed(1);
     await page.waitForTimeout(6000);

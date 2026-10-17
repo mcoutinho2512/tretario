@@ -10,7 +10,7 @@ const open = async (avatar, name) => {
   const b = await puppeteer.launch({ executablePath: chrome, headless: 'new', args: ['--use-angle=metal', '--enable-gpu'], defaultViewport: { width: 1280, height: 720 } });
   const p = await b.newPage();
   p.on('pageerror', (e) => console.log(`[${name}] ERR`, e.message));
-  await p.goto(`${base}/?autostart=1&quality=low&time=16:30&mp=1&avatar=${avatar}&name=${name}`);
+  await p.goto(`${base}/?autostart=1&welcome=0&quality=low&time=16:30&mp=1&avatar=${avatar}&name=${name}`);
   await p.waitForFunction('window.__pvReady === true', { timeout: 120000 });
   return { b, p };
 };

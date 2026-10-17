@@ -10,7 +10,7 @@ const base = process.argv[2] ?? 'http://localhost:5173';
 const w = (ms) => new Promise((r) => setTimeout(r, ms));
 const browser = await puppeteer.launch({ executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', headless: 'new', args: ['--use-angle=metal', '--enable-gpu', '--enable-precise-memory-info', '--js-flags=--expose-gc'], defaultViewport: { width: 1280, height: 720 } });
 const p = await browser.newPage();
-await p.goto(`${base}/?autostart=1&quality=high&time=10:30`);
+await p.goto(`${base}/?autostart=1&welcome=0&quality=high&time=10:30`);
 await p.waitForFunction('window.__pvReady === true', { timeout: 120000 });
 await p.evaluate(() => window.__pv.teleport(-612, 248, Math.PI));
 await p.evaluate(() => window.__pv.peds(0)); // sem pedestres: medição sem ruído

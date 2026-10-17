@@ -3,7 +3,7 @@ const b = await puppeteer.launch({ executablePath: '/Applications/Google Chrome.
 const p = await b.newPage();
 p.on('pageerror', (e) => console.log('ERR', e.message));
 p.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warn') console.log('[console]', m.text().slice(0, 200)); });
-await p.goto('http://localhost:5173/?autostart=1&quality=low&mp=1&name=Smoke');
+await p.goto('http://localhost:5173/?autostart=1&welcome=0&quality=low&mp=1&name=Smoke');
 await p.waitForFunction('window.__pvReady === true', { timeout: 120000 });
 await new Promise((r) => setTimeout(r, 4000));
 console.log(JSON.stringify(await p.evaluate(() => ({ mp: window.__pv.mp(), m: window.__pv.metrics(), cars: window.__pv.vehicles() })), null, 0).slice(0, 1500));

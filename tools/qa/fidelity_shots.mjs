@@ -34,7 +34,7 @@ const page = await browser.newPage();
 const errors = [];
 page.on('pageerror', (e) => errors.push(e.message));
 const t0 = Date.now();
-await page.goto(`${base}/?autostart=1&quality=${quality}&time=${time}`);
+await page.goto(`${base}/?autostart=1&welcome=0&quality=${quality}&time=${time}`);
 await page.waitForFunction('window.__pvReady === true', { timeout: 240000 });
 const loadMs = Date.now() - t0;
 const metrics = { quality, time, loadMs, shots: {} };
