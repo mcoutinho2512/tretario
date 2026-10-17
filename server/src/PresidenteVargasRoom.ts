@@ -36,6 +36,7 @@ import type { GfReportEvent } from './graffiti/GraffitiService.ts';
 import { can, type Capability } from '../../src/access/policy.ts';
 import { resolveIdentity, JoinRefused, type ConnectionIdentity } from './identity/resolve.ts';
 import { services } from './services.ts';
+import { recheckIdentities, IDENTITY_RECHECK_MS, CLOSE_BANNED, CLOSE_DOWNGRADED } from './identity/recheck.ts';
 
 /** banco (DataStore) se os serviços foram iniciados (sala de teste sem initServices: sem gravação) */
 const storeOrNull = () => { try { return services().store; } catch { return null; } };
@@ -201,6 +202,8 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     }, { store: storeOrNull(), eventId: ev });
     this.patchRate = 50; // 20 Hz
     this.setSimulationInterval((dt) => this.tick(dt), 100); // 10 Hz
+    // suspensão/banimento/revogação feitos pela CLI (outro processo) chegam aqui por releitura periódica do banco
+    this.clock.setInterval(() => void this.recheckIdentities(), IDENTITY_RECHECK_MS);
     const kinds: Record<string, number> = {};
     this.state.vehicles.forEach((v) => { kinds[v.kind] = (kinds[v.kind] ?? 0) + 1; });
     console.log(`[room] ${this.roomId} evento=${ev} (interação: ${this.interactionPolicy}) sem trânsito NPC · veículos ${JSON.stringify(kinds)} AOI=${AOI_RADIUS} m`);
@@ -412,6 +415,21 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
       if (e instanceof JoinRefused) throw new Error(e.reason);
       throw e;
     }
+  }
+
+  private rechecking = false;
+  /** relê contas conectadas (server/src/identity/recheck.ts): atualiza o estado ou desconecta (4002 rebaixado / 4003 banido) */
+  private async recheckIdentities() {
+    if (this.rechecking || !this.identities.size) return;
+    this.rechecking = true;
+    try {
+      for (const a of await recheckIdentities(services(), this.identities, this.state.eventId)) {
+        if (!this.identities.has(a.sessionId)) continue;
+        this.identities.set(a.sessionId, a.identity); // gate() passa a negar já, antes da desconexão
+        if (a.kind !== 'update') this.clients.getById(a.sessionId)?.leave(a.kind === 'kick' ? CLOSE_BANNED : CLOSE_DOWNGRADED);
+      }
+    } catch (e) { console.warn('[room] releitura de identidades falhou', (e as Error).message); }
+    finally { this.rechecking = false; }
   }
 
   /** pode? (política central src/access/policy.ts, com o papel desta conexão) */

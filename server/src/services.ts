@@ -19,7 +19,10 @@ export const storeFactories: { prisma?: () => Promise<DataStore> } = {};
 
 export async function initServices(): Promise<Services> {
   if (current) return current;
-  const wantPrisma = !!process.env.DATABASE_URL && process.env.PV_STORE !== 'memory';
+  // servidores de TESTE (PV_TEST=1: bots/QA) usam memória por padrão — não sujam o banco local; o E2E de
+  // persistência pede o banco explicitamente com PV_STORE=prisma
+  const testDefault = process.env.PV_TEST === '1' && process.env.PV_STORE !== 'prisma';
+  const wantPrisma = !!process.env.DATABASE_URL && process.env.PV_STORE !== 'memory' && !testDefault;
   const store = wantPrisma && storeFactories.prisma ? await storeFactories.prisma() : new MemoryDataStore();
   current = { store, tickets: new TicketService() };
   console.log(`[services] banco: ${store.kind}`);
