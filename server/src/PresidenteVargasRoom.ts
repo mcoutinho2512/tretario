@@ -217,7 +217,8 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
       reporterUserId: e.reporterUserId, targetUserId: e.author.userId ?? null, targetType: 'GRAFFITI', targetRef: `graffiti:${e.id}`,
       category: e.category, details: null, eventId: this.state.eventId || null,
       evidence: { kind: 'graffiti', graffitiId: e.id, surface: e.surface, authorName: e.author.name, authorUserId: e.author.userId ?? null, ...(e.author.userId ? {} : { authorClientId: e.author.clientId }), state: e.state, reports: e.reports, hasText: e.hasText, createdAt: new Date(e.createdAt).toISOString(), persistence: e.persistence },
-    }).catch((err) => console.warn(`[graffiti] falha ao gravar denúncia: ${(err as Error).message}`));
+    }).then((r) => console.log(`[graffiti] denúncia ${r.id} (${e.category}) do grafite #${e.id}`))
+      .catch((err) => console.warn(`[graffiti] falha ao gravar denúncia: ${(err as Error).message}`));
   }
 
   async onDispose() { await this.graffiti?.flushStore(); }

@@ -35,6 +35,7 @@ const DEFAULT_PLAYER_APPEARANCE_LOCAL = DEFAULT_APPS.homem;
 import { ThirdPersonCamera } from '../camera/ThirdPersonCamera';
 import { InputManager } from '../input/InputManager';
 import { TouchControls } from '../ui/TouchControls';
+import { mountChat, type ChatPanel } from '../ui/ChatPanel';
 import { DebugPanel } from '../debug/DebugPanel';
 import { Minimap } from '../debug/Minimap';
 import { createLandmarkMaterials, loadLandmarkTextures } from '../world/landmarks/arch';
@@ -518,6 +519,7 @@ export class Game {
   private cpuMs = 0;
   /** ações sociais / item na mão do jogador local (previsão + servidor) */
   private wheel: ActionWheel | null = null;
+  private chat: ChatPanel | null = null;
   private rallyCrowd: RallyCrowd | null = null;
   readonly social = new SocialController((s) => this.avatar.setSocial(s), () => (this.mpOnline ? this.net! : null), (m) => this.flash(m));
   /** quadros longos (> 34 ms de CPU) com a divisão por etapa */
@@ -641,6 +643,8 @@ export class Game {
     this.net = new NetworkClient(endpoint, this.hud);
     this.net.crowd = this.peds.crowd;
     this.graffiti.attachNet(this.net);
+    // chat (src/ui/ChatPanel): painel + botão CHAT no toque; digitar não move o jogador
+    this.chat = mountChat(this.hud, this.net, { isTouch: this.input.isTouch, input: this.input, onToggle: (open) => { if (open) document.exitPointerLock?.(); } });
     this.scene.add(this.net.group);
     (window as any).__pvRemotes = () => this.net?.remotesInfo();
     this.net.onSpawn = (sp) => {
@@ -922,6 +926,8 @@ export class Game {
       /** QA: grafites conhecidos por este cliente (estado, autor, bytes, tile) e ganchos (superfícies próximas, editor…) */
       graffiti: () => this.graffiti.info(),
       gf: this.graffiti.qa,
+      /** QA: chat (mensagens recebidas/visíveis, abrir, digitar, mutar, denunciar) */
+      chat: () => this.chat?.qa ?? null,
       /** QA: intervalos dos quadros renderizados desde a última chamada */
       takeFrames: () => this.frameLog.splice(0),
       /** QA: altura do chão sob o jogador e alturas do personagem (contato com o chão) */

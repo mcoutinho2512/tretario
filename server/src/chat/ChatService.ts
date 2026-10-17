@@ -288,15 +288,16 @@ export class ChatService {
       ...(k.wire.group ? { group: k.wire.group } : {}), recipients: k.to ? k.to.size : 'geral', context: context.slice(-3),
     };
     this.stats.reports++;
+    let reportId = '—';
     if (this.store) {
       try {
-        await this.store.reports.create({
+        reportId = (await this.store.reports.create({
           reporterUserId: p.ident.userId, targetUserId: k.authorUserId, targetType: 'CHAT_MESSAGE', targetRef: `chat:${this.eventId}:${id}`,
           category, details, evidence, eventId: this.eventId || null,
-        });
+        })).id;
       } catch (e) { this.log(`falha ao gravar denúncia: ${(e as Error).message}`); return res(false, 'erro'); }
     }
-    this.log(`denúncia ${category} da mensagem ${id} (${k.wire.ch}) por ${p.ident.nickname}`);
+    this.log(`denúncia ${reportId} (${category}) da mensagem ${id} (${k.wire.ch}) por ${p.ident.nickname}`);
     return res(true);
   }
 
