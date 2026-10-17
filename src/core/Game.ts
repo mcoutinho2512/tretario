@@ -78,6 +78,7 @@ export interface GameStartOptions extends IdentityJoinOptions {
 }
 import type { TrafficData } from '../world/types';
 import type { SpectatorMode } from '../spectator/SpectatorMode';
+import type { CellImpostors } from '../spectator/CellImpostors';
 import { ReconnectBadge } from '../net/ReconnectBadge';
 
 export { DEFAULT_PLAYER_APPEARANCE } from '../characters/bodyTypes';
@@ -153,6 +154,11 @@ export class Game {
 
   /** modo espectador (src/spectator) — null jogando */
   private spec: SpectatorMode | null = null;
+  /** espectador aéreo (rodada 8.1): impostores das células agregadas (FAR/AGGREGATE do servidor) */
+  private cells: CellImpostors | null = null;
+  /** camada do servidor é FAR/AGGREGATE: pedestres e concentração locais param (o ambiente vem das células) */
+  private get aerial() { const t = this.net?.specTier; return !!this.spec && (t === 'FAR' || t === 'AGGREGATE'); }
+  private layerAcc = 0;
   private linkBadge = new ReconnectBadge();
   get spectator() { return this.startOpts.role === 'spectator'; }
 
@@ -342,6 +348,11 @@ export class Game {
         follow: () => { const it = this.rideables.eventItems().find((i) => i.def.kind === 'trio'); return it ? { x: it.state.x, z: it.state.z, heading: it.state.heading } : null; },
       });
       this.spec.cam.occlusion = (ax, ay, az, bx, by, bz) => this.collision.raycast(ax, ay, az, bx, by, bz);
+      // células agregadas → impostores (mesmo teste de prédio da concentração: círculo empurrado = dentro de parede)
+      const { CellImpostors } = await import('../spectator/CellImpostors');
+      this.cells = new CellImpostors((x, z) => this.collision.groundHeight(x, z), (x, z) => { const q = { x, y: 0, z }; this.collision.resolveCircle(q, 0.3, 1.7); return Math.hypot(q.x - x, q.z - z) > 0.05; });
+      this.cells.setGroupColors(this.events.current?.groups);
+      this.scene.add(this.cells.group);
       this.intro.active = false;
       const f = this.spec.cam.focus;
       this.player.x = f.x; this.player.z = f.z; this.player.y = f.y;
@@ -399,7 +410,14 @@ export class Game {
     // PERFIL/PERSONAGEM do menu abre o editor da conta (src/ui/editorBridge.ts — registrado pela tela inicial)
     shell.hooks.openCharacterEditor = () => { if (!openCharacterEditor()) shell.flash('Entre na sua conta para editar o personagem'); };
     if (touch) shell.attachTouch(touch);
-    shell.attachCrowd(this.crowd);
+    // minimapa: no alto (espectador FAR/AGGREGATE) o calor vem das CÉLULAS já recebidas — sem amostrar a multidão
+    shell.attachCrowd({ requestSample: (fn) => {
+      if (!this.aerial || !this.cells) { this.crowd.requestSample(fn); return; }
+      const pts: { x: number; z: number }[] = [];
+      this.cells.forEachPoint((x, z) => pts.push({ x, z }));
+      this.net?.forEachRemotePos((x, z) => pts.push({ x, z }));
+      fn(pts);
+    } });
     shell.setEvent(this.events.current?.name);
     void shell.prefs.syncFromServer();
     this.hud.appendChild(this.debug.el);
@@ -628,8 +646,11 @@ export class Game {
     }
     this.graffiti.update(dt, this.camera.position, this.player);
     mark('rede');
-    this.peds.update(dt, this.camera, this.player);
-    this.rallyCrowd?.update(dt);
+    // espectador no alto: o ambiente vem das células (impostores) — pedestres/concentração locais não duplicam
+    const aerial = this.aerial;
+    this.peds.group.visible = !aerial;
+    if (!aerial) { this.peds.update(dt, this.camera, this.player); this.rallyCrowd?.update(dt); }
+    if (this.cells && this.net) this.cells.update(dt, this.net.specCells, this.net.specCellsVersion, aerial, this.spec!.cam.altitude, (fn) => this.net!.forEachRemotePos(fn));
     mark('pedestres');
     this.crowd.end(this.camera, dt);
     mark('multidão');
@@ -690,7 +711,15 @@ export class Game {
     const f = this.spec!.frame(dt);
     this.player.x = f.x; this.player.y = f.y; this.player.z = f.z; this.player.speed = 0;
     this.avatar.root.position.set(f.x, f.y, f.z);
-    if (this.net) this.net.spectatorFocus = { x: f.x, z: f.z };
+    if (this.net) this.net.spectatorFocus = { x: f.x, z: f.z, alt: this.spec!.cam.altitude };
+    // camada no rótulo do espectador (1 Hz): o que está sendo desenhado e quantas pessoas
+    if ((this.layerAcc += dt) > 1 && this.net) {
+      this.layerAcc = 0;
+      const t = this.net.specTier;
+      let p = 0, e = 0;
+      for (const c of this.net.specCells.values()) { p += c.players; e += c.env; }
+      this.spec!.setLayer(t === 'AGGREGATE' ? `avenida inteira · ${p} jogadores + ${e} ambiente` : t === 'FAR' ? `vista do alto · ${p} jogadores + ${e} ambiente` : '');
+    }
     this.rideables.sync(this.camera.position);
     this.hudShell.setPrompt('');
   }
@@ -757,7 +786,7 @@ export class Game {
     };
     this.net.onSocialDenied = (_k, reason) => this.social.denied(reason, this.net!.self.social);
     this.net.onEvent = (id) => {
-      if (this.events.current?.id !== id) void this.events.load(id).then(() => { this.hudShell.setEvent(this.events.current?.name); this.interaction.setPolicy(this.events.current?.interaction); this.peds.setSocialConfig(this.events.current?.social); this.rallyCrowd?.setConfig(this.events.current?.social, RallyCrowd.presetScale(this.crowd.budget.total)); this.scenery.applyEvent(this.events.current); });
+      if (this.events.current?.id !== id) void this.events.load(id).then(() => { this.hudShell.setEvent(this.events.current?.name); this.interaction.setPolicy(this.events.current?.interaction); this.peds.setSocialConfig(this.events.current?.social); this.rallyCrowd?.setConfig(this.events.current?.social, RallyCrowd.presetScale(this.crowd.budget.total)); this.scenery.applyEvent(this.events.current); this.cells?.setGroupColors(this.events.current?.groups); });
     };
     void preloadRagdoll().catch(() => { /* fallback procedural */ });
     try {
@@ -1071,8 +1100,20 @@ export class Game {
       rawPush: (target: string) => this.net?.requestPush(target),
       lastDenial: () => this.net?.lastDenial ?? '',
       // rodada 8: espectador e reconexão (QA)
+      // espectador aéreo (rodada 8.1): camada, células recebidas (resumo + assinatura) e impostores desenhados
+      specCells: () => {
+        if (!this.net) return null;
+        const list = [...this.net.specCells.values()].sort((a, b) => a.cz - b.cz || a.cx - b.cx);
+        let h = 0x811c9dc5;
+        for (const c of list) for (const v of [c.cx, c.cz, c.players, c.env, c.seed, ...c.activity, ...Object.entries(c.groups).flatMap(([k, n]) => [k.length, n])]) h = Math.imul(h ^ (v | 0), 16777619) >>> 0;
+        return { tier: this.net.specTier, cells: list.length, players: list.reduce((a, c) => a + c.players, 0), env: list.reduce((a, c) => a + c.env, 0), digest: h.toString(16), stats: { ...this.net.specCellStats }, impostors: this.cells ? { ...this.cells.stats, visible: this.cells.visible } : null, pedsVisible: this.peds.group.visible, rally: this.rallyCrowd?.stats.submitted ?? 0, aerial: this.aerial,
+          list: list.map((c) => ({ cx: c.cx, cz: c.cz, players: c.players, env: c.env, groups: c.groups })) };
+      },
       spectator: () => (this.spec ? { mode: this.spec.cam.mode, focus: this.spec.cam.focus, altitude: +this.spec.cam.altitude.toFixed(1), camera: { x: +this.camera.position.x.toFixed(1), y: +this.camera.position.y.toFixed(1), z: +this.camera.position.z.toFixed(1) }, avatarVisible: this.avatar.root.visible } : null),
       specSelect: (m: string) => this.spec?.select(m as Parameters<SpectatorMode['select']>[0]),
+      /** pose completa da câmera livre (QA aéreo: altitude = sen(pitch) × dist, presa à faixa) */
+      specPose: (x: number, z: number, yaw: number, pitch: number, dist: number, snap = false) => { if (!this.spec) return; this.spec.select('livre'); Object.assign(this.spec.cam.target, { x, z, yaw, pitch, dist }); if (snap) this.spec.cam.snap(); },
+      toggleMap: () => this.hudShell.toggleMap(),
       specGoto: (x: number, z: number, dist?: number, snap = false) => { if (!this.spec) return; this.spec.cam.goTo(x, z, dist); this.spec.select('livre'); if (snap) this.spec.cam.snap(); },
       netDrop: () => this.net?.dropConnectionForTest(),
       netAutoReconnect: (on: boolean) => this.net?.setAutoReconnect(on),

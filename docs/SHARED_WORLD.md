@@ -144,6 +144,16 @@ Mesmo mundo, sem corpo: ver `docs/SPECTATOR.md`. A área de interesse do especta
 validado e com taxa limitada), com o mesmo código dos jogadores (grade espacial + `StateView` + `crowd` + grafites).
 Espectadores não são entidades, não colidem e não contam como jogadores.
 
+### Espectador aéreo: células determinísticas (rodada 8.1)
+No alto (camadas FAR/AGGREGATE, pela altitude que o cliente informa em `spec_cam.alt`) o espectador não recebe
+pessoas, recebe **células de 40 m** (`spec_cells`, binário, 1 Hz, ≤ 6 KB/s): jogadores reais, multidão de ambiente
+estimada pelos dados do evento (separada), distribuição por grupo e por atividade. O conjunto é montado **uma vez por
+período no servidor** e é o mesmo para todos; a `seed` de cada célula (`cellSeed(cx, cz, semente da sala)`) define onde
+o cliente desenha cada impostor — dois espectadores no alto veem **a mesma** passeata (mesmas contagens, mesmas
+cores, mesmos lugares). Quem a rede desenha individualmente é descontado da célula (sem duplicar). Jogadores normais
+não mudam nada: mesmo AOI, nunca recebem `spec_cells` (testado em `tests/spectatorAerialServer.test.ts`). Detalhes,
+formato e medições: `docs/SPECTATOR.md` → "Espectador aéreo".
+
 ## Reconexão (rodada 8)
 Regras puras em `src/net/reconnect.ts` (testes: `tests/reconnect.test.ts`); servidor em `PresidenteVargasRoom`
 (`onDrop` / `onReconnect` / `onLeave`); cliente em `NetworkClient` (`bind`, `onRoomLeft`, `rejoinFresh`).
