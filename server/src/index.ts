@@ -21,7 +21,7 @@ import './data/prisma.ts'; // registra o PrismaDataStore (usado quando DATABASE_
 import { seedEvents } from './events/seed.ts';
 import { router } from './http/router.ts';
 import './http/routes.ts'; // registra as rotas da API (/api/*)
-import { CleanupService } from './cleanup/CleanupService.ts';
+import { CleanupService, liveMemorySweepers } from './cleanup/CleanupService.ts';
 import { sweepAuthLimits } from './auth/routes.ts';
 import { sweepProfileLimits } from './http/profile.ts';
 
@@ -43,7 +43,7 @@ console.log(`[pv3d-server] ws://${host}:${port} · sala "${ROOM_NAME}" (desenvol
 const cleanup = new CleanupService(svc.store, {
   sweepers: [
     { kind: 'tickets', sweep: (now) => svc.tickets.sweep(now) },
-    { kind: 'rateLimit', sweep: (now) => sweepAuthLimits(now) + sweepProfileLimits(now) },
+    { kind: 'rateLimit', sweep: (now) => sweepAuthLimits(now) + sweepProfileLimits(now) + [...liveMemorySweepers].reduce((n, c) => n + c.sweep(now), 0) },
   ],
 }).start();
 server.onShutdown(() => cleanup.stop());

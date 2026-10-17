@@ -14,7 +14,7 @@ const EP = `ws://127.0.0.1:${PORT}`;
 const API = `http://127.0.0.1:${PORT + 1}`;
 const w = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const APP = { body: 'homem', skin: 1, hair: 1, top: 1, bottom: 1, shoes: 1 };
-const QUIET = ['crowd', 'gf', 'gf_del', 'gf_res', 'pong', 'spawn', 'correct', 'chat_hello', 'chat'];
+const QUIET = ['crowd', 'gf', 'gf_del', 'gf_res', 'pong', 'spawn', 'correct', 'chat_hello', 'chat', 'chat_mutes'];
 const skip = process.env.PV_SKIP_NET_TESTS === '1';
 
 let srv: ChildProcess | null = null;

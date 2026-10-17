@@ -34,7 +34,7 @@ O "+0,49 MB/min" da rodada 7 era **aquecimento de cache**: nas duas medições d
 ~6 min e fica plano (docs/soak/).
 
 **Limitações**: e-mail real (SMTP) e OAuth não implementados; limites de taxa/tickets em memória de um processo;
-sem limpeza automática de sessões/códigos vencidos nem exclusão de conta; mute por apelido; sem tela dedicada para
+sem limpeza automática de sessões/códigos vencidos; sem exclusão de conta; sem tela dedicada para
 "conta entrou em outra janela"; espectador com o mesmo raio de interesse dos jogadores; concessão nova vale na
 próxima entrada.
 

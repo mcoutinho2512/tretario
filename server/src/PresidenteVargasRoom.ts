@@ -55,6 +55,7 @@ import { SpectatorSessions, type SpectatorSession } from './spectator/SpectatorS
 import { PresenceTracker } from './presence/PresenceTracker.ts';
 import { environmentCrowdFor, liveWorlds, type WorldMetricsSource } from './presence/publicMetrics.ts';
 import { testJoinFlags } from './presence/testJoin.ts';
+import { liveMemorySweepers } from './cleanup/CleanupService.ts';
 import { LINK_WIRE, RECONNECT } from '../../src/net/reconnect.ts';
 
 const AOI_RADIUS = Number(process.env.PV_AOI ?? 220); // m — jogadores/veículos visíveis
@@ -239,6 +240,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
         return undefined;
       },
     }, { store: storeOrNull(), eventId: ev, secret: serverSecret() });
+    liveMemorySweepers.add(this.chat);
     this.patchRate = 50; // 20 Hz
     this.setSimulationInterval((dt) => this.tick(dt), 100); // 10 Hz
     // suspensão/banimento/revogação feitos pela CLI (outro processo) chegam aqui por releitura periódica do banco
@@ -265,6 +267,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
 
   async onDispose() {
     if (this.metricsSource) liveWorlds.delete(this.metricsSource);
+    if (this.chat) liveMemorySweepers.delete(this.chat);
     await this.graffiti?.flushStore();
   }
 
