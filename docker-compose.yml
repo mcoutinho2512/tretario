@@ -1,0 +1,22 @@
+# Banco de DESENVOLVIMENTO local (rodada 8). Nada externo: PostgreSQL em contêiner na própria máquina.
+# Subir: docker compose up -d db · URL: postgresql://pv:pv_dev@127.0.0.1:5433/pv3d (server/.env.example)
+# NÃO usar estas credenciais fora do ambiente local.
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: pv3d-db
+    environment:
+      POSTGRES_USER: pv
+      POSTGRES_PASSWORD: pv_dev
+      POSTGRES_DB: pv3d
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - pv3d-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pv -d pv3d"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+volumes:
+  pv3d-db:

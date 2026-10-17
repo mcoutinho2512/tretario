@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { CANVAS_H, decodeGraffiti, encodeGraffiti, simplifyStroke, type GraffitiContent } from '../src/graffiti/codec';
-import { checkText, sanitizeText } from '../src/graffiti/textFilter';
+import { checkText, sanitizeText } from '../src/moderation/basicFilter';
 import { GF_RULES, GF_STATE, checkQuota, expiresAtFor, moderate, newAuthorLimits, recordCreation, validateContent, validateReach, type ModerationRec } from '../src/graffiti/rules';
 import { distanceToSurface, nearestSurface, parseSurfaceFile, placeRect, rectInside, solidRing, surfacePoint, type GraffitiSurface } from '../src/graffiti/surfaces';
 

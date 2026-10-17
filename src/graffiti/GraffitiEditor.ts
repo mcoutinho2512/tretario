@@ -6,7 +6,7 @@ import './graffiti.css';
 import { CANVAS_H, CANVAS_W, PALETTE, SYMBOLS, encodeGraffiti, simplifyStroke, type GraffitiItem } from './codec';
 import { drawGraffiti, drawItem } from './raster';
 import { GF_RULES } from './rules';
-import { checkText, MAX_TEXT_CHARS } from './textFilter';
+import { checkText, MAX_TEXT_CHARS } from '../moderation/basicFilter';
 import { GRAFFITI_SIZES } from './surfaces';
 
 type Tool = 'trace' | 'stamp' | 'text';

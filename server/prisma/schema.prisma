@@ -1,0 +1,268 @@
+// Modelo de dados da rodada 8 (identidade, acesso, eventos, moderação). PostgreSQL local (docker-compose.yml).
+// Contrato ÚNICO: o servidor só acessa o banco pelos repositórios de server/src/data (nunca Prisma espalhado).
+// Privacidade (docs/PRIVACY_ARCHITECTURE.md): sem nome real, sem IP em claro, e-mail nunca público, escolha de
+// grupo só por EVENTO (EventMembership), senhas/códigos/tokens só como hash.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum AccountStatus {
+  ACTIVE
+  SUSPENDED
+  BANNED
+}
+
+/// licença de participação: NONE é a AUSÊNCIA de concessão ativa (não há linha "NONE")
+enum AccessGrant {
+  DEV_GRANTED
+  PAID
+  STAFF
+}
+
+enum CodePurpose {
+  EMAIL_VERIFY
+  PASSWORD_RESET
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+  CANCELED
+}
+
+enum ReportCategory {
+  SPAM
+  ASSEDIO
+  ODIO
+  AMEACA
+  CONTEUDO_SEXUAL
+  IMPERSONACAO
+  OUTRO
+}
+
+enum ReportStatus {
+  OPEN
+  REVIEWED
+  DISMISSED
+  ACTIONED
+}
+
+enum ReportTarget {
+  CHAT_MESSAGE
+  GRAFFITI
+  USER
+}
+
+model User {
+  id            String        @id @default(uuid())
+  /// e-mail normalizado (minúsculas) — PRIVADO
+  email         String        @unique
+  emailVerified Boolean       @default(false)
+  passwordHash  String
+  status        AccountStatus @default(ACTIVE)
+  suspendedUntil DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  lastLoginAt   DateTime?
+
+  profile     Profile?
+  appearance  CharacterAppearance?
+  sessions    Session[]
+  access      AccountAccess[]
+  payments    Payment[]
+  memberships EventMembership[]
+  codes       VerificationCode[]
+  reportsMade Report[]          @relation("reporter")
+  reportsAbout Report[]         @relation("reported")
+}
+
+model Profile {
+  userId      String   @id
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// apelido como exibido
+  nickname    String
+  /// apelido normalizado (minúsculas, sem acento/símbolos) — unicidade e anti-imitação
+  nicknameKey String   @unique
+  displayName String?
+  /// preferências do jogo (nomes: TODOS/PROXIMOS/NENHUM, canais de chat, câmera…) — sem dado sensível
+  preferences Json     @default("{}")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model CharacterAppearance {
+  userId    String   @id
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// CharacterAppearance validada pelo servidor (src/characters/bodyTypes.ts + garments.ts)
+  data      Json
+  version   Int      @default(1)
+  updatedAt DateTime @updatedAt
+}
+
+/// sessão de LOGIN (cookie HttpOnly). Só o hash do token fica no banco; sem IP em claro.
+model Session {
+  id         String    @id @default(uuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash  String    @unique
+  createdAt  DateTime  @default(now())
+  expiresAt  DateTime
+  lastSeenAt DateTime  @default(now())
+  revokedAt  DateTime?
+  /// hash curto do user-agent (detectar troca de aparelho), nunca o UA completo nem IP
+  uaHash     String?
+
+  @@index([userId])
+}
+
+model VerificationCode {
+  id         String      @id @default(uuid())
+  userId     String
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  purpose    CodePurpose
+  codeHash   String
+  expiresAt  DateTime
+  attempts   Int         @default(0)
+  consumedAt DateTime?
+  createdAt  DateTime    @default(now())
+
+  @@index([userId, purpose])
+}
+
+/// concessão de acesso (licença de participação). Rodada 8: DEV_GRANTED por CLI; PAID virá do PIX (rodada 9).
+model AccountAccess {
+  id        String      @id @default(uuid())
+  userId    String
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  grant     AccessGrant
+  /// evento a que a licença se aplica (null = global)
+  eventId   String?
+  source    String
+  createdAt DateTime    @default(now())
+  expiresAt DateTime?
+  revokedAt DateTime?
+  paymentId String?     @unique
+  payment   Payment?    @relation(fields: [paymentId], references: [id])
+
+  @@index([userId])
+}
+
+/// pagamento (SEM provedor real nesta rodada: só MockPaymentProvider em testes)
+model Payment {
+  id          String        @id @default(uuid())
+  userId      String
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider    String
+  providerRef String?
+  amountCents Int
+  currency    String        @default("BRL")
+  status      PaymentStatus @default(PENDING)
+  eventId     String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  access      AccountAccess?
+
+  @@unique([provider, providerRef])
+}
+
+model Event {
+  /// mesmo id do arquivo public/events/<id>.json
+  id        String   @id
+  name      String
+  status    String   @default("ACTIVE")
+  startsAt  DateTime?
+  endsAt    DateTime?
+  createdAt DateTime @default(now())
+  groups    EventGroup[]
+  memberships EventMembership[]
+}
+
+model EventGroup {
+  /// "<evento>:<chave do grupo>"
+  id        String  @id
+  eventId   String
+  event     Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  key       String
+  name      String
+  /// design aplicado (aparência — nunca vantagem)
+  designKey String?
+  neutral   Boolean @default(false)
+  sort      Int     @default(0)
+  memberships EventMembership[]
+
+  @@unique([eventId, key])
+}
+
+/// escolha de grupo POR EVENTO (não é atributo da conta; apagada após a retenção do evento)
+model EventMembership {
+  id        String     @id @default(uuid())
+  userId    String
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  eventId   String
+  event     Event      @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  groupId   String
+  group     EventGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@unique([userId, eventId])
+}
+
+model Report {
+  id             String         @id @default(uuid())
+  reporterUserId String?
+  reporter       User?          @relation("reporter", fields: [reporterUserId], references: [id], onDelete: SetNull)
+  targetUserId   String?
+  target         User?          @relation("reported", fields: [targetUserId], references: [id], onDelete: SetNull)
+  targetType     ReportTarget
+  /// id da mensagem/grafite (interno)
+  targetRef      String
+  category       ReportCategory
+  details        String?
+  /// cópia do conteúdo denunciado no momento (para revisão)
+  evidence       Json           @default("{}")
+  status         ReportStatus   @default(OPEN)
+  eventId        String?
+  createdAt      DateTime       @default(now())
+  reviewedAt     DateTime?
+
+  @@index([status, createdAt])
+  @@index([targetUserId])
+}
+
+model ModerationAction {
+  id           String    @id @default(uuid())
+  /// 'SUSPEND' | 'UNSUSPEND' | 'BAN' | 'UNBAN' | 'REMOVE_GRAFFITI' | 'HIDE_GRAFFITI' | 'RESTORE_GRAFFITI' | 'GRANT_ACCESS' | 'REVOKE_ACCESS'
+  action       String
+  targetUserId String?
+  targetType   String?
+  targetRef    String?
+  reason       String?
+  /// quem fez (CLI do operador, usuário staff…)
+  actor        String
+  createdAt    DateTime  @default(now())
+  expiresAt    DateTime?
+
+  @@index([targetUserId])
+}
+
+/// auditoria de ações administrativas/sensíveis — NUNCA senha, token ou código
+model AuditLog {
+  id         String   @id @default(uuid())
+  actor      String
+  action     String
+  targetType String?
+  targetId   String?
+  meta       Json     @default("{}")
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+}

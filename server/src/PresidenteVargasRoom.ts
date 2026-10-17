@@ -30,6 +30,9 @@ import { SpatialGrid, selectInterest, selectInterestSlots, InterestScratch, make
 import { CrowdTable } from '../../src/net/crowdCodec.ts';
 import { GraffitiService, sanitizeClientId } from './graffiti/GraffitiService.ts';
 import { JsonFileGraffitiStore, MemoryGraffitiStore } from './graffiti/store.ts';
+import { can, type Capability } from '../../src/access/policy.ts';
+import { resolveIdentity, JoinRefused, type ConnectionIdentity } from './identity/resolve.ts';
+import { services } from './services.ts';
 import { ACTION_RULES, applyAction, applyProp, cancelsOnMove, onceFinished, validateAction, validateProp, type ActionActor } from '../../src/social/actionRules.ts';
 
 const AOI_RADIUS = Number(process.env.PV_AOI ?? 220); // m — jogadores/veículos visíveis
@@ -119,26 +122,27 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
   private eventVehIds: string[] = [];
 
   messages = {
-    move: (client: Client, raw: unknown) => this.withNet(client, true, () => this.onMove(client, raw)),
+    move: (client: Client, raw: unknown) => this.gate(client, 'world.play', () => this.withNet(client, true, () => this.onMove(client, raw))),
     ping: (client: Client, t0: number) => client.send('pong', [t0, Date.now()]),
-    mode: (client: Client, m: Mode) => this.onMode(client, m),
-    enter: (client: Client, m: { id: string; seq?: number } | string) => this.withNet(client, false, () => this.onEnter(client, typeof m === 'string' ? m : m?.id, typeof m === 'object' ? m?.seq : undefined)),
-    exit: (client: Client, m?: { seq?: number }) => this.withNet(client, false, () => this.onExit(client, m?.seq)),
-    push: (client: Client, target: string) => this.withNet(client, false, () => this.onPush(client, target)),
+    mode: (client: Client, m: Mode) => this.gate(client, 'world.play', () => this.onMode(client, m)),
+    enter: (client: Client, m: { id: string; seq?: number } | string) => this.gate(client, 'vehicle.use', () => this.withNet(client, false, () => this.onEnter(client, typeof m === 'string' ? m : m?.id, typeof m === 'object' ? m?.seq : undefined))),
+    exit: (client: Client, m?: { seq?: number }) => this.gate(client, 'vehicle.use', () => this.withNet(client, false, () => this.onExit(client, m?.seq))),
+    push: (client: Client, target: string) => this.gate(client, 'push', () => this.withNet(client, false, () => this.onPush(client, target))),
     // ações sociais (emotes) e itens seguráveis: só ids pequenos — os outros clientes tocam a animação localmente
-    act: (client: Client, m: { a?: unknown; v?: unknown }) => this.onAct(client, m),
-    prop: (client: Client, m: { p?: unknown; d?: unknown }) => this.onProp(client, m),
+    act: (client: Client, m: { a?: unknown; v?: unknown }) => this.gate(client, 'action.perform', () => this.onAct(client, m)),
+    prop: (client: Client, m: { p?: unknown; d?: unknown }) => this.gate(client, 'item.hold', () => this.onProp(client, m)),
     // trio elétrico: subir/descer pela escada e andar em cima (posição LOCAL no piso)
-    board: (client: Client, m: { id?: unknown; seq?: number }) => this.withNet(client, false, () => this.onBoard(client, m)),
-    unboard: (client: Client, m?: { seq?: number }) => this.withNet(client, false, () => this.onUnboard(client, m?.seq)),
-    pmove: (client: Client, raw: unknown) => this.withNet(client, true, () => this.onPlatformMove(client, raw)),
+    board: (client: Client, m: { id?: unknown; seq?: number }) => this.gate(client, 'vehicle.use', () => this.withNet(client, false, () => this.onBoard(client, m))),
+    unboard: (client: Client, m?: { seq?: number }) => this.gate(client, 'vehicle.use', () => this.withNet(client, false, () => this.onUnboard(client, m?.seq))),
+    pmove: (client: Client, raw: unknown) => this.gate(client, 'world.play', () => this.withNet(client, true, () => this.onPlatformMove(client, raw))),
     appearance: (client: Client, opts: Partial<JoinOptions>) => {
+      if (!this.allowed(client, 'profile.edit')) return;
       const p = this.state.players.get(client.sessionId);
       if (p && opts) { this.applyAppearance(p, opts); this.graffiti.rename(client.sessionId, p.name); }
     },
     // pichação/grafite (server/src/graffiti): o desenho em andamento é local — só chega aqui o grafite pronto
-    gf_new: (client: Client, m: unknown) => client.send('gf_res', this.graffiti.create(client.sessionId, m, this.gfAuthor(client.sessionId))),
-    gf_report: (client: Client, m: { i?: unknown }) => client.send('gf_res', this.graffiti.report(client.sessionId, m?.i)),
+    gf_new: (client: Client, m: unknown) => this.gate(client, 'graffiti.create', () => client.send('gf_res', this.graffiti.create(client.sessionId, m, this.gfAuthor(client.sessionId)))),
+    gf_report: (client: Client, m: { i?: unknown }) => this.gate(client, 'report.create', () => client.send('gf_res', this.graffiti.report(client.sessionId, m?.i))),
     gf_admin: (client: Client, m: unknown) => client.send('gf_res', this.graffiti.adminMessage(client.sessionId, m)),
   };
 
@@ -364,9 +368,45 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     if (o.name !== undefined) p.name = sanitizeName(o.name);
   }
 
-  onJoin(client: Client, options: JoinOptions) {
+  /** identidade resolvida pelo SERVIDOR (ticket → conta; sem ticket → espectador) — ver server/src/identity */
+  readonly identities = new Map<string, ConnectionIdentity>();
+
+  async onAuth(_client: Client, options: JoinOptions) {
+    try {
+      return await resolveIdentity(services(), options, this.state.eventId);
+    } catch (e) {
+      if (e instanceof JoinRefused) throw new Error(e.reason);
+      throw e;
+    }
+  }
+
+  /** pode? (política central src/access/policy.ts, com o papel desta conexão) */
+  allowed(client: Client, cap: Capability): boolean {
+    const id = this.identities.get(client.sessionId);
+    return !!id && can(id.state, cap, id.role);
+  }
+
+  /** executa a mensagem só se a conexão tem a capacidade; senão responde `denied` (espectador, sem licença, suspenso) */
+  private gate(client: Client, cap: Capability, fn: () => void) {
+    if (this.allowed(client, cap)) fn();
+    else client.send('denied', { cap });
+  }
+
+  protected leaveSpectator(_client: Client) { /* rodada 8: espectador sai sem deixar entidade */ }
+
+  /** espectador: entra no MESMO mundo sem corpo (rodada 8 — server/src/spectator) */
+  protected joinSpectator(client: Client, _id: ConnectionIdentity, _options: JoinOptions) {
+    client.view = new StateView();
+    client.send('spawn', { x: this.spawn.x, y: 0, z: this.spawn.z, heading: this.spawn.heading, sessionId: client.sessionId, policy: this.interactionPolicy, seed: this.state.seed, role: 'spectator' });
+  }
+
+  onJoin(client: Client, options: JoinOptions, auth?: ConnectionIdentity) {
+    const id = auth ?? { userId: null, authSessionId: null, nickname: sanitizeName(options?.name), state: 'PLAYER', grant: 'NONE', role: 'player', groupKey: null, test: true } as ConnectionIdentity;
+    this.identities.set(client.sessionId, id);
+    if (id.role === 'spectator') { this.joinSpectator(client, id, options); return; }
     const p = new NetPlayer();
-    p.name = sanitizeName(options?.name);
+    // apelido: da CONTA (o cliente não escolhe o nome exibido); anônimo só em servidor de teste
+    p.name = id.test ? sanitizeName(options?.name) : id.nickname;
     this.applyAppearance(p, options ?? {});
     const a = Math.random() * Math.PI * 2, rr = 2 + Math.random() * 5;
     p.x = this.spawn.x + Math.cos(a) * rr;
@@ -398,12 +438,15 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     this.updateInterest(0, 1, client.sessionId); // só o novo cliente; os demais o encontram na sua fatia
     this.graffiti.join(client.sessionId, p.name, sanitizeClientId(options?.cid, client.sessionId), client);
     this.graffiti.update(Date.now(), this.gfPos, client.sessionId); // quem entra já recebe os grafites próximos
-    client.send('spawn', { x: p.x, y: p.y, z: p.z, heading: p.heading, sessionId: client.sessionId, policy: this.interactionPolicy, seed: this.state.seed });
+    client.send('spawn', { x: p.x, y: p.y, z: p.z, heading: p.heading, sessionId: client.sessionId, policy: this.interactionPolicy, seed: this.state.seed, role: 'player' });
     metrics.join(client.sessionId);
     console.log(`[room] entrou ${client.sessionId} (${p.name}, ${p.body}) — total ${this.state.players.size}`);
   }
 
   onLeave(client: Client) {
+    const ident = this.identities.get(client.sessionId);
+    this.identities.delete(client.sessionId);
+    if (ident?.role === 'spectator') { this.leaveSpectator(client); return; }
     const p = this.state.players.get(client.sessionId);
     if (p?.vehicle) {
       const v = this.state.vehicles.get(p.vehicle);

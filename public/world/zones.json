@@ -1,0 +1,72 @@
+{
+ "version": 1,
+ "note": "Faixas ao longo do eixo pvAxis calibradas pelas ruas transversais do OSM (Central t=0,28 · Campo de Santana 0,36 · Av. Rio Branco 0,885 · Candelária 0,954)",
+ "zones": [
+  {
+   "id": "CENTRAL",
+   "name": "Central do Brasil",
+   "from": 0.18,
+   "to": 0.33,
+   "halfWidth": 260,
+   "anchor": {
+    "t": 0.28,
+    "side": 0
+   }
+  },
+  {
+   "id": "CAMPO_DE_SANTANA",
+   "name": "Campo de Santana",
+   "from": 0.33,
+   "to": 0.47,
+   "halfWidth": 280,
+   "anchor": {
+    "t": 0.38,
+    "side": 0
+   }
+  },
+  {
+   "id": "CENTRO",
+   "name": "Centro",
+   "from": 0.47,
+   "to": 0.84,
+   "halfWidth": 220,
+   "anchor": {
+    "t": 0.64,
+    "side": 0
+   }
+  },
+  {
+   "id": "RIO_BRANCO",
+   "name": "Av. Rio Branco",
+   "from": 0.84,
+   "to": 0.92,
+   "halfWidth": 220,
+   "anchor": {
+    "t": 0.885,
+    "side": 0
+   }
+  },
+  {
+   "id": "CANDELARIA",
+   "name": "Candelária",
+   "from": 0.92,
+   "to": 1.0,
+   "halfWidth": 260,
+   "anchor": {
+    "t": 0.954,
+    "side": 0
+   }
+  },
+  {
+   "id": "CIDADE_NOVA",
+   "name": "Cidade Nova",
+   "from": 0.0,
+   "to": 0.18,
+   "halfWidth": 260,
+   "anchor": {
+    "t": 0.1,
+    "side": 0
+   }
+  }
+ ]
+}

@@ -12,6 +12,8 @@
 import { BOTTOM_STYLES, HAIR_STYLES, SHOE_STYLES, TOP_STYLES } from '../characters/garments';
 import { DESIGN_BY_ID } from '../social/designs';
 
+import type { IdentityJoinOptions } from '../identity/types';
+
 export const ROOM_NAME = 'presidente_vargas';
 export const NET_TICK_HZ = 15; // envio de movimento pelo cliente
 export const SERVER_PATCH_MS = 50; // 20 Hz de patches de estado
@@ -30,7 +32,7 @@ export const WORLD_LIMITS = { minX: -1800, maxX: 1600, minZ: -1100, maxZ: 1300 }
 export const MAX_SPEED = { foot: 6.4, bicycle: 7.3, scooter: 5.9, car: 8.8, moto: 8.8, soundcar: 4.2, trio: 1.6 } as const;
 export type MoveMode = keyof typeof MAX_SPEED;
 
-export interface JoinOptions {
+export interface JoinOptions extends IdentityJoinOptions {
   name?: string;
   body: NetBody;
   skin: number;

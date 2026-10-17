@@ -5,7 +5,7 @@
  */
 import { CANVAS_H, CANVAS_W, PALETTE, SYMBOLS, WIDTHS, decodeGraffiti, type GraffitiContent } from './codec';
 import { distanceToSurface, rectInside, type GraffitiSurface } from './surfaces';
-import { checkText, MAX_TEXT_CHARS } from './textFilter';
+import { checkText, MAX_TEXT_CHARS } from '../moderation/basicFilter';
 
 export const GF_STATE = { ACTIVE: 0, REPORTED: 1, HIDDEN: 2, REMOVED: 3, EXPIRED: 4 } as const;
 export type GraffitiState = (typeof GF_STATE)[keyof typeof GF_STATE];

@@ -55,7 +55,9 @@ function benchCollector(): Plugin {
 export default defineConfig({
   plugins: [ezTreeNoTextures(), benchCollector()],
   resolve: { alias: [{ find: /^@dgreenheck\/ez-tree$/, replacement: EZ_TREE_SRC }] },
-  server: { port: 5173, host: true },
+  // API da rodada 8 (contas/sessão): proxy para o servidor de jogo (porta da API = PORT + 1). Mesma origem → cookie
+  // HttpOnly da sessão funciona sem CORS. PV_API = outro destino (testes de QA com servidor em outra porta).
+  server: { port: 5173, host: true, proxy: { '/api': { target: process.env.PV_API ?? 'http://127.0.0.1:2568', changeOrigin: false } } },
   build: {
     target: 'es2022',
     sourcemap: false,

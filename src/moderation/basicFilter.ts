@@ -1,5 +1,6 @@
 /**
- * Texto curto do grafite: saneamento + filtro BÁSICO de palavrões/ódio em PT-BR — módulo puro (cliente avisa antes,
+ * Filtro BÁSICO (lista PT-BR) usado pelo serviço central src/moderation/text.ts — não importe direto fora dele, exceto o
+ * grafite legado. Texto curto do grafite: saneamento + filtro BÁSICO de palavrões/ódio em PT-BR — módulo puro (cliente avisa antes,
  * servidor decide). É um filtro de primeira linha, não moderação completa: o texto continua MODERÁVEL (denúncia,
  * ocultação automática, remoção pelo admin — ver docs/GRAFFITI.md). Desenho livre não tem filtro automático.
  *

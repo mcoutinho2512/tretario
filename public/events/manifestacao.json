@@ -105,5 +105,64 @@
  ],
  "npcs": {
   "pedestrianDensity": 1.0
- }
+ },
+ "groups": [
+  {
+   "id": "grupo-13",
+   "name": "GRUPO 13",
+   "colors": [
+    "#c8102e",
+    "#ffffff"
+   ],
+   "joinable": true,
+   "designKey": "campanha_13",
+   "suggestedDesigns": [
+    "campanha_13",
+    "brasil",
+    "democracia",
+    "vote"
+   ],
+   "npcShare": 0
+  },
+  {
+   "id": "grupo-22",
+   "name": "GRUPO 22",
+   "colors": [
+    "#009c3b",
+    "#ffdf00"
+   ],
+   "joinable": true,
+   "designKey": "campanha_22",
+   "suggestedDesigns": [
+    "campanha_22",
+    "brasil",
+    "verde_amarelo",
+    "vote"
+   ],
+   "npcShare": 0
+  },
+  {
+   "id": "neutro",
+   "name": "NEUTRO",
+   "colors": [
+    "#f4f2ec",
+    "#1d3557"
+   ],
+   "joinable": true,
+   "neutral": true,
+   "designKey": "paz",
+   "suggestedDesigns": [
+    "paz",
+    "brasil",
+    "vote",
+    "democracia",
+    "educacao",
+    "saude",
+    "transporte",
+    "rio",
+    "ato_pv"
+   ],
+   "npcShare": 0
+  }
+ ]
 }

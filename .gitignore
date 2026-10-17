@@ -19,3 +19,7 @@ screenshots/bench_results/
 screenshots/round7/
 # persistência local de desenvolvimento (grafites) — nunca no git
 server/data/
+
+# cliente Prisma gerado (npm --prefix server run db:generate)
+server/src/generated/
+server/.env

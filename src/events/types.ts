@@ -24,6 +24,15 @@ export interface Group {
   teamId?: string;
   /** fração aproximada dos NPCs vestindo as cores do grupo */
   npcShare?: number;
+  /**
+   * rodada 8 — EventGroup escolhível por jogadores (EventMembership): design do grupo (CampaignDesign/neutro) e
+   * itens/roupas SUGERIDOS (nunca obrigatórios). Só aparência: nenhum grupo tem vantagem mecânica.
+   */
+  joinable?: boolean;
+  neutral?: boolean;
+  designKey?: string;
+  /** designs oferecidos para bandeira/cartaz/faixa/camiseta a quem está no grupo (chaves de designs.ts) */
+  suggestedDesigns?: string[];
 }
 
 /** Avatar disponível no evento (tipos de corpo base: homem, mulher, idoso, idosa). */
