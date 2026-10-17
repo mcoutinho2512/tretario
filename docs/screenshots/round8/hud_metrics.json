@@ -1,0 +1,84 @@
+{
+  "zoneAfterP": "CAMPO_DE_SANTANA",
+  "zoneAfterQ": "CANDELARIA",
+  "labels": {
+    "shown": 12,
+    "candidates": 32,
+    "decisions": 44,
+    "decideMs": 0.039,
+    "transforms": 3394
+  },
+  "desktop": {
+    "minimapDrawMs": 0.14,
+    "densityMs": 0.361,
+    "drawsPerSec": 11.4,
+    "densitySamplesPerSec": 1.5,
+    "densityTotal": 294,
+    "densityPeak": 12,
+    "labelDecisionsPerSec": 5,
+    "labelDecideMs": 0.03,
+    "labelsShown": 14,
+    "labelCandidates": 32,
+    "labelTransformsPerSec": 210.7,
+    "textWrites": {
+      "before": {
+        "event": 1,
+        "status": 2,
+        "prompt": 1
+      },
+      "after": {
+        "event": 1,
+        "status": 2,
+        "prompt": 1
+      }
+    },
+    "fps": 60.01500375093773,
+    "cpuMs": 6.051,
+    "remotes": 32,
+    "far": 117
+  },
+  "mobile": {
+    "hud": {
+      "clean": false,
+      "dim": false,
+      "expanded": true,
+      "zone": "CENTRO",
+      "prefs": {
+        "names": "PROXIMOS",
+        "hudAutoHide": true,
+        "chatCollapsed": true,
+        "sound": true
+      },
+      "minimap": {
+        "drawMs": 0.173,
+        "densityMs": 0.648,
+        "draws": 94,
+        "samples": 14,
+        "densityTotal": 162,
+        "densityPeak": 10
+      },
+      "writes": {
+        "event": 1,
+        "status": 2,
+        "prompt": 1
+      },
+      "focus": {
+        "x": -27,
+        "z": 89
+      },
+      "labels": {
+        "shown": 4,
+        "candidates": 16,
+        "decisions": 47,
+        "decideMs": 0.007,
+        "transforms": 295
+      }
+    },
+    "touchButtons": [
+      "PULAR",
+      "AÇÕES",
+      "CHAT",
+      "CORRER"
+    ]
+  }
+}

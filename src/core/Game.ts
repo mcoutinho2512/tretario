@@ -36,7 +36,9 @@ import { ThirdPersonCamera } from '../camera/ThirdPersonCamera';
 import { InputManager } from '../input/InputManager';
 import { TouchControls } from '../ui/TouchControls';
 import { DebugPanel } from '../debug/DebugPanel';
-import { Minimap } from '../debug/Minimap';
+import { HudShell } from '../ui/hud/HudShell';
+import { loadZones } from '../world/zoneTracker';
+import type { ZoneDefinition } from '../world/zones';
 import { createLandmarkMaterials, loadLandmarkTextures } from '../world/landmarks/arch';
 import { buildCentral, type LandmarkInstance } from '../world/landmarks/central';
 import { buildCandelaria } from '../world/landmarks/candelaria';
@@ -119,15 +121,14 @@ export class Game {
   readonly interaction = new InteractionController();
   private net: NetworkClient | null = null;
   private appearance: CharacterAppearance | undefined;
-  private prompt!: HTMLDivElement;
-  private modeBadge!: HTMLDivElement;
-  private messageTimer = 0;
+  /** casca do HUD (rodada 8): minimapa, zonas, ajustes, encaixes de chat/espectador/perfil — src/ui/hud */
+  hudShell!: HudShell;
+  private zones: ZoneDefinition[] = [];
   private input: InputManager;
   private player!: PlayerState;
   private avatar: AvatarVisual;
   private cam!: ThirdPersonCamera;
   private debug = new DebugPanel();
-  private minimap!: Minimap;
   private hud: HTMLDivElement;
   private toast: HTMLDivElement;
   private clock = new THREE.Clock();
@@ -137,7 +138,6 @@ export class Game {
   private intro = { active: true, t: 0, fromYaw: 0, toYaw: 0 };
   private nearestVP: ValidationPoint | null = null;
   private running = false;
-  private photoMode = false;
 
   constructor(private container: HTMLElement, private preset: QualityPreset, appearance?: CharacterAppearance) {
     // começa no LOD3 (barato) e sobe para o LOD0 depois de jogável: o detalhado não disputa banda com o mundo
@@ -350,6 +350,7 @@ export class Game {
         for (const t of texs) { uploaded.add(t); this.gr.renderer.initTexture(t); await nextFrame(); }
       };
     } catch { /* compileAsync opcional */ }
+    this.zones = await loadZones(base).catch((e) => { console.warn('zonas não carregadas', e); return []; });
     progress(1, 'Pronto');
     this.mountHud();
     await this.connectMultiplayer();
@@ -357,26 +358,15 @@ export class Game {
   }
 
   private mountHud() {
-    this.minimap = new Minimap(this.manifest);
-    this.hud.appendChild(this.minimap.el);
+    let touch: TouchControls | null = null;
+    if (this.input.isTouch) { touch = new TouchControls(this.input); this.hud.appendChild(touch.el); } // embaixo de tudo
+    const shell = (this.hudShell = new HudShell(this.hud, this.manifest, this.zones, { touch: this.input.isTouch, level: this.preset.level }));
+    if (touch) shell.attachTouch(touch);
+    shell.attachCrowd(this.crowd);
+    shell.setEvent(this.events.current?.name);
+    void shell.prefs.syncFromServer();
     this.hud.appendChild(this.debug.el);
     this.hud.appendChild(this.toast);
-    const help = document.createElement('div');
-    help.className = 'help';
-    help.innerHTML = this.input.isTouch
-      ? 'Joystick: andar · Arraste: câmera · Pinça: zoom'
-      : '<b>WASD</b> andar · <b>Shift</b> correr · <b>Espaço</b> pular · <b>Mouse</b> câmera · <b>Roda</b> zoom · <b>E</b> usar veículo / subir no trio / pichar · <b>G</b> ações · <b>K</b> modo · <b>M</b> mapa · <b>F3</b> debug · <b>H</b> ajuda · <b>Esc</b> soltar mouse';
-    this.hud.appendChild(help);
-    this.prompt = document.createElement('div');
-    this.prompt.className = 'use-prompt';
-    this.hud.appendChild(this.prompt);
-    this.modeBadge = document.createElement('div');
-    this.modeBadge.className = 'mode-badge';
-    this.hud.appendChild(this.modeBadge);
-    const evb = document.createElement('div');
-    evb.className = 'event-badge';
-    evb.textContent = this.events.current ? `Evento: ${this.events.current.name}` : '';
-    this.hud.appendChild(evb);
     const attr = document.createElement('div');
     attr.className = 'attribution';
     attr.innerHTML = 'Dados do mapa © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a> (ODbL)';
@@ -385,14 +375,15 @@ export class Game {
     lock.className = 'lock-hint';
     lock.textContent = 'Clique para controlar a câmera';
     this.hud.appendChild(lock);
-    if (this.input.isTouch) this.hud.appendChild(new TouchControls(this.input).el);
     this.wheel = new ActionWheel(this.social);
-    // roda aberta: solta o mouse para clicar; fechada: volta a controlar a câmera
-    this.wheel.onToggle = (open) => { if (open) document.exitPointerLock?.(); else if (!this.input.isTouch) this.input.requestLock(); };
+    // roda/menu/ajustes abertos: solta o mouse para clicar; fechados: volta a controlar a câmera
+    const relock = (open: boolean) => { if (open) document.exitPointerLock?.(); else if (!this.input.isTouch && !this.wheel?.open && !shell.anyModal) this.input.requestLock(); };
+    this.wheel.onToggle = (open) => { shell.poke(); relock(open); };
+    shell.onModal = relock;
+    shell.onActions = () => this.input.queueToggle('wheel');
     this.hud.appendChild(this.wheel.el);
     this.container.appendChild(this.hud);
-    setTimeout(() => help.classList.add('faded'), 12000);
-    window.addEventListener('resize', () => this.onResize());
+    window.addEventListener('resize', () => { this.onResize(); shell.minimap.resize(); });
   }
 
   /** Para validação/screenshots: ?shot=central|avenue|mid|candelaria */
@@ -531,10 +522,11 @@ export class Game {
 
     // toggles
     if (this.input.consumeToggle('debug')) this.debug.toggle();
-    if (this.input.consumeToggle('map')) this.minimap.toggleExpanded();
-    if (this.input.consumeToggle('help')) this.hud.querySelector('.help')?.classList.toggle('faded');
+    if (this.input.consumeToggle('map')) this.hudShell.toggleMap();
+    if (this.input.consumeToggle('controls')) this.hudShell.toggleHelp();
     if (this.input.consumeToggle('wheel')) this.wheel?.toggle();
-    if (this.input.consumeToggle('photo')) { this.photoMode = !this.photoMode; this.hud.classList.toggle('photo', this.photoMode); }
+    // H ou P: HUD limpo (só o cenário)
+    if (this.input.consumeToggle('help') || this.input.consumeToggle('photo')) this.hudShell.toggleClean();
     this.hud.classList.toggle('locked', this.input.pointerLocked || this.input.isTouch);
 
     // câmera: olhar/zoom
@@ -615,7 +607,8 @@ export class Game {
 
     // HUD
     this.updateValidation();
-    if (!this.photoMode) this.minimap.draw(this.player.x, this.player.z, this.player.heading, this.cam.yaw);
+    const focus = this.freeCam ? this.camera.position : this.player;
+    this.hudShell.frame(tCpu, { x: focus.x, z: focus.z, heading: this.player.heading, camYaw: this.cam.yaw, moving: Math.abs(this.player.speed) > 0.6 });
     const ll = worldProjection.toLatLon(this.player.x, this.player.z);
     const ck = this.chunks.chunkKeyAt(this.player.x, this.player.z);
     const lod = this.chunks.lodAt(this.player.x, this.player.z);
@@ -639,6 +632,8 @@ export class Game {
     const endpoint = mp === '1' ? `ws://${location.hostname}:2567` : mp;
     const { NetworkClient } = await import('../net/NetworkClient');
     this.net = new NetworkClient(endpoint, this.hud);
+    this.net.namesMode = this.hudShell.prefs.value.names;
+    this.hudShell.prefs.onChange((p) => { if (this.net) this.net.namesMode = p.names; });
     this.net.crowd = this.peds.crowd;
     this.graffiti.attachNet(this.net);
     this.scene.add(this.net.group);
@@ -676,7 +671,7 @@ export class Game {
     this.net.onSelfSocial = () => this.social.fromServer(this.net!.self.social);
     this.net.onSocialDenied = (_k, reason) => this.social.denied(reason, this.net!.self.social);
     this.net.onEvent = (id) => {
-      if (this.events.current?.id !== id) void this.events.load(id).then(() => { this.interaction.setPolicy(this.events.current?.interaction); this.peds.setSocialConfig(this.events.current?.social); this.rallyCrowd?.setConfig(this.events.current?.social, RallyCrowd.presetScale(this.crowd.budget.total)); this.scenery.applyEvent(this.events.current); });
+      if (this.events.current?.id !== id) void this.events.load(id).then(() => { this.hudShell.setEvent(this.events.current?.name); this.interaction.setPolicy(this.events.current?.interaction); this.peds.setSocialConfig(this.events.current?.social); this.rallyCrowd?.setConfig(this.events.current?.social, RallyCrowd.presetScale(this.crowd.budget.total)); this.scenery.applyEvent(this.events.current); });
     };
     void preloadRagdoll().catch(() => { /* fallback procedural */ });
     try {
@@ -795,7 +790,7 @@ export class Game {
       this.player.speed = 0;
       this.player.locomotion = 'idle';
       this.avatar.update(this.player, dt);
-      this.prompt.textContent = 'Caído… levantando em instantes';
+      this.hudShell.setPrompt('Caído… levantando em instantes');
     } else if (this.trio.active) {
       // em cima do trio: anda no piso (posição LOCAL); o mundo vem da pose do trio
       const it = this.rideables.byId.get(this.trio.state!.id);
@@ -805,7 +800,7 @@ export class Game {
         this.trio.step(this.player, it.state, fx * ax.y + -Math.cos(this.cam.yaw) * ax.x, fz * ax.y + Math.sin(this.cam.yaw) * ax.x, this.input.running(), dt);
         if (this.net) this.net.platform = this.trio.state;
         this.avatar.update(this.player, dt);
-        this.prompt.textContent = this.pendingBoard ? 'Aguardando o servidor…' : 'E — DESCER DO TRIO · WASD andar em cima';
+        this.hudShell.setPrompt(this.pendingBoard ? 'Aguardando o servidor…' : 'E — DESCER DO TRIO · WASD andar em cima');
       }
     } else if (this.riding) {
       const v = this.riding;
@@ -843,7 +838,7 @@ export class Game {
       while (dyaw > Math.PI) dyaw -= Math.PI * 2;
       while (dyaw < -Math.PI) dyaw += Math.PI * 2;
       if (Math.abs(v.state.speed) > 1) this.cam.yaw += dyaw * Math.min(1, dt * (v.def.kind === 'car' ? 2.2 : 1.5));
-      this.prompt.textContent = RIDE_HELP[v.def.kind];
+      this.hudShell.setPrompt(RIDE_HELP[v.def.kind]);
     } else {
       const intent = {
         dirX: fx * ax.y + -Math.cos(this.cam.yaw) * ax.x,
@@ -863,13 +858,10 @@ export class Game {
       this.avatar.update(this.player, dt);
       const near = this.rideables.nearest(this.player.x, this.player.z);
       const ladder = this.rideables.nearestLadder(this.player.x, this.player.z);
-      this.prompt.textContent = this.pendingEnter || this.pendingBoard ? 'Aguardando o servidor…' : ladder ? 'E — SUBIR NO TRIO' : near ? (near.def.kind === 'trio' ? 'E — DIRIGIR O TRIO ELÉTRICO' : `E — USAR ${near.def.label.toUpperCase()}`) : this.graffiti.promptText();
+      this.hudShell.setPrompt(this.pendingEnter || this.pendingBoard ? 'Aguardando o servidor…' : ladder ? 'E — SUBIR NO TRIO' : near ? (near.def.kind === 'trio' ? 'E — DIRIGIR O TRIO ELÉTRICO' : `E — USAR ${near.def.label.toUpperCase()}`) : this.graffiti.promptText());
     }
     this.rideables.sync(this.camera.position);
-    this.prompt.classList.toggle('show', !!this.prompt.textContent);
-    this.messageTimer -= dt;
-    if (this.messageTimer <= 0) this.modeBadge.textContent = this.interaction.mode === 'pacifico' ? 'Modo pacífico' : 'Modo interação';
-    this.modeBadge.classList.toggle('combat', this.interaction.mode === 'interacao');
+    this.hudShell.setMode(this.interaction.mode === 'pacifico' ? 'Modo pacífico' : 'Modo interação', this.interaction.mode === 'interacao');
   }
 
   /** piloto automático para testes reproduzíveis (anda até um ponto usando o movimento normal) */
@@ -878,8 +870,7 @@ export class Game {
 
   /** mensagem curta no selo de modo */
   private flash(msg: string) {
-    this.modeBadge.textContent = msg;
-    this.messageTimer = 2.5;
+    this.hudShell?.flash(msg);
   }
 
   private updateValidation() {
@@ -888,6 +879,8 @@ export class Game {
       const d = Math.hypot(v.p[0] - this.player.x, v.p[1] - this.player.z);
       if (d < v.radius && d < bd) { bd = d; best = v; }
     }
+    // pontos de validação do mapa: aviso só com o painel de debug (F3) — o jogador vê o aviso de zona
+    if (!this.debug.visible) best = null;
     if (best !== this.nearestVP) {
       this.nearestVP = best;
       if (best) {
@@ -1012,6 +1005,20 @@ export class Game {
         };
       },
       hud: (v: boolean) => { this.hud.style.display = v ? '' : 'none'; },
+      /** QA do HUD (rodada 8): estado/custo e controle (limpo, mapa expandido, ajustes, menu, preferências) */
+      hudInfo: () => ({ ...this.hudShell.info(), labels: this.net?.labelStats ?? null }),
+      hudSet: (o: { clean?: boolean; map?: boolean; settings?: boolean; menu?: boolean; help?: boolean; names?: 'TODOS' | 'PROXIMOS' | 'NENHUM'; autoHide?: boolean; poke?: boolean }) => {
+        const h = this.hudShell;
+        if (o.clean !== undefined) h.toggleClean(o.clean);
+        if (o.map !== undefined) h.toggleMap(o.map);
+        if (o.settings !== undefined) h.settings.toggle(o.settings);
+        if (o.menu !== undefined) h.toggleMenu(o.menu);
+        if (o.help !== undefined) h.toggleHelp(o.help);
+        if (o.names) h.prefs.set({ names: o.names });
+        if (o.autoHide !== undefined) h.prefs.set({ hudAutoHide: o.autoHide });
+        if (o.poke) h.poke();
+        return h.info();
+      },
       /** painéis de LED: conteúdo por painel ('*' = todos). Preparado para o backend. */
       billboard: (id: string, content: unknown) => this.billboards.setPanelContent(id, content as never),
       billboards: () => this.manifest.billboards ?? [],
