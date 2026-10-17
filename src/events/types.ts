@@ -92,9 +92,39 @@ export interface VehicleOption {
   colors?: HexColor[];
 }
 
+/**
+ * formato do evento (rodada 8 — fundação genérica): o MESMO modelo serve para manifestações, caminhadas, debates,
+ * corridas, encontros, shows, missões e eleições simuladas. Lógica específica entra por dados/fases, nunca por
+ * `if (evento === …)`.
+ */
+export type EventFormat = 'manifestacao' | 'caminhada' | 'debate' | 'corrida' | 'encontro' | 'show' | 'missao' | 'eleicao_simulada' | (string & {});
+
+/** fase/trecho de um evento (ex.: concentração na Central → caminhada → ato na Candelária) — usado na rodada 9 */
+export interface EventPhase {
+  id: string;
+  name: string;
+  /** zonas (src/world/zones.ts) onde a fase acontece */
+  zones?: string[];
+  /** início relativo ao início do evento (min) e duração (min) */
+  startMin?: number;
+  durationMin?: number;
+  /** pontos de concentração ativos nesta fase (ids de RallyPoint) */
+  rallyPoints?: string[];
+}
+
 export interface EventDef {
   id: string;
   name: string;
+  /** formato (padrão: derivado de `category`) */
+  format?: EventFormat;
+  /** janela do evento (ISO) — ausente = permanente/ambiente */
+  schedule?: { startsAt?: string; endsAt?: string; timezone?: string };
+  /** zonas principais do evento (minimapa/espectador) */
+  zones?: string[];
+  /** fases (rodada 9: missões/roteiro); hoje só dados */
+  phases?: EventPhase[];
+  /** retenção da escolha de grupo após o fim (dias) — privacidade (docs/PRIVACY_ARCHITECTURE.md) */
+  membershipRetentionDays?: number;
   /** categoria livre — apenas para UI/filtros (ex.: "cotidiano", "futebol", "politico", "show", "encontro") */
   category: string;
   description?: string;
