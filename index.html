@@ -9,7 +9,50 @@
   </head>
   <body>
     <div id="app">
-      <section id="start" class="screen start">
+      <section id="home" class="screen home" aria-labelledby="home-event">
+        <div class="home-bg" aria-hidden="true"></div>
+        <header class="home-top">
+          <div class="logo">
+            <div class="brand-mark" aria-hidden="true"><span></span></div>
+            <div class="logo-text"><strong>PRESIDENTE VARGAS</strong><small>3 D · R I O</small></div>
+          </div>
+          <div class="home-account" id="home-account">
+            <span class="home-who hidden" id="home-who"></span>
+            <button type="button" class="home-link" id="btn-login">ENTRAR</button>
+          </div>
+        </header>
+        <main class="home-main">
+          <span class="eyebrow">PRESIDENTE VARGAS · RIO DE JANEIRO</span>
+          <p class="home-kicker"><i class="live-dot" aria-hidden="true"></i>AGORA NA AVENIDA</p>
+          <h1 id="home-event">ATO NA PRESIDENTE VARGAS</h1>
+          <p class="home-live" id="home-live" aria-live="polite">Central do Brasil → Candelária, ao vivo</p>
+          <div class="home-cta">
+            <button type="button" id="btn-watch" class="home-btn primary" disabled>
+              <span>ASSISTIR GRÁTIS</span><small>sem conta · entra na hora</small>
+            </button>
+            <button type="button" id="btn-join" class="home-btn">
+              <span id="btn-join-label">PARTICIPAR</span><small id="btn-join-sub">crie sua conta e seu personagem</small>
+            </button>
+          </div>
+          <p class="home-have" id="home-have">Já possui conta? <button type="button" class="home-link" id="btn-login2">ENTRAR</button></p>
+          <div class="home-me hidden" id="home-me">
+            <button type="button" class="home-chip" id="btn-edit-char">PERSONAGEM</button>
+            <button type="button" class="home-chip" id="btn-group"><span id="btn-group-label">GRUPO</span></button>
+            <button type="button" class="home-chip ghost" id="btn-logout">SAIR</button>
+          </div>
+          <p class="home-msg" id="home-msg" role="status"></p>
+        </main>
+        <footer class="home-foot">
+          <label class="home-quality">Gráficos
+            <select id="home-quality" aria-label="Qualidade gráfica">
+              <option value="auto">Automático</option><option value="low">Baixo</option><option value="medium">Médio</option><option value="high">Alto</option><option value="ultra">Ultra</option>
+            </select>
+          </label>
+          <span>Simulação · mundo compartilhado em 3D do Centro do Rio</span>
+          <span>Mapa © colaboradores do OpenStreetMap (ODbL) · <a href="/CREDITS.txt" target="_blank" rel="noopener">Créditos</a></span>
+        </footer>
+      </section>
+      <section id="start" class="screen start hidden">
         <header class="top">
           <div class="logo">
             <div class="brand-mark" aria-hidden="true"><span></span></div>
@@ -17,6 +60,9 @@
           </div>
           <p class="top-loc">CENTRO DO RIO <i>•</i> EDIÇÃO PILOTO</p>
           <div class="top-actions">
+            <button type="button" id="btn-back" class="icon-btn" aria-label="Voltar ao início">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+            </button>
             <button type="button" id="btn-settings" class="icon-btn" aria-label="Qualidade gráfica" aria-expanded="false" aria-controls="settings-pop">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>
             </button>
@@ -47,8 +93,8 @@
         </header>
 
         <div class="headline">
-          <span class="eyebrow">CENTRAL DO BRASIL → AV. PRESIDENTE VARGAS → CANDELÁRIA</span>
-          <h1>Quem vai para a avenida?</h1>
+          <span class="eyebrow" id="editor-eyebrow">PERSONAGEM · AV. PRESIDENTE VARGAS</span>
+          <h1 id="editor-title">CRIE SEU PERSONAGEM</h1>
         </div>
 
         <main class="stage">
@@ -69,14 +115,18 @@
               </div>
               <button type="button" class="pose-btn rot" data-rot="-1" aria-label="Girar para a direita">↷</button>
             </div>
-            <p class="hint">ARRASTE PARA GIRAR <i>·</i> ALTERAÇÕES EM TEMPO REAL</p>
+            <div class="zoom-bar" role="group" aria-label="Aproximar">
+              <button type="button" class="pose-btn zoom" data-zoom="1" aria-label="Aproximar do rosto">+</button>
+              <button type="button" class="pose-btn zoom" data-zoom="-1" aria-label="Afastar (corpo inteiro)">−</button>
+            </div>
+            <p class="hint">ARRASTE PARA GIRAR <i>·</i> ROLE OU PINCE PARA APROXIMAR</p>
           </section>
 
           <aside class="builder" aria-label="Montar personagem">
             <div class="builder-scroll">
               <span class="eyebrow">01 / MONTE SEU VISUAL</span>
-              <h2>Monte seu personagem</h2>
-              <p class="lead">Escolha quem você vai ser e ajuste o visual. Tudo aparece na prévia ao lado e para os outros jogadores.</p>
+              <h2>Seu visual na avenida</h2>
+              <p class="lead" id="editor-lead">Escolha corpo, cabelo, roupas e acessórios. Fica salvo na sua conta e aparece para os outros jogadores.</p>
 
               <h3 class="label">ESCOLHA SEU PERSONAGEM</h3>
               <div class="char-grid" role="radiogroup" aria-label="Personagem">
@@ -86,25 +136,28 @@
                 <label class="char"><input type="radio" name="av" value="idosa" /><span class="thumb"><img alt="" data-portrait="idosa" /></span><b>Idosa</b></label>
               </div>
 
-              <h3 class="label"><label for="player-name">SEU NOME</label> <small>aparece para outros jogadores</small></h3>
-              <input id="player-name" class="name-input" maxlength="20" autocomplete="nickname" placeholder="Visitante" />
+              <div id="name-field">
+                <h3 class="label"><label for="player-name">SEU NOME</label> <small>aparece para outros jogadores</small></h3>
+                <input id="player-name" class="name-input" maxlength="20" autocomplete="nickname" placeholder="Visitante" />
+              </div>
+              <p class="account-nick hidden" id="account-nick"></p>
 
               <h3 class="label">TOM DE PELE</h3><div class="swatches" data-key="skin"></div>
               <h3 class="label">CABELO</h3><div class="chips style-chips" data-slot="HAIR"></div><div class="swatches" data-key="hair"></div>
-              <h3 class="label">CAMISA</h3><div class="chips style-chips" data-slot="SHIRT"></div><div class="swatches" data-key="top"></div>
-              <h3 class="label">CAMISA DE TIME <small>só cores, sem escudos</small></h3><div class="chips design-chips" id="shirt-designs"></div>
+              <h3 class="label">PARTE DE CIMA <small>camiseta, regata, polo, camisa</small></h3><div class="chips style-chips" data-slot="SHIRT"></div><div class="swatches" data-key="top"></div>
+              <h3 class="label">CAMISA DE FUTEBOL <small>inspirada nas cores, sem escudos</small></h3><div class="chips design-chips" id="shirt-designs"></div>
               <h3 class="label">CALÇA / BERMUDA</h3><div class="chips style-chips" data-slot="PANTS"></div><div class="swatches" data-key="bottom"></div>
               <h3 class="label">CALÇADO</h3><div class="chips style-chips" data-slot="SHOES"></div><div class="swatches" data-key="shoes"></div>
               <h3 class="label">ACESSÓRIO</h3><div class="chips" id="acc-chips"></div>
               <div class="swatches acc-colors" data-key="acc"></div>
             </div>
             <footer class="builder-foot">
-              <button id="explore" class="btn-primary" disabled><span>Carregando…</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
-              <button type="button" id="randomize" class="btn-ghost" aria-label="Visual aleatório">
+              <button id="explore" class="btn-primary" disabled><span>Salvar personagem</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+              <button type="button" id="randomize" class="btn-ghost" aria-label="Surpreenda-me: visual aleatório">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3"/><circle cx="9" cy="9" r="1.2" fill="currentColor"/><circle cx="15" cy="15" r="1.2" fill="currentColor"/><circle cx="15" cy="9" r="1.2" fill="currentColor"/><circle cx="9" cy="15" r="1.2" fill="currentColor"/></svg>
-                Aleatório
+                Surpreenda-me
               </button>
-              <p class="foot-note">Horário e iluminação reais do Rio, agora.</p>
+              <p class="foot-note" id="editor-note" role="status">Horário e iluminação reais do Rio, agora.</p>
             </footer>
           </aside>
         </main>

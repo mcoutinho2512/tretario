@@ -31,6 +31,8 @@ export class SocialController {
   actVar = 0;
   prop = NO_PROP;
   design = NO_DESIGN;
+  /** rodada 8: designs SUGERIDOS (grupo do evento escolhido) — primeiro compatível ao pegar um item; nunca obrigatório */
+  preferredDesigns: number[] = [];
 
   constructor(
     private apply: (s: SocialState) => void,
@@ -63,7 +65,7 @@ export class SocialController {
     let d = NO_DESIGN;
     if (p?.designSlot) {
       const ok = (x: number) => !!DESIGN_BY_ID.get(x)?.targets.includes(p.designSlot!);
-      d = design !== undefined && ok(design) ? design : ok(this.design) ? this.design : designsFor(p.designSlot)[0]?.id ?? NO_DESIGN;
+      d = design !== undefined && ok(design) ? design : ok(this.design) ? this.design : this.preferredDesigns.find(ok) ?? designsFor(p.designSlot)[0]?.id ?? NO_DESIGN;
     }
     if (id === this.prop && d === this.design) id = NO_PROP; // alternar
     this.prop = id; this.design = id ? d : NO_DESIGN;

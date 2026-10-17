@@ -64,6 +64,14 @@ import type { PropRec, BuildingRec } from '../world/types';
 import { distToPolyline } from '../geo/polyline';
 import { memoryReport } from '../debug/memoryReport';
 import { GraffitiSystem } from '../graffiti/GraffitiSystem';
+import type { IdentityJoinOptions } from '../identity/types';
+
+/** rodada 8: como entrar no mundo compartilhado (tela inicial → jogo). `mp` = endereço do servidor (ws://…) */
+export interface GameStartOptions extends IdentityJoinOptions {
+  mp?: string;
+  /** ticket pedido só na hora de conectar (vale 60 s; o carregamento pode demorar mais que isso) */
+  getTicket?: () => Promise<string | undefined>;
+}
 import type { TrafficData } from '../world/types';
 
 export { DEFAULT_PLAYER_APPEARANCE } from '../characters/bodyTypes';
@@ -139,7 +147,7 @@ export class Game {
   private running = false;
   private photoMode = false;
 
-  constructor(private container: HTMLElement, private preset: QualityPreset, appearance?: CharacterAppearance) {
+  constructor(private container: HTMLElement, private preset: QualityPreset, appearance?: CharacterAppearance, private startOpts: GameStartOptions = {}) {
     // começa no LOD3 (barato) e sobe para o LOD0 depois de jogável: o detalhado não disputa banda com o mundo
     this.avatar = new AvatarVisual(appearance, { lod: 3 });
     this.appearance = appearance;
@@ -489,6 +497,15 @@ export class Game {
   /** intervalos (ms) entre quadros RENDERIZADOS (benchmark) */
   private frameLog: number[] = [];
 
+  /** rodada 8: visual novo vindo do editor de personagem (já salvo no servidor) — avatar local + aviso à sala */
+  setAppearance(app: CharacterAppearance) {
+    this.appearance = app;
+    this.avatar.setAppearance(app);
+    this.net?.sendAppearance(app);
+  }
+  /** rodada 8: designs sugeridos pelo grupo do evento (bandeira/cartaz/faixa) — só a escolha padrão do item */
+  setPreferredDesigns(ids: number[]) { this.social.preferredDesigns = ids.slice(0, 16); }
+
   start() {
     this.running = true;
     this.clock.start();
@@ -634,7 +651,7 @@ export class Game {
   /** Multiplayer opcional (desenvolvimento): ?mp=1 conecta em ws://<host>:2567; ?mp=ws://… usa outro servidor. */
   private async connectMultiplayer() {
     const q = new URLSearchParams(location.search);
-    const mp = q.get('mp');
+    const mp = this.startOpts.mp ?? q.get('mp');
     if (!mp) return;
     const endpoint = mp === '1' ? `ws://${location.hostname}:2567` : mp;
     const { NetworkClient } = await import('../net/NetworkClient');
@@ -681,7 +698,7 @@ export class Game {
     void preloadRagdoll().catch(() => { /* fallback procedural */ });
     try {
       const sp = q.get('spawn')?.split(',').map(Number);
-      await this.net.connect(this.appearance ?? DEFAULT_PLAYER_APPEARANCE_LOCAL, q.get('name') ?? (this.playerName || `Visitante ${Math.floor(Math.random() * 900 + 100)}`), sp && sp.length === 2 && sp.every(Number.isFinite) ? { x: sp[0], z: sp[1] } : undefined);
+      await this.net.connect(this.appearance ?? DEFAULT_PLAYER_APPEARANCE_LOCAL, q.get('name') ?? (this.playerName || `Visitante ${Math.floor(Math.random() * 900 + 100)}`), sp && sp.length === 2 && sp.every(Number.isFinite) ? { x: sp[0], z: sp[1] } : undefined, { ticket: this.startOpts.ticket ?? await this.startOpts.getTicket?.(), role: this.startOpts.role });
       this.flash(`Multiplayer conectado (${endpoint})`);
     } catch (e) {
       this.flash(`Multiplayer indisponível: ${(e as Error).message ?? e}`);
@@ -919,6 +936,8 @@ export class Game {
   debugApi() {
     return {
       setShot: (n: string) => this.setShot(n),
+      /** QA rodada 8: aplica um visual (já salvo no servidor) ao avatar local e avisa a sala */
+      setAppearance: (a: CharacterAppearance) => this.setAppearance(a),
       /** QA: grafites conhecidos por este cliente (estado, autor, bytes, tile) e ganchos (superfícies próximas, editor…) */
       graffiti: () => this.graffiti.info(),
       gf: this.graffiti.qa,
