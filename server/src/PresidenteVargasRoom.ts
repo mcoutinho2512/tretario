@@ -20,7 +20,10 @@ import { Room, type Client } from '@colyseus/core';
 import { StateView } from '@colyseus/schema';
 import { WorldState, NetPlayer, NetVehicle } from './state.ts';
 import { loadWorld, type ServerWorld } from './world.ts';
-import { BODIES, NET_ACCESSORIES, MAX_SPEED, sanitizeColor, sanitizeName, sanitizeShirtDesign, sanitizeStyle, type JoinOptions, type MoveMode } from '../../src/net/protocol.ts';
+import { BODIES, MAX_SPEED, sanitizeName, type JoinOptions, type MoveMode } from '../../src/net/protocol.ts';
+import { validateAppearance } from '../../src/characters/validateAppearance.ts';
+import { DEFAULT_PLAYER_APPEARANCE, type CharacterAppearance } from '../../src/characters/bodyTypes.ts';
+import { loadPlayerLook } from './identity/appearance.ts';
 import { validateMoveInWorld } from '../../src/net/authority.ts';
 import { RULES, STATUS, VEHICLE_BOX, VEHICLE_STATE, EVENT_VEHICLE_KINDS, boxesOverlap, canPush, canEnter, impactAllowed, knockdownOutcome, pushOutOfBox, shouldResetVehicle, vehicleBlock, vehicleImpact, unpackMove, type Actor, type Mode, type VehicleKind } from '../../src/net/rules.ts';
 import { TRIO, canBoard, exitPoints, localToWorld, unpackPlatformMove, validatePlatformMove } from '../../src/vehicles/platform.ts';
@@ -138,7 +141,11 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     appearance: (client: Client, opts: Partial<JoinOptions>) => {
       if (!this.allowed(client, 'profile.edit')) return;
       const p = this.state.players.get(client.sessionId);
-      if (p && opts) { this.applyAppearance(p, opts); this.graffiti.rename(client.sessionId, p.name); }
+      if (!p) return;
+      // conta: o pedido é só um AVISO "salvei" — a aparência e o grupo vêm do banco (PUT /api/me/appearance)
+      const id = this.identities.get(client.sessionId);
+      if (id?.userId) { void this.reloadLook(client.sessionId, id.userId); return; }
+      if (opts) { this.applyAppearance(p, opts); this.graffiti.rename(client.sessionId, p.name); }
     },
     // pichação/grafite (server/src/graffiti): o desenho em andamento é local — só chega aqui o grafite pronto
     gf_new: (client: Client, m: unknown) => this.gate(client, 'graffiti.create', () => client.send('gf_res', this.graffiti.create(client.sessionId, m, this.gfAuthor(client.sessionId)))),
@@ -354,18 +361,30 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
   }
 
   // ---------------------------------------------------------------- jogadores
-  private applyAppearance(p: NetPlayer, o: Partial<JoinOptions>) {
-    p.body = (BODIES as readonly string[]).includes(o.body as string) ? (o.body as string) : (p.body || 'homem');
-    p.skin = sanitizeColor(o.skin, p.skin || 0xb98a68);
-    p.hair = sanitizeColor(o.hair, p.hair || 0x1d1714);
-    p.top = sanitizeColor(o.top, p.top || 0x2f6f8f);
-    p.bottom = sanitizeColor(o.bottom, p.bottom || 0x2c3a52);
-    p.shoes = sanitizeColor(o.shoes, p.shoes || 0xe8e8e2);
-    p.accessory = (NET_ACCESSORIES as readonly string[]).includes(o.accessory as string) ? (o.accessory as string) : (p.accessory || 'nenhum');
-    p.acc = sanitizeColor(o.acc, p.acc || 0x222222);
-    for (const f of ['topStyle', 'bottomStyle', 'shoeStyle', 'hairStyle'] as const) p[f] = sanitizeStyle(f, o[f]);
-    p.shirtDesign = sanitizeShirtDesign(o.shirtDesign);
-    if (o.name !== undefined) p.name = sanitizeName(o.name);
+  /** aparência sempre pelo validador ÚNICO (src/characters/validateAppearance.ts — o mesmo da API) */
+  private applyAppearance(p: NetPlayer, o: Partial<JoinOptions> | CharacterAppearance) {
+    const cur = p.body ? validateAppearance({
+      body: p.body, skin: p.skin, hair: p.hair, top: p.top, bottom: p.bottom, shoes: p.shoes, accessory: p.accessory, acc: p.acc,
+      topStyle: p.topStyle, bottomStyle: p.bottomStyle, shoeStyle: p.shoeStyle, hairStyle: p.hairStyle, shirtDesign: p.shirtDesign,
+    }) : null;
+    const a = validateAppearance(o, cur ?? DEFAULT_PLAYER_APPEARANCE.homem)!;
+    p.body = a.body; p.skin = a.skin; p.hair = a.hair; p.top = a.top; p.bottom = a.bottom; p.shoes = a.shoes;
+    p.accessory = a.accessory ?? 'nenhum'; p.acc = a.acc ?? 0x222222;
+    p.topStyle = a.topStyle ?? ''; p.bottomStyle = a.bottomStyle ?? ''; p.shoeStyle = a.shoeStyle ?? ''; p.hairStyle = a.hairStyle ?? '';
+    p.shirtDesign = a.shirtDesign ?? 0;
+    if ('name' in o && o.name !== undefined) p.name = sanitizeName(o.name);
+  }
+
+  /** aparência salva + grupo do evento das contas, carregados no onAuth (sessionId → dados do banco) */
+  private savedLooks = new Map<string, { appearance: CharacterAppearance; groupKey: string | null }>();
+
+  /** recarrega do banco aparência e grupo de uma conta já na sala (depois de salvar no editor) */
+  private async reloadLook(sid: string, userId: string) {
+    const look = await loadPlayerLook(services().store, userId, this.state.eventId).catch(() => null);
+    const p = this.state.players.get(sid), id = this.identities.get(sid);
+    if (!look || !p || !id || id.userId !== userId) return;
+    this.applyAppearance(p, look.appearance);
+    id.groupKey = look.groupKey;
   }
 
   /** identidade resolvida pelo SERVIDOR (ticket → conta; sem ticket → espectador) — ver server/src/identity */
@@ -373,7 +392,13 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
 
   async onAuth(_client: Client, options: JoinOptions) {
     try {
-      return await resolveIdentity(services(), options, this.state.eventId);
+      const id = await resolveIdentity(services(), options, this.state.eventId);
+      if (id.userId) {
+        const look = await loadPlayerLook(services().store, id.userId, this.state.eventId);
+        this.savedLooks.set(_client.sessionId, look);
+        id.groupKey = look.groupKey;
+      }
+      return id;
     } catch (e) {
       if (e instanceof JoinRefused) throw new Error(e.reason);
       throw e;
@@ -403,11 +428,14 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
   onJoin(client: Client, options: JoinOptions, auth?: ConnectionIdentity) {
     const id = auth ?? { userId: null, authSessionId: null, nickname: sanitizeName(options?.name), state: 'PLAYER', grant: 'NONE', role: 'player', groupKey: null, test: true } as ConnectionIdentity;
     this.identities.set(client.sessionId, id);
-    if (id.role === 'spectator') { this.joinSpectator(client, id, options); return; }
+    if (id.role === 'spectator') { this.savedLooks.delete(client.sessionId); this.joinSpectator(client, id, options); return; }
     const p = new NetPlayer();
     // apelido: da CONTA (o cliente não escolhe o nome exibido); anônimo só em servidor de teste
     p.name = id.test ? sanitizeName(options?.name) : id.nickname;
-    this.applyAppearance(p, options ?? {});
+    // conta: aparência do BANCO (as opções do cliente são ignoradas); anônimo de teste: opções validadas
+    const saved = this.savedLooks.get(client.sessionId);
+    this.savedLooks.delete(client.sessionId);
+    this.applyAppearance(p, id.userId ? (saved?.appearance ?? DEFAULT_PLAYER_APPEARANCE.homem) : (options ?? {}));
     const a = Math.random() * Math.PI * 2, rr = 2 + Math.random() * 5;
     p.x = this.spawn.x + Math.cos(a) * rr;
     p.z = this.spawn.z + Math.sin(a) * rr;
@@ -446,6 +474,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
   onLeave(client: Client) {
     const ident = this.identities.get(client.sessionId);
     this.identities.delete(client.sessionId);
+    this.savedLooks.delete(client.sessionId);
     if (ident?.role === 'spectator') { this.leaveSpectator(client); return; }
     const p = this.state.players.get(client.sessionId);
     if (p?.vehicle) {
