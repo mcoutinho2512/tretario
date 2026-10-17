@@ -41,7 +41,7 @@ export function loadAgenda(fromEvent: unknown, env: Record<string, string | unde
     list = Array.isArray(j) ? j : (j as { agenda?: unknown })?.agenda;
     source = env.PV_AGENDA_FILE;
   }
-  const e = env.PV_AGENDA_EPOCH;
+  const e = env.PV_TEST === '1' ? env.PV_AGENDA_EPOCH : undefined;
   const epoch = e === 'now' ? Math.floor(Date.now() / 1000) * 1000 : Number.isFinite(Number(e)) && e ? Number(e) : 0;
   return { defs: sanitizeAgenda(list), epoch, source };
 }

@@ -426,6 +426,8 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     this.onMessage('dbt_queue', (c: Client, m: unknown) => this.gate(c, 'debate.speak', () => this.evt.message(c.sessionId, 'dbt_queue', m)));
     this.onMessage('dbt_say', (c: Client, m: unknown) => this.gate(c, 'debate.speak', () => this.evt.message(c.sessionId, 'dbt_say', m)));
     this.onMessage('dbt_react', (c: Client, m: unknown) => this.gate(c, 'debate.react', () => this.evt.message(c.sessionId, 'dbt_react', m)));
+    // CombatSystem (agente A) lê as regras do evento por `room.combat.combatEventFor` — ligado depois do onCreate
+    this.clock.setTimeout(() => { const cb = (this as unknown as { combat?: { combatEventFor?: unknown } }).combat; if (cb) cb.combatEventFor = (sid: string) => this.evt.combatEventFor(sid); }, 0);
     console.log(`[eventos] agenda (${ag.source}): ${ag.defs.map((d) => `${d.id}/${d.format}`).join(', ') || '—'}${ag.epoch ? ` · epoch ${new Date(ag.epoch).toISOString()}` : ''}`);
   }
 
@@ -1183,6 +1185,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     tp.x = out.rx; tp.z = out.rz; tp.speed = 0;
     this.broadcast('knock', { target: targetId, by, kind, dx: out.dx, dz: out.dz, strength, rx: out.rx, rz: out.rz, downMs: RULES.downMs, getupMs: RULES.getupMs });
     metrics.knock(kind);
+    this.evt.onKnockdown(by, targetId); // rodada 9 — eventos: derrubada entre inscritos de um confronto ativo pontua lá
     console.log(`[room] queda (${kind}) ${targetId} por ${by} força ${strength.toFixed(1)}`);
   }
 

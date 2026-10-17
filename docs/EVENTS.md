@@ -38,3 +38,57 @@ Exemplos incluídos (genéricos, de propósito):
   para testes; o backend usará a mesma API (agenda de anúncios). Painéis com o mesmo conteúdo compartilham textura.
 - `?event=` define a playlist; cada painel começa num item diferente da playlist.
 - **Não há venda de publicidade implementada.**
+
+## Eventos agendados (rodada 9) — agenda dentro do mundo
+O evento do mundo (`EventDef`) ganha uma **agenda** (`agenda: ScheduledEventDef[]`, `src/events/schedule.ts`): atividades
+que acontecem no MESMO mundo, recorrentes, no relógio do **servidor**. Mesmo modelo para todas; a lógica de cada
+formato fica num *runner* (`server/src/events/runners.ts`), nunca em `if (evento === …)`.
+
+| formato | runner | o que o servidor decide |
+|---|---|---|
+| `caminhada` | `WalkRunner` | líder virtual andando pela rota a `paceMs`; participação por acompanhar (docs/MANIFESTATION_SYSTEM.md) |
+| `corrida` | `RaceRunner` | largada, checkpoints em ordem, voltas, posição, tempo, DQ (docs/RACES.md) — bicicleta e patinete |
+| `confronto_grupos` | `ClashRunner` | grupos permitidos, zonas, pontos (área + derrubadas no evento), retorno protegido |
+| `debate` | (agente E) | palco em texto — implementa a mesma interface `EventRunner` |
+
+**Recorrência** (`src/events/recurrence.ts`): ocorrência k começa (ACTIVE) em `epoch + offsetMin + k × everyMin`;
+a contagem (STARTING) dura `startingS` antes e a inscrição (REGISTRATION) abre `registrationMin` antes da contagem;
+termina `durationMin` depois. `startAt`/`endAt` (ISO) limitam a janela. Instância = `"<id>@<início ms>"`.
+
+**Estados** (`server/src/events/EventRuntime.ts`, sem Colyseus): `SCHEDULED → REGISTRATION → STARTING → ACTIVE →
+FINISHED`; `CANCELLED` quando, no início, há menos inscritos (humanos) que `minParticipants` (0 = acontece mesmo vazio
+— NPCs simulados mantêm vivo). O runner pode encerrar antes (`ctx.finish()`: todos chegaram, líder chegou).
+
+**Inscrição** (`evt_join {inst}` / `evt_leave {inst}` → `evt_res {inst, ok, r?}`): aberta em REGISTRATION/STARTING
+(e em ACTIVE se o formato aceita entrada tardia: caminhada, confronto); capacidade (`lotado`), regras de grupo
+(`groupRules.allowed`, só por chave e igualdade → `grupo`), uma inscrição viva por jogador (`ja_inscrito`),
+capacidade `event.join` da política de acesso (`sem_permissao`) e a regra do formato (corrida: `veiculo`).
+`evt_watch {inst, on}` acompanha sem se inscrever (marcadores, placar, resultado) — espectadores também.
+
+**Graça de reconexão**: caiu e está em graça (entidade congelada) → a inscrição continua; só a saída de vez (graça
+vencida, saída, sessão substituída — `onLeave` da sala) desiste (`forfeit`: corrida vira DNF).
+
+**Mensagens** (servidor → cliente): `agenda {list: AgendaEntry[]}` ao entrar e quando muda (≤ 1 Hz; `count` = humanos
+inscritos; `joined` = o próprio); `evt_pts {list}` — concentrações dos eventos vivos (líder da caminhada, torcida da
+corrida) ≤ 1 Hz e só quando muda; `race`, `race_def`, `race_board`, `walk`, `clash`, `evt_result`, `evt_done`.
+O cliente (`src/events/EventClient.ts`) só exibe e pede — nunca informa checkpoint, chegada ou participação.
+
+**Gameplay** (`src/gameplay/events.ts`, barramento `room.gameplay`): `event_join` ao inscrever, `event_complete`
+(participação concluída; recompensa é por isso, nunca por golpe), `race_finish {raceId, vehicle, rank, timeMs}`.
+
+**Confronto** (agente A): `room.evt.combatEventFor(sid)` → `CombatEventRules` da instância de confronto ATIVA em que o
+jogador está inscrito (`friendlyFire` dos dados, padrão false); `room.evt.zonePolicy(zone)` → `combatPolicy` do evento
+ativo nas suas zonas (ex.: `CONTESTED`); `room.evt.protectedUntil(sid)` → proteção de retorno; `room.evt.onKnockdown(a, b)`
+→ pontuação do confronto (a sala já chama no `knockdown` atual).
+
+**Na sala** (`server/src/PresidenteVargasRoom.ts`): um bloco `// rodada 9 — eventos` (`setupEvents`: adaptador
+`EventHost`, mensagens) e ganchos de uma linha em `tick`, `onMove` (posição ACEITA), `onJoin` (`hello`), `onLeave`
+(`gone`), `knockdown` e `environment()` (células do espectador).
+
+**Teste/QA**: com `PV_TEST=1`, `PV_AGENDA_FILE=<json>` troca a agenda por um arquivo; `PV_AGENDA_EPOCH=<ms|now>`
+desloca a origem (ocorrência 0 no horário pedido). `tools/qa/events_mp.mjs` usa a agenda DOS DADOS com horários
+encurtados.
+
+Agenda incluída: `manifestacao` — caminhada Central → Candelária (a cada 60 min), corridas de bicicleta e de patinete
+na Cidade Nova (a cada 30 min); `cotidiano` — as duas corridas; `encontro-exemplo` — caminhada; `classico-exemplo` —
+desafio das torcidas no Campo de Santana (confronto, `CONTESTED`, fogo amigo desligado) e corrida de bicicleta.

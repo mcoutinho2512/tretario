@@ -86,6 +86,7 @@ export class EventRuntime {
     }
     for (const [id, L] of this.live) if ((L.inst.state === 'FINISHED' || L.inst.state === 'CANCELLED') && now > L.endedAt + this.recentMs) this.live.delete(id);
     for (const [sid, until] of this.prot) if (until <= now) { this.prot.delete(sid); this.host.protect?.(sid, 0); }
+    for (const [sid, at] of this.helloAgain) if (now >= at) { this.helloAgain.delete(sid); this.hello(sid); this.helloAgain.delete(sid); }
     this.sendAgenda(now);
     this.sendPoints(now);
   }
@@ -231,6 +232,7 @@ export class EventRuntime {
     if (L) this.drop(L, sid, true);
     for (const l of this.live.values()) l.watchers.delete(sid);
     this.prot.delete(sid);
+    this.helloAgain.delete(sid);
   }
 
   /** evt_watch — acompanhar (marcadores/placar/resultado) sem se inscrever; espectadores também */
@@ -247,7 +249,10 @@ export class EventRuntime {
   hello(sid: string, send: (type: string, msg: unknown) => void = (t, m) => this.host.send(sid, t, m)) {
     send('agenda', { list: this.agendaFor(sid) });
     if (this.ptsList.length) send('evt_pts', { list: this.ptsList });
+    // o cliente pode ainda não ter registrado os ouvintes quando a sala responde no onJoin: repete uma vez (~1,5 s)
+    this.helloAgain.set(sid, this.clock() + 1500);
   }
+  private helloAgain = new Map<string, number>();
 
   // ---------------------------------------------------------------- ganchos da sala
   /** movimento ACEITO (posição final validada) de um jogador — só repassa a quem está inscrito numa instância viva */
@@ -347,8 +352,11 @@ export class EventRuntime {
     }
   }
 
+  private ptsCheck = -1e15;
   private sendPoints(now: number) {
-    if (now - this.ptsAt < this.minSendMs) return;
+    // avalia a 2 Hz; envia no máximo a cada minSendMs e só se mudou
+    if (now - this.ptsAt < this.minSendMs || now - this.ptsCheck < 500) return;
+    this.ptsCheck = now;
     const list: EventPointWire[] = [];
     for (const L of this.live.values()) {
       if (!L.runner?.rally || !LIVE.has(L.inst.state)) continue;

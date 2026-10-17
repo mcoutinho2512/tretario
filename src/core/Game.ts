@@ -750,6 +750,9 @@ export class Game {
       const { EventClient } = await import('../events/EventClient');
       const evc = new EventClient(this.net, this.scene, this.hud, (m) => this.flash(m), this.hudShell.minimap);
       (window as any).__pvEvents = evc;
+      evc.groupName = (k) => this.events.current?.groups?.find((g) => g.id === k)?.name ?? k;
+      // QA (tools/qa/events_mp.mjs): aponta o veículo em uso para (x,z); o roteiro dirige com W (o servidor valida o resto)
+      (evc as unknown as { qaAim: (x: number, z: number) => boolean }).qaAim = (x, z) => { const v = this.riding; if (!v) return false; v.state.heading = Math.atan2(x - v.state.x, z - v.state.z); return true; };
     }
     this.net.onSpawn = (sp) => {
       this.player.x = sp.x; this.player.z = sp.z; this.player.y = this.collision.groundHeight(sp.x, sp.z);

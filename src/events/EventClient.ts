@@ -33,6 +33,8 @@ export class EventClient {
   clash: ClashStateMessage | null = null;
   result: EventResultMessage | null = null;
   lastRes: { inst: string; ok: boolean; r?: string } | null = null;
+  /** nome exibido de um grupo (chave → nome dos dados do evento; o Game liga) */
+  groupName: (key: string) => string = (k) => k;
   done: string[] = [];
   points: EventPointsMessage['list'] = [];
   private marks = new THREE.Group();
@@ -158,8 +160,8 @@ export class EventClient {
     if (this.result) {
       const r = this.result;
       rows.push(`<b>${name(r.inst)} — resultado</b>`);
-      if (r.score) rows.push(Object.entries(r.score).map(([g, v]) => `${esc(g)}: ${v}`).join(' · '));
-      for (const x of r.rows.slice(0, 8)) rows.push(`${x.rank}º ${esc(x.name)} ${x.status === 'ok' && x.timeMs ? fmtT(x.timeMs) : x.status === 'ok' ? '' : x.status.toUpperCase()}${x.reason ? ` (${esc(x.reason)})` : ''}`);
+      if (r.score) rows.push(Object.entries(r.score).map(([g, v]) => `${esc(this.groupName(g))}: ${v}`).join(' · '));
+      for (const x of r.rows.slice(0, 8)) rows.push(`${x.rank}º ${esc(x.group ? this.groupName(x.group) : x.name)} ${x.status === 'ok' && x.timeMs ? fmtT(x.timeMs) : x.status === 'ok' ? '' : x.status.toUpperCase()}${x.reason ? ` (${esc(x.reason)})` : ''}`);
     } else if (this.race && this.raceDef) {
       const r = this.race, d = this.raceDef, n = d.cps.length;
       const t = r.t < 0 ? `LARGADA EM ${Math.ceil(-r.t / 1000)} s` : fmtT(r.t);
@@ -172,7 +174,7 @@ export class EventClient {
     } else if (this.clash) {
       const c = this.clash;
       rows.push(`<b>${name(c.inst)}</b> · ${fmtT(c.endsAt - worldClock.now())}`);
-      rows.push(Object.entries(c.score).map(([g, v]) => `${esc(g)} ${v}`).join(' × ') + (c.hold ? ` · área: ${esc(c.hold)}` : ''));
+      rows.push(Object.entries(c.score).map(([g, v]) => `${esc(this.groupName(g))} ${v}`).join(' × ') + (c.hold ? ` · área: ${esc(this.groupName(c.hold))}` : ''));
     }
     this.panel.hidden = !rows.length;
     this.panel.innerHTML = rows.map((r) => `<div>${r}</div>`).join('');

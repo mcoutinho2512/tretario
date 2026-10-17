@@ -146,3 +146,31 @@ Animações das ações e poses de itens (clipes procedurais, camada de ação, 
 - O canal de chat GRUPO usa o grupo do evento (docs/CHAT.md); nada mais depende dele.
 - Detalhes de conta, sessão e privacidade: docs/IDENTITY.md, docs/AUTH.md, docs/ACCESS_CONTROL.md,
   docs/PRIVACY_ARCHITECTURE.md.
+
+## Caminhada coletiva, tipos de grupo e torcidas (rodada 9)
+- **Caminhada** (`format: "caminhada"`, `server/src/events/WalkRunner.ts`; agenda em docs/EVENTS.md): a rota são
+  checkpoints em fração do eixo (`walk.route`, ex.: Central t 0,28 → Campo de Santana 0,38 → Centro → Rio Branco 0,86 →
+  Candelária 0,93 — o trecho 0,936–0,948 em frente à igreja tem obstáculo, a rota termina antes). Entre checkpoints de
+  eixo o caminho **segue o eixo** (amostrado a cada 0,4 %), não uma reta que cortaria quarteirões.
+- Um **líder virtual** anda pela rota a `paceMs` (1,2 m/s nos dados: ~1,4 km em ~20 min) a partir do início da
+  instância — posição determinística pelo relógio do servidor. Ele é uma concentração em movimento: `RallyPoint` kind
+  `event` no cliente (o `RallyCrowd` faz cada NPC **caminhar** até o novo lugar no anel — sem formação rígida) e
+  `EnvRally` no servidor (o ambiente das células do espectador aéreo anda junto, docs/SPECTATOR.md).
+- **NPCs simulados**: `npcCrowd` (120 na caminhada) são NPCs de ambiente RESERVADOS para o ponto (`RallyPoint.crowd` /
+  `EnvRally.crowd`), fora da divisão de `social.rallyCrowd` — existem mesmo com o mundo vazio, são determinísticos e
+  só do cliente; o ambiente das células continua rotulado como simulado e `AgendaEntry.count` conta só humanos.
+- **Participação**: inscrito, a pé, a ≤ `followRadius` (25 m) do líder; conta a distância que o líder andou enquanto você
+  estava perto; ≥ `completeFraction` (60 %) da rota → `event_complete`. Quem vai de bicicleta ou fica longe não conclui.
+  O líder chega ao fim, a concentração fica 20 s (dispersão) e a instância termina.
+- **Tipos de grupo** (`Group.kind`, `src/events/schedule.ts GroupKind`): `POLITICAL` (GRUPO 13, GRUPO 22), `NEUTRAL`
+  (NEUTRO, "Sem torcida"), `SUPPORTERS` (torcidas), `CUSTOM` (encontro). **Só dados**: nenhum código decide por tipo
+  (tests/groupNeutrality.test.ts procura comparações com os tipos e as chaves).
+- **Torcidas** (`public/events/classico-exemplo.json`): nomes FICTÍCIOS e neutros — Maré Vermelha, Onda Tricolor,
+  Coro da Diagonal, Brisa Azul — com camisas de futebol **sem escudo** (designs 200–207: vermelha lisa, listras verde/
+  grená/branco, faixa diagonal, listras azul e branco) e cores próprias. Nenhum nome, escudo, uniforme oficial ou
+  patrocinador de clube. Mesmas regras de todos os grupos: escolha por evento, só aparência.
+- **Confronto entre grupos** (protótipo, `ClashRunner`): só entre inscritos das torcidas listadas em
+  `groupRules.allowed`, só nas zonas do evento e só enquanto ATIVO; fogo amigo pelos dados (padrão desligado); pontos
+  por segurar a área central (só um grupo dentro) e por derrubadas NO evento (mesmo grupo nunca pontua); derrubado
+  volta ao ponto do seu grupo com proteção (`FX.PROTECTED`); recompensa = participação (presença ≥ 50 % do tempo).
+  A troca de lados dá o mesmo resultado (teste de neutralidade).
