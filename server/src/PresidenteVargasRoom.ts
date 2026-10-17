@@ -64,6 +64,9 @@ import { PEDESTRIAN_ESTIMATE, environmentCrowdFor, liveWorlds, type WorldMetrics
 import { testJoinFlags } from './presence/testJoin.ts';
 import { liveMemorySweepers } from './cleanup/CleanupService.ts';
 import { LINK_WIRE, RECONNECT } from '../../src/net/reconnect.ts';
+import { ZoneTracker } from '../../src/world/zoneTracker.ts';
+import type { ZoneDefinition } from '../../src/world/zones.ts';
+import { GameplayBus } from './gameplay/bus.ts';
 
 const AOI_RADIUS = Number(process.env.PV_AOI ?? 220); // m — jogadores/veículos visíveis
 /** histerese da AOI: entra a ≤ R, sai só além de R × AOI_HYST */
@@ -73,6 +76,8 @@ const AOI_MAX = Number(process.env.PV_AOI_MAX ?? 48);
 /** multidão distante: frequência (Hz) e máximo de entradas por mensagem */
 const CROWD_HZ = Number(process.env.PV_CROWD_HZ ?? 2);
 const TICK_MS = 100; // simulação a 10 Hz
+/** zonas por jogador: 10 Hz / 5 fatias = 2 Hz por jogador */
+const ZONE_SLICES = 5;
 /** AOI e multidão são FATIADAS entre ticks (cada cliente no seu tick: slot % fatias): sem picos de custo */
 const AOI_SLICES = 2; // cada cliente a cada 2 ticks = 5 Hz (antes: todos juntos a 4 Hz)
 const CROWD_SLICES = Math.max(1, Math.round(1000 / TICK_MS / Math.max(0.1, CROWD_HZ)));
@@ -117,6 +122,8 @@ interface PlayerRT {
   social: ActionActor;
   /** em cima de um trio: posição LOCAL aceita (validação do próximo 'pmove') */
   plat: { id: string; x: number; z: number; t: number; seq: number } | null;
+  /** rodada 9 — zona atual (com histerese), atualizada pelo servidor a 2 Hz: missões, confronto, eventos */
+  zone: ZoneTracker;
 }
 
 export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
@@ -134,6 +141,10 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
   private interactionPolicy: 'pacifico' | 'opcional' = 'opcional';
   private spawn = { x: -580, z: 280, heading: 1.75 };
   private tickN = 0;
+  /** rodada 9 — eventos de gameplay (missões, conquistas, telemetria assinam; ver src/gameplay/events.ts) */
+  readonly gameplay = new GameplayBus();
+  private zoneDefs: ZoneDefinition[] = [];
+  private zoneAxis: [number, number][] = [];
   private crowdTable = new CrowdTable();
   private crowdSlots = new Int32Array(1024);
   /** grade espacial dos jogadores (reconstruída a cada tick): AOI, candidatos de impacto */
@@ -222,6 +233,8 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     this.state.eventId = ev;
     this.interactionPolicy = W.events.get(ev)?.interaction === 'pacifico' ? 'pacifico' : 'opcional';
     this.state.seed = Number(process.env.PV_SEED ?? 20261015) >>> 0;
+    this.zoneDefs = W.zones;
+    this.zoneAxis = (W.manifest.pvAxis ?? []) as [number, number][];
     const sp = W.manifest.spawn;
     this.spawn = { x: sp.p[0], z: sp.p[1], heading: Math.atan2(Math.cos(sp.yaw), Math.sin(sp.yaw)) };
     // veículos utilizáveis (mesmos ids do cliente)
@@ -344,10 +357,26 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     // veículos: grade (AOI) e retorno à vaga dos abandonados (1 Hz)
     this.vehAcc += dtMs;
     if (this.vehAcc >= 1000) { this.vehAcc = 0; this.rebuildVehicleGrid(); this.resetAbandoned(now); }
+    // zonas por jogador (2 Hz, fatiado): base de missões de exploração, política de confronto e eventos
+    this.updateZones(this.tickN % ZONE_SLICES, ZONE_SLICES, now);
     // grafites: área de interesse por superfície (fatiada, 2 Hz por cliente) e expiração (1 Hz)
     this.graffiti.update(now, this.gfPos);
     metrics.tick(performance.now() - t0, this.state.players.size);
   }
+
+  private updateZones(slice: number, slices: number, now: number) {
+    for (const [sid, r] of this.rt) {
+      if (r.slot % slices !== slice) continue;
+      const ch = r.zone.update(r.last.x, r.last.z, now);
+      if (ch?.to) this.gameplay.emit(sid, { type: 'zone_enter', zone: ch.to.id }, now);
+    }
+  }
+
+  /** zona atual do jogador (id) — null fora das zonas ou desconhecido */
+  zoneOf(sid: string): string | null { return this.rt.get(sid)?.zone.current?.id ?? null; }
+
+  /** definição da zona (política de confronto, áreas de paz) */
+  zoneDef(id: string | null): ZoneDefinition | undefined { return id ? this.zoneDefs.find((z) => z.id === id) : undefined; }
 
   private rebuildVehicleGrid() {
     this.vgrid.clear();
@@ -697,6 +726,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
       aoiCap: clientCap(options?.aoiMax),
       social: { act: 0, actAt: 0, prop: 0, design: 0, status: 0, vehicle: '', recent: [] },
       plat: null,
+      zone: new ZoneTracker(this.zoneDefs, this.zoneAxis),
     };
     if (taken?.prop) { r.social.prop = taken.prop; r.social.design = taken.design; p.prop = taken.prop; p.design = taken.design; } // item na mão vem junto
     this.slotNid[r.slot] = p.nid;
