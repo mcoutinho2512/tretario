@@ -7,6 +7,7 @@
  *            rodada 8: DATABASE_URL (PostgreSQL local, server/.env) · PV_STORE=memory · PV_ALLOW_ANON_PLAYERS=1 · API em PORT+1 (/api/*)
  *            grafite: PV_GRAFFITI_FILE · PV_GRAFFITI_STORE=memory · PV_GRAFFITI_TTL_MS · PV_GRAFFITI_REPORTS · PV_ADMIN_TOKEN (docs/GRAFFITI.md)
  */
+import './polyfills.ts'; // WebSocket global (reconexão do Colyseus no Node 20)
 import { createServer } from 'node:http';
 import { Server } from '@colyseus/core';
 import { WebSocketTransport } from '@colyseus/ws-transport';

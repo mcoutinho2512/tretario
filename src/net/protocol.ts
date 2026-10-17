@@ -58,6 +58,11 @@ export interface JoinOptions extends IdentityJoinOptions {
   cid?: string;
   /** SOMENTE servidor em modo de teste (PV_TEST=1): ponto de spawn para cenas reproduzíveis */
   testSpawn?: { x: number; z: number };
+  /** espectador: posição inicial da câmera (centro da área de interesse; o servidor prende aos limites) */
+  specCam?: { x: number; z: number };
+  /** SOMENTE servidor de teste: bot de carga (métricas: testBots, nunca jogador) e conta fictícia de QA */
+  bot?: boolean;
+  testUser?: string;
 }
 
 export interface MoveMsg {

@@ -11,6 +11,9 @@
  *  multidão      os remotos detalhados (StateView, os mais próximos) e a multidão distante (mensagem "crowd", 2 Hz)
  *                entram no orçamento do CrowdDirector: só os mais próximos ganham esqueleto (pool por corpo); o resto
  *                é desenhado instanciado. Ver docs/CROWDS.md
+ *  espectador    (rodada 8) entra com role 'spectator': sem corpo, só manda a câmera (`spec_cam`, 2 Hz) — docs/SPECTATOR.md
+ *  reconexão     (rodada 8) queda → RECONECTANDO (token do Colyseus, exponencial + jitter) → mesma entidade; graça
+ *                vencida → entra de novo (ticket novo se autenticado); sessão substituída → para (src/net/reconnect.ts)
  */
 import './netWebSocket'; // precisa vir ANTES do SDK (instrumenta globalThis.WebSocket)
 import * as THREE from 'three';
@@ -30,6 +33,9 @@ import { packLook } from '../characters/garments';
 import { createAgent, type CrowdAgent } from '../characters/crowd/crowdBudget';
 import type { CrowdDirector } from '../characters/crowd/CrowdDirector';
 import type { SocialState } from '../social/types';
+import type { WorldRole } from '../identity/types';
+import { LinkMachine, RECONNECT, backoffDelay, retriesForGrace, type LinkEvent, type LinkState } from './reconnect';
+import { SPECTATOR } from '../spectator/bounds';
 
 const BODY_LIST = ['homem', 'mulher', 'idoso', 'idosa'] as const;
 const bodyIndex = (b: string) => Math.max(0, BODY_LIST.indexOf(b as (typeof BODY_LIST)[number]));
@@ -55,6 +61,21 @@ export interface RemoteInfo {
   platform: string; plx: number; plz: number;
   /** última posição de MUNDO recebida do servidor (QA: o servidor leva o passageiro junto com o trio) */
   wx: number; wz: number;
+  /** 0 conectado · 1 caiu, em graça de reconexão (entidade congelada) */
+  link: number;
+}
+
+/** estado autoritativo mandado pelo servidor ao reconectar (mesma entidade) */
+export interface ResumeMsg { x: number; y: number; z: number; heading: number; vehicle: string; platform: string; plx: number; plz: number; prop: number; design: number; seq: number }
+
+/** opções de entrada além da aparência (rodada 8) */
+export interface ConnectOptions {
+  /** papel pedido (o servidor decide; visitante sempre assiste) */
+  role?: WorldRole;
+  /** espectador: posição inicial da câmera */
+  specCam?: { x: number; z: number };
+  /** SÓ servidor de teste: conta fictícia (QA de login duplicado) */
+  testUser?: string;
 }
 
 interface Remote {
@@ -74,6 +95,7 @@ interface Remote {
   status: number;
   vehicle: string;
   platform: string;
+  link: number;
   lastArrival: number;
   /** vida social vinda do servidor (actAt no relógio do servidor) */
   soc: { act: number; actAt: number; actVar: number; prop: number; design: number };
@@ -137,6 +159,31 @@ export class NetworkClient {
   onKnock: ((k: KnockMsg, isSelf: boolean) => void) | null = null;
   onNotice: ((msg: string) => void) | null = null;
   onEvent: ((eventId: string) => void) | null = null;
+  // ---- rodada 8: papel, reconexão, sessão substituída
+  /** papel desta conexão (o servidor confirma no spawn) */
+  role: WorldRole = 'player';
+  /** estado do enlace (src/net/reconnect.ts) */
+  get link(): LinkState { return this.linkM.state; }
+  private linkM = new LinkMachine('client');
+  /** mudança de estado do enlace ('REPLACED' = outra sessão da mesma conta assumiu) */
+  onLink: ((s: LinkState | 'REPLACED') => void) | null = null;
+  /** reconectou na MESMA entidade: estado autoritativo do servidor */
+  onResume: ((r: ResumeMsg) => void) | null = null;
+  /** ticket de uso único para cada entrada NOVA (jogador autenticado — POST /api/session/ticket); sem ele, anônimo */
+  ticketProvider: (() => Promise<string | undefined>) | null = null;
+  /** a sessão foi substituída por outra da mesma conta: não reconecta */
+  replaced = false;
+  /** QA: capacidades negadas pelo servidor (mensagem `denied`) */
+  capDenials: string[] = [];
+  /** QA: reconexões na mesma entidade e entradas novas após a graça */
+  reconnects = 0;
+  rejoins = 0;
+  /** espectador: foco da câmera (o jogo atualiza a cada quadro; vai ao servidor como spec_cam em baixa frequência) */
+  spectatorFocus: { x: number; z: number } | null = null;
+  private specSent = { x: Infinity, z: Infinity, t: 0, acc: 0 };
+  private specPingAt = 0;
+  private joinArgs: { app: CharacterAppearance; name: string; testSpawn?: { x: number; z: number }; o: ConnectOptions } | null = null;
+  private leaving = false;
 
   constructor(private endpoint: string, hudRoot: HTMLElement) {
     this.group.name = 'remote_players';
@@ -159,20 +206,60 @@ export class NetworkClient {
   /** mensagens "crowd" recebidas (QA) */
   crowdMsgs = 0;
 
-  async connect(app: CharacterAppearance, name: string, testSpawn?: { x: number; z: number }): Promise<void> {
+  async connect(app: CharacterAppearance, name: string, testSpawn?: { x: number; z: number }, o: ConnectOptions = {}): Promise<void> {
     this.status = 'connecting';
+    this.joinArgs = { app, name, testSpawn, o };
     try {
-      const client = new Client(this.endpoint);
-      const opts: JoinOptions = { name, body: app.body, skin: app.skin, hair: app.hair, top: app.top, bottom: app.bottom, shoes: app.shoes, accessory: app.accessory ?? 'nenhum', acc: app.acc ?? 0x222222, topStyle: app.topStyle, bottomStyle: app.bottomStyle, shoeStyle: app.shoeStyle, hairStyle: app.hairStyle, shirtDesign: app.shirtDesign ?? 0, cid: anonymousClientId(), ...(testSpawn ? { testSpawn } : {}), ...(this.crowd ? { aoiMax: Math.max(16, Math.min(64, this.crowd.budget.skinned * 2)) } : {}) };
-      const room = await client.joinOrCreate(ROOM_NAME, opts);
+      await this.join();
+    } catch (e) {
+      this.status = 'error';
+      this.lastError = (e as Error)?.message ?? String(e);
+      throw e;
+    }
+  }
+
+  /** entrada NOVA na sala (primeira vez ou depois da graça vencida) */
+  private async join() {
+    const { app, name, testSpawn, o } = this.joinArgs!;
+    const client = new Client(this.endpoint);
+    const ticket = await this.ticketProvider?.().catch(() => undefined);
+    const spec = o.role === 'spectator' ? (this.spectatorFocus ?? o.specCam) : undefined;
+    const opts: JoinOptions = { name, body: app.body, skin: app.skin, hair: app.hair, top: app.top, bottom: app.bottom, shoes: app.shoes, accessory: app.accessory ?? 'nenhum', acc: app.acc ?? 0x222222, topStyle: app.topStyle, bottomStyle: app.bottomStyle, shoeStyle: app.shoeStyle, hairStyle: app.hairStyle, shirtDesign: app.shirtDesign ?? 0, cid: anonymousClientId(), ...(testSpawn ? { testSpawn } : {}), ...(this.crowd ? { aoiMax: Math.max(16, Math.min(64, this.crowd.budget.skinned * 2)) } : {}),
+      ...(o.role ? { role: o.role } : {}), ...(ticket ? { ticket } : {}), ...(spec ? { specCam: { x: spec.x, z: spec.z } } : {}), ...(o.testUser ? { testUser: o.testUser } : {}) };
+    const room = await client.joinOrCreate(ROOM_NAME, opts);
+    this.bind(room);
+  }
+
+  private setLink(e: LinkEvent) {
+    const before = this.linkM.state;
+    const s = this.linkM.apply(e, Date.now());
+    if (s !== before) this.onLink?.(s);
+  }
+
+  /** liga os eventos da sala (também depois de uma entrada nova) */
+  private bind(room: Room) {
+    {
       this.room = room;
       this.sessionId = room.sessionId;
       this.status = 'online';
-      for (const [type, fn] of this.handlers) room.onMessage(type, fn);
-      room.onMessage('spawn', (s: { x: number; y: number; z: number; heading: number; policy: 'pacifico' | 'opcional'; seed: number }) => {
+      // reconexão automática do SDK com o token da sessão: exponencial + jitter, tentando durante toda a graça
+      const rc = room.reconnection;
+      rc.backoff = (attempt: number) => backoffDelay(attempt);
+      rc.minDelay = 0; rc.maxDelay = RECONNECT.maxDelayMs;
+      rc.maxRetries = retriesForGrace();
+      rc.minUptime = 0;
+      rc.maxEnqueuedMessages = 0; // nada de movimentos velhos na volta: o servidor manda 'resume'
+      room.onDrop(() => { if (this.room === room) { this.status = 'connecting'; this.setLink('drop'); } });
+      room.onReconnect(() => { if (this.room === room) { this.status = 'online'; this.reconnects++; this.setLink('reconnected'); } });
+      room.onMessage('session_replaced', () => { this.replaced = true; });
+      room.onMessage('resume', (r: ResumeMsg) => { this.holdMoves = false; this.onResume?.(r); });
+      room.onMessage('denied', (d: { cap: string }) => { this.lastDenial = `cap:${d?.cap}`; if (this.capDenials.length < 64) this.capDenials.push(String(d?.cap)); });
+      room.onMessage('spawn', (s: { x: number; y: number; z: number; heading: number; policy: 'pacifico' | 'opcional'; seed: number; role?: WorldRole }) => {
         this.policy = s.policy; this.seed = s.seed;
+        this.role = s.role === 'spectator' ? 'spectator' : 'player';
         this.onSpawn?.(s);
-        this.spawned = true;
+        // espectador não manda movimento (só a câmera, em update)
+        this.spawned = this.role === 'player';
       });
       room.onMessage('correct', (c: [number, number, number, number, string]) => {
         this.corrections++;
@@ -198,7 +285,7 @@ export class NetworkClient {
       room.onMessage('action', (a: { by: string; type: string }) => { const r = this.remotes.get(a.by); r?.visual?.playPush(); });
       room.onMessage('knock', (k: KnockMsg) => this.handleKnock(k));
       room.onMessage('crowd', (b: Uint8Array | ArrayBuffer) => this.onCrowd(b instanceof Uint8Array ? b : new Uint8Array(b)));
-      room.onLeave(() => { this.status = 'offline'; });
+      room.onLeave((code: number) => this.onRoomLeft(room, code));
       const cb = Callbacks.get(room as any) as any;
       cb.listen('eventId', (id: string) => { if (id) this.onEvent?.(id); });
       cb.onAdd('players', (p: any, id: string) => {
@@ -228,11 +315,45 @@ export class NetworkClient {
       cb.onRemove('vehicles', (_v: any, id: string) => { this.vehicleKinds.delete(id); });
       // sincronização rápida do relógio
       for (let i = 0; i < 5; i++) setTimeout(() => this.room?.send('ping', Date.now()), 150 * i);
-    } catch (e) {
-      this.status = 'error';
-      this.lastError = (e as Error)?.message ?? String(e);
-      throw e;
     }
+  }
+
+  /** saiu de vez da sala: substituída → para; graça vencida/recusa → entrada nova (com backoff) */
+  private onRoomLeft(room: Room, code: number) {
+    if (this.room !== room || this.leaving) return;
+    this.status = 'offline';
+    if (this.replaced || code === RECONNECT.replacedCloseCode) {
+      this.replaced = true;
+      this.linkM.apply('replaced', Date.now());
+      this.onLink?.('REPLACED');
+      return;
+    }
+    this.linkM.apply('replaced', Date.now()); // fora da sala de vez → EXPIRED (graça vencida ou recusa)
+    this.onLink?.('EXPIRED');
+    void this.rejoinFresh();
+  }
+
+  /** entidade antiga já não existe: limpa tudo o que veio da sala e entra como nova (o servidor decide o spawn) */
+  private async rejoinFresh() {
+    for (const id of [...this.remotes.keys()]) this.removeRemote(id);
+    this.far.clear();
+    this.vehicleKinds.clear();
+    this.spawned = false;
+    this.platform = null;
+    this.holdMoves = false;
+    this.room = null;
+    for (let attempt = 1; attempt <= 40 && !this.leaving; attempt++) {
+      await new Promise((r) => setTimeout(r, backoffDelay(attempt)));
+      try {
+        this.status = 'connecting';
+        await this.join();
+        this.rejoins++;
+        this.linkM.apply('rejoined', Date.now());
+        this.onLink?.('CONNECTED');
+        return;
+      } catch (e) { this.lastError = (e as Error)?.message ?? String(e); }
+    }
+    this.status = 'error';
   }
 
   // ---------------------------------------------------------------- comandos
@@ -280,6 +401,7 @@ export class NetworkClient {
 
   // ---------------------------------------------------------------- remotos
   private addRemote(id: string, p: any) {
+    if (this.remotes.has(id)) this.removeRemote(id); // estado completo reenviado (reconexão): nunca dois para o mesmo id
     const app: CharacterAppearance = {
       body: (p.body || 'homem') as BodyType, skin: p.skin, hair: p.hair, top: p.top, bottom: p.bottom, shoes: p.shoes, scale: 1, accessory: (p.accessory || 'nenhum') as Accessory, acc: p.acc,
       topStyle: p.topStyle || undefined, bottomStyle: p.bottomStyle || undefined, shoeStyle: p.shoeStyle || undefined, hairStyle: p.hairStyle || undefined, shirtDesign: p.shirtDesign || 0,
@@ -294,7 +416,7 @@ export class NetworkClient {
     label.style.display = 'none';
     const r: Remote = {
       id, nid, visual: null, app, agent, state: createPlayerState(id, p.x, p.y, p.z, p.heading), buf: [], label, name: p.name, body: p.body, accessory: p.accessory || 'nenhum',
-      interaction: p.interaction, status: p.status, vehicle: p.vehicle, platform: p.platform ?? '', lastArrival: performance.now(),
+      interaction: p.interaction, status: p.status, vehicle: p.vehicle, platform: p.platform ?? '', link: 0, lastArrival: performance.now(),
       soc: { act: p.act ?? 0, actAt: p.actAt ?? 0, actVar: p.actVar ?? 0, prop: p.prop ?? 0, design: p.design ?? 0 }, socApplied: null,
     };
     this.remotes.set(id, r);
@@ -367,13 +489,14 @@ export class NetworkClient {
     r.buf.push({ t: now, x: p.x, y: p.y, z: p.z, heading: p.heading, speed: p.speed, loco: p.loco, vehicle: p.vehicle, platform: p.platform ?? '', plx: p.plx ?? 0, plz: p.plz ?? 0, plh: p.plh ?? 0 });
     if (r.buf.length > 40) r.buf.shift();
     r.interaction = p.interaction; r.status = p.status; r.vehicle = p.vehicle; r.platform = p.platform ?? '';
+    if ((p.link ?? 0) !== r.link) { r.link = p.link ?? 0; r.label.classList.toggle('away', r.link !== 0); r.label.textContent = r.link ? `${r.name} · reconectando…` : r.name; }
     const so = r.soc;
     if (so.act !== p.act || so.actAt !== p.actAt || so.prop !== p.prop || so.design !== p.design || so.actVar !== p.actVar) {
       r.soc = { act: p.act, actAt: p.actAt, actVar: p.actVar, prop: p.prop, design: p.design };
       r.socApplied = null;
     }
     r.label.classList.toggle('combat', p.interaction === 'interacao');
-    if (p.name && p.name !== r.name) { r.name = p.name; r.label.textContent = p.name; }
+    if (p.name && p.name !== r.name) { r.name = p.name; r.label.textContent = r.link ? `${p.name} · reconectando…` : p.name; }
   }
 
   private removeRemote(id: string) {
@@ -401,6 +524,7 @@ export class NetworkClient {
 
   // ---------------------------------------------------------------- por frame
   update(dt: number, local: PlayerState, riding: string | null, camera: THREE.Camera, viewport: { w: number; h: number }) {
+    if (this.room && this.status === 'online' && this.role === 'spectator') this.sendSpectatorCam(dt);
     if (this.room && this.status === 'online' && this.spawned && !this.holdMoves) {
       this.sendAcc += dt;
       if (this.sendAcc >= 1 / NET_TICK_HZ) {
@@ -508,17 +632,35 @@ export class NetworkClient {
   }
   private lastCam = new THREE.Vector3();
 
+  /** espectador: foco da câmera a 2 Hz quando anda ≥ 6 m, e a cada 3 s de qualquer forma (batimento); ping do relógio */
+  private sendSpectatorCam(dt: number) {
+    const now = performance.now();
+    if (now - this.specPingAt > 2000) { this.specPingAt = now; this.room?.send('ping', Date.now()); }
+    const f = this.spectatorFocus, s = this.specSent;
+    s.acc += dt;
+    if (!f || s.acc < 1 / SPECTATOR.sendHz) return;
+    if (Math.hypot(f.x - s.x, f.z - s.z) < SPECTATOR.sendMinMoveM && now - s.t < SPECTATOR.keepAliveMs) return;
+    s.acc = 0; s.x = f.x; s.z = f.z; s.t = now;
+    this.room?.send('spec_cam', { x: Math.round(f.x * 10) / 10, z: Math.round(f.z * 10) / 10 });
+  }
+
   /** para QA */
   remotesInfo(): RemoteInfo[] {
     return [...this.remotes.values()].map((r) => {
       const c = r.buf[r.buf.length - 1];
-      return { id: r.id, name: r.name, body: r.body, accessory: r.accessory, x: +r.state.x.toFixed(2), z: +r.state.z.toFixed(2), speed: +r.state.speed.toFixed(2), interaction: r.interaction, status: r.status, vehicle: r.vehicle, platform: r.platform, plx: +(c?.plx ?? 0).toFixed(3), plz: +(c?.plz ?? 0).toFixed(3), wx: +(c?.x ?? 0).toFixed(2), wz: +(c?.z ?? 0).toFixed(2),
+      return { id: r.id, name: r.name, body: r.body, accessory: r.accessory, x: +r.state.x.toFixed(2), z: +r.state.z.toFixed(2), speed: +r.state.speed.toFixed(2), interaction: r.interaction, status: r.status, vehicle: r.vehicle, platform: r.platform, plx: +(c?.plx ?? 0).toFixed(3), plz: +(c?.plz ?? 0).toFixed(3), wx: +(c?.x ?? 0).toFixed(2), wz: +(c?.z ?? 0).toFixed(2), link: r.link,
         act: r.soc.act, actPhase: +socialOf(r.soc).phase.toFixed(2), prop: r.soc.prop, design: r.soc.design,
         visualAct: r.visual ? r.visual.social.act : null, visualProp: r.visual ? r.visual.social.prop : null };
     });
   }
 
+  /** QA: derruba o WebSocket como uma queda de rede (sem LEAVE consentido) → o SDK tenta reconectar */
+  dropConnectionForTest() { (this.room?.connection.transport as unknown as { ws?: { close: () => void } })?.ws?.close(); }
+  /** QA: desliga a reconexão automática (para testar o vencimento da graça) */
+  setAutoReconnect(on: boolean) { if (this.room) this.room.reconnection.enabled = on; }
+
   disconnect() {
+    this.leaving = true;
     void this.room?.leave();
     for (const list of this.pool.values()) list.forEach((v) => v.dispose());
     this.pool.clear();

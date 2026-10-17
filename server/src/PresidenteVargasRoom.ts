@@ -14,6 +14,9 @@
  *  grafite      server/src/graffiti: gf_new validado (superfície autorizada, alcance, conteúdo, cota), interesse por
  *               superfície, moderação e persistência (JSON local em dev) — docs/GRAFFITI.md
  *  rede adversa PV_JITTER / PV_LOSS (ms / 0–1) além de COLYSEUS_LATENCY (RTT nativo)
+ *  rodada 8     espectadores (server/src/spectator: sem corpo, AOI pela câmera), reconexão com graça (PV_GRACE_S, 20 s),
+ *               login duplicado (a sessão nova ASSUME a entidade), presença em memória e métricas públicas
+ *               (server/src/presence) — docs/SPECTATOR.md, docs/SHARED_WORLD.md
  */
 import { fileURLToPath } from 'node:url';
 import { Room, type Client } from '@colyseus/core';
@@ -32,8 +35,16 @@ import { GraffitiService, sanitizeClientId } from './graffiti/GraffitiService.ts
 import { JsonFileGraffitiStore, MemoryGraffitiStore } from './graffiti/store.ts';
 import { can, type Capability } from '../../src/access/policy.ts';
 import { resolveIdentity, JoinRefused, type ConnectionIdentity } from './identity/resolve.ts';
+
+/** identidade da conexão + marca de bot de carga (só servidor de teste) */
+type RoomIdentity = ConnectionIdentity & { bot?: boolean };
 import { services } from './services.ts';
 import { ACTION_RULES, applyAction, applyProp, cancelsOnMove, onceFinished, validateAction, validateProp, type ActionActor } from '../../src/social/actionRules.ts';
+import { SpectatorSessions, type SpectatorSession } from './spectator/SpectatorSession.ts';
+import { PresenceTracker } from './presence/PresenceTracker.ts';
+import { environmentCrowdFor, liveWorlds, type WorldMetricsSource } from './presence/publicMetrics.ts';
+import { testJoinFlags } from './presence/testJoin.ts';
+import { LINK_WIRE, RECONNECT } from '../../src/net/reconnect.ts';
 
 const AOI_RADIUS = Number(process.env.PV_AOI ?? 220); // m — jogadores/veículos visíveis
 /** histerese da AOI: entra a ≤ R, sai só além de R × AOI_HYST */
@@ -58,6 +69,8 @@ const BODY_INDEX: Record<string, number> = Object.fromEntries(BODIES.map((b, i) 
 const VEH_RESET_MS = Number(process.env.PV_VEH_RESET_MS ?? RULES.vehicleResetMs);
 const SIM_JITTER = Number(process.env.PV_JITTER ?? 0);
 const SIM_LOSS = Number(process.env.PV_LOSS ?? 0);
+/** prazo de graça da reconexão (s) — src/net/reconnect.ts */
+const GRACE_S = Number(process.env.PV_GRACE_S ?? RECONNECT.graceS);
 
 let WORLD: ServerWorld | null = null;
 const world = () => (WORLD ??= loadWorld());
@@ -123,7 +136,9 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
 
   messages = {
     move: (client: Client, raw: unknown) => this.gate(client, 'world.play', () => this.withNet(client, true, () => this.onMove(client, raw))),
-    ping: (client: Client, t0: number) => client.send('pong', [t0, Date.now()]),
+    ping: (client: Client, t0: number) => { this.pres.heartbeat(client.sessionId, Date.now()); client.send('pong', [t0, Date.now()]); },
+    // espectador: posição da câmera (centro da área de interesse), presa aos limites e com taxa limitada
+    spec_cam: (client: Client, m: unknown) => this.onSpecCam(client, m),
     mode: (client: Client, m: Mode) => this.gate(client, 'world.play', () => this.onMode(client, m)),
     enter: (client: Client, m: { id: string; seq?: number } | string) => this.gate(client, 'vehicle.use', () => this.withNet(client, false, () => this.onEnter(client, typeof m === 'string' ? m : m?.id, typeof m === 'object' ? m?.seq : undefined))),
     exit: (client: Client, m?: { seq?: number }) => this.gate(client, 'vehicle.use', () => this.withNet(client, false, () => this.onExit(client, m?.seq))),
@@ -148,7 +163,14 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
 
   /** grafites: autoridade, interesse, moderação e persistência (JSON local em dev; PV_GRAFFITI_STORE=memory para testes) */
   private graffiti!: GraffitiService;
-  private gfPos = (sid: string) => { const r = this.rt.get(sid); return r ? { x: r.last.x, z: r.last.z } : undefined; };
+  private gfPos = (sid: string) => { const r = this.rt.get(sid); return r ? { x: r.last.x, z: r.last.z } : this.specs.get(sid)?.cam; };
+  /** espectadores (server/src/spectator) — sem entidade, AOI pela câmera */
+  private specs!: SpectatorSessions;
+  /** presença em memória (server/src/presence) — nunca gravada por quadro */
+  readonly pres = new PresenceTracker();
+  /** conexões caídas em graça de reconexão: sessionId → desde quando + promessa do Colyseus (rejeitável) */
+  private grace = new Map<string, { since: number; deferred: { reject: (e?: unknown) => void } }>();
+  private metricsSource: WorldMetricsSource | null = null;
   private gfAuthor(sid: string) {
     const p = this.state.players.get(sid), r = this.rt.get(sid);
     return { x: r?.last.x ?? 0, z: r?.last.z ?? 0, ok: !!p && !!r && p.status === STATUS.OK && !p.vehicle };
@@ -177,6 +199,10 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
       this.vehIds.push(s.id);
     }
     this.rebuildVehicleGrid();
+    this.specs = new SpectatorSessions(W.manifest.bounds as [number, number, number, number]);
+    const evDef = W.events.get(ev) as (Parameters<typeof environmentCrowdFor>[0] & { name?: string }) | undefined;
+    this.metricsSource = { counts: (now) => this.pres.counts(now), eventId: ev, eventName: evDef?.name ?? ev, environmentCrowd: environmentCrowdFor(evDef) };
+    liveWorlds.add(this.metricsSource);
     const gfStore = process.env.PV_GRAFFITI_STORE === 'memory' ? new MemoryGraffitiStore() : new JsonFileGraffitiStore(process.env.PV_GRAFFITI_FILE ?? fileURLToPath(new URL('../data/graffiti.json', import.meta.url)));
     this.graffiti = new GraffitiService(W.graffitiSurfaces, gfStore, { radius: Number(process.env.PV_GRAFFITI_AOI ?? 120), adminToken: process.env.PV_ADMIN_TOKEN ?? '' });
     void this.graffiti.init();
@@ -187,7 +213,10 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     console.log(`[room] ${this.roomId} evento=${ev} (interação: ${this.interactionPolicy}) sem trânsito NPC · veículos ${JSON.stringify(kinds)} AOI=${AOI_RADIUS} m`);
   }
 
-  async onDispose() { await this.graffiti?.flushStore(); }
+  async onDispose() {
+    if (this.metricsSource) liveWorlds.delete(this.metricsSource);
+    await this.graffiti?.flushStore();
+  }
 
   /** mede a codificação/envio dos patches (StateView por cliente): é o custo que cresce com a multidão */
   broadcastPatch() {
@@ -286,18 +315,27 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
       if (only ? id !== only : r.slot % slices !== phase) continue;
       const me = this.state.players.get(id);
       if (!me) continue;
-      selectInterestSlots(this.grid, r.slot, me.x, me.z, r.inView, { radius: AOI_RADIUS, hysteresis: AOI_HYST, cap: r.aoiCap }, this.scratch, this.aoiAdd, this.aoiRem, r.overflow);
-      for (const sl of this.aoiAdd) { const p = this.state.players.get(this.slotIds[sl]); if (p) r.view.add(p); }
-      for (const sl of this.aoiRem) { const p = this.state.players.get(this.slotIds[sl]); if (p) r.view.remove(p); }
-      // veículos: mesma grade espacial (só células próximas); o do próprio jogador fica sempre
-      const vc: { item: string; d: number }[] = [];
-      this.vgrid.forEachInRadius(me.x, me.z, AOI_RADIUS * AOI_HYST, (vs, d) => vc.push({ item: this.vehIds[vs], d }));
-      const own = me.vehicle || me.platform; // o veículo em uso / o trio em que está em cima fica sempre na vista
-      const vr = selectInterest({ candidates: vc, inView: r.vehInView, radius: AOI_RADIUS, hysteresis: AOI_HYST, always: own ? new Set([own]) : undefined });
-      for (const vid of vr.add) { const v = this.state.vehicles.get(vid); if (v) { r.view.add(v); r.vehInView.add(vid); } }
-      for (const vid of vr.remove) { const v = this.state.vehicles.get(vid); if (v) r.view.remove(v); r.vehInView.delete(vid); }
+      this.interestAt(r, me.x, me.z, me.vehicle || me.platform); // o veículo em uso / o trio em que está em cima fica sempre na vista
+    }
+    // espectadores: mesma regra, centrada na câmera (sem slot na grade: ninguém os vê)
+    for (const sp of this.specs.values()) {
+      if (only ? sp.sid !== only : sp.slot % slices !== phase) continue;
+      this.interestAt(sp, sp.cam.x, sp.cam.z, '');
     }
     metrics.aoi(performance.now() - t0);
+  }
+
+  /** área de interesse de um observador (jogador ou espectador) num ponto */
+  private interestAt(r: { slot: number; inView: SlotView; vehInView: Set<string>; view: StateView; aoiCap: number; overflow: number[] }, x: number, z: number, own: string) {
+    selectInterestSlots(this.grid, r.slot, x, z, r.inView, { radius: AOI_RADIUS, hysteresis: AOI_HYST, cap: r.aoiCap }, this.scratch, this.aoiAdd, this.aoiRem, r.overflow);
+    for (const sl of this.aoiAdd) { const p = this.state.players.get(this.slotIds[sl]); if (p) r.view.add(p); }
+    for (const sl of this.aoiRem) { const p = this.state.players.get(this.slotIds[sl]); if (p) r.view.remove(p); }
+    // veículos: mesma grade espacial (só células próximas); o do próprio jogador fica sempre
+    const vc: { item: string; d: number }[] = [];
+    this.vgrid.forEachInRadius(x, z, AOI_RADIUS * AOI_HYST, (vs, d) => vc.push({ item: this.vehIds[vs], d }));
+    const vr = selectInterest({ candidates: vc, inView: r.vehInView, radius: AOI_RADIUS, hysteresis: AOI_HYST, always: own ? new Set([own]) : undefined });
+    for (const vid of vr.add) { const v = this.state.vehicles.get(vid); if (v) { r.view.add(v); r.vehInView.add(vid); } }
+    for (const vid of vr.remove) { const v = this.state.vehicles.get(vid); if (v) r.view.remove(v); r.vehInView.delete(vid); }
   }
 
   /**
@@ -307,6 +345,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
   private sendCrowd(phase: number, slices: number) {
     let any = false;
     for (const r of this.rt.values()) if (r.slot % slices === phase && (r.overflow.length || r.crowdKnown.size)) { any = true; break; }
+    if (!any) for (const r of this.specs.values()) if (r.slot % slices === phase && (r.overflow.length || r.crowdKnown.size)) { any = true; break; }
     if (!any) return;
     const now = Date.now();
     for (const r of this.rt.values()) {
@@ -316,26 +355,32 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     for (const [id, r] of this.rt) {
       if (r.slot % slices !== phase) continue;
       const c = this.clients2.get(id);
-      if (!c || (!r.overflow.length && !r.crowdKnown.size)) continue;
-      if (this.crowdSlots.length < r.overflow.length) this.crowdSlots = new Int32Array(r.overflow.length * 2);
-      let n = 0;
-      for (const sl of r.overflow) {
-        if (n >= CROWD_MAX) break;
-        if (!this.slotIds[sl] || r.inView.has[sl]) continue;
-        this.crowdSlots[n++] = sl;
-      }
-      if (SIM_LOSS && Math.random() < SIM_LOSS) continue;
-      const known = r.crowdKnown;
-      const slotNid = this.slotNid;
-      const buf = this.crowdTable.build(this.crowdSlots, n, (sl) => {
-        const nid = slotNid[sl];
-        if (known.has(nid)) return false;
-        known.add(nid);
-        return true;
-      });
-      c.send('crowd', buf); // lista vazia também vai: o cliente remove quem saiu
-      if (!n) known.clear();
+      if (c) this.crowdTo(c, r);
     }
+    for (const sp of this.specs.values()) if (sp.slot % slices === phase) this.crowdTo(sp.client, sp);
+  }
+
+  /** mensagem "crowd" para um observador (jogador ou espectador) */
+  private crowdTo(c: Client, r: { overflow: number[]; crowdKnown: Set<number>; inView: SlotView }) {
+    if (!r.overflow.length && !r.crowdKnown.size) return;
+    if (this.crowdSlots.length < r.overflow.length) this.crowdSlots = new Int32Array(r.overflow.length * 2);
+    let n = 0;
+    for (const sl of r.overflow) {
+      if (n >= CROWD_MAX) break;
+      if (!this.slotIds[sl] || r.inView.has[sl]) continue;
+      this.crowdSlots[n++] = sl;
+    }
+    if (SIM_LOSS && Math.random() < SIM_LOSS) return;
+    const known = r.crowdKnown;
+    const slotNid = this.slotNid;
+    const buf = this.crowdTable.build(this.crowdSlots, n, (sl) => {
+      const nid = slotNid[sl];
+      if (known.has(nid)) return false;
+      known.add(nid);
+      return true;
+    });
+    c.send('crowd', buf); // lista vazia também vai: o cliente remove quem saiu
+    if (!n) known.clear();
   }
 
   private allocSlot(id: string): number {
@@ -369,11 +414,16 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
   }
 
   /** identidade resolvida pelo SERVIDOR (ticket → conta; sem ticket → espectador) — ver server/src/identity */
-  readonly identities = new Map<string, ConnectionIdentity>();
+  readonly identities = new Map<string, RoomIdentity>();
 
   async onAuth(_client: Client, options: JoinOptions) {
     try {
-      return await resolveIdentity(services(), options, this.state.eventId);
+      const id: RoomIdentity = await resolveIdentity(services(), options, this.state.eventId);
+      // servidor de TESTE: bot de carga / conta fictícia para QA (ignorado em produção — server/src/presence/testJoin.ts)
+      const tf = testJoinFlags(options);
+      if (tf.bot && id.role === 'player') id.bot = true;
+      if (tf.testUser && !id.userId) id.userId = `test:${tf.testUser}`;
+      return id;
     } catch (e) {
       if (e instanceof JoinRefused) throw new Error(e.reason);
       throw e;
@@ -388,22 +438,48 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
 
   /** executa a mensagem só se a conexão tem a capacidade; senão responde `denied` (espectador, sem licença, suspenso) */
   private gate(client: Client, cap: Capability, fn: () => void) {
-    if (this.allowed(client, cap)) fn();
+    if (this.allowed(client, cap)) { this.pres.activity(client.sessionId, Date.now()); fn(); }
     else client.send('denied', { cap });
   }
 
-  protected leaveSpectator(_client: Client) { /* rodada 8: espectador sai sem deixar entidade */ }
-
-  /** espectador: entra no MESMO mundo sem corpo (rodada 8 — server/src/spectator) */
-  protected joinSpectator(client: Client, _id: ConnectionIdentity, _options: JoinOptions) {
-    client.view = new StateView();
-    client.send('spawn', { x: this.spawn.x, y: 0, z: this.spawn.z, heading: this.spawn.heading, sessionId: client.sessionId, policy: this.interactionPolicy, seed: this.state.seed, role: 'spectator' });
+  // ---------------------------------------------------------------- espectador (server/src/spectator)
+  /** espectador: entra no MESMO mundo sem corpo; área de interesse pela câmera (spec_cam) */
+  protected joinSpectator(client: Client, _id: RoomIdentity, options: JoinOptions) {
+    const slot = this.allocSlot(client.sessionId);
+    const o = options as JoinOptions & { specCam?: { x?: unknown; z?: unknown } }; // vem do cliente: validado abaixo
+    const start = o?.specCam && Number.isFinite(o.specCam.x) && Number.isFinite(o.specCam.z) ? { x: o.specCam.x as number, z: o.specCam.z as number } : { x: this.spawn.x, z: this.spawn.z };
+    const sp = this.specs.add(client, slot, start, clientCap(options?.aoiMax));
+    this.slotNid[slot] = 0;
+    client.view = sp.view;
+    this.graffiti.join(client.sessionId, 'Espectador', sanitizeClientId(options?.cid, client.sessionId), client);
+    this.updateInterest(0, 1, client.sessionId);
+    this.graffiti.update(Date.now(), this.gfPos, client.sessionId);
+    this.pres.enterWorld(client.sessionId, Date.now());
+    client.send('spawn', { x: sp.cam.x, y: 0, z: sp.cam.z, heading: this.spawn.heading, sessionId: client.sessionId, policy: this.interactionPolicy, seed: this.state.seed, role: 'spectator' });
+    console.log(`[room] espectador ${client.sessionId} — ${this.specs.size} assistindo`);
   }
 
-  onJoin(client: Client, options: JoinOptions, auth?: ConnectionIdentity) {
-    const id = auth ?? { userId: null, authSessionId: null, nickname: sanitizeName(options?.name), state: 'PLAYER', grant: 'NONE', role: 'player', groupKey: null, test: true } as ConnectionIdentity;
+  /** espectador sai sem deixar entidade (e sem graça de reconexão: o cliente simplesmente entra de novo) */
+  protected leaveSpectator(client: Client) {
+    const sp = this.specs.remove(client.sessionId);
+    if (sp) { this.slotIds[sp.slot] = ''; this.freeSlots.push(sp.slot); }
+    this.graffiti.leave(client.sessionId);
+    this.pres.leave(client.sessionId);
+  }
+
+  private onSpecCam(client: Client, m: unknown) {
+    const now = Date.now();
+    this.pres.heartbeat(client.sessionId, now);
+    if (this.specs.onCam(client.sessionId, m, now) === 'ok') this.pres.activity(client.sessionId, now);
+  }
+
+  onJoin(client: Client, options: JoinOptions, auth?: RoomIdentity) {
+    const id = auth ?? { userId: null, authSessionId: null, nickname: sanitizeName(options?.name), state: 'PLAYER', grant: 'NONE', role: 'player', groupKey: null, test: true } as RoomIdentity;
     this.identities.set(client.sessionId, id);
+    this.pres.join(client.sessionId, { userId: id.userId, role: id.role, bot: !!id.bot }, Date.now());
     if (id.role === 'spectator') { this.joinSpectator(client, id, options); return; }
+    // login duplicado: UMA entidade jogável por conta — a sessão nova assume (a antiga recebe session_replaced)
+    const taken = id.userId ? this.takeOver(id.userId, client.sessionId) : null;
     const p = new NetPlayer();
     // apelido: da CONTA (o cliente não escolhe o nome exibido); anônimo só em servidor de teste
     p.name = id.test ? sanitizeName(options?.name) : id.nickname;
@@ -417,7 +493,9 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     // As regras de autoridade continuam idênticas a partir daí.
     const ts = options?.testSpawn;
     if (process.env.PV_TEST === '1' && ts && Number.isFinite(ts.x) && Number.isFinite(ts.z)) { p.x = ts.x; p.z = ts.z; }
-    p.y = 0; p.heading = this.spawn.heading; p.loco = 0; p.vehicle = ''; p.platform = ''; p.interaction = 'pacifico'; p.status = STATUS.OK;
+    if (taken) { p.x = taken.x; p.z = taken.z; } // sessão assumida: continua de onde a outra estava
+    p.y = 0; p.heading = taken?.heading ?? this.spawn.heading; p.loco = 0; p.vehicle = ''; p.platform = ''; p.interaction = 'pacifico'; p.status = STATUS.OK;
+    p.link = LINK_WIRE.CONNECTED;
     p.nid = this.allocNid();
     this.state.players.set(client.sessionId, p);
     const view = new StateView();
@@ -431,6 +509,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
       social: { act: 0, actAt: 0, prop: 0, design: 0, status: 0, vehicle: '', recent: [] },
       plat: null,
     };
+    if (taken?.prop) { r.social.prop = taken.prop; r.social.design = taken.design; p.prop = taken.prop; p.design = taken.design; } // item na mão vem junto
     this.slotNid[r.slot] = p.nid;
     this.rt.set(client.sessionId, r);
     this.clients2.set(client.sessionId, client);
@@ -438,27 +517,116 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     this.updateInterest(0, 1, client.sessionId); // só o novo cliente; os demais o encontram na sua fatia
     this.graffiti.join(client.sessionId, p.name, sanitizeClientId(options?.cid, client.sessionId), client);
     this.graffiti.update(Date.now(), this.gfPos, client.sessionId); // quem entra já recebe os grafites próximos
-    client.send('spawn', { x: p.x, y: p.y, z: p.z, heading: p.heading, sessionId: client.sessionId, policy: this.interactionPolicy, seed: this.state.seed, role: 'player' });
+    client.send('spawn', { x: p.x, y: p.y, z: p.z, heading: p.heading, sessionId: client.sessionId, policy: this.interactionPolicy, seed: this.state.seed, role: 'player', ...(taken ? { takeover: true } : {}) });
+    this.pres.enterWorld(client.sessionId, Date.now());
     metrics.join(client.sessionId);
-    console.log(`[room] entrou ${client.sessionId} (${p.name}, ${p.body}) — total ${this.state.players.size}`);
+    console.log(`[room] entrou ${client.sessionId} (${p.name}, ${p.body})${taken ? ' — assumiu a sessão anterior da conta' : ''} — total ${this.state.players.size}`);
+  }
+
+  /**
+   * Login duplicado (rodada 8): a sessão NOVA assume. A antiga (conectada ou em graça) perde a entidade AGORA — antes
+   * de a nova ser criada, então nunca há duas — recebe `session_replaced` e é fechada sem reconexão automática.
+   * Posição e item na mão passam para a nova; veículo/trio são liberados (a nova começa a pé ao lado).
+   * Abas de ESPECTADOR da mesma conta não são afetadas.
+   */
+  private takeOver(userId: string, newSid: string): { x: number; z: number; heading: number; prop: number; design: number } | null {
+    let out: { x: number; z: number; heading: number; prop: number; design: number } | null = null;
+    for (const [sid, other] of [...this.identities]) {
+      if (sid === newSid || other.role !== 'player' || other.userId !== userId) continue;
+      const p = this.state.players.get(sid);
+      if (p) {
+        let x = p.x, z = p.z;
+        if (p.vehicle || p.platform) {
+          // estava num veículo / em cima do trio: começa a pé ao lado, sem atravessar parede
+          const t = { x: p.x + Math.cos(p.heading) * 3.5, z: p.z - Math.sin(p.heading) * 3.5 };
+          if (world().walls.raycast(p.x, 0.6, p.z, t.x, 0.6, t.z) >= 1) { x = t.x; z = t.z; } else { x = this.spawn.x; z = this.spawn.z; }
+          const o = this.pushOutOfEventVehicles(x, z);
+          if (o) { x = o.x; z = o.z; }
+        }
+        out = { x, z, heading: p.heading, prop: p.prop, design: p.design };
+      }
+      const old = this.clients2.get(sid);
+      const g = this.grace.get(sid);
+      this.identities.delete(sid); // a partir daqui toda mensagem da antiga é negada e o onLeave dela é inócuo
+      this.removePlayer(sid);
+      if (g) { this.grace.delete(sid); g.deferred.reject(new Error('session_replaced')); }
+      if (old) { old.send('session_replaced', { reason: 'outra_sessao' }); old.leave(RECONNECT.replacedCloseCode, 'session_replaced'); }
+      console.log(`[room] sessão ${sid} substituída por ${newSid} (mesma conta)`);
+    }
+    return out;
+  }
+
+  // ---------------------------------------------------------------- reconexão (src/net/reconnect.ts)
+  /**
+   * queda sem consentimento: jogador fica no mundo em DISCONNECTED_GRACE por GRACE_S — congelado (parado, sem ação
+   * em curso; veículo/trio/item mantidos) e marcado (`link = 1`); a mesma conexão volta pelo token de reconexão do
+   * Colyseus e recupera a MESMA entidade. Vencido o prazo, o Colyseus chama onLeave → entidade removida (sem fantasma).
+   */
+  async onDrop(client: Client) {
+    const id = this.identities.get(client.sessionId);
+    if (!id) return; // sessão substituída: sai de vez
+    if (id.role === 'spectator') return; // espectador não tem entidade: sai e o cliente entra de novo
+    const p = this.state.players.get(client.sessionId), r = this.rt.get(client.sessionId);
+    const now = Date.now();
+    if (p && r) {
+      p.link = LINK_WIRE.GRACE; p.speed = 0; p.loco = 0;
+      if (p.act) this.setAct(p, r, 0, now);
+      const v = p.vehicle ? this.state.vehicles.get(p.vehicle) : undefined;
+      if (v) v.speed = 0;
+    }
+    this.clients2.delete(client.sessionId);
+    this.graffiti.leave(client.sessionId);
+    this.pres.drop(client.sessionId);
+    console.log(`[room] caiu ${client.sessionId} — em graça por ${GRACE_S} s`);
+    try {
+      const deferred = this.allowReconnection(client, GRACE_S);
+      this.grace.set(client.sessionId, { since: now, deferred: deferred as unknown as { reject: (e?: unknown) => void } });
+      await deferred;
+    } catch { /* prazo vencido ou substituída: o Colyseus segue para onLeave */ }
+  }
+
+  onReconnect(client: Client) {
+    const sid = client.sessionId;
+    this.grace.delete(sid);
+    const p = this.state.players.get(sid), r = this.rt.get(sid), id = this.identities.get(sid);
+    if (!p || !r || !id) return;
+    const now = Date.now();
+    p.link = LINK_WIRE.CONNECTED;
+    this.clients2.set(sid, client);
+    r.crowdKnown.clear(); // as aparências da multidão distante voltam a ser enviadas
+    r.last.t = now; // a validação de velocidade recomeça agora (o cliente volta para a posição do servidor)
+    this.graffiti.join(sid, p.name, sanitizeClientId(undefined, sid), client);
+    this.graffiti.update(now, this.gfPos, sid); // grafites próximos de novo
+    this.updateInterest(0, 1, sid);
+    this.pres.resume(sid, now);
+    // estado autoritativo para o cliente retomar (posição segura do servidor, veículo/trio, item)
+    client.send('resume', { x: p.x, y: p.y, z: p.z, heading: p.heading, vehicle: p.vehicle || '', platform: p.platform || '', plx: p.plx ?? 0, plz: p.plz ?? 0, prop: p.prop ?? 0, design: p.design ?? 0, seq: r.last.seq });
+    console.log(`[room] reconectou ${sid} (mesma entidade)`);
   }
 
   onLeave(client: Client) {
     const ident = this.identities.get(client.sessionId);
     this.identities.delete(client.sessionId);
+    this.grace.delete(client.sessionId);
+    this.pres.leave(client.sessionId);
     if (ident?.role === 'spectator') { this.leaveSpectator(client); return; }
-    const p = this.state.players.get(client.sessionId);
+    this.removePlayer(client.sessionId);
+  }
+
+  /** remove a entidade de um jogador (saída, graça vencida, sessão substituída) — idempotente */
+  private removePlayer(sid: string) {
+    const p = this.state.players.get(sid);
     if (p?.vehicle) {
       const v = this.state.vehicles.get(p.vehicle);
-      if (v) { v.occupant = ''; v.speed = 0; v.state = VEHICLE_STATE.AVAILABLE; const rt = this.vehRT.get(p.vehicle); if (rt) rt.idleSince = Date.now(); }
+      if (v && v.occupant === sid) { v.occupant = ''; v.speed = 0; v.state = VEHICLE_STATE.AVAILABLE; const rt = this.vehRT.get(p.vehicle); if (rt) rt.idleSince = Date.now(); }
     }
-    if (p?.platform) this.riders.get(p.platform)?.delete(client.sessionId);
-    const leaving = this.rt.get(client.sessionId);
+    if (p?.platform) this.riders.get(p.platform)?.delete(sid);
+    const leaving = this.rt.get(sid);
     if (leaving) {
       const { nid, slot } = leaving;
       if (nid) this.nids.delete(nid);
       // slot e nid podem ser reaproveitados: ninguém pode continuar "vendo" o antigo dono
-      for (const r of this.rt.values()) {
+      for (const r of [...this.rt.values(), ...this.specs.values()]) {
         r.crowdKnown.delete(nid);
         if (r.inView.has[slot]) { r.inView.has[slot] = 0; r.inView.list = r.inView.list.filter((x) => x !== slot); }
       }
@@ -466,12 +634,11 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
       this.slotIds[slot] = '';
       this.freeSlots.push(slot);
     }
-    this.graffiti.leave(client.sessionId);
-    this.state.players.delete(client.sessionId);
-    this.rt.delete(client.sessionId);
-    this.clients2.delete(client.sessionId);
-    metrics.leave(client.sessionId);
-    console.log(`[room] saiu ${client.sessionId} — total ${this.state.players.size}`);
+    this.graffiti.leave(sid);
+    const existed = this.state.players.delete(sid);
+    this.rt.delete(sid);
+    this.clients2.delete(sid);
+    if (existed) { metrics.leave(sid); console.log(`[room] saiu ${sid} — total ${this.state.players.size}`); }
   }
 
   private onMove(client: Client, raw: unknown) {

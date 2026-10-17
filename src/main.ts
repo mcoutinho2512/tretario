@@ -16,6 +16,7 @@ import {
 import { GARMENT_SLOTS, SLOT_FIELD, STYLE_LABELS, resolveStyle, stylesFor, type GarmentSlot } from './characters/garments';
 import { DESIGNS, DESIGN_BY_ID } from './social/designs';
 import type { AvatarPreview, PreviewPose } from './ui/AvatarPreview';
+import type { GameOptions } from './core/Game';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const start = $('start'), loading = $('loading'), errorEl = $('error');
@@ -248,7 +249,13 @@ function showError(e: unknown) {
   $('error-msg').textContent = e instanceof Error ? e.message : String(e);
 }
 
-async function launch(choice: QualityChoice) {
+/**
+ * inicia o jogo. `opts.role = 'spectator'` = ASSISTIR (rodada 8, src/spectator): o botão "ASSISTIR GRÁTIS" da tela
+ * inicial chama `launch(choice, { role: 'spectator' })` (ou `window.__pvLaunch`). `pv:click` marca o clique para o
+ * tempo até o 1º quadro (`pv:world-visible`).
+ */
+async function launch(choice: QualityChoice, opts: GameOptions = {}) {
+  performance.mark('pv:click');
   saveQualityChoice(choice);
   saveLook();
   // libera o contexto WebGL da prévia antes de o jogo criar o seu
@@ -258,7 +265,7 @@ async function launch(choice: QualityChoice) {
   loading.classList.remove('hidden');
   try {
     const { Game } = await enginePromise;
-    const game = new Game($('app'), resolveQualityChoice(choice), { ...look });
+    const game = new Game($('app'), resolveQualityChoice(choice), { ...look }, opts);
     game.playerName = nameInput.value.trim();
     await game.load((f, l) => {
       fill.style.width = `${Math.round(f * 100)}%`;
@@ -278,8 +285,10 @@ btn.addEventListener('click', () => {
   void launch(choice);
 });
 
-// automação/validação: ?autostart=1&quality=high
+(window as any).__pvLaunch = (o: GameOptions = {}) => launch((radios.find((r) => r.checked)?.value ?? 'auto') as QualityChoice, o);
+
+// automação/validação: ?autostart=1&quality=high (· &spectate=1 = assistir)
 if (autostart || params.get('bench') === '1') {
   const q = (params.get('quality') ?? 'auto') as QualityChoice;
-  enginePromise.then(() => launch(q));
+  enginePromise.then(() => launch(q, params.get('spectate') === '1' ? { role: 'spectator' } : {}));
 }

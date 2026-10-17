@@ -51,6 +51,8 @@ export const NetPlayer = schema({
   plx: t.float32(),
   plz: t.float32(),
   plh: t.float32(),
+  /** conexão: 0 conectado · 1 caiu, em graça de reconexão (entidade congelada; src/net/reconnect.ts LINK_WIRE) */
+  link: t.uint8(),
 }, 'NetPlayer');
 export type NetPlayer = SchemaType<typeof NetPlayer>;
 

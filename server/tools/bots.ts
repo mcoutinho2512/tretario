@@ -98,6 +98,7 @@ async function startBot(i: number) {
   const app = randomAppearance(gi * 7919 + 13, (['homem', 'mulher', 'idoso', 'idosa'] as const)[gi % 4], { football: 0.2 });
   const room = await client.joinOrCreate(ROOM_NAME, {
     ...app, name: `bot${gi}`, accessory: app.accessory ?? 'nenhum',
+    bot: true, // bot de carga: contado como testBots nas métricas públicas, nunca como jogador (só servidor de teste)
     ...(sp ? { testSpawn: sp } : {}),
   });
   const b: Bot = {
