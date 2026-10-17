@@ -58,6 +58,8 @@ export interface JoinOptions extends IdentityJoinOptions {
   cid?: string;
   /** SOMENTE servidor em modo de teste (PV_TEST=1): ponto de spawn para cenas reproduzíveis */
   testSpawn?: { x: number; z: number };
+  /** SOMENTE servidor em modo de teste (PV_TEST=1): grupo do evento do jogador anônimo (QA do canal GRUPO) */
+  testGroup?: string;
 }
 
 export interface MoveMsg {
