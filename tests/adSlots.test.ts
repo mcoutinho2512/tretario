@@ -27,7 +27,7 @@ describe('AdSlots — conteúdo interno', () => {
 
   it('pool só com formatos internos (SYSTEM, EVENT da agenda, CAMPAIGN) — nada de IMAGE/VIDEO servido', () => {
     const pool = slotPool(slot(), FILE, { agenda: () => [entry(), entry({ inst: 'x@1', state: 'FINISHED' })], designs: () => ['ato_pv', 'campanha_a', 'campanha_b'] }, 0);
-    expect(pool.map((c) => c.kind)).toEqual(['EVENT', 'SYSTEM', 'SYSTEM', 'CAMPAIGN', 'CAMPAIGN', 'CAMPAIGN']);
+    expect(pool.map((c) => c.kind)).toEqual(['EVENT', 'SYSTEM', 'EVENT', 'SYSTEM', 'EVENT', 'CAMPAIGN', 'EVENT', 'CAMPAIGN', 'EVENT', 'CAMPAIGN']); // evento intercalado
     expect(pool.every((c) => c.kind !== 'IMAGE')).toBe(true);
     expect(pool[0]).toMatchObject({ kind: 'EVENT', inst: 'd@0', name: 'Debate no palco', state: 'ACTIVE' }); // encerrado não entra
     // cada design cadastrado aparece o mesmo número de vezes (rodízio igual)

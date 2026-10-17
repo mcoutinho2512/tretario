@@ -31,9 +31,15 @@ export class AgendaFeed {
 
   constructor(public now: () => number = () => Date.now()) {}
 
+  /**
+   * a agenda veio do SERVIDOR (o agendador existe nesta sala): só então `evt_join`/`evt_leave` são enviados — mensagem
+   * sem handler no servidor derruba a conexão (Colyseus). Alimentador local (QA) não liga isto.
+   */
+  serverDriven = false;
+
   attach(net: AgendaTransport) {
     this.net = net;
-    net.on('agenda', (m: AgendaMessage) => this.apply(m));
+    net.on('agenda', (m: AgendaMessage) => { this.serverDriven = true; this.apply(m); });
     net.on('evt_res', (r: { inst: string; ok: boolean; r?: string }) => this.onResult?.(r));
   }
 
@@ -45,7 +51,12 @@ export class AgendaFeed {
   }
 
   onChange(fn: () => void) { this.ls.add(fn); return () => this.ls.delete(fn); }
-  join(inst: string, on: boolean) { this.net?.send(on ? 'evt_join' : 'evt_leave', { inst }); }
+  /** pede para entrar/sair; false = sem agendador no servidor (nada enviado) */
+  join(inst: string, on: boolean): boolean {
+    if (!this.net || !this.serverDriven) { this.onResult?.({ inst, ok: false, r: 'indisponivel' }); return false; }
+    this.net.send(on ? 'evt_join' : 'evt_leave', { inst });
+    return true;
+  }
   get online() { return !!this.net; }
 }
 
@@ -161,7 +172,7 @@ export class AgendaPanel {
         const row = new Row('ap-row', (e) => this.onPick(e));
         const btn = el('button', 'ap-join');
         btn.type = 'button';
-        btn.addEventListener('click', (ev) => { ev.stopPropagation(); const e = row.entry; const a = e && joinAction(e); if (e && a) { btn.disabled = true; this.feed.join(e.inst, a === 'join'); } });
+        btn.addEventListener('click', (ev) => { ev.stopPropagation(); const e = row.entry; const a = e && joinAction(e); if (e && a) btn.disabled = this.feed.join(e.inst, a === 'join'); });
         li.append(row.el, btn);
         sec.list.appendChild(li);
         sec.rows.push({ row, btn, li });

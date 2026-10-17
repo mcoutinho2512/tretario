@@ -31,7 +31,7 @@ export interface AgendaDebateCtx {
   scene: THREE.Object3D;
   rallyCrowd: RallyCrowd | null;
   billboards: { setPanelContent(id: string, c: BillboardContent | null): void };
-  scenery: { setScreenAd(target: string, s: ScreenSlide | null): boolean };
+  scenery: { setScreenAd(target: string, s: ScreenSlide | null): boolean; adTargets(): { id: string; slide: string | null; ad: string; draws: number }[] };
   playerPos: () => { x: number; z: number };
   flash: (m: string, ms?: number) => void;
   /** o painel abriu/fechou (soltar/recapturar o mouse) */
@@ -76,7 +76,7 @@ export function mountAgendaDebate(c: AgendaDebateCtx) {
   c.shell.mountNow(now);
   c.shell.mountOverlay(agenda);
   c.shell.mountOverlay(debate);
-  c.shell.addMenuItem('Agenda da avenida', () => agenda.toggle(true));
+  c.shell.addMenuItem('Agenda da avenida', () => { c.shell.toggleMap(false); agenda.toggle(true); });
   c.shell.addMenuItem('Palco de debate', () => (debate.open ? debate.toggle(false) : debate.watch(true)));
 
   // telões/painéis: definições (mesmo arquivo do servidor) → conteúdo pela mensagem `ads`
@@ -99,6 +99,9 @@ export function mountAgendaDebate(c: AgendaDebateCtx) {
       if (ads) ads.attach(net); else pending = net;
     },
     update(dt: number) { stage?.update(dt); },
+    screens() { return c.scenery.adTargets(); },
+    /** QA: destino no minimapa / mapa expandido */
+    map: { target: () => c.shell.minimap.target, expanded: () => c.shell.minimap.expanded, close: () => { c.shell.minimap.setTarget(null); c.shell.toggleMap(false); } },
     info() { return { agenda: feed.list.length, nowRenders: now.renders, debate: debate.info(), stage: stage?.stats, ads: ads ? Object.fromEntries(ads.current) : null, adStats: ads?.stats }; },
   };
   return api;

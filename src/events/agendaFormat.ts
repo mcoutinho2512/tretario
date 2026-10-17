@@ -82,4 +82,5 @@ export function joinAction(e: AgendaEntry): 'join' | 'leave' | null {
 export const JOIN_DENIAL_TEXT: Record<string, string> = {
   inexistente: 'Esse evento não existe mais', fechado: 'Inscrições fechadas', lotado: 'Evento lotado', grupo: 'Evento restrito a outros grupos',
   veiculo: 'Precisa do veículo do evento', ja_inscrito: 'Você já está inscrito', sem_permissao: 'Sua conta não pode participar agora',
+  indisponivel: 'Inscrições indisponíveis: agenda sem servidor',
 };

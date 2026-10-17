@@ -99,16 +99,16 @@ export class EventScenery {
     return true;
   }
 
-  /** programação do evento com o slide do slot a cada dois (o slot aparece ~1/3 do tempo) */
+  /** programação do evento intercalada 1:1 com o slide do slot (agenda/avisos/arte aparecem metade do tempo) */
   private adPlaylist(f: ScreenFeed, slide: ScreenSlide) {
     const base = screenFeed().playlist;
     const out: ScreenSlide[] = [];
-    base.forEach((b, i) => { if (i % 2 === 0) out.push(slide); out.push(b); });
+    for (const b of base) out.push(slide, b);
     f.setPlaylist(out.length ? out : [slide]);
   }
 
-  /** QA: telões com canal próprio (slot) */
-  adTargets() { return [...this.adFeeds.keys()]; }
+  /** QA: telões com canal próprio (slot) e o slide atual de cada um */
+  adTargets() { return [...this.adFeeds].map(([id, a]) => ({ id, slide: a.feed.playlist[a.feed.slideIndex]?.type ?? null, ad: a.slide.type, draws: a.feed.draws })); }
 
   /** troca a arte de um item (id do spot) — só textura, a geometria não muda */
   setDesign(id: string, design: number | string) {

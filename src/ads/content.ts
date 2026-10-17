@@ -46,8 +46,8 @@ export interface AdSources {
 }
 
 /**
- * candidatos de um slot, em ordem estável: avisos/dicas (SYSTEM), eventos da agenda (EVENT; os da zona do slot
- * primeiro) e designs (CAMPAIGN — cada design cadastrado aparece o MESMO número de vezes). Só formatos internos.
+ * candidatos de um slot, em ordem estável: eventos da agenda (EVENT; os da zona do slot primeiro) INTERCALADOS com
+ * avisos/dicas (SYSTEM) e designs (CAMPAIGN — cada design cadastrado aparece o MESMO número de vezes). Só internos.
  */
 export function slotPool(slot: AdSlotDefinition, file: AdSlotsFile, src: AdSources, now: number): AdContent[] {
   const f = new Set(slot.formats.filter((x) => INTERNAL_FORMATS.includes(x)));
@@ -62,7 +62,11 @@ export function slotPool(slot: AdSlotDefinition, file: AdSlotsFile, src: AdSourc
     for (const n of file.tips ?? []) out.push({ kind: 'SYSTEM', text: n.text, ...(n.sub ? { sub: n.sub } : {}) });
   }
   if (f.has('CAMPAIGN')) for (const k of src.designs()) out.push({ kind: 'CAMPAIGN', designKey: k });
-  return out.filter(validAdContent);
+  // eventos da agenda têm prioridade: intercalados com o resto (≈ metade do tempo no slot)
+  const evs = out.filter((c) => c.kind === 'EVENT'), rest = out.filter((c) => c.kind !== 'EVENT');
+  const mixed: AdContent[] = [];
+  if (evs.length && rest.length) rest.forEach((c, i) => mixed.push(evs[i % evs.length], c));
+  return (mixed.length ? mixed : out).filter(validAdContent);
 }
 
 /** escolha do slot no instante: rodízio por rotateSeconds, deslocado pelo índice do slot (painéis vizinhos diferem) */

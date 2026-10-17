@@ -22,7 +22,7 @@
 
 /* AGENDA DA AVENIDA (menu ☰) */
 .agenda-panel {
-  position: absolute; z-index: 32; right: calc(var(--sar, 0px) + var(--gap)); top: calc(var(--sat, 0px) + 64px); width: min(420px, calc(100vw - 24px));
+  position: absolute; z-index: 42; right: calc(var(--sar, 0px) + var(--gap)); top: calc(var(--sat, 0px) + 64px); width: min(420px, calc(100vw - 24px));
   max-height: calc(100% - 140px); display: flex; flex-direction: column; pointer-events: auto; color: var(--hud-text);
   background: var(--hud-bg-solid); border: 1px solid var(--hud-line); border-radius: 12px; box-shadow: 0 14px 40px rgba(0, 0, 0, 0.5); font: 13px/1.35 system-ui, sans-serif;
 }
@@ -47,8 +47,8 @@
 
 /* painel do debate: à direita, abaixo do minimapa; recolhível */
 .debate-panel {
-  position: absolute; z-index: 26; right: calc(var(--sar, 0px) + var(--gap)); top: calc(var(--sat, 0px) + 250px); width: min(360px, calc(100vw - 24px));
-  max-height: calc(100% - 330px); min-height: 0; display: flex; flex-direction: column; gap: 5px; padding: 0 12px 10px; pointer-events: auto; overflow: hidden;
+  position: absolute; z-index: 26; right: calc(var(--sar, 0px) + var(--gap)); top: calc(var(--sat, 0px) + 240px); width: min(360px, calc(100vw - 24px));
+  max-height: calc(100% - 300px); min-height: 0; display: flex; flex-direction: column; gap: 5px; padding: 0 12px 10px; pointer-events: auto; overflow: hidden;
   background: rgba(12, 15, 18, 0.78); border: 1px solid var(--hud-line); border-left: 3px solid #4fc3ff; border-radius: 10px; color: var(--hud-text);
   font: 13px/1.35 system-ui, sans-serif; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
 }
@@ -69,7 +69,7 @@
 .dp-queue, .dp-reacts { font-size: 12px; color: #d9d4c7; }
 .dp-queue:empty, .dp-reacts:empty, .dp-note:empty { display: none; }
 .dp-reacts { color: var(--hud-dim); }
-.dp-log { list-style: none; margin: 2px 0 0; padding: 0; overflow-y: auto; min-height: 0; flex: 1 1 auto; display: flex; flex-direction: column; gap: 3px; }
+.dp-log { list-style: none; margin: 2px 0 0; padding: 0; overflow-y: auto; min-height: 62px; flex: 1 1 auto; display: flex; flex-direction: column; gap: 3px; }
 .dp-line { position: relative; padding: 3px 34px 3px 8px; border-radius: 6px; background: rgba(255, 255, 255, 0.06); word-wrap: break-word; }
 .dp-nick { margin-right: 6px; color: #ffe9a8; }
 .dp-more { position: absolute; right: 2px; top: 50%; transform: translateY(-50%); min-width: 32px; min-height: 32px; border: 0; background: none; color: #cfcabe; cursor: pointer; border-radius: 6px; }
@@ -98,7 +98,7 @@
 .debate-panel.collapsed > :not(.dp-head):not(.dp-topic):not(.dp-speaker) { display: none; }
 
 /* celular: folha no alto (abaixo do minimapa), sem cobrir joystick nem botões de ação */
-.hud.touch .debate-panel, .debate-panel.touch { top: calc(var(--sat, 0px) + 150px); left: calc(var(--sal, 0px) + 8px); right: calc(var(--sar, 0px) + 8px); width: auto; max-height: 46%; }
+.hud.touch .debate-panel, .debate-panel.touch { top: calc(var(--sat, 0px) + 206px); left: calc(var(--sal, 0px) + 8px); right: calc(var(--sar, 0px) + 8px); width: auto; max-height: calc(100% - 460px - var(--sat, 0px)); min-height: 0; }
 .hud.touch .agenda-panel { left: 8px; right: 8px; width: auto; top: calc(var(--sat, 0px) + 56px); max-height: calc(100% - 120px); }
 .hud.touch .now-happening { max-width: 56vw; }
 @media (max-width: 600px) {

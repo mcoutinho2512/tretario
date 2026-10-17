@@ -52,6 +52,7 @@ export class DebatePanel {
   private tick = 0;
   private watching = false;
   private collapsed = false;
+  private minBtn: HTMLButtonElement;
 
   constructor(private opts: { isTouch?: boolean; input?: { releaseAll(): void }; now?: () => number } = {}) {
     const root = (this.el = el('section', 'debate-panel'));
@@ -92,7 +93,8 @@ export class DebatePanel {
     this.topic = new TextSlot(topic); this.speaker = new TextSlot(name); this.timer = new TextSlot(time); this.queue = new TextSlot(q); this.reacts = new TextSlot(reacts); this.note = new TextSlot(note);
 
     x.addEventListener('click', (e) => { e.stopPropagation(); this.toggle(false); });
-    min.addEventListener('click', (e) => { e.stopPropagation(); this.collapsed = !this.collapsed; root.classList.toggle('collapsed', this.collapsed); });
+    this.minBtn = min;
+    min.addEventListener('click', (e) => { e.stopPropagation(); this.collapse(!this.collapsed); });
     this.qBtn.addEventListener('click', (e) => { e.stopPropagation(); this.queueToggle(); });
     this.form.addEventListener('submit', (e) => { e.preventDefault(); this.say(); });
     // digitando: teclas não chegam ao jogo
@@ -102,6 +104,15 @@ export class DebatePanel {
   }
 
   get open() { return !this.el.hidden; }
+
+  /** recolhido: só cabeçalho, tema e orador (celular abre assim sozinho; a sua vez expande) */
+  collapse(v: boolean) {
+    if (v === this.collapsed) return;
+    this.collapsed = v;
+    this.el.classList.toggle('collapsed', v);
+    this.minBtn.textContent = v ? '+' : '–';
+    this.minBtn.setAttribute('aria-label', v ? 'Expandir' : 'Recolher');
+  }
   private get now() { return (this.opts.now ?? Date.now)(); }
 
   attach(net: DebateTransport) {
@@ -121,7 +132,7 @@ export class DebatePanel {
   watch(on = true) {
     this.watching = on;
     this.net?.send('dbt_watch', { on });
-    if (on) this.toggle(true);
+    if (on) { this.collapse(false); this.toggle(true); }
   }
 
   toggle(v = this.el.hidden) {
@@ -136,7 +147,7 @@ export class DebatePanel {
     const prev = this.st;
     this.st = s;
     this.stats.states++;
-    if (!prev && !this.open) this.toggle(true); // entrou na plateia: abre (o jogador fecha no ×)
+    if (!prev && !this.open) { this.collapse(!!this.opts.isTouch); this.toggle(true); } // entrou na plateia: abre (celular: recolhido)
     this.render();
     this.onState?.(s, prev);
   }
@@ -168,7 +179,7 @@ export class DebatePanel {
     if (this.qBtn.textContent !== label) this.qBtn.textContent = label;
     this.qBtn.hidden = !!m && !m.canSpeak;
     this.qBtn.disabled = !s?.active;
-    if (this.form.hidden === speaking) { this.form.hidden = !speaking; if (speaking && !this.opts.isTouch) this.field.focus({ preventScroll: true }); }
+    if (this.form.hidden === speaking) { this.form.hidden = !speaking; if (speaking) this.collapse(false); if (speaking && !this.opts.isTouch) this.field.focus({ preventScroll: true }); }
     const canR = !!s?.speaker && (m ? m.canReact : true);
     for (const b of this.rBtns.values()) if (b.disabled === canR) b.disabled = !canR;
     if (m && !m.canSpeak && m.why) this.set(this.note, WHY[m.why] ?? '');
