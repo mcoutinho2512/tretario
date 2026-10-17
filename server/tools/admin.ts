@@ -11,6 +11,7 @@
  *   npm run dev:unban -- <email>
  *   npm run dev:reports [-- --status=OPEN] [--limit=50]
  *   npm run dev:remove-graffiti -- <id> [--reason="..."]
+ *   npm run dev:cleanup            — uma passada do CleanupService no banco (sessões/códigos vencidos) e imprime as métricas
  */
 import 'dotenv/config';
 import { userInfo } from 'node:os';
@@ -21,6 +22,7 @@ import { AdminError, ban, grantAccess, listReports, recordGraffitiRemoval, revok
 import { JsonFileGraffitiStore } from '../src/graffiti/store.ts';
 import { ROOM_NAME } from '../../src/net/protocol.ts';
 import type { ReportStatus } from '../src/data/types.ts';
+import { CleanupService } from '../src/cleanup/CleanupService.ts';
 
 const argv = process.argv.slice(2);
 const cmd = argv[0];
@@ -107,8 +109,17 @@ async function main() {
         console.log(`[admin] grafite #${id} removido (${via})`);
         break;
       }
+      case 'cleanup': {
+        // só o banco: tickets/limites vivem na memória do servidor (o servidor no ar os limpa no próprio ciclo)
+        const c = new CleanupService(store, { config: { intervalMs: 0 } });
+        const m = await c.run();
+        console.log(JSON.stringify({ config: c.cfg, lastRun: m }, null, 2));
+        await store.audit.append({ actor: ctx.actor, action: 'CLEANUP_RUN', targetType: null, targetId: null, meta: { sessions: m.expiredSessionsDeleted, codes: m.expiredOtpDeleted, ms: m.durationMs, ...(m.error ? { error: m.error } : {}) } });
+        if (m.error) die(`falhou: ${m.error}`);
+        break;
+      }
       default:
-        die('comandos: grant-access | revoke-access | suspend | unsuspend | ban | unban | reports | remove-graffiti');
+        die('comandos: grant-access | revoke-access | suspend | unsuspend | ban | unban | reports | remove-graffiti | cleanup');
     }
   } catch (e) {
     if (e instanceof AdminError) die(e.message);

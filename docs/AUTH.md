@@ -53,6 +53,15 @@ Todas as respostas são JSON com `Cache-Control: no-store`. Erro: `{ "error": "<
    role })`. A sala (`resolveIdentity`) consome o ticket, relê conta/licença/grupo e decide o papel — o pedido só
    rebaixa. Sem ticket = visitante espectador.
 5. Logout revoga a sessão (`revokedAt`); redefinição de senha e banimento revogam todas.
+6. Limpeza (rodada 8.1, `server/src/cleanup/CleanupService.ts`): sessões vencidas ou revogadas há mais de
+   `CLEANUP_SESSION_GRACE_MINUTES` (60) e códigos vencidos/usados há mais de `CLEANUP_CODE_GRACE_MINUTES` (60, mínimo
+   15) são **apagados** a cada `CLEANUP_INTERVAL_MINUTES` (10); tickets nunca usados e chaves de limite de taxa
+   esquecidas saem da memória na mesma passada. Um cookie de sessão apagada tem o mesmo resultado de uma vencida
+   (`GET /api/me` → visitante, rotas → `401 sem_sessao`). Detalhes e inventário: `docs/DATABASE.md`.
+
+Ciclo de vida de uma sessão: `create` (cadastro/login) → uso com toque a cada ≥ 10 min (expiração +30 dias) →
+`revokedAt` (logout, reset, ban) **ou** `expiresAt` passa → inválida imediatamente → apagada pela limpeza depois da
+carência.
 
 ## Força bruta e enumeração
 
@@ -70,6 +79,7 @@ Todas as respostas são JSON com `Cache-Control: no-store`. Erro: `{ "error": "<
 | `PV_DEV_MAIL=1` | expõe `/api/dev/outbox` (testes automatizados). Ignorado em produção |
 | `PV_SCRYPT_LOGN` | custo do scrypt (padrão 15). Mudar faz rehash no próximo login |
 | `PV_IDENTITY_RECHECK_MS` | intervalo da releitura de identidades na sala (padrão 15000) |
+| `CLEANUP_INTERVAL_MINUTES` · `CLEANUP_SESSION_GRACE_MINUTES` · `CLEANUP_CODE_GRACE_MINUTES` · `CLEANUP_BATCH` | limpeza de sessões/códigos/tickets vencidos (`docs/DATABASE.md`) |
 
 ## Limitações (rodada 8)
 

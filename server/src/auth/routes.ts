@@ -27,6 +27,9 @@ export function auth(): AuthService {
   return instance;
 }
 
+/** limpeza periódica dos limites (CleanupService); 0 se o serviço ainda não foi criado (nenhuma requisição) */
+export function sweepAuthLimits(now = Date.now()): number { return instance ? instance.sweepLimits(now) : 0; }
+
 router.add('POST', API.register, (r) => auth().register(r));
 router.add('POST', API.verifyEmail, (r) => auth().verifyEmail(r));
 router.add('POST', API.resendCode, (r) => auth().resendCode(r));

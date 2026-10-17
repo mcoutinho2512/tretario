@@ -76,6 +76,14 @@ export class AuthService {
 
   private get store() { return this.c.store; }
 
+  /** limpeza dos limites em memória (CleanupService): chaves esquecidas/sem evento na janela. Devolve quantas */
+  sweepLimits(now = this.now()): number {
+    let n = 0;
+    for (const b of [this.loginEmail, this.loginIp, this.resetEmail]) n += b.sweep(now);
+    for (const w of [this.registerIp, this.forgotIp, this.forgotEmail, this.resendQuick, this.resendHour, this.nickProbe, this.nickChange]) n += w.sweep(now);
+    return n;
+  }
+
   // ------------------------------------------------------------------ DTO do próprio usuário
 
   async accessOf(user: UserRecord) {

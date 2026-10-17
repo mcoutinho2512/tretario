@@ -139,8 +139,9 @@ model Session {
   uaHash     String?
 
   @@index([userId])
-  /// limpeza de sessões vencidas (CleanupService)
+  /// limpeza de sessões vencidas/revogadas (CleanupService: expiresAt < x OR revokedAt < y → BitmapOr dos dois índices)
   @@index([expiresAt])
+  @@index([revokedAt])
 }
 
 model VerificationCode {
@@ -155,8 +156,9 @@ model VerificationCode {
   createdAt  DateTime    @default(now())
 
   @@index([userId, purpose])
-  /// limpeza de códigos vencidos/usados (CleanupService)
+  /// limpeza de códigos vencidos/usados (CleanupService: expiresAt < x OR consumedAt < y → BitmapOr dos dois índices)
   @@index([expiresAt])
+  @@index([consumedAt])
 }
 
 /// concessão de acesso (licença de participação). Rodada 8: DEV_GRANTED por CLI; PAID virá do PIX (rodada 9).

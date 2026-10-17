@@ -61,6 +61,13 @@ function rateLimited(key: string, max = 20, windowMs = 60_000, now = Date.now())
   return list.length > max;
 }
 
+/** limpeza periódica (CleanupService): chaves sem evento no último minuto. Devolve quantas */
+export function sweepProfileLimits(now = Date.now(), windowMs = 60_000): number {
+  let n = 0;
+  for (const [k, v] of hits) if (!v.length || now - v[v.length - 1] >= windowMs) { hits.delete(k); n++; }
+  return n;
+}
+
 type Authed = AuthedUser & { store: DataStore };
 async function withUser(req: ApiRequest, cap: Capability | null, fn: (a: Authed) => Promise<ApiResponse>): Promise<ApiResponse> {
   const store = services().store;
