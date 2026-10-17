@@ -32,6 +32,13 @@ export class InputManager {
       this.lookDX += e.movementX;
       this.lookDY += e.movementY;
     });
+    // rodada 9 — confronto: mouse esquerdo = soco (só com o mouse capturado: o 1º clique só captura), direito = chute
+    canvas.addEventListener('mousedown', (e) => {
+      if (!this.pointerLocked || this.isTouch) return;
+      if (e.button === 0) this.toggles.add('cbt_punch');
+      else if (e.button === 2) this.toggles.add('cbt_kick');
+    });
+    canvas.addEventListener('contextmenu', (e) => e.preventDefault());
     canvas.addEventListener('wheel', (e) => {
       this.zoomD += Math.sign(e.deltaY) * 0.12;
       e.preventDefault();
@@ -59,6 +66,10 @@ export class InputManager {
     if (e.code === 'KeyK' && !e.repeat) this.toggles.add('mode');
     if (e.code === 'KeyF' && !e.repeat) this.toggles.add('action');
     if (e.code === 'KeyG' && !e.repeat) this.toggles.add('wheel');
+    // rodada 9 — confronto (docs/COMBAT.md): R soco (sem mouse) · Q chute · C esquiva; F continua empurrão
+    if (e.code === 'KeyR' && !e.repeat) this.toggles.add('cbt_punch');
+    if (e.code === 'KeyQ' && !e.repeat) this.toggles.add('cbt_kick');
+    if (e.code === 'KeyC' && !e.repeat) this.toggles.add('cbt_dodge');
     this.keys.add(e.code);
   };
 

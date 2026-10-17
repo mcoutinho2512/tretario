@@ -60,6 +60,8 @@ interface Snapshot { t: number; x: number; y: number; z: number; heading: number
 export interface RemoteInfo {
   id: string; name: string; body: string; accessory: string;
   x: number; z: number; speed: number; interaction: string; status: number; vehicle: string;
+  /** rodada 9: altura desenhada (pulo visto pelos outros) */
+  y: number;
   /** vida social sincronizada (ids) e o que o esqueleto local está tocando (se houver esqueleto) */
   act: number; actPhase: number; prop: number; design: number; visualAct: number | null; visualProp: number | null;
   /** em cima de um trio: id e posição local */
@@ -113,7 +115,7 @@ interface Remote {
   socApplied: AvatarVisual | null;
 }
 
-export interface KnockMsg { target: string; by: string; kind: 'push' | 'impact'; dx: number; dz: number; strength: number; rx: number; rz: number; downMs: number; getupMs: number }
+export interface KnockMsg { target: string; by: string; kind: 'push' | 'impact' | 'combat'; dx: number; dz: number; strength: number; rx: number; rz: number; downMs: number; getupMs: number }
 
 /** QA (servidor PV_TEST=1): ?testGroup=chave → grupo do jogador anônimo (canal GRUPO do chat); o servidor real ignora */
 const testGroupOpt = (): { testGroup?: string } => { const g = new URLSearchParams(location.search).get('testGroup'); return g ? { testGroup: g } : {}; };
@@ -135,7 +137,9 @@ export class NetworkClient {
   corrections = 0;
   correctionReasons: Record<string, number> = {};
   /** estado do PRÓPRIO jogador segundo o servidor */
-  self = { interaction: 'pacifico', status: 0, vehicle: '', platform: '', social: { act: 0, actAt: 0, actVar: 0, prop: 0, design: 0 } };
+  self = { interaction: 'pacifico', status: 0, vehicle: '', platform: '', fx: 0, social: { act: 0, actAt: 0, actVar: 0, prop: 0, design: 0 } };
+  /** rodada 9 — id curto do próprio jogador (mensagens de confronto trazem nids) */
+  selfNid = 0;
   /** o servidor mudou a ação/item do próprio jogador (confirmação, fim, cancelamento) */
   onSelfSocial?: (s: SocialState) => void;
   /** pedido de ação/item negado (motivo) */
@@ -316,8 +320,9 @@ export class NetworkClient {
       cb.listen('eventId', (id: string) => { if (id) this.onEvent?.(id); });
       cb.onAdd('players', (p: any, id: string) => {
         if (id === this.sessionId) {
+          this.selfNid = Number(p.nid) || 0;
           cb.onChange(p, () => {
-            this.self.interaction = p.interaction; this.self.status = p.status; this.self.vehicle = p.vehicle; this.self.platform = p.platform ?? '';
+            this.self.interaction = p.interaction; this.self.status = p.status; this.self.vehicle = p.vehicle; this.self.platform = p.platform ?? ''; this.self.fx = p.fx ?? 0;
             // ação/item autoritativos do próprio jogador (o servidor pode encerrar: andar, cair, entrar em veículo)
             const s = this.self.social;
             if (s.act !== p.act || s.actAt !== p.actAt || s.prop !== p.prop || s.design !== p.design) {
@@ -432,6 +437,23 @@ export class NetworkClient {
   requestAct(a: number, v = 0) { this.send('act', { a, v }); }
   /** item na mão (0 = nenhum) com design (0 = padrão) */
   requestProp(p: number, d = 0) { this.send('prop', { p, d }); }
+
+  /** rodada 9 — seq do último movimento enviado (o pedido de pulo/golpe leva o seq) */
+  get moveSeq() { return this.seq; }
+
+  /**
+   * rodada 9 — confronto: esqueleto do remoto pelo nid para tocar o golpe; `acquire` dá esqueleto na hora a quem está
+   * perto (como na queda) — golpe é raro e importante
+   */
+  combatVisual(nid: number, acquire = true): { visual: AvatarVisual; x: number; z: number } | null {
+    if (!nid) return null;
+    for (const r of this.remotes.values()) {
+      if (r.nid !== nid) continue;
+      if (!r.visual && acquire && Math.hypot(r.state.x - this.lastCam.x, r.state.z - this.lastCam.z) < Math.min(40, this.crowd?.budget.skinnedMaxDist ?? 40)) this.acquire(r);
+      return r.visual ? { visual: r.visual, x: r.state.x, z: r.state.z } : null;
+    }
+    return null;
+  }
 
   /** remoto mais próximo à frente (alvo do empurrão) */
   pickTarget(x: number, z: number, heading: number, range = 2.4): string | null {
@@ -799,7 +821,7 @@ export class NetworkClient {
   remotesInfo(): RemoteInfo[] {
     return [...this.remotes.values()].map((r) => {
       const c = r.buf[r.buf.length - 1];
-      return { id: r.id, name: r.name, body: r.body, accessory: r.accessory, x: +r.state.x.toFixed(2), z: +r.state.z.toFixed(2), speed: +r.state.speed.toFixed(2), interaction: r.interaction, status: r.status, vehicle: r.vehicle, platform: r.platform, plx: +(c?.plx ?? 0).toFixed(3), plz: +(c?.plz ?? 0).toFixed(3), wx: +(c?.x ?? 0).toFixed(2), wz: +(c?.z ?? 0).toFixed(2), link: r.link,
+      return { id: r.id, name: r.name, body: r.body, accessory: r.accessory, x: +r.state.x.toFixed(2), y: +r.state.y.toFixed(2), z: +r.state.z.toFixed(2), speed: +r.state.speed.toFixed(2), interaction: r.interaction, status: r.status, vehicle: r.vehicle, platform: r.platform, plx: +(c?.plx ?? 0).toFixed(3), plz: +(c?.plz ?? 0).toFixed(3), wx: +(c?.x ?? 0).toFixed(2), wz: +(c?.z ?? 0).toFixed(2), link: r.link,
         act: r.soc.act, actPhase: +socialOf(r.soc).phase.toFixed(2), prop: r.soc.prop, design: r.soc.design,
         visualAct: r.visual ? r.visual.social.act : null, visualProp: r.visual ? r.visual.social.prop : null };
     });

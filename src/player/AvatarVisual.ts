@@ -226,6 +226,12 @@ export class AvatarVisual {
     else this.pushT = 0.45;
   }
 
+  /** confronto (rodada 9): clipe do golpe/esquiva/cambaleio (combat.json `animation`); 'push' = empurrão da biblioteca */
+  playCombat(name: string) {
+    if (name === 'push') { this.playPush(); return; }
+    this.human?.animator?.playCombat(name);
+  }
+
   /** montado num veículo: posiciona sobre ele e aplica a pose */
   updateRiding(x: number, y: number, z: number, heading: number, pose: 'sit-pedal' | 'stand' | 'drive' | 'ride', speed: number, seatHeight: number, dt: number) {
     this.smoothY = y;

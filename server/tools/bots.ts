@@ -18,6 +18,10 @@
  *                         e com deslocamento lateral de até ±14 m (a avenida inteira vista do alto)
  *            --chat=M     rodada 8: mensagens de chat por MINUTO na multidão inteira (realista: poucos falam; padrão 0),
  *                         espalhadas no tempo e entre bots, canais GERAL/PROXIMIDADE/GRUPO
+ *            --combat=F   rodada 9: fração F dos bots em CONFRONTO — modo interação, em pares parados frente a frente
+ *                         (~1,1 m), um golpe/esquiva a cada 1,5–4 s (soco 55 %, chute 30 %, esquiva 15 %). Precisa de
+ *                         zona com política de confronto: servidor de teste com PV_COMBAT_ZONES=* (ou a área de treino)
+ *            --combat-dense  todos os bots em pares de confronto, ritmo de luta (um pedido a cada 0,7–1,4 s) — estresse
  *
  * Movimento de multidão: caminhada lenta (0,5–1,4 m/s), paradas de 1–6 s, pequenas variações de rumo,
  * e volta para a área da concentração quando sai dela. Ao receber correção do servidor (parede), muda de rumo.
@@ -46,6 +50,8 @@ const HOLD = !!flag('hold');
 const SOCIAL = flagNum('social', 0);
 const GROUPS = !!flag('groups');
 const CHAT_PER_MIN = flagNum('chat', 0);
+const COMBAT_DENSE = !!flag('combat-dense');
+const COMBAT = COMBAT_DENSE ? 1 : flagNum('combat', 0);
 const GROUP_KEYS = ['grupo-13', 'grupo-22', 'neutro'];
 const RANGE = (() => { const f = flag('range'); const v = f?.includes('=') ? f.split('=')[1].split(',').map(Number) : null; return v && v.length === 2 && v.every(Number.isFinite) ? v as [number, number] : null; })();
 const CHAT_LINES = ['bora pro trio', 'que dia bonito', 'alguém perto da Central?', 'chegando na Candelária', 'olha o carro de som', 'boa tarde', 'muita gente hoje', 'onde fica o palco?'];
@@ -86,6 +92,8 @@ interface Bot {
   room: any; x: number; z: number; h: number; seq: number; corrections: number; detailed: number; far: number; crowdMsgs: number; trafficMsgs: number;
   speed: number; cruise: number; pause: number; home: { x: number; z: number }; r: () => number;
   role: SocialRole; nextAct: number; acts: number; denied: number;
+  /** confronto (rodada 9): par, próximo golpe, contagens */
+  fighter: boolean; partner: Bot | null; nextCbt: number; cbt: { sent: number; act: number; hitOut: number; hitIn: number; dodged: number; blocked: number; denied: Record<string, number> }; nid: number;
 }
 const bots: Bot[] = [];
 
@@ -105,7 +113,9 @@ async function startBot(i: number) {
   const gi = OFFSET + i;
   const r = rng(gi * 7919 + 13);
   const client = new Client(ENDPOINT);
-  const sp = spawnPoint(gi, r);
+  let sp = spawnPoint(gi, r);
+  const prevBot = bots[bots.length - 1];
+  if (COMBAT > 0 && prevBot?.fighter && !prevBot.partner && sp) sp = { x: prevBot.home.x + 1.1, z: prevBot.home.z };
   // aparência sorteada como a dos NPCs num ato (peças variantes, ~20 % de camisas de futebol)
   const app = randomAppearance(gi * 7919 + 13, (['homem', 'mulher', 'idoso', 'idosa'] as const)[gi % 4], { football: 0.2 });
   const room = await client.joinOrCreate(ROOM_NAME, {
@@ -118,7 +128,14 @@ async function startBot(i: number) {
     room, x: sp?.x ?? 0, z: sp?.z ?? 0, h: r() * Math.PI * 2, seq: 0, corrections: 0, detailed: 0, far: 0, crowdMsgs: 0, trafficMsgs: 0,
     speed: 0, cruise: 0.5 + r() * 0.9, pause: r() * 3, home: sp ?? { x: 0, z: 0 }, r,
     role: 'none', nextAct: 1 + r() * 4, acts: 0, denied: 0,
+    fighter: false, partner: null, nextCbt: 1 + r() * 3, cbt: { sent: 0, act: 0, hitOut: 0, hitIn: 0, dodged: 0, blocked: 0, denied: {} }, nid: 0,
   };
+  // confronto: pares de índices consecutivos (o par fica no mesmo processo); o 2º nasce 1,1 m à frente do 1º
+  if (COMBAT > 0 && (gi % Math.max(1, Math.round(2 / COMBAT)) < 2 || COMBAT >= 1)) {
+    b.fighter = true;
+    const prev = bots[bots.length - 1];
+    if (prev?.fighter && !prev.partner) { b.partner = prev; prev.partner = b; }
+  }
   // papel na manifestação: ~30 % dançam, 25 % bandeira, 20 % cartaz, 25 % gestos
   if (r() < SOCIAL) { const u = r(); b.role = u < 0.3 ? 'dancer' : u < 0.55 ? 'flag' : u < 0.75 ? 'sign' : 'gesture'; }
   room.onMessage('spawn', (s: any) => { b.x = s.x; b.z = s.z; if (!sp) b.home = { x: s.x, z: s.z }; });
@@ -127,12 +144,18 @@ async function startBot(i: number) {
   room.onMessage('crowd', (buf: Uint8Array) => { b.crowdMsgs++; b.far = decodeCrowd(buf instanceof Uint8Array ? buf : new Uint8Array(buf)).length; });
   for (const t of ['pong', 'knock', 'action', 'enter_ok', 'enter_denied', 'exit_ok', 'mode_ok', 'mode_denied', 'push_denied']) room.onMessage(t, () => {});
   room.onMessage('act_denied', () => { b.denied++; });
+  // confronto: o bot só conta (o servidor decide tudo)
+  room.onMessage('cbt_act', () => { b.cbt.act++; });
+  room.onMessage('cbt_hit', (h: { by: number; tgt: number; r: string }) => { if (h.by === b.nid) { if (h.r === 'hit') b.cbt.hitOut++; else if (h.r === 'blocked') b.cbt.blocked++; } else if (h.tgt === b.nid) { if (h.r === 'hit') b.cbt.hitIn++; else if (h.r === 'dodged') b.cbt.dodged++; } });
+  room.onMessage('cbt_denied', (d: { reason: string }) => { b.cbt.denied[d.reason] = (b.cbt.denied[d.reason] ?? 0) + 1; });
+  for (const t of ['cbt_self', 'cbt_dummy', 'jump_denied']) room.onMessage(t, () => {});
   for (const t of ['chat', 'chat_hello', 'chat_denied', 'chat_report_res', 'denied', 'gf_add', 'gf_del', 'gf_state', 'gf_res', 'presence', 'metrics']) room.onMessage(t, () => {});
   room.onMessage('prop_denied', () => { b.denied++; });
+  if (b.fighter) { room.send('mode', 'interacao'); b.role = 'none'; }
   if (b.role === 'flag') room.send('prop', { p: PROP('flag_small'), d: 0 });
   if (b.role === 'sign') room.send('prop', { p: PROP('sign_small'), d: 0 });
   const cb = Callbacks.get(room as any) as any;
-  cb.onAdd('players', () => { b.detailed++; });
+  cb.onAdd('players', (p: any, id: string) => { b.detailed++; if (id === room.sessionId) b.nid = p.nid; });
   cb.onRemove('players', () => { b.detailed--; });
   bots.push(b);
 }
@@ -163,8 +186,25 @@ function chatBot(b: Bot, dt: number) {
   }
 }
 
+/** confronto: parado de frente para o par, um golpe/esquiva em ritmo realista (só pedidos; o servidor decide) */
+const CBT = { soco: 1, chute: 3, esquiva: 6 };
+function fightBot(b: Bot, dt: number) {
+  const o = b.partner;
+  if (o) b.h = Math.atan2(o.x - b.x, o.z - b.z);
+  b.speed = 0;
+  b.nextCbt -= dt;
+  if (b.nextCbt <= 0) {
+    b.nextCbt = COMBAT_DENSE ? 0.7 + b.r() * 0.7 : 1.5 + b.r() * 2.5;
+    const u = b.r();
+    b.room.send('cbt', { a: u < 0.55 ? CBT.soco : u < 0.85 ? CBT.chute : CBT.esquiva, h: Math.round(b.h * 1000) / 1000, seq: b.seq });
+    b.cbt.sent++;
+  }
+  b.room.send('move', packMove({ x: b.x, y: 0, z: b.z, heading: b.h, speed: 0, loco: 0, seq: ++b.seq }));
+}
+
 /** um passo de "multidão": anda devagar, para às vezes, varia o rumo, volta para a concentração */
 function stepBot(b: Bot, dt: number) {
+  if (b.fighter) { fightBot(b, dt); return; }
   socialBot(b, dt);
   chatBot(b, dt);
   if (b.pause > 0) { b.pause -= dt; b.speed = Math.max(0, b.speed - dt * 2); }
@@ -216,6 +256,12 @@ const res = {
   visiblePlayers: { min: Math.min(...vis), max: Math.max(...vis), avg: avg(visSamples), detailedAvg: avg(detSamples) },
   corrections: bots.reduce((s, b) => s + b.corrections, 0),
   chat: { perMin: CHAT_PER_MIN, sent: chatSent }, groups: GROUPS,
+  combat: (() => {
+    const f = bots.filter((b) => b.fighter), sum = (k: 'sent' | 'act' | 'hitOut' | 'hitIn' | 'dodged' | 'blocked') => f.reduce((s, b) => s + b.cbt[k], 0);
+    const denied: Record<string, number> = {};
+    for (const b of f) for (const [k, v] of Object.entries(b.cbt.denied)) denied[k] = (denied[k] ?? 0) + v;
+    return { share: COMBAT, dense: COMBAT_DENSE, fighters: f.length, pairs: f.filter((b) => b.partner).length / 2, sent: sum('sent'), actsSeen: sum('act'), hitsOut: sum('hitOut'), hitsIn: sum('hitIn'), dodged: sum('dodged'), blocked: sum('blocked'), denied };
+  })(),
   social: { share: SOCIAL, roles: Object.fromEntries(['dancer', 'flag', 'sign', 'gesture'].map((k) => [k, bots.filter((b) => b.role === k).length])), actsSent: bots.reduce((s, b) => s + b.acts, 0), denied: bots.reduce((s, b) => s + b.denied, 0) },
   crowdMsgsPerBot: +(bots.reduce((s, b) => s + b.crowdMsgs, 0) / n / secs).toFixed(2),
   trafficSnapshotsPerBot: +(bots.reduce((s, b) => s + b.trafficMsgs, 0) / n / secs).toFixed(2),

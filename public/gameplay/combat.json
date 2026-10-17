@@ -1,0 +1,48 @@
+{
+  "version": 1,
+  "note": "Confronto (rodada 9) — DADOS do CombatSystem (server/src/combat). Valores de JOGO, estilo arcade: condição abstrata, empurrão, queda; sem gore, sem lesão. Ids u8 estáveis (nunca reaproveitar). Ver docs/COMBAT.md",
+  "tuning": {
+    "staminaMax": 100,
+    "staminaRegenPerS": 22,
+    "staminaRegenDelayMs": 700,
+    "conditionMax": 100,
+    "conditionRegenPerS": 4,
+    "conditionRegenDelayMs": 4000,
+    "downMs": 2600,
+    "getupMs": 1400,
+    "protectMs": 5000,
+    "rangeSlackM": 0.45,
+    "arcSlackDeg": 15,
+    "maxRequestsPerS": 5,
+    "inputBufferMs": 180
+  },
+  "actions": [
+    { "id": 1, "key": "soco", "label": "Soco", "kind": "strike", "animation": "cbt_punch", "windupMs": 120, "activeMs": 100, "recoveryMs": 230, "range": 1.35, "arcDeg": 70, "staminaCost": 8, "cooldownMs": 380, "bareHanded": true,
+      "impact": { "condition": 12, "knockback": 0.35, "state": "STAGGERED", "staggerMs": 380 } },
+    { "id": 2, "key": "soco_2", "label": "Soco (sequência)", "kind": "strike", "animation": "cbt_punch2", "windupMs": 100, "activeMs": 100, "recoveryMs": 260, "range": 1.35, "arcDeg": 70, "staminaCost": 8, "cooldownMs": 350, "bareHanded": true,
+      "comboFrom": 1, "comboOf": 1, "comboWindowMs": 450,
+      "impact": { "condition": 12, "knockback": 0.4, "state": "STAGGERED", "staggerMs": 420 } },
+    { "id": 3, "key": "chute", "label": "Chute", "kind": "strike", "animation": "cbt_kick", "windupMs": 220, "activeMs": 120, "recoveryMs": 380, "range": 1.6, "arcDeg": 60, "staminaCost": 16, "cooldownMs": 800,
+      "impact": { "condition": 20, "knockback": 0.9, "state": "STAGGERED", "staggerMs": 600 } },
+    { "id": 4, "key": "chute_final", "label": "Chute (fim da sequência)", "kind": "strike", "animation": "cbt_kick_final", "windupMs": 200, "activeMs": 140, "recoveryMs": 450, "range": 1.65, "arcDeg": 64, "staminaCost": 18, "cooldownMs": 900,
+      "comboFrom": 2, "comboOf": 3, "comboWindowMs": 500,
+      "impact": { "condition": 28, "knockback": 1.6, "state": "KNOCKED_DOWN" } },
+    { "id": 5, "key": "empurrao", "label": "Empurrão", "kind": "push", "animation": "push", "windupMs": 150, "activeMs": 120, "recoveryMs": 350, "range": 1.9, "arcDeg": 150, "staminaCost": 14, "cooldownMs": 1000, "bareHanded": true,
+      "impact": { "condition": 10, "knockback": 1.8, "state": "KNOCKED_DOWN" } },
+    { "id": 6, "key": "esquiva", "label": "Esquiva", "kind": "dodge", "animation": "cbt_dodge", "windupMs": 0, "activeMs": 320, "recoveryMs": 180, "range": 0, "arcDeg": 0, "staminaCost": 20, "cooldownMs": 900,
+      "allowedStates": ["NORMAL", "STAGGERED"], "iFramesMs": 320, "dashM": 2.2,
+      "impact": { "condition": 0, "knockback": 0 } },
+    { "id": 10, "key": "golpe_taco", "label": "Golpe de taco", "kind": "strike", "animation": "cbt_bat", "windupMs": 260, "activeMs": 120, "recoveryMs": 420, "range": 1.9, "arcDeg": 90, "staminaCost": 18, "cooldownMs": 900, "requiredItem": "bat",
+      "impact": { "condition": 26, "knockback": 1.1, "state": "STAGGERED", "staggerMs": 650 } },
+    { "id": 11, "key": "golpe_barra", "label": "Golpe de barra", "kind": "strike", "animation": "cbt_bar", "windupMs": 300, "activeMs": 120, "recoveryMs": 480, "range": 1.8, "arcDeg": 80, "staminaCost": 22, "cooldownMs": 1100, "requiredItem": "bar",
+      "impact": { "condition": 32, "knockback": 1.3, "state": "STAGGERED", "staggerMs": 700 } },
+    { "id": 12, "key": "spray", "label": "Spray", "kind": "spray", "animation": "cbt_spray", "windupMs": 120, "activeMs": 500, "recoveryMs": 300, "range": 3.0, "arcDeg": 40, "staminaCost": 10, "cooldownMs": 2500, "requiredItem": "spray", "maxTargets": 3,
+      "impact": { "condition": 0, "knockback": 0, "disorientMs": 2500 } }
+  ],
+  "props": [
+    { "propId": 11, "kind": "bat", "actions": [10], "groundTtlMs": 60000 }
+  ],
+  "dummies": [
+    { "id": 1, "key": "boneco_campo_de_santana", "x": -439.8, "z": 292.3, "heading": 3.5, "areaR": 14, "conditionMax": 100, "resetMs": 3500 }
+  ]
+}

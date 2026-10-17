@@ -141,3 +141,24 @@ describe('clipes de ações sociais e itens', () => {
     expect(lift(m, 'r')).toBeLessThan(1.1);
   });
 });
+
+describe('clipes de confronto (rodada 9, public/gameplay/combat.json)', () => {
+  const lib = libraryClips();
+  const data = JSON.parse(readFileSync('public/gameplay/combat.json', 'utf8')) as { actions: { animation: string }[] };
+  const names = [...new Set([...data.actions.map((a) => a.animation), 'cbt_stagger'])];
+  const { arm, bones, idle } = fakeRig();
+  it('toda animação citada existe (procedural ou biblioteca); impulso/pouso do pulo estão na biblioteca', () => {
+    expect(names.filter((n) => !SPECS[n] && !lib.has(n))).toEqual([]);
+    expect(lib.has('jump_start') && lib.has('jump_land')).toBe(true);
+  });
+  it.each(names.filter((n) => SPECS[n]))('%s: ossos do rig, valores finitos, pés acima do chão', (name) => {
+    const clip = proceduralClip(name, arm, idle)!;
+    expect(clip.duration).toBeGreaterThan(0.3);
+    for (const t of clip.tracks) {
+      expect(bones.has(t.name.slice(0, t.name.lastIndexOf('.')))).toBe(true);
+      for (const v of t.values) expect(Number.isFinite(v)).toBe(true);
+      if (SPECS[name].layer === 'upper') expect(/^(thigh|calf|foot|ball)_|^pelvis\./.test(t.name), t.name).toBe(false);
+    }
+    if (SPECS[name].layer === 'full') expect(clipFloor(arm, withBase(clip, idle))!).toBeGreaterThan(-0.02);
+  });
+});

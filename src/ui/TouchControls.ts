@@ -11,6 +11,8 @@ export class TouchControls {
   private base: HTMLDivElement;
   private pinchDist = 0;
   private useBtn!: HTMLButtonElement;
+  /** rodada 9 — confronto: SOCO / CHUTE / ESQUIVA só com contexto de confronto (zona, evento ou modo interação) */
+  private combatEl: HTMLDivElement;
   /** botão CHAT (o HUD abre o painel do chat) */
   onChat?: () => void;
   onMenu?: () => void;
@@ -38,11 +40,28 @@ export class TouchControls {
     runBtn.setAttribute('aria-pressed', 'false');
     runBtn.addEventListener('touchstart', (e) => { e.preventDefault(); e.stopPropagation(); input.touchRun = !input.touchRun; runBtn.classList.toggle('on', input.touchRun); runBtn.setAttribute('aria-pressed', String(input.touchRun)); });
     jumpBtn.addEventListener('touchstart', (e) => { e.preventDefault(); e.stopPropagation(); input.queueJump(); });
+    // contextuais (não contam nos fixos): aparecem/somem com o contexto de confronto
+    this.combatEl = document.createElement('div');
+    this.combatEl.className = 'touch-combat';
+    this.combatEl.hidden = true;
+    for (const [label, t] of [['SOCO', 'cbt_punch'], ['CHUTE', 'cbt_kick'], ['ESQUIVA', 'cbt_dodge']] as const) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = `touch-btn cbt ${t}`;
+      b.textContent = label;
+      b.addEventListener('touchstart', (e) => { e.preventDefault(); e.stopPropagation(); input.queueToggle(t); });
+      this.combatEl.appendChild(b);
+    }
+    this.el.appendChild(this.combatEl);
     this.el.addEventListener('touchstart', this.onStart, { passive: false });
     this.el.addEventListener('touchmove', this.onMove, { passive: false });
     this.el.addEventListener('touchend', this.onEnd);
     this.el.addEventListener('touchcancel', this.onEnd);
   }
+
+  /** rodada 9: botões de confronto (só escreve no DOM quando muda) */
+  setCombatVisible(v: boolean) { if (this.combatEl.hidden === v) this.combatEl.hidden = !v; }
+  get combatVisible() { return !this.combatEl.hidden; }
 
   /** USAR só quando há algo perto (o HUD liga quando a ação contextual muda) */
   setUseVisible(v: boolean) { if (this.useBtn.hidden === v) this.useBtn.hidden = !v; }

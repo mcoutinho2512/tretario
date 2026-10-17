@@ -12,6 +12,9 @@
  *   aparência (só na 1ª vez que o cliente vê aquele nid, +12 B): pele, cabelo, camisa, calça (RGB 3 B cada)
  */
 
+/** rodada 9: o STATUS ganhou 3 (cambaleando) e 4 (ragdoll), mas a multidão tem 2 bits — 3 → 0 (de pé), 4 → 1 (caído) */
+export const crowdStatus = (st: number) => (st === 3 ? 0 : st === 4 ? 1 : st);
+
 export interface CrowdEntry {
   nid: number;
   x: number; y: number; z: number;
@@ -49,7 +52,7 @@ export function encodeCrowd(entries: readonly CrowdEntry[]): Uint8Array {
     dv.setUint8(o + 8, Math.round((h / (Math.PI * 2)) * 256) & 255);
     dv.setUint8(o + 9, Math.max(0, Math.min(255, Math.round(e.speed * 20))));
     const soc = hasSocial(e.social);
-    dv.setUint8(o + 10, (e.body & 3) | ((e.status & 3) << 2) | (e.vehicle ? 16 : 0) | (soc ? 32 : 0) | (e.app ? 128 : 0));
+    dv.setUint8(o + 10, (e.body & 3) | ((crowdStatus(e.status) & 3) << 2) | (e.vehicle ? 16 : 0) | (soc ? 32 : 0) | (e.app ? 128 : 0));
     o += BASE;
     if (soc) {
       const s = e.social!;
@@ -94,7 +97,7 @@ export class CrowdTable {
     r[o + 8] = Math.round((h / (Math.PI * 2)) * 256) & 255;
     r[o + 9] = Math.max(0, Math.min(255, Math.round(e.speed * 20)));
     const hs = hasSocial(e.social);
-    r[o + 10] = (e.body & 3) | ((e.status & 3) << 2) | (e.vehicle ? 16 : 0) | (hs ? 32 : 0);
+    r[o + 10] = (e.body & 3) | ((crowdStatus(e.status) & 3) << 2) | (e.vehicle ? 16 : 0) | (hs ? 32 : 0);
     if (hs) {
       const s = e.social!, so = this.soc, q = slot * SOC;
       so[q] = s.act & 255; so[q + 1] = age4(s.ageS); so[q + 2] = s.prop & 255; so[q + 3] = s.design & 255; so[q + 4] = (s.design >> 8) & 255;

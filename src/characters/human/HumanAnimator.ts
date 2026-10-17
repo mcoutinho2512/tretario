@@ -20,7 +20,7 @@ const ACT_FADE = 0.32;
 
 /** uma camada de ação/pose de carregar: trilhas amostradas direto (sem mixer) e misturadas osso a osso */
 interface ActLayer {
-  kind: 'act' | 'carry';
+  kind: 'act' | 'carry' | 'combat';
   /** id da ação (ACTIONS) ou do item (PROPS) */
   id: number;
   variation: number;
@@ -158,6 +158,8 @@ export class HumanAnimator {
   private w: Record<string, number> = {};
   private natural: Record<Loco, number> = { idle: 0, walk: 1.2, jog: 3.2, sprint: 5.5 };
   private air = 0;
+  private wasGrounded = true;
+  private airT = 0;
   private show: ShowPose | null = null;
   private oneShot: { name: string; t: number; dur: number } | null = null;
   private t = 0;
@@ -282,7 +284,7 @@ export class HumanAnimator {
     return this.baseClip ? proceduralClip(name, this.root, this.baseClip) : null;
   }
 
-  private makeLayer(kind: 'act' | 'carry', id: number, name: string, full: boolean, variation: number, onceDur?: number): ActLayer | null {
+  private makeLayer(kind: 'act' | 'carry' | 'combat', id: number, name: string, full: boolean, variation: number, onceDur?: number): ActLayer | null {
     const spec = specFor(name);
     // variação (NPCs): espelho nos gestos assimétricos, deslocamento de fase e andamento ±3 % nos loops
     const clip = this.clipFor(spec?.mirror && variation & 1 ? name + MIRROR_SUFFIX : name);
@@ -326,13 +328,13 @@ export class HumanAnimator {
   /** avança fases/pesos e mistura as camadas sobre a pose da locomoção (depois do mixer) */
   private applyLayers(dt: number) {
     if (!this.layers.length) return;
-    const busy = this.layers.some((l) => l.kind === 'act' && l.target > 0);
+    const busy = this.layers.some((l) => l.kind !== 'carry' && l.target > 0);
     for (const l of this.layers) {
       l.phase += dt;
       // pose de carregar só sem ação ativa; ação `once` sai sozinha no fim da duração
       const want = l.target > 0 && (l.kind === 'carry' ? !busy : l.loop || l.phase < l.dur - l.fade);
       l.w = want ? Math.min(1, l.w + dt / l.fade) : Math.max(0, l.w - dt / l.fade);
-      if (l.kind === 'act' && !l.loop && l.phase >= l.dur) l.target = 0;
+      if (l.kind !== 'carry' && !l.loop && l.phase >= l.dur) l.target = 0;
     }
     this.layers = this.layers.filter((l) => l.w > 0 || l.target > 0);
     // parado: a camada superior controla a coluna inteira; andando, a coluna baixa segue a passada
@@ -374,7 +376,21 @@ export class HumanAnimator {
   setShow(p: ShowPose | null) { this.show = p; this.t = 0; }
 
   /** ação curta sobreposta (empurrão, impacto) */
-  playOnce(name: 'push' | 'hit', dur = 0.6) {
+  /**
+   * confronto (rodada 9): golpe/esquiva/cambaleio como camada `once` (clipe procedural de SPECS ou da biblioteca),
+   * entrada rápida, sem mexer na ação social; a pose de carregar do item cede durante o golpe
+   */
+  playCombat(name: string, dur?: number): boolean {
+    const spec = specFor(name);
+    for (const l of this.layers) if (l.kind === 'combat') l.target = 0;
+    const l = this.makeLayer('combat', 0, name, false, 0, dur ?? spec?.dur ?? 0.6);
+    if (!l) return false;
+    l.fade = Math.min(l.fade, 0.08);
+    this.layers.push(l);
+    return true;
+  }
+
+  playOnce(name: 'push' | 'hit' | 'jump_start' | 'jump_land', dur = 0.6) {
     if (!this.act.has(name)) return;
     const a = this.act.get(name)!;
     a.reset();
@@ -429,6 +445,11 @@ export class HumanAnimator {
       const lt = this.locoTargets(speed);
       for (const l of LOCO) targets[l] = lt[l] * (1 - this.air);
       targets.jump_loop = this.air;
+      // rodada 9 — pulo: impulso e pouso da biblioteca (anims.glb) nas transições; remotos pelo loco 3 da rede
+      if (this.wasGrounded && !grounded) { this.airT = 0; this.playOnce('jump_start', 0.32); }
+      if (!grounded) this.airT += dt;
+      else if (!this.wasGrounded && this.airT > 0.22) this.playOnce('jump_land', 0.36);
+      this.wasGrounded = grounded;
     }
     this.blend(targets, dt, 12);
     // velocidade de reprodução casada com o deslocamento + fase comum entre walk/jog/sprint
@@ -539,6 +560,7 @@ export class HumanAnimator {
   private blend(targets: Record<string, number>, dt: number, rate: number) {
     const k = 1 - Math.exp(-rate * dt);
     for (const [name, a] of this.act) {
+      if (this.oneShot?.name === name) continue; // a ação curta controla o próprio peso (applyOneShot)
       const tgt = targets[name] ?? 0;
       const cur = this.w[name] + (tgt - this.w[name]) * k;
       this.w[name] = cur < 0.002 && tgt === 0 ? 0 : cur;

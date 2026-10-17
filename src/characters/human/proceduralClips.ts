@@ -342,6 +342,42 @@ export class Poser {
 const ELBOW_OUT: V3 = [0.8, -0.5, -0.35];
 const ELBOW_DOWN: V3 = [0.35, -1, -0.2];
 
+// ------------------------------------------------------------------ confronto (rodada 9): poses base dos golpes
+/** guarda: punhos à frente do queixo */
+function guard(c: Poser, w: number) {
+  c.reach('r', 'chest', [0.15, 0.02, 0.3], ELBOW_DOWN, w);
+  c.reach('l', 'chest', [0.14, 0.05, 0.33], ELBOW_DOWN, w);
+  c.fingers('r', 1.0, { thumb: 0.3 }, w);
+  c.fingers('l', 1.0, { thumb: 0.3 }, w);
+}
+
+/** soco reto: prepara (ombro recua), estende em `hit` s, volta à guarda */
+function punchPose(c: Poser, side: 'r' | 'l', hit: number) {
+  const t = c.t;
+  const g = env(t, 0.0, 0.06, c.dur - 0.1, c.dur);
+  const ext = env(t, hit - 0.03, hit + 0.05, hit + 0.12, hit + 0.26);
+  const wind = env(t, 0.0, hit - 0.03, hit - 0.03, hit + 0.04);
+  const sgn = side === 'r' ? 1 : -1;
+  c.bone('spine_03', 0, 1, 0, sgn * (0.28 * ext - 0.1 * wind));
+  c.bone('spine_01', 1, 0, 0, 0.06 * ext);
+  guard(c, g);
+  c.reach(side, 'shoulder', [-0.06, -0.03, 0.52], [0.6, -0.6, -0.2], ext);
+}
+
+/** chute frontal: recolhe o joelho, estende a perna à frente, volta; `k` = amplitude */
+function kickPose(c: Poser, hit: number, k: number) {
+  const t = c.t;
+  const chamber = env(t, 0.04, hit - 0.02, hit + 0.14, hit + 0.36);
+  const ext = env(t, hit - 0.02, hit + 0.06, hit + 0.12, hit + 0.3);
+  const g = env(t, 0.0, 0.08, c.dur - 0.12, c.dur);
+  c.hips(0, -0.03 * chamber, -0.05 * chamber * k);
+  c.bone('spine_01', 1, 0, 0, -0.2 * chamber * k);
+  c.bone('head', 1, 0, 0, 0.14 * chamber);
+  c.plant('r', [0.02, (0.3 * chamber + 0.12 * ext) * k, (0.12 * chamber + 0.6 * ext) * k], -0.5 * ext, [0.1, 0.6, 1]);
+  c.plant('l', [0, 0, -0.04 * chamber], 0, [0.12, 0, 1]);
+  guard(c, g);
+}
+
 /** duração das ações `once` (registro de ações = fonte única) */
 const onceDur = (clip: string, fallback: number) => ACTIONS.find((a) => a.clip === clip)?.duration ?? fallback;
 
@@ -828,6 +864,83 @@ export const SPECS: Record<string, ClipSpec> = {
       // só visual: taco pendurado ao lado do corpo, ponta para baixo
       c.reach('r', 'shoulder', [0.08, -0.52, 0.06], ELBOW_DOWN, 0.6);
       c.fingers('r', 0.95, { thumb: 0.5 });
+    },
+  },
+
+  // ------------------------------------------------------------------ confronto (rodada 9; public/gameplay/combat.json)
+  // Estilo arcade: golpes legíveis, sem impacto realista. Durações = preparação + janela ativa + recuperação da
+  // definição (o servidor decide o acerto; isto é só a animação prevista/remota). Tempos em segundos do clipe.
+  cbt_punch: { dur: 0.45, layer: 'upper', pose: (c) => punchPose(c, 'r', 0.12) },
+  cbt_punch2: { dur: 0.46, layer: 'upper', pose: (c) => punchPose(c, 'l', 0.1) },
+  cbt_kick: { dur: 0.72, layer: 'full', pose: (c) => kickPose(c, 0.22, 1) },
+  cbt_kick_final: { dur: 0.79, layer: 'full', pose: (c) => kickPose(c, 0.2, 1.25) },
+  cbt_dodge: {
+    dur: 0.5, layer: 'full',
+    pose: (c) => {
+      const t = c.t, k = env(t, 0.0, 0.1, 0.3, 0.5);
+      // abaixa e inclina (o deslocamento é da posição — servidor), braços em guarda
+      c.hips(0, -0.14 * k, -0.03 * k);
+      c.bone('spine_01', 1, 0, 0, 0.32 * k);
+      c.bone('spine_03', 0, 0, 1, 0.12 * k);
+      c.bone('head', 1, 0, 0, -0.2 * k);
+      c.plant('r', [0.04 * k, 0, 0.05 * k], 0, [0.12, 0, 1]);
+      c.plant('l', [0.04 * k, 0, -0.08 * k], 0.2 * k, [0.12, 0, 1]);
+      guard(c, k);
+    },
+  },
+  cbt_bat: {
+    dur: 0.8, layer: 'upper',
+    pose: (c) => {
+      const t = c.t, wind = env(t, 0.0, 0.22, 0.26, 0.34), swing = env(t, 0.24, 0.36, 0.5, 0.8);
+      // levanta atrás do ombro direito e varre na frente do corpo (o taco segue a mão direita)
+      c.bone('spine_03', 0, 1, 0, -0.38 * wind + 0.5 * swing);
+      c.bone('spine_01', 1, 0, 0, 0.08 * swing);
+      c.reach('r', 'shoulder', [0.16, 0.22, -0.06], ELBOW_OUT, wind * (1 - swing));
+      c.reach('r', 'chest', [-0.22, 0.02, 0.46], [0.6, -0.5, 0], swing);
+      c.limb('r', 'hand', 0, 0, 1, -0.5 * wind + 0.4 * swing);
+      c.reach('l', 'chest', [0.02, 0.08, 0.28], ELBOW_DOWN, 0.7 * Math.max(wind, swing * 0.6));
+      c.fingers('r', 0.95, { thumb: 0.5 });
+      c.fingers('l', 0.9, { thumb: 0.4 }, wind);
+    },
+  },
+  cbt_bar: {
+    dur: 0.9, layer: 'upper',
+    pose: (c) => {
+      const t = c.t, wind = env(t, 0.0, 0.26, 0.3, 0.38), down = env(t, 0.28, 0.42, 0.56, 0.9);
+      // de cima para baixo, à frente (barra na mão direita, a esquerda acompanha)
+      c.bone('spine_01', 1, 0, 0, -0.1 * wind + 0.22 * down);
+      c.bone('spine_03', 0, 1, 0, 0.15 * down);
+      c.reach('r', 'shoulder', [0.04, 0.42, 0.04], [1, -0.3, -0.3], wind * (1 - down));
+      c.reach('r', 'chest', [-0.05, -0.12, 0.48], [0.5, -0.7, 0], down);
+      c.limb('r', 'hand', 1, 0, 0, -0.6 * wind + 0.5 * down);
+      c.reach('l', 'chest', [0.0, 0.1 + 0.2 * wind, 0.3], ELBOW_DOWN, 0.6 * Math.max(wind, down));
+      c.fingers('r', 0.95, { thumb: 0.5 });
+    },
+  },
+  cbt_spray: {
+    dur: 0.92, layer: 'upper',
+    pose: (c) => {
+      const t = c.t, k = env(t, 0.0, 0.12, 0.62, 0.92), sweep = Math.sin(TAU * 1.6 * Math.max(0, t - 0.12)) * env(t, 0.12, 0.2, 0.55, 0.62);
+      // braço estendido à frente, dedo no gatilho, pequena varredura lateral
+      c.life(0.4);
+      c.bone('spine_03', 0, 1, 0, 0.18 * k + 0.12 * sweep);
+      c.reach('r', 'shoulder', [-0.04 - 0.06 * sweep, 0.02, 0.5], [0.7, -0.6, -0.1], k);
+      c.limb('r', 'hand', 1, 0, 0, 0.2 * k);
+      c.fingers('r', 0.85, { index: 0.35, thumb: 0.3 }, k);
+      c.reach('l', 'chest', [0.04, -0.1, 0.18], ELBOW_DOWN, 0.5 * k);
+    },
+  },
+  cbt_stagger: {
+    dur: 0.55, layer: 'upper',
+    pose: (c) => {
+      const t = c.t, k = env(t, 0.0, 0.07, 0.18, 0.55), wob = Math.sin(TAU * 2.5 * t) * env(t, 0.05, 0.12, 0.3, 0.55);
+      // recuo do tronco (sem expressão de dor): inclina para trás, cabeça acompanha, braços abrem
+      c.bone('spine_01', 1, 0, 0, -0.22 * k);
+      c.bone('spine_03', 0, 0, 1, 0.1 * wob);
+      c.bone('head', 1, 0, 0, -0.2 * k);
+      c.limb('r', 'upperarm', 0, 0, 1, -0.35 * k);
+      c.limb('l', 'upperarm', 0, 0, 1, -0.35 * k);
+      c.fingers('r', 0.4); c.fingers('l', 0.4);
     },
   },
 

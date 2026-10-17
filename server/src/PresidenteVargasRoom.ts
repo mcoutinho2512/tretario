@@ -18,6 +18,9 @@
  *  rodada 8     espectadores (server/src/spectator: sem corpo, AOI pela câmera), reconexão com graça (PV_GRACE_S, 20 s),
  *               login duplicado (a sessão nova ASSUME a entidade), presença em memória e métricas públicas
  *               (server/src/presence) — docs/SPECTATOR.md, docs/SHARED_WORLD.md
+ *  rodada 9     confronto (server/src/combat — docs/COMBAT.md): pulo validado (`jump`, y preso a um modelo de chão
+ *               grosso), golpes/esquiva/itens por DADOS (`cbt` → CombatSystem), bonecos de treino; o `push` antigo
+ *               continua, com o impacto da definição EMPURRÃO
  *  rodada 8.1   espectador AÉREO: camada pela altitude (spec_cam.alt), AOI por camada e, em FAR/AGGREGATE, células
  *               agregadas `spec_cells` (CrowdCellAggregator: UMA vez por período para todos; CellFeed por espectador).
  *               Jogador: nada muda (mesmo AOI, nunca recebe spec_cells)
@@ -75,6 +78,11 @@ import { DebateHost, loadDebateDefs } from './debate/DebateHost.ts';
 import { AdSlotService, loadAdSlots } from './ads/AdSlotService.ts';
 import { ACTION_BY_KEY } from '../../src/social/actions.ts';
 import { designsFor } from '../../src/social/designs.ts';
+// rodada 9 — confronto: pulo e CombatSystem (server/src/combat, sem Colyseus; dados em public/gameplay/combat.json)
+import { CombatSystem } from './combat/CombatSystem.ts';
+import { JumpValidator } from './combat/JumpValidator.ts';
+import { CombatTable } from '../../src/combat/data.ts';
+import { PROP_BY_ID } from '../../src/social/props.ts';
 
 const AOI_RADIUS = Number(process.env.PV_AOI ?? 220); // m — jogadores/veículos visíveis
 /** histerese da AOI: entra a ≤ R, sai só além de R × AOI_HYST */
@@ -152,6 +160,9 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
   /** rodada 9 — eventos de gameplay (missões, conquistas, telemetria assinam; ver src/gameplay/events.ts) */
   readonly gameplay = new GameplayBus();
   private zoneDefs: ZoneDefinition[] = [];
+  /** rodada 9 — confronto: pulo (janela no ar + chão) e golpes/esquiva/itens/bonecos */
+  readonly jump = new JumpValidator();
+  combat!: CombatSystem;
   private zoneAxis: [number, number][] = [];
   private crowdTable = new CrowdTable();
   private crowdSlots = new Int32Array(1024);
@@ -219,6 +230,9 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     mission_track: (client: Client, m: unknown) => this.r9.track(client.sessionId, m),
     prog_seen: (client: Client, m: unknown) => this.r9.seen(client.sessionId, m),
     test_tp: (client: Client, m: unknown) => this.r9TestTeleport(client, m),
+    // rodada 9 — confronto: só intenções ({a, h, seq} / {seq}); taxa, capacidade e tudo o mais no servidor
+    cbt: (client: Client, m: unknown) => this.withNet(client, false, () => { if (this.combat.request(client.sessionId, m).ok) this.pres.activity(client.sessionId, Date.now()); }),
+    jump: (client: Client, m: { seq?: unknown }) => this.gate(client, 'world.play', () => this.withNet(client, false, () => this.onJump(client, m))),
   };
 
   /** chat: destinatários decididos aqui (PROXIMIDADE pela grade espacial `this.grid`), sem trabalho por tick */
@@ -264,6 +278,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
       this.vehIds.push(s.id);
     }
     this.rebuildVehicleGrid();
+    this.setupCombat(W); // rodada 9 — confronto
     this.specs = new SpectatorSessions(W.manifest.bounds as [number, number, number, number]);
     const evDef = W.events.get(ev) as (Parameters<typeof environmentCrowdFor>[0] & { name?: string }) | undefined;
     this.setupCells(W, evDef);
@@ -374,6 +389,8 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     if (this.vehAcc >= 1000) { this.vehAcc = 0; this.rebuildVehicleGrid(); this.resetAbandoned(now); }
     // zonas por jogador (2 Hz, fatiado): base de missões de exploração, política de confronto e eventos
     this.updateZones(this.tickN % ZONE_SLICES, ZONE_SLICES, now);
+    // rodada 9 — confronto: janelas ativas, regeneração, cambaleio, fx, cbt_self (≤ 5 Hz) e bonecos
+    { const tc = performance.now(); this.combat.update(dtMs); metrics.combat(performance.now() - tc); }
     // grafites: área de interesse por superfície (fatiada, 2 Hz por cliente) e expiração (1 Hz)
     this.graffiti.update(now, this.gfPos);
     this.r9.tick(dtMs, now); // rodada 9 — progressão (envio ≤ 2 Hz, gravação em lote, concentrações 1 Hz, telemetria)
@@ -801,6 +818,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     if (taken?.prop) { r.social.prop = taken.prop; r.social.design = taken.design; p.prop = taken.prop; p.design = taken.design; } // item na mão vem junto
     this.slotNid[r.slot] = p.nid;
     this.rt.set(client.sessionId, r);
+    this.combatJoin(client.sessionId, r); // rodada 9 — confronto (proteção de retorno)
     this.clients2.set(client.sessionId, client);
     this.grid.insert(r.slot, p.x, p.z);
     this.updateInterest(0, 1, client.sessionId); // só o novo cliente; os demais o encontram na sua fatia
@@ -884,6 +902,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     if (!p || !r || !id) return;
     const now = Date.now();
     p.link = LINK_WIRE.CONNECTED;
+    r.actor.immuneUntil = Math.max(r.actor.immuneUntil, this.combat.protectMsFrom(now)); this.combat.wake(sid); // rodada 9 — proteção ao reentrar
     this.clients2.set(sid, client);
     r.crowdKnown.clear(); // as aparências da multidão distante voltam a ser enviadas
     r.last.t = now; // a validação de velocidade recomeça agora (o cliente volta para a posição do servidor)
@@ -932,6 +951,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     }
     this.graffiti.leave(sid);
     this.r9.leave(sid); // rodada 9 — progressão (saída, graça vencida, sessão substituída)
+    this.combat?.leave(sid); this.jump.leave(sid); // rodada 9 — confronto
     const existed = this.state.players.delete(sid);
     this.rt.delete(sid);
     this.clients2.delete(sid);
@@ -950,6 +970,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     const mode: MoveMode = veh ? (veh.kind as MoveMode) : 'foot'; // modo vem do SERVIDOR, não do cliente
     const now = Date.now();
     const res = validateMoveInWorld(world().walls, r.last, { ...m, mode }, now);
+    if (!veh) res.y = this.jump.clampY(client.sessionId, res.y, m.loco, now); // rodada 9 — pulo: y preso ao chão/janela no ar
     const dtS = Math.max(0.05, (now - r.last.t) / 1000);
     const measured = Math.hypot(res.x - r.last.x, res.z - r.last.z) / dtS;
     const prevX = r.last.x, prevZ = r.last.z;
@@ -1194,7 +1215,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     this.r9.e.prop(client.sessionId, m.p, now); // rodada 9 — progressão
   }
 
-  private knockdown(targetId: string, fromX: number, fromZ: number, distance: number, kind: 'push' | 'impact', by: string, strength: number) {
+  private knockdown(targetId: string, fromX: number, fromZ: number, distance: number, kind: 'push' | 'impact' | 'combat', by: string, strength: number) {
     const tp = this.state.players.get(targetId);
     const tr = this.rt.get(targetId);
     if (!tp || !tr) return;
@@ -1203,7 +1224,10 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     tp.status = STATUS.DOWN; tr.actor.status = STATUS.DOWN; tr.actor.lastDown = now;
     tr.rest = { x: out.rx, z: out.rz };
     tp.x = out.rx; tp.z = out.rz; tp.speed = 0;
-    this.broadcast('knock', { target: targetId, by, kind, dx: out.dx, dz: out.dz, strength, rx: out.rx, rz: out.rz, downMs: RULES.downMs, getupMs: RULES.getupMs });
+    const knock = { target: targetId, by, kind, dx: out.dx, dz: out.dz, strength, rx: out.rx, rz: out.rz, downMs: RULES.downMs, getupMs: RULES.getupMs };
+    // rodada 9 — confronto: queda por golpe/empurrão vai só para a AOI do alvo; impacto de veículo segue para todos
+    if (kind === 'impact') this.broadcast('knock', knock); else this.combatAoi(targetId, 'knock', knock, by);
+    this.combat.onKnockdown(targetId); this.jump.reset(targetId, 0);
     metrics.knock(kind);
     console.log(`[room] queda (${kind}) ${targetId} por ${by} força ${strength.toFixed(1)}`);
   }
@@ -1218,7 +1242,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     r.actor.lastActionAt = now;
     r.actor.actionTimes = [...r.actor.actionTimes.filter((x) => now - x < RULES.rateWindowMs), now];
     this.broadcast('action', { by: client.sessionId, type: 'push', target: targetId });
-    this.knockdown(targetId, r.actor.x, r.actor.z, RULES.pushDistance, 'push', client.sessionId, 1);
+    this.combat.legacyPushImpact(client.sessionId, targetId); // rodada 9: impacto da definição EMPURRÃO (combat.json)
   }
 
   /**
@@ -1287,5 +1311,68 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     p.x = x; p.z = z; p.y = 0; r.actor.x = x; r.actor.z = z;
     r.last = { x, y: 0, z, t: now, seq: r.last.seq };
     client.send('correct', [x, 0, z, r.last.seq, 'teleporte']);
+  }
+
+  // ---------------------------------------------------------------- rodada 9 — confronto (server/src/combat, docs/COMBAT.md)
+  /** o CombatSystem vê o mundo só por aqui (estado autoritativo da sala; candidatos pela grade espacial) */
+  private setupCombat(W: ServerWorld) {
+    const view = (sid: string) => { const r = this.rt.get(sid), p = this.state.players.get(sid); return r && p ? { r, p } : null; };
+    // servidor de TESTE: proteção de retorno configurável (testes de rede sem esperar 5 s); produção usa os dados
+    const protect = process.env.PV_TEST === '1' && process.env.PV_PROTECT_MS ? Number(process.env.PV_PROTECT_MS) : NaN;
+    const data = Number.isFinite(protect) ? { ...W.combat, tuning: { ...W.combat.tuning, protectMs: protect } } : W.combat;
+    const forced = process.env.PV_TEST === '1' ? (process.env.PV_COMBAT_ZONES ?? '') : '';
+    this.combat = new CombatSystem(new CombatTable(data), {
+      actor: (sid) => { const v = view(sid); return v ? { x: v.r.last.x, z: v.r.last.z, heading: v.p.heading, status: v.p.status, vehicle: v.p.vehicle, platform: v.p.platform, mode: v.r.actor.mode, prop: v.p.prop, immuneUntil: v.r.actor.immuneUntil, nid: v.r.nid } : undefined; },
+      forEachNear: (x, z, r, fn) => this.grid.forEachInRadius(x, z, r, (sl) => { const sid = this.slotIds[sl]; if (sid && this.rt.has(sid)) fn(sid); }),
+      walls: W.walls,
+      zoneOf: (sid) => this.zoneOf(sid),
+      // servidor de TESTE (carga/QA): PV_COMBAT_ZONES=*|ID,ID força política COMBAT (as zonas reais são dados do agente B)
+      zoneDef: (id) => { const z = this.zoneDef(id); return forced && z && (forced === '*' || forced.split(',').includes(z.id)) ? { ...z, combatPolicy: 'COMBAT' as const } : z; },
+      groupKey: (sid) => this.identities.get(sid)?.groupKey ?? null,
+      propKind: (id) => PROP_BY_ID.get(id)?.kind,
+      can: (sid) => { const id = this.identities.get(sid); return !!id && can(id.state, 'combat.act', id.role); },
+      send: (sid, type, msg) => this.clientBySid(sid)?.send(type, msg),
+      sendAoi: (subject, type, msg, also) => this.combatAoi(subject, type, msg, also),
+      sendNear: (x, z, r, type, msg) => this.grid.forEachInRadius(x, z, r, (sl) => { const c = this.clients2.get(this.slotIds[sl]); c?.send(type, msg); }),
+      setStatus: (sid, st) => { const v = view(sid); if (v) { v.p.status = st; v.r.actor.status = st; } },
+      setFx: (sid, fx) => { const p = this.state.players.get(sid); if (p && p.fx !== fx) p.fx = fx; },
+      place: (sid, x, z) => { const v = view(sid); if (!v) return; v.p.x = x; v.p.z = z; v.r.actor.x = x; v.r.actor.z = z; v.r.last = { ...v.r.last, x, z, t: Date.now() }; },
+      knockdown: (sid, fx, fz, d, strength, by, kind) => this.knockdown(sid, fx, fz, d, kind, by, strength),
+      emit: (sid, ev) => this.gameplay.emit(sid, ev),
+      airborne: (sid) => this.jump.airborne(sid, Date.now()),
+      now: () => Date.now(),
+      // janela ativa no instante exato (o tick de 10 Hz é só a rede de segurança)
+      schedule: (ms) => { setTimeout(() => this.combat.resolveDue(), ms + 1); },
+      onResolve: (ms) => metrics.combatHit(ms),
+      onRequest: (ok) => metrics.combatReq(ok),
+    });
+  }
+
+  private combatJoin(sid: string, r: PlayerRT) {
+    this.combat.join(sid);
+    this.jump.join(sid);
+    r.actor.immuneUntil = this.combat.protectMsFrom(Date.now()); // proteção de retorno (spawn)
+  }
+
+  /** para quem tem `subject` na área de interesse (StateView) + o próprio (+ `also`); espectadores pela vista deles */
+  private combatAoi(subject: string, type: string, msg: unknown, also?: string) {
+    const r = this.rt.get(subject);
+    if (!r) return;
+    let alsoSent = !also;
+    this.grid.forEachInRadius(r.last.x, r.last.z, AOI_RADIUS * AOI_HYST, (sl) => {
+      const sid = this.slotIds[sl], o = sid ? this.rt.get(sid) : undefined;
+      if (!o || !(sid === subject || sid === also || o.inView.has[r.slot])) return;
+      if (sid === also) alsoSent = true;
+      this.clients2.get(sid)?.send(type, msg);
+    });
+    if (!alsoSent) this.clients2.get(also!)?.send(type, msg);
+    for (const sp of this.specs.values()) if (sp.inView.has[r.slot]) sp.client.send(type, msg);
+  }
+
+  private onJump(client: Client, m: { seq?: unknown }) {
+    const p = this.state.players.get(client.sessionId);
+    if (!p) return;
+    const res = this.jump.request(client.sessionId, m?.seq, Date.now(), { status: p.status, vehicle: p.vehicle, platform: p.platform });
+    if (!res.ok) client.send('jump_denied', { seq: typeof m?.seq === 'number' ? m.seq : 0, reason: res.reason });
   }
 }
