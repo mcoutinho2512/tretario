@@ -15,7 +15,7 @@
       { "id": "central", "label": "Central do Brasil", "on": "zone_enter", "where": { "zone": "CENTRAL" } },
       { "id": "candelaria", "label": "Candelária", "on": "zone_enter", "where": { "zone": "CANDELARIA" } }
     ],
-    "rewards": [{ "kind": "xp", "amount": 100 }, { "kind": "unlock", "item": "acc:bolsa" }]
+    "rewards": [{ "kind": "xp", "amount": 100 }, { "kind": "unlock", "item": "shirt:211" }]
   },
   {
     "id": "no_meio_da_multidao",

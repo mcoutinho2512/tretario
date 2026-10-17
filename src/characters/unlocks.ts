@@ -19,10 +19,9 @@ export type ItemKey = `top:${TopStyle}` | `bottom:${BottomStyle}` | `shoes:${Sho
  * todo mundo vira pago; PREMIUM_FUTURE do catálogo não bloqueia nada ("em breve", nunca cobrado).
  */
 export const ITEM_TIERS: Partial<Record<ItemKey, UnlockTier>> = {
-  'shirt:205': 'UNLOCKED', 'shirt:206': 'UNLOCKED', 'shirt:207': 'UNLOCKED',
-  'acc:bolsa': 'UNLOCKED',
-  'action:dance_classic': 'UNLOCKED', 'action:jump_cheer': 'UNLOCKED',
-  'design:mar_e_mata': 'UNLOCKED', 'design:por_do_sol': 'EVENT_REWARD',
+  // só itens NOVOS da rodada 9 (recompensas): nada que já era livre passa a ser bloqueado
+  'shirt:208': 'UNLOCKED', 'shirt:209': 'UNLOCKED', 'shirt:210': 'UNLOCKED', 'shirt:211': 'UNLOCKED',
+  'design:mar_e_mata': 'UNLOCKED', 'design:noite_na_avenida': 'UNLOCKED', 'design:calcadao': 'UNLOCKED', 'design:por_do_sol': 'EVENT_REWARD',
 };
 
 export function tierOf(item: ItemKey): UnlockTier {

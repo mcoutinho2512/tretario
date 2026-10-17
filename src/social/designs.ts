@@ -109,6 +109,8 @@ const BUILTIN: Design[] = [
   // rodada 9 — recompensas cosméticas (src/characters/unlocks.ts, public/gameplay/rewards.json): neutras, NPCs não usam
   { id: 40, key: 'mar_e_mata', label: 'Mar e mata', family: 'neutral', pattern: 'split_h', palette: { bg: '#0077b6', fg: '#2d6a4f', accent: '#2d6a4f' }, targets: ALL_PROPS, crowdWeight: 0 },
   { id: 41, key: 'por_do_sol', label: 'Pôr do sol na avenida', family: 'event', pattern: 'h_stripes', palette: { bg: '#f77f00', fg: '#d62828', accent: '#fcbf49' }, targets: ALL_PROPS, crowdWeight: 0 },
+  { id: 42, key: 'noite_na_avenida', label: 'Noite na avenida', family: 'neutral', pattern: 'border', palette: { bg: '#14213d', fg: '#fca311', accent: '#e5e5e5' }, lines: ['AVENIDA'], targets: ALL_PROPS, crowdWeight: 0 },
+  { id: 43, key: 'calcadao', label: 'Calçadão', family: 'neutral', pattern: 'hoops', palette: { bg: '#ffffff', fg: '#111111', accent: '#111111' }, targets: ALL_PROPS, crowdWeight: 0 },
   // -------------------------------------------------------------- futebol carioca: só cores/padrões (sem escudos/marcas)
   { id: 200, key: 'fut_rubro_negro', label: 'Listras vermelho e preto', family: 'football', pattern: 'hoops', palette: { bg: '#c8102e', fg: '#ffffff', accent: '#111111' }, targets: ['shirt', 'flag'], crowdWeight: 5 },
   { id: 201, key: 'fut_alvinegro_faixa', label: 'Preta com faixa diagonal branca', family: 'football', pattern: 'sash', palette: { bg: '#111111', fg: '#ffffff', accent: '#ffffff' }, targets: ['shirt', 'flag'], crowdWeight: 3 },
@@ -118,6 +120,11 @@ const BUILTIN: Design[] = [
   { id: 205, key: 'fut_vermelha_lisa', label: 'Vermelha lisa', family: 'football', pattern: 'solid', palette: { bg: '#b0101f', fg: '#ffffff' }, targets: ['shirt'], crowdWeight: 2 },
   { id: 206, key: 'fut_amarela', label: 'Amarela com detalhes verdes', family: 'football', pattern: 'border', palette: { bg: '#ffdf00', fg: '#009c3b', accent: '#009c3b' }, targets: ['shirt'], crowdWeight: 4 },
   { id: 207, key: 'fut_azul_listras', label: 'Listras azul e branco', family: 'football', pattern: 'v_stripes', palette: { bg: '#ffffff', fg: '#0b3d91', accent: '#0b3d91' }, targets: ['shirt'], crowdWeight: 1 },
+  // rodada 9 — camisas de RECOMPENSA (cores próprias, sem escudo/marca; NPCs não usam)
+  { id: 208, key: 'rec_azul_petroleo', label: 'Azul petróleo da avenida', family: 'neutral', pattern: 'border', palette: { bg: '#1b4965', fg: '#ffffff', accent: '#cae9ff' }, targets: ['shirt'], crowdWeight: 0 },
+  { id: 209, key: 'rec_coral', label: 'Coral com gola creme', family: 'neutral', pattern: 'border', palette: { bg: '#ef6f6c', fg: '#fdf0d5', accent: '#fdf0d5' }, targets: ['shirt'], crowdWeight: 0 },
+  { id: 210, key: 'rec_areia_verde', label: 'Listras areia e verde', family: 'neutral', pattern: 'v_stripes', palette: { bg: '#e9d8a6', fg: '#2d6a4f', accent: '#2d6a4f' }, targets: ['shirt'], crowdWeight: 0 },
+  { id: 211, key: 'rec_calcadao', label: 'Ondas do calçadão', family: 'neutral', pattern: 'hoops', palette: { bg: '#ffffff', fg: '#222222', accent: '#222222' }, targets: ['shirt'], crowdWeight: 0 },
 ];
 
 /**

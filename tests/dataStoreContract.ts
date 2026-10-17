@@ -161,7 +161,7 @@ export function dataStoreContract(name: string, make: () => Promise<DataStore>) 
         xp: 300, level: 3, data: { v: 1, active: [], seen: ['welcome'] },
         completed: [{ missionId: 'boas_vindas', at: new Date() }, { missionId: 'conheca_pv', at: new Date() }],
         achievements: [{ achievementId: 'primeiros_passos', at: new Date() }],
-        grants: [{ item: 'title:Teste', source: 'outra', at: new Date() }, { item: 'shirt:206', source: 'mission:mobilidade', at: new Date() }],
+        grants: [{ item: 'title:Teste', source: 'outra', at: new Date() }, { item: 'shirt:209', source: 'mission:mobilidade', at: new Date() }],
       });
       const r = (await s.progression.load(u.id))!;
       expect(r.xp).toBe(300);
@@ -170,7 +170,7 @@ export function dataStoreContract(name: string, make: () => Promise<DataStore>) 
       expect(r.completed.map((c) => c.missionId).sort()).toEqual(['boas_vindas', 'conheca_pv']);
       expect(+r.completed.find((c) => c.missionId === 'boas_vindas')!.completedAt).toBe(+t); // a primeira vale
       expect(r.achievements.map((a) => a.achievementId)).toEqual(['primeiros_passos']);
-      expect(r.grants.map((g) => g.item).sort()).toEqual(['shirt:206', 'title:Teste']);
+      expect(r.grants.map((g) => g.item).sort()).toEqual(['shirt:209', 'title:Teste']);
       expect(r.grants.find((g) => g.item === 'title:Teste')!.source).toBe('mission:boas_vindas');
       // outra conta não vê nada
       const v = await newUser();

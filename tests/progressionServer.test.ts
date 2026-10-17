@@ -130,7 +130,7 @@ describe.skipIf(skip)('progressão — sala real', () => {
     const s = last(a)!;
     expect(s.level).toBeGreaterThanOrEqual(2);
     expect(s.achievements).toEqual(expect.arrayContaining(['primeiros_passos', 'inicio_ao_fim']));
-    expect(s.unlocks).toContain('acc:bolsa');
+    expect(s.unlocks).toContain('shirt:211');
     expect(a.notes.some((n) => n.kind === 'level')).toBe(true);
     expect(s.xp).toBe(50 + 25 + 200 + 100); // BEM-VINDO + PRIMEIROS PASSOS + CONHEÇA + DO INÍCIO AO FIM (sem XP da distância em si)
 
@@ -151,7 +151,7 @@ describe.skipIf(skip)('progressão — sala real', () => {
     const rec = await store.progression.load(A.id);
     expect(rec?.xp).toBe(s.xp);
     expect(rec?.completed.map((c) => c.missionId).sort()).toEqual(['boas_vindas', 'conheca_pv']);
-    expect(rec?.grants.map((g) => g.item)).toEqual(expect.arrayContaining(['acc:bolsa', 'title:Conhece a avenida']));
+    expect(rec?.grants.map((g) => g.item)).toEqual(expect.arrayContaining(['shirt:211', 'title:Conhece a avenida']));
 
     // logout/login: sessão (cookie) e conexão NOVAS → mesmo progresso
     const b = await enter(await login(A.id), central);
@@ -164,7 +164,7 @@ describe.skipIf(skip)('progressão — sala real', () => {
     expect(r.seen).toEqual(['welcome']);
     // API do editor: itens liberados da própria conta
     const me = await fetch(`${api}/api/me/progress`, { headers: { cookie: await login(A.id) } }).then((x) => x.json()) as { unlocks: string[]; xp: number };
-    expect(me.unlocks).toContain('acc:bolsa');
+    expect(me.unlocks).toContain('shirt:211');
     expect((await fetch(`${api}/api/me/progress`)).status).toBe(401);
   }, 60_000);
 });

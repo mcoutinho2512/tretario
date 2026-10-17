@@ -36,7 +36,7 @@
       { "id": "concentracao", "label": "Fique numa concentração (trio, carro de som ou palco)", "on": "rally_visit" },
       { "id": "trio", "label": "Suba no trio elétrico", "on": "trio_board" }
     ],
-    "rewards": [{ "kind": "xp", "amount": 200 }, { "kind": "unlock", "item": "action:dance_classic" }]
+    "rewards": [{ "kind": "xp", "amount": 200 }, { "kind": "unlock", "item": "design:noite_na_avenida" }]
   },
   {
     "id": "mobilidade",
@@ -50,7 +50,7 @@
       { "id": "patinete", "label": "Use um patinete", "on": "vehicle_enter", "where": { "kind": "scooter" } },
       { "id": "centro", "label": "Chegue ao Centro", "on": "zone_enter", "where": { "zone": "CENTRO" } }
     ],
-    "rewards": [{ "kind": "xp", "amount": 200 }, { "kind": "unlock", "item": "shirt:206" }]
+    "rewards": [{ "kind": "xp", "amount": 200 }, { "kind": "unlock", "item": "shirt:209" }]
   },
   {
     "id": "voz_na_avenida",

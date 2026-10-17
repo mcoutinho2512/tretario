@@ -105,9 +105,9 @@ describe('catálogo (public/gameplay)', () => {
       if (k === 'action') expect(ACTION_BY_KEY.has(v)).toBe(true);
       if (k === 'design') expect(DESIGN_BY_KEY.has(v)).toBe(true);
     }
-    expect(requirementOf(CAT, 'shirt:205')).toBe('Nível 3');
-    expect(requirementOf(CAT, 'shirt:206')).toBe('Missão: MOBILIDADE');
-    expect(requirementOf(CAT, 'acc:bolsa')).toBe('Conquista: DO INÍCIO AO FIM');
+    expect(requirementOf(CAT, 'shirt:208')).toBe('Nível 3');
+    expect(requirementOf(CAT, 'shirt:209')).toBe('Missão: MOBILIDADE');
+    expect(requirementOf(CAT, 'shirt:211')).toBe('Conquista: DO INÍCIO AO FIM');
   });
 });
 
@@ -189,7 +189,7 @@ describe('ProgressionService', () => {
     expect(rec.grants.length).toBe(new Set(rec.grants.map((g) => g.item)).size);
     expect(rec.completed.length).toBe(a.completedMissions.length);
     // o banco recusa duplicados mesmo se o serviço tentasse de novo (par único)
-    await store.progression.save('u1', { xp: rec.xp, level: rec.level, data: rec.data, completed: [{ missionId: 'boas_vindas', at: new Date() }], achievements: [{ achievementId: 'no_palco', at: new Date() }], grants: [{ item: 'shirt:206', source: 'x', at: new Date() }] });
+    await store.progression.save('u1', { xp: rec.xp, level: rec.level, data: rec.data, completed: [{ missionId: 'boas_vindas', at: new Date() }], achievements: [{ achievementId: 'no_palco', at: new Date() }], grants: [{ item: 'shirt:209', source: 'x', at: new Date() }] });
     const rec2 = (await store.progression.load('u1'))!;
     expect(rec2.completed.length).toBe(rec.completed.length);
     expect(rec2.grants.length).toBe(rec.grants.length);
@@ -252,7 +252,7 @@ describe('ProgressionService', () => {
     expect(s.level).toBeGreaterThanOrEqual(5);
     expect(s.completedMissions).toEqual(expect.arrayContaining(['boas_vindas', 'conheca_pv', 'entre_no_clima', 'mobilidade', 'voz_na_avenida', 'grande_passeio']));
     expect(s.completedMissions).not.toContain('treino_confronto');
-    expect(s.unlocks).toEqual(expect.arrayContaining(['shirt:206', 'action:dance_classic', 'acc:bolsa', 'shirt:205', 'shirt:207']));
+    expect(s.unlocks).toEqual(expect.arrayContaining(['shirt:209', 'design:noite_na_avenida', 'shirt:211', 'shirt:208', 'shirt:210']));
     expect(s.titles).toContain('Conhece a avenida');
   });
 
@@ -335,25 +335,26 @@ describe('ProgressionService', () => {
 
 describe('direitos cosméticos (unlocks.ts + validadores)', () => {
   it('item liberado vale no validador de aparência e nas regras de ação/item; bloqueado cai no padrão / é negado', () => {
-    const app = { ...DEFAULT_PLAYER_APPEARANCE.homem, topStyle: 'camiseta', shirtDesign: 206, accessory: 'bolsa' };
-    const none = validateAppearance(app)!;
-    expect(none.shirtDesign).toBe(0);
-    expect(none.accessory).toBe('nenhum');
-    const ok = validateAppearance(app, null, { items: new Set(['shirt:206', 'acc:bolsa']) })!;
-    expect(ok.shirtDesign).toBe(206);
-    expect(ok.accessory).toBe('bolsa');
-    expect(validateAppearance({ ...app, shirtDesign: 200 })!.shirtDesign).toBe(200); // o que era livre continua livre
-    expect(isAvailable('shirt:206' as ItemKey)).toBe(false);
+    const app = { ...DEFAULT_PLAYER_APPEARANCE.homem, topStyle: 'camiseta', shirtDesign: 209 };
+    expect(validateAppearance(app)!.shirtDesign).toBe(0);
+    expect(validateAppearance(app, null, { items: new Set(['shirt:209']) })!.shirtDesign).toBe(209);
+    // o que era livre ANTES da rodada 9 continua livre (camisas 200–207, bolsa, danças)
+    for (const d of [200, 205, 206, 207]) expect(validateAppearance({ ...app, shirtDesign: d })!.shirtDesign).toBe(d);
+    expect(validateAppearance({ ...app, shirtDesign: 0, accessory: 'bolsa' })!.accessory).toBe('bolsa');
+    expect(isAvailable('shirt:209' as ItemKey)).toBe(false);
     const actor = (items: string[]): ActionActor => ({ act: 0, actAt: 0, prop: 0, design: 0, status: 0, vehicle: '', recent: [], ent: { items: new Set(items) } });
     const dc = ACTION_BY_KEY.get('dance_classic')!.id;
-    expect(validateAction(actor([]), dc, 1e6)).toEqual({ ok: false, reason: 'bloqueado' });
-    expect(validateAction(actor(['action:dance_classic']), dc, 1e6).ok).toBe(true);
-    expect(validateAction(actor([]), ACTION_BY_KEY.get('dance_party')!.id, 1e6).ok).toBe(true);
+    expect(validateAction(actor([]), dc, 1e6).ok).toBe(true);
+    // mecanismo de ação bloqueada (nenhuma ação é recompensa hoje): tier temporário
+    ITEM_TIERS['action:dance_classic' as ItemKey] = 'UNLOCKED';
+    try {
+      expect(validateAction(actor([]), dc, 1e6)).toEqual({ ok: false, reason: 'bloqueado' });
+      expect(validateAction(actor(['action:dance_classic']), dc, 1e6).ok).toBe(true);
+      expect(validateAction({ act: 0, actAt: 0, prop: 0, design: 0, status: 0, vehicle: '', recent: [] }, dc, 1e6).ok).toBe(true);
+    } finally { delete ITEM_TIERS['action:dance_classic' as ItemKey]; }
     const flag = PROP_BY_KIND.get('flag_small')!.id, sun = DESIGN_BY_KEY.get('por_do_sol')!.id;
     expect(validateProp(actor([]), flag, sun, 1e6)).toEqual({ ok: false, reason: 'bloqueado' });
     expect(validateProp(actor(['design:por_do_sol']), flag, sun, 1e6).ok).toBe(true);
-    // NPC/cliente sem `ent`: nada muda (só o servidor bloqueia)
-    expect(validateAction({ act: 0, actAt: 0, prop: 0, design: 0, status: 0, vehicle: '', recent: [] }, dc, 1e6).ok).toBe(true);
   });
 });
 

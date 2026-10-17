@@ -49,14 +49,17 @@ Caminho pacífico completo ≈ 1675 XP (nível 6), sem confronto e sem eventos d
 | Item | Como | Fonte |
 |---|---|---|
 | `design:mar_e_mata` (bandeira/cartaz) | nível 2 | PROGRESSION |
-| `shirt:205` camisa vermelha lisa | nível 3 | PROGRESSION |
-| `action:jump_cheer` pulo de comemoração | nível 4 | PROGRESSION |
-| `shirt:207` listras azul e branco | nível 5 | PROGRESSION |
-| `action:dance_classic` dança clássica | missão ENTRE NO CLIMA | PROGRESSION |
-| `shirt:206` amarela com detalhes verdes | missão MOBILIDADE | PROGRESSION |
-| `acc:bolsa` | conquista DO INÍCIO AO FIM | PROGRESSION |
+| `shirt:208` camisa azul petróleo | nível 3 | PROGRESSION |
+| `design:calcadao` bandeira/cartaz Calçadão | nível 4 | PROGRESSION |
+| `shirt:210` listras areia e verde | nível 5 | PROGRESSION |
+| `design:noite_na_avenida` bandeira/cartaz Noite na avenida | missão ENTRE NO CLIMA | PROGRESSION |
+| `shirt:209` coral com gola creme | missão MOBILIDADE | PROGRESSION |
+| `shirt:211` ondas do calçadão | conquista DO INÍCIO AO FIM | PROGRESSION |
 | `design:por_do_sol` | conquista PRIMEIRO EVENTO | EVENT_REWARD |
 | pacote de poses / bandeiras de artistas | — | PREMIUM_FUTURE: "em breve", **não bloqueia nada e nunca é cobrado** |
+
+Regra: recompensas são SEMPRE itens novos (camisas 208–211, designs 40–43, títulos). Nada que já era livre antes da
+rodada 9 é bloqueado — quem já usava uma peça não perde a aparência salva.
 
 - Só itens novos ou pouco usados viraram recompensa: o que todos já usavam continua livre. Nenhum dá vantagem.
 - Direitos = `RewardGrant` + itens do nível. Valem no **validador único** (`validateAppearance(raw, fallback, ent)`) na

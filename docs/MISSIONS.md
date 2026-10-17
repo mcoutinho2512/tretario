@@ -16,7 +16,7 @@ conclusão. Progressão, XP, níveis e persistência: `docs/PROGRESSION.md`.
     { "id": "a_pe", "label": "Caminhe 500 m", "on": "distance", "where": { "mode": "foot" }, "sumField": "meters", "count": 500 },
     { "id": "bicicleta", "label": "Use uma bicicleta", "on": "vehicle_enter", "where": { "kind": "bicycle" } }
   ],
-  "rewards": [{ "kind": "xp", "amount": 200 }, { "kind": "unlock", "item": "shirt:206" }, { "kind": "title", "title": "…" }] }
+  "rewards": [{ "kind": "xp", "amount": 200 }, { "kind": "unlock", "item": "shirt:209" }, { "kind": "title", "title": "…" }] }
 ```
 
 - **Objetivo** = tipo de evento (`on`) + filtro por **igualdade** campo a campo (`where`) + `count` (padrão 1). Com
@@ -62,7 +62,7 @@ Os emissores do agente C ficam em `server/src/progression/emitters.ts`; a sala c
 | DE PONTA A PONTA | MOBILIDADE, nível 3 | terminar uma corrida | 150 XP |
 | TREINO DE CONFRONTO (opcional) | boas-vindas, nível 2 | soco, chute, esquiva, derrubar o boneco | 150 XP |
 
-Conquistas: PRIMEIROS PASSOS, DO INÍCIO AO FIM (Central e Candelária na mesma visita → bolsa), NO MEIO DA MULTIDÃO,
+Conquistas: PRIMEIROS PASSOS, DO INÍCIO AO FIM (Central e Candelária na mesma visita → camisa ondas do calçadão), NO MEIO DA MULTIDÃO,
 NO PALCO (trio), SOBRE DUAS RODAS, PRIMEIRO EVENTO (→ design "Pôr do sol"), PERNAS PARA QUE TE QUERO (5 km), ARTE NA
 AVENIDA, BOA CONVERSA (só título), OUVINTE ATENTO, NA RETA FINAL (secreta).
 
