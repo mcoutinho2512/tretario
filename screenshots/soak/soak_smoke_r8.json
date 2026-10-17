@@ -1,0 +1,67 @@
+{
+ "summary": {
+  "minutes": 3,
+  "bots": 20,
+  "samples": 5,
+  "errors": [],
+  "heap": {
+   "first": 60.72,
+   "last": 82.72,
+   "min": 60.72,
+   "max": 82.72
+  },
+  "slopeMBperMin": {
+   "total": 6.952,
+   "first20": 6.952,
+   "last30": 6.952
+  },
+  "gpu": {
+   "first": 503.1,
+   "last": 649.8,
+   "max": 649.8
+  },
+  "verdict": "CONTINUA CRESCENDO — investigar"
+ },
+ "samples": [
+  {
+   "t": 0,
+   "usedMB": 60.72,
+   "gpuMB": 503.1,
+   "fps": 58,
+   "calls": 620,
+   "humans": 418
+  },
+  {
+   "t": 43,
+   "usedMB": 74.4,
+   "gpuMB": 570.1,
+   "fps": 59,
+   "calls": 599,
+   "humans": 418
+  },
+  {
+   "t": 92,
+   "usedMB": 75.73,
+   "gpuMB": 591.6,
+   "fps": 58,
+   "calls": 1115,
+   "humans": 418
+  },
+  {
+   "t": 121,
+   "usedMB": 76.69,
+   "gpuMB": 590.5,
+   "fps": 58,
+   "calls": 819,
+   "humans": 418
+  },
+  {
+   "t": 163,
+   "usedMB": 82.72,
+   "gpuMB": 649.8,
+   "fps": 58,
+   "calls": 563,
+   "humans": 418
+  }
+ ]
+}

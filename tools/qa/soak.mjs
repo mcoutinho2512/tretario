@@ -55,6 +55,15 @@ page.on('pageerror', (e) => errors.push(e.message));
 await page.goto(`${BASE}/?autostart=1&quality=high&time=12:00&mem=1&mp=ws://127.0.0.1:${PORT}&name=Soak&spawn=${trio.x - 30},${trio.z}`);
 await page.waitForFunction('window.__pvReady === true && window.__pv.mp()?.session', { timeout: 240000 });
 const cdp = await page.createCDPSession();
+// espectador simultâneo no MESMO mundo (rodada 8) — só a página do jogador é medida
+let spec = null;
+if (process.env.SOAK_SPECTATOR !== '0') {
+  const b2 = await puppeteer.launch({ executablePath: chrome, headless: 'new', args: ['--use-angle=metal', '--enable-gpu'], defaultViewport: { width: 800, height: 500 } });
+  spec = await b2.newPage();
+  await spec.goto(`${BASE}/?autostart=1&spectate=1&quality=low&time=12:00&mp=ws://127.0.0.1:${PORT}`).catch(() => {});
+  await spec.waitForFunction('window.__pvReady === true', { timeout: 240000 }).catch(() => { spec = null; });
+  process.on('exit', () => { void b2.close(); });
+}
 
 const heap = async () => {
   for (let i = 0; i < 2; i++) { await cdp.send('HeapProfiler.collectGarbage'); await w(300); }
@@ -112,7 +121,9 @@ const steps = [
     if (s && !s.err) { await ev((f) => window.__pv.teleport(f[0], f[1], 0), s.front); await w(1500); await ev(() => window.__pv.gf.open()); await w(2500); await ev(() => window.__pv.gf.close()); }
   },
   // chat (rodada 8, se existir)
-  async () => { await ev(() => window.__pv.chat?.send?.('geral', `soak ${Date.now() % 1000}`)); },
+  async () => { await ev((t) => { const c = window.__pv.chat?.(); c?.type?.(t, 'geral'); }, `passando pela avenida ${Date.now() % 1000}`); },
+  // espectador simultâneo (outra página): troca de câmera 1–6
+  async () => { if (spec) await spec.evaluate((k) => window.dispatchEvent(new KeyboardEvent('keydown', { code: `Digit${k}`, key: String(k) })), 1 + (k % 6)).catch(() => {}); },
   // longe de tudo (descarrega multidão/LOD) e volta
   async () => { const [x, z, h] = along(0.05, 0); await ev((x, z, h) => window.__pv.teleport(x, z, h), x, z, h); },
 ];

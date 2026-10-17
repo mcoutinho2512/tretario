@@ -134,3 +134,15 @@ QA: `node tools/qa/trio_mp.mjs <baseUrl>` (multiplayer, servidor de teste própr
 (D carro de som, E trio, E3 trio à noite, F jogador sobre o trio, F2 visto por outro cliente, G caminhões 13/22 e
 G3 arte neutra — mesma geometria, só textura, H telão, I palco); representativas em `docs/screenshots/round7/`.
 Animações das ações e poses de itens (clipes procedurais, camada de ação, multidão instanciada, pegadas): `docs/EMOTES.md`.
+
+## Grupos do evento e identidade (rodada 8)
+- O jogador escolhe um grupo **por evento** (EventMembership; `public/events/manifestacao.json` → GRUPO 13, GRUPO 22,
+  NEUTRO). A escolha não é atributo da conta e é apagada após a retenção do evento (`membershipRetentionDays`).
+- O grupo só define **aparência sugerida**: `designKey` e `suggestedDesigns` (CampaignDesign / designs neutros) viram o
+  padrão ao pegar bandeira, cartaz ou faixa e a opção de camiseta na escolha do grupo — nunca obrigatórios.
+- **Neutralidade mecânica** (tests/groupNeutrality.test.ts): velocidade, acesso, veículos, área de interesse,
+  prioridade do servidor e qualidade gráfica são idênticos para 13, 22, NEUTRO e sem grupo; nenhum código-fonte
+  menciona ids de grupo ou chaves de design de campanha.
+- O canal de chat GRUPO usa o grupo do evento (docs/CHAT.md); nada mais depende dele.
+- Detalhes de conta, sessão e privacidade: docs/IDENTITY.md, docs/AUTH.md, docs/ACCESS_CONTROL.md,
+  docs/PRIVACY_ARCHITECTURE.md.

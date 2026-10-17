@@ -50,7 +50,7 @@ for (const sc of LIST) {
   const tJoin = Date.now();
   for (let k = 0; k < nProcs; k++) {
     const n = Math.min(BOTS_PER_PROC, sc.n - k * BOTS_PER_PROC);
-    const p = spawn('npx', ['tsx', 'tools/bots.ts', String(n), String(SECS), `ws://127.0.0.1:${PORT}`, sc.dense ? 'dense' : 'spread', `--offset=${k * BOTS_PER_PROC}`, `--total=${sc.n}`, '--wait-go', '--hold', ...(process.env.BOTS_SOCIAL ? [`--social=${process.env.BOTS_SOCIAL}`] : [])], { stdio: ['pipe', 'pipe', 'inherit'], detached: true });
+    const p = spawn('npx', ['tsx', 'tools/bots.ts', String(n), String(SECS), `ws://127.0.0.1:${PORT}`, sc.dense ? 'dense' : 'spread', `--offset=${k * BOTS_PER_PROC}`, `--total=${sc.n}`, '--wait-go', '--hold', ...(process.env.BOTS_SOCIAL ? [`--social=${process.env.BOTS_SOCIAL}`] : []), ...(process.env.BOTS_GROUPS ? ['--groups'] : []), ...(process.env.BOTS_CHAT ? [`--chat=${process.env.BOTS_CHAT}`] : [])], { stdio: ['pipe', 'pipe', 'inherit'], detached: true });
     procs.push(p);
     outs.push('');
     const rl = createInterface({ input: p.stdout! });

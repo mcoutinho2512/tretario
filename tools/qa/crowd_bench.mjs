@@ -17,7 +17,7 @@ import { spawn } from 'node:child_process';
 import { writeFileSync, readFileSync, mkdirSync } from 'node:fs';
 import { createInterface } from 'node:readline';
 
-const BASE = process.argv[2] ?? 'http://localhost:5192';
+const BASE = process.argv[2] ?? 'http://localhost:5173';
 const COUNTS = (process.argv[3] ?? '50,100,250,500').split(',').map(Number);
 const PRESETS = (process.argv[4] ?? 'low,medium,high').split(',');
 const EXTRA = process.argv[5] ? `&${process.argv[5]}` : '';
@@ -60,7 +60,7 @@ async function startBots(n) {
   const ready = [];
   for (let k = 0; k * 100 < n; k++) {
     const cnt = Math.min(100, n - k * 100);
-    const p = start('npx', ['tsx', 'tools/bots.ts', String(cnt), '3600', `ws://127.0.0.1:${PORT}`, 'dense', `--offset=${k * 100}`, `--total=${n}`, '--wait-go', ...(SOCIAL ? [`--social=${SOCIAL}`] : [])], {}, ['pipe', 'pipe', 'inherit']);
+    const p = start('npx', ['tsx', 'tools/bots.ts', String(cnt), '3600', `ws://127.0.0.1:${PORT}`, 'dense', `--offset=${k * 100}`, `--total=${n}`, '--wait-go', ...(SOCIAL ? [`--social=${SOCIAL}`] : []), ...(process.env.BOTS_GROUPS ? ['--groups'] : []), ...(process.env.BOTS_CHAT ? [`--chat=${process.env.BOTS_CHAT}`] : [])], {}, ['pipe', 'pipe', 'inherit']);
     const rl = createInterface({ input: p.stdout });
     ready.push(new Promise((res) => rl.on('line', (l) => { if (l.trim() === 'READY') res(); })));
     list.push(p);
