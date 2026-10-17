@@ -1,0 +1,26 @@
+/* confronto (rodada 9): HUD discreto + botões de toque contextuais — docs/HUD.md, docs/COMBAT.md */
+.cbt-hud { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 6px 10px 7px; border-radius: 8px; background: rgba(12, 15, 18, 0.55); color: #fff; font: 600 10.5px system-ui, sans-serif; letter-spacing: 0.08em; opacity: 0; transition: opacity 0.3s; pointer-events: none; min-width: 170px; }
+.cbt-hud.show { opacity: 1; }
+.cbt-hud .cbt-zone { font-size: 10px; opacity: 0.85; }
+.cbt-hud .cbt-zone.combat { color: #ffb08a; }
+.cbt-hud .cbt-zone.peace { color: #a8e6b0; }
+.cbt-hud .cbt-row { display: flex; align-items: center; gap: 6px; width: 100%; }
+.cbt-hud .cbt-row b { width: 64px; font-weight: 600; font-size: 9.5px; opacity: 0.8; text-align: right; }
+.cbt-hud .cbt-bar { flex: 1; height: 6px; border-radius: 3px; background: rgba(255, 255, 255, 0.14); overflow: hidden; }
+.cbt-hud .cbt-bar i { display: block; height: 100%; width: 100%; transform-origin: left center; transition: transform 0.18s linear; }
+.cbt-hud .cbt-cond i { background: #f2c230; }
+.cbt-hud .cbt-stam i { background: #6fc3ff; }
+.cbt-hud .cbt-item { font-size: 9.5px; opacity: 0.8; }
+.cbt-hud .cbt-item:empty { display: none; }
+.cbt-hud.prot .cbt-zone::after { content: ' · PROTEGIDO'; color: #a8d8ff; }
+.cbt-hud.hitpulse { box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.35); }
+.cbt-peace { position: absolute; left: 50%; top: calc(var(--sat, 0px) + 118px); transform: translateX(-50%); padding: 5px 12px; border-radius: 12px; background: rgba(40, 110, 60, 0.55); color: #eaffef; font: 700 11px system-ui, sans-serif; letter-spacing: 0.14em; opacity: 0; transition: opacity 0.25s; pointer-events: none; }
+.cbt-peace.show { opacity: 1; }
+.hud.photo .cbt-hud, .hud.photo .cbt-peace { display: none; }
+/* toque: três botões pequenos à esquerda da coluna fixa (PULAR/AÇÕES/CORRER), só com contexto de confronto */
+.touch-combat[hidden] { display: none; }
+.touch-btn.cbt { width: 58px; height: 58px; font-size: 9.5px; background: rgba(150, 52, 40, 0.42); border-color: rgba(255, 170, 140, 0.5); }
+.touch-btn.cbt_punch { bottom: calc(var(--sab) + 30px); right: calc(var(--sar) + 196px); }
+.touch-btn.cbt_kick { bottom: calc(var(--sab) + 100px); right: calc(var(--sar) + 186px); }
+.touch-btn.cbt_dodge { bottom: calc(var(--sab) + 168px); right: calc(var(--sar) + 150px); }
+.hud.photo .touch-combat { display: none; }

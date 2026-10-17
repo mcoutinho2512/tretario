@@ -105,6 +105,9 @@ export class CombatSystem {
   }
 
   get tuning() { return this.table.tuning; }
+  /** maior deslocamento de esquiva da tabela */
+  private get dashM() { return this._dash ??= Math.max(0, ...this.table.data.actions.map((a) => a.dashM ?? 0)); }
+  private _dash: number | undefined;
 
   // ---------------------------------------------------------------- entrada / saída
   join(sid: string) {
@@ -243,16 +246,19 @@ export class CombatSystem {
     const t0 = performance.now();
     const def = p.def, t = this.tuning;
     const reach = def.range + t.rangeSlackM;
+    // quem está esquivando conta como alvo até o alcance + o deslocamento da esquiva (o golpe era nele: 'dodged')
+    const dodgeReach = reach + this.dashM;
     const max = Math.max(1, def.maxTargets ?? 1);
     const found: { sid: string; a: CombatActorView; d: number }[] = [];
-    this.host.forEachNear(me.x, me.z, reach + 1.2, (o) => { // grade do tick anterior: folga para quem andou
+    this.host.forEachNear(me.x, me.z, dodgeReach + 1.2, (o) => { // grade do tick anterior: folga para quem andou
       if (o === sid || p.done?.has(o)) return;
       this.stats.candidates++;
       const a = this.host.actor(o);
       if (!a || a.vehicle || a.platform) return;
       if (a.status === PHYS.KNOCKED_DOWN || a.status === PHYS.GETTING_UP || a.status === PHYS.RAGDOLL) return;
       const d = Math.hypot(a.x - me.x, a.z - me.z);
-      if (d > reach || !inArc(me.x, me.z, p.h, a.x, a.z, def.arcDeg, t.arcSlackDeg)) return;
+      const dodging = (this.f.get(o)?.dodgeUntil ?? 0) > now;
+      if (d > (dodging ? dodgeReach : reach) || !inArc(me.x, me.z, p.h, a.x, a.z, def.arcDeg + (dodging ? 50 : 0), t.arcSlackDeg)) return;
       if (this.host.walls && checkPath(this.host.walls, me, a, 'foot', 1.0).blocked) return;
       found.push({ sid: o, a, d });
     });

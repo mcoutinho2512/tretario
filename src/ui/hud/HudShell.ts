@@ -159,8 +159,8 @@ export class HudShell {
     this.helpEl = div('hud-help');
     this.helpEl.hidden = true;
     this.helpEl.innerHTML = opts.touch
-      ? '<b>Controles</b><br>Joystick: andar (até o fim corre) · Arraste: câmera · Pinça: zoom<br>PULAR · USAR (quando há algo perto) · AÇÕES · CHAT · ☰ menu'
-      : '<b>Controles</b><br><kbd>WASD</kbd> andar · <kbd>Shift</kbd> correr · <kbd>Espaço</kbd> pular · <kbd>Mouse</kbd> câmera · <kbd>Roda</kbd> zoom<br><kbd>E</kbd> usar / subir no trio / pichar · <kbd>G</kbd> ações · <kbd>K</kbd> modo · <kbd>F</kbd> empurrar (modo interação)<br><kbd>M</kbd> mapa · <kbd>H</kbd>/<kbd>P</kbd> HUD limpo · <kbd>F1</kbd> controles · <kbd>F3</kbd> debug · <kbd>Esc</kbd> soltar o mouse';
+      ? '<b>Controles</b><br>Joystick: andar (até o fim corre) · Arraste: câmera · Pinça: zoom<br>PULAR · USAR (quando há algo perto) · AÇÕES · CHAT · ☰ menu<br>SOCO · CHUTE · ESQUIVA: só onde há confronto (zona de combate, treino, evento ou modo interação)'
+      : '<b>Controles</b><br><kbd>WASD</kbd> andar · <kbd>Shift</kbd> correr · <kbd>Espaço</kbd> pular · <kbd>Mouse</kbd> câmera · <kbd>Roda</kbd> zoom<br><kbd>E</kbd> usar / subir no trio / pichar · <kbd>G</kbd> ações · <kbd>K</kbd> modo · <kbd>F</kbd> empurrar (modo interação)<br><kbd>Clique</kbd>/<kbd>R</kbd> soco · <kbd>Q</kbd>/botão direito chute · <kbd>C</kbd> esquiva (zonas de combate e treino)<br><kbd>M</kbd> mapa · <kbd>H</kbd>/<kbd>P</kbd> HUD limpo · <kbd>F1</kbd> controles · <kbd>F3</kbd> debug · <kbd>Esc</kbd> soltar o mouse';
     this.helpEl.addEventListener('click', () => this.toggleHelp(false));
     const restore = document.createElement('button');
     restore.type = 'button';
@@ -196,6 +196,12 @@ export class HudShell {
     this.chat = panel;
     this.chatSlot.replaceChildren(panel.el);
     panel.setCollapsed?.(this.prefs.value.chatCollapsed);
+  }
+
+  /** rodada 9 — HUD de confronto (src/combat/CombatHud) acima do centro inferior + aviso discreto ZONA DE PAZ */
+  mountCombat(panel: HudPanel, notice?: HTMLElement) {
+    this.specSlot.parentElement?.prepend(panel.el);
+    if (notice) this.root.appendChild(notice);
   }
 
   /** seletor de câmeras do espectador (agente D), acima da ação contextual */

@@ -196,6 +196,10 @@ function setAct(act: string | null, prop: string | null, t: number | null, varia
 setAct(q.get('act'), q.get('prop'), q.get('t') !== null && (q.get('act') || q.get('prop')) ? Number(q.get('t')) : null, Number(q.get('var') ?? 0));
 
 const freezeLoco = q.get('t') ? Number(q.get('t')) : null;
+/** rodada 9 — confronto: &cbt=<clipe de combat.json>&t=<s> congela o golpe/esquiva no instante (QA dos clipes) */
+const cbtClip = q.get('cbt');
+let cbtOn = false;
+if (cbtClip) actT = Number(q.get('t') ?? 0.2);
 (window as any).__human = {
   chars,
   actions: ACTIONS.map((a) => ({ key: a.key, label: a.label, mode: a.mode, duration: a.duration ?? specFor(a.clip)?.dur ?? 2, needs: a.needs, layer: a.layer })),
@@ -225,6 +229,7 @@ function frame() {
       for (let k = 0; k < 120; k++) a.update(speed, true, 1 / 60);
       c.setSocial(pending);
     }
+    if (cbtClip && !cbtOn) a.playCombat(cbtClip);
     if (actT !== null || freezeLoco !== null) {
       if (!pending && actT === null) for (let k = 0; k < 120; k++) a.update(speed, true, 1 / 60);
       a.mixer.setTime(freezeLoco ?? 0);
@@ -234,6 +239,7 @@ function frame() {
     c.updateProps(dt);
   }
   pending = null;
+  if (cbtClip) cbtOn = true;
   updateProxy();
   crowd?.draw(crowdAgents, dt);
   renderer.render(scene, cam);

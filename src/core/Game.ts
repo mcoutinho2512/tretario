@@ -80,6 +80,8 @@ import type { TrafficData } from '../world/types';
 import type { SpectatorMode } from '../spectator/SpectatorMode';
 import type { CellImpostors } from '../spectator/CellImpostors';
 import { ReconnectBadge } from '../net/ReconnectBadge';
+// rodada 9 — confronto (src/combat; carregado com o multiplayer)
+import type { CombatClient } from '../combat/CombatClient';
 
 export { DEFAULT_PLAYER_APPEARANCE } from '../characters/bodyTypes';
 
@@ -160,6 +162,9 @@ export class Game {
   private get aerial() { const t = this.net?.specTier; return !!this.spec && (t === 'FAR' || t === 'AGGREGATE'); }
   private layerAcc = 0;
   private linkBadge = new ReconnectBadge();
+  /** rodada 9 — confronto: pulo/golpes/esquiva (só intenção; resultado do servidor) e controles de toque */
+  private combat: CombatClient | null = null;
+  private touchCtl: TouchControls | null = null;
   get spectator() { return this.startOpts.role === 'spectator'; }
 
   constructor(private container: HTMLElement, private preset: QualityPreset, appearance?: CharacterAppearance, private startOpts: GameStartOptions = {}) {
@@ -405,7 +410,7 @@ export class Game {
 
   private mountHud() {
     let touch: TouchControls | null = null;
-    if (this.input.isTouch) { touch = new TouchControls(this.input); this.hud.appendChild(touch.el); } // embaixo de tudo
+    if (this.input.isTouch) { touch = this.touchCtl = new TouchControls(this.input); this.hud.appendChild(touch.el); } // embaixo de tudo
     const shell = (this.hudShell = new HudShell(this.hud, this.manifest, this.zones, { touch: this.input.isTouch, level: this.preset.level }));
     // PERFIL/PERSONAGEM do menu abre o editor da conta (src/ui/editorBridge.ts — registrado pela tela inicial)
     shell.hooks.openCharacterEditor = () => { if (!openCharacterEditor()) shell.flash('Entre na sua conta para editar o personagem'); };
@@ -789,6 +794,7 @@ export class Game {
       if (this.events.current?.id !== id) void this.events.load(id).then(() => { this.hudShell.setEvent(this.events.current?.name); this.interaction.setPolicy(this.events.current?.interaction); this.peds.setSocialConfig(this.events.current?.social); this.rallyCrowd?.setConfig(this.events.current?.social, RallyCrowd.presetScale(this.crowd.budget.total)); this.scenery.applyEvent(this.events.current); this.cells?.setGroupColors(this.events.current?.groups); });
     };
     void preloadRagdoll().catch(() => { /* fallback procedural */ });
+    if (!this.spectator) await this.setupCombat(); // rodada 9 — confronto (handlers antes de entrar na sala)
     try {
       const sp = q.get('spawn')?.split(',').map(Number);
       const f = this.spec?.cam.focus;
@@ -807,6 +813,7 @@ export class Game {
 
   private updateInteraction(dt: number) {
     this.interaction.update(dt);
+    this.combat?.update(dt, this.player, !!this.riding || this.trio.active || this.graffiti.editing || this.avatar.isDown); // rodada 9
     if (this.input.consumeToggle('mode')) {
       if (this.mpOnline) {
         // multiplayer: o SERVIDOR decide o modo (política do evento)
@@ -830,7 +837,7 @@ export class Game {
     void this.avatar.knockdown({ dirX: k.dx, dirZ: k.dz, strength: k.strength, groundY: this.player.y, walls, downMs: k.downMs, getupMs: k.getupMs });
     // posição de repouso é do servidor
     this.player.x = k.rx; this.player.z = k.rz; this.player.vx = this.player.vz = 0;
-    this.flash(k.kind === 'impact' ? 'Você foi atingido por um carro! (sem dano — levante-se)' : 'Você foi empurrado!');
+    this.flash(k.kind === 'impact' ? 'Você foi atingido por um carro! (sem dano — levante-se)' : k.kind === 'combat' ? 'Você caiu! (sem dano — levante-se)' : 'Você foi empurrado!');
   }
 
   // ------------------------------------------------------------------ movimento e veículos
@@ -958,11 +965,12 @@ export class Game {
       if (Math.abs(v.state.speed) > 1) this.cam.yaw += dyaw * Math.min(1, dt * (v.def.kind === 'car' ? 2.2 : 1.5));
       this.hudShell.setPrompt(RIDE_HELP[v.def.kind]);
     } else {
+      const held = this.combat?.locked ? 0 : 1; // rodada 9: cambaleando (golpe sofrido) não anda
       const intent = {
-        dirX: fx * ax.y + -Math.cos(this.cam.yaw) * ax.x,
-        dirZ: fz * ax.y + Math.sin(this.cam.yaw) * ax.x,
+        dirX: (fx * ax.y + -Math.cos(this.cam.yaw) * ax.x) * held,
+        dirZ: (fz * ax.y + Math.sin(this.cam.yaw) * ax.x) * held,
         run: this.input.running() || !!this.autopilotRun,
-        jump: this.input.consumeJump(),
+        jump: this.jumpIntent(),
         speedFactor: this.avatar.speedFactor,
       };
       const steps = Math.max(1, Math.ceil(dt / (1 / 120)));
@@ -980,6 +988,26 @@ export class Game {
     }
     this.rideables.sync(this.camera.position);
     this.hudShell.setMode(this.interaction.mode === 'pacifico' ? 'Modo pacífico' : 'Modo interação', this.interaction.mode === 'interacao');
+  }
+
+  // ------------------------------------------------------------------ rodada 9 — confronto (src/combat, docs/COMBAT.md)
+  private async setupCombat() {
+    try {
+      const [{ CombatClient }, { CombatHud }, { loadCombatTable }] = await Promise.all([import('../combat/CombatClient'), import('../combat/CombatHud'), import('../combat/data')]);
+      const hud = new CombatHud();
+      this.hudShell.mountCombat(hud, hud.peaceEl);
+      this.combat = new CombatClient({
+        net: this.net!, table: await loadCombatTable(import.meta.env.BASE_URL), avatar: this.avatar, input: this.input, collision: this.collision, scene: this.scene,
+        zone: () => this.hudShell.zones.current, flash: (m) => this.flash(m), touch: this.touchCtl, hud,
+      });
+    } catch (e) { console.warn('[confronto] indisponível', e); }
+  }
+
+  /** Espaço/PULAR: com servidor, o pulo é pedido (cooldown igual ao do servidor); negado → corta a subida */
+  private jumpIntent(): boolean {
+    if (this.combat?.jumpDenied) { this.combat.jumpDenied = false; this.player.vy = Math.min(this.player.vy, 0); }
+    if (!this.input.consumeJump()) return false;
+    return this.combat ? this.combat.tryJump(this.player) : true;
   }
 
   /** piloto automático para testes reproduzíveis (anda até um ponto usando o movimento normal) */
@@ -1099,6 +1127,11 @@ export class Game {
       /** TESTE: cliente modificado pede empurrão em um alvo arbitrário */
       rawPush: (target: string) => this.net?.requestPush(target),
       lastDenial: () => this.net?.lastDenial ?? '',
+      // rodada 9 — confronto (QA: tools/qa/combat_mp.mjs)
+      combat: () => (this.combat ? { ...this.combat.qa(), context: this.combat.context(this.player), policy: this.combat.policyAt(this.player.x, this.player.z), touch: this.touchCtl?.combatVisible ?? null } : null),
+      cbt: (k: 'cbt_punch' | 'cbt_kick' | 'cbt_dodge') => this.combat?.press(k),
+      jump: () => this.input.queueJump(),
+      face: (yaw: number) => { this.player.heading = yaw; },
       // rodada 8: espectador e reconexão (QA)
       // espectador aéreo (rodada 8.1): camada, células recebidas (resumo + assinatura) e impostores desenhados
       specCells: () => {
