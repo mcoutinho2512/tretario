@@ -13,8 +13,8 @@ export type GameplayEvent =
   | { type: 'distance'; mode: 'foot' | 'bicycle' | 'scooter' | 'car' | 'moto'; meters: number }
   /** ação social concluída/iniciada (src/social/actions.ts key) */
   | { type: 'action'; key: string; category: string }
-  /** pegou item (src/social/props.ts kind) */
-  | { type: 'prop'; kind: string }
+  /** pegou item (src/social/props.ts kind); `slot` = designSlot do item ('flag' | 'sign' | 'banner'), filtro "qualquer bandeira" */
+  | { type: 'prop'; kind: string; slot?: string }
   /** entrou num veículo (kind) / subiu no trio */
   | { type: 'vehicle_enter'; kind: string }
   | { type: 'trio_board' }

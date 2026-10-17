@@ -106,6 +106,9 @@ const BUILTIN: Design[] = [
   { id: 22, key: 'estudantes', label: 'Estudantes', family: 'group', pattern: 'solid', palette: { bg: '#2a9d8f', fg: '#ffffff' }, lines: ['ESTUDANTES'], targets: ALL_PROPS, crowdWeight: 1 },
   { id: 30, key: 'ato_pv', label: 'Ato na Presidente Vargas', family: 'event', pattern: 'border', palette: { bg: '#111111', fg: '#ffffff', accent: '#f2c230' }, lines: ['ATO', 'PRES. VARGAS'], targets: [...ALL_PROPS, 'truck', 'screen', 'stage'], crowdWeight: 2 },
   { id: 31, key: 'neutro_liso', label: 'Neutro (liso)', family: 'neutral', pattern: 'solid', palette: { bg: '#e9e4d8', fg: '#333333' }, targets: [...ALL_PROPS, 'truck', 'screen', 'stage'], crowdWeight: 0 },
+  // rodada 9 — recompensas cosméticas (src/characters/unlocks.ts, public/gameplay/rewards.json): neutras, NPCs não usam
+  { id: 40, key: 'mar_e_mata', label: 'Mar e mata', family: 'neutral', pattern: 'split_h', palette: { bg: '#0077b6', fg: '#2d6a4f', accent: '#2d6a4f' }, targets: ALL_PROPS, crowdWeight: 0 },
+  { id: 41, key: 'por_do_sol', label: 'Pôr do sol na avenida', family: 'event', pattern: 'h_stripes', palette: { bg: '#f77f00', fg: '#d62828', accent: '#fcbf49' }, targets: ALL_PROPS, crowdWeight: 0 },
   // -------------------------------------------------------------- futebol carioca: só cores/padrões (sem escudos/marcas)
   { id: 200, key: 'fut_rubro_negro', label: 'Listras vermelho e preto', family: 'football', pattern: 'hoops', palette: { bg: '#c8102e', fg: '#ffffff', accent: '#111111' }, targets: ['shirt', 'flag'], crowdWeight: 5 },
   { id: 201, key: 'fut_alvinegro_faixa', label: 'Preta com faixa diagonal branca', family: 'football', pattern: 'sash', palette: { bg: '#111111', fg: '#ffffff', accent: '#ffffff' }, targets: ['shirt', 'flag'], crowdWeight: 3 },

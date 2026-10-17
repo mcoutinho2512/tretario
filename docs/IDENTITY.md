@@ -35,7 +35,12 @@ Contratos ÚNICOS — nenhum módulo redefine usuário, sessão, identidade de j
 - **Validador único de aparência**: `src/characters/validateAppearance.ts` — usado pela API (`PUT /api/me/appearance`),
   pela sala (`PresidenteVargasRoom.applyAppearance`) e pelo editor. Corpo/acessório de listas fechadas, cores 24 bits,
   só peças que aquele corpo veste, camisa de futebol só no modelo camiseta, itens bloqueados caem no padrão.
-- **Desbloqueio** (`src/characters/unlocks.ts`): níveis `FREE / UNLOCKED / PREMIUM / EVENT_REWARD`; hoje tudo FREE, sem loja.
+- **Desbloqueio** (`src/characters/unlocks.ts`): níveis `FREE / UNLOCKED / PREMIUM / EVENT_REWARD`, sem loja.
+  Rodada 9: alguns itens novos/pouco usados são **recompensas** de progressão (`ITEM_TIERS` = `public/gameplay/rewards.json`;
+  inclui `action:<key>` e `design:<key>`). Direitos da conta = `RewardGrant` + itens do nível (`server/src/progression/
+  entitlements.ts`), aplicados pelo servidor no validador de aparência (sala, `onAuth`, `PUT/GET /api/me/appearance`) e
+  nas regras de ação/item (`ActionActor.ent`). `GET /api/me/progress` (só a própria conta) alimenta os cadeados do editor.
+  `PREMIUM_FUTURE` aparece como "em breve" e não bloqueia nem cobra nada. Detalhes: `docs/PROGRESSION.md`.
 - **Rotas** (`server/src/http/profile.ts`; sessão por cookie em `server/src/http/session.ts`, `requireUser`):
   `GET/PUT /api/me/appearance` · `GET/PUT /api/me/preferences` · `GET /api/profile/:nickname` (só `PublicProfile`) ·
   `GET /api/events/current` · `PUT/DELETE /api/events/current/membership`. Cada rota só lê/escreve a conta da

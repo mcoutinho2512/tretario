@@ -13,6 +13,8 @@
  * Encaixes para outros componentes (cada um dono do seu): `mountChat` (painel do chat + botão CHAT no celular),
  * `mountSpectator` (seletor de câmeras), `hooks.openCharacterEditor` (PERFIL/PERSONAGEM), `hooks.logout`.
  * Zonas: `zones` (rastreador com histerese), `onZoneChange`, `setFocusProvider` (câmera de espectador).
+ * Rodada 9: `mountTracker` (missão em destaque, abaixo do estado), `addMenuItem` (PROGRESSO) e `notice` — fila curta de
+ * avisos (objetivo/missão/conquista/nível/recompensa), um por vez, só DOM na chegada/saída de um aviso.
  */
 import type { WorldManifest } from '../../world/types';
 import type { ZoneDefinition } from '../../world/zones';
@@ -88,6 +90,13 @@ export class HudShell {
   private touch: { setUseVisible(v: boolean): void; onChat?: () => void; onMenu?: () => void } | null = null;
   private lastFocus: HudFocus = { x: 0, z: 0, heading: 0, camYaw: 0, moving: false };
   private dirtyMap = true;
+  // rodada 9 — progressão: encaixe do rastreador e fila de avisos
+  private trackerSlot: HTMLDivElement;
+  private noticeEl: HTMLDivElement;
+  private noticeQ: { text: string; kind: string; ms: number }[] = [];
+  private noticeBusy = false;
+  /** QA: avisos já mostrados (texto e tipo) */
+  readonly noticeLog: { text: string; kind: string; t: number }[] = [];
 
   constructor(root: HTMLElement, manifest: WorldManifest, zones: readonly ZoneDefinition[], opts: { touch: boolean; level: QualityLevel }) {
     this.root = root;
@@ -104,6 +113,7 @@ export class HudShell {
     this.statusEl.setAttribute('aria-live', 'polite');
     this.eventText = new TextSlot(this.eventEl);
     this.statusText = new TextSlot(this.statusEl);
+    this.trackerSlot = div('hud-slot-tracker', tl);
 
     // ---- aviso de zona (centro, alto)
     this.banner = div('zone-banner');
@@ -111,6 +121,9 @@ export class HudShell {
     const kicker = div('zb-kicker', this.banner);
     kicker.textContent = 'Presidente Vargas';
     this.bannerName = div('zb-name', this.banner);
+    this.noticeEl = div('hud-notice');
+    this.noticeEl.setAttribute('role', 'status');
+    this.noticeEl.setAttribute('aria-live', 'polite');
 
     // ---- alto à direita: minimapa + botões
     const tr = div('hud-tr');
@@ -196,6 +209,39 @@ export class HudShell {
     this.chat = panel;
     this.chatSlot.replaceChildren(panel.el);
     panel.setCollapsed?.(this.prefs.value.chatCollapsed);
+  }
+
+  /** rodada 9 — rastreador de missão (src/ui/progress), abaixo do estado no alto à esquerda */
+  mountTracker(panel: HudPanel) { this.trackerSlot.replaceChildren(panel.el); }
+
+  /** rodada 9 — item extra no menu (ex.: PROGRESSO), logo depois de "Perfil / personagem" */
+  addMenuItem(label: string, fn: () => void) {
+    this.menuItem(label, fn);
+    const b = this.menu.lastElementChild!;
+    this.menu.insertBefore(b, this.menu.children[1] ?? null);
+  }
+
+  /**
+   * rodada 9 — aviso curto no alto ao centro (fila: um por vez, `ms` cada; no máximo 6 esperando). Aparece mesmo com
+   * o HUD esmaecido/limpo? Não no modo foto (HUD limpo): fica na fila até voltar.
+   */
+  notice(text: string, kind = 'info', ms = 3200) {
+    if (this.noticeQ.length >= 6) this.noticeQ.shift();
+    this.noticeQ.push({ text, kind, ms });
+    if (!this.noticeBusy) this.nextNotice();
+  }
+
+  private nextNotice() {
+    const n = this.clean ? undefined : this.noticeQ.shift();
+    if (!n) { this.noticeBusy = false; this.noticeEl.classList.remove('show'); if (this.clean && this.noticeQ.length) setTimeout(() => this.nextNotice(), 1000); return; }
+    this.noticeBusy = true;
+    this.poke(); // aviso de progresso acorda o HUD (rastreador visível junto)
+    if (this.noticeQ.length >= 2) n.ms = Math.max(1400, n.ms * 0.55); // fila longa: anda mais rápido
+    this.noticeEl.className = `hud-notice show k-${n.kind}`;
+    this.noticeEl.textContent = n.text;
+    this.noticeLog.push({ text: n.text, kind: n.kind, t: Date.now() });
+    if (this.noticeLog.length > 50) this.noticeLog.shift();
+    setTimeout(() => { this.noticeEl.classList.remove('show'); setTimeout(() => this.nextNotice(), 260); }, n.ms);
   }
 
   /** seletor de câmeras do espectador (agente D), acima da ação contextual */

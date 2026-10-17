@@ -80,6 +80,7 @@ import type { TrafficData } from '../world/types';
 import type { SpectatorMode } from '../spectator/SpectatorMode';
 import type { CellImpostors } from '../spectator/CellImpostors';
 import { ReconnectBadge } from '../net/ReconnectBadge';
+import { ProgressionUI } from '../ui/progress/ProgressionUI'; // rodada 9 — progressão
 
 export { DEFAULT_PLAYER_APPEARANCE } from '../characters/bodyTypes';
 
@@ -741,6 +742,12 @@ export class Game {
     const chat = (this.chat = new ChatPanel({ isTouch: false, input: this.input, onToggle: (open) => { if (open) document.exitPointerLock?.(); } }));
     chat.attach(this.net);
     this.hudShell.mountChat(chat);
+    // rodada 9 — progressão: rastreador de missão, avisos, PROGRESSO (menu ☰) e boas-vindas — só exibe o que o servidor
+    // manda (`prog`/`prog_ev`); handlers registrados ANTES de conectar. QA: __pvProg (tp = teleporte do servidor de teste)
+    if (!this.spectator) {
+      const prog = new ProgressionUI(this.hudShell, this.net, import.meta.env.BASE_URL);
+      (window as any).__pvProg = { ui: prog, notices: this.hudShell.noticeLog, tp: (x: number, z: number) => this.net?.send('test_tp', { x, z }) };
+    }
     // quem fala ganha prioridade de nome acima da cabeça por alguns segundos (LOD de nomes)
     this.net.on('chat', (m: { nid: number }) => { const id = this.net?.idByNid(m.nid); if (id) this.net!.markSpeaking(id); });
     this.scene.add(this.net.group);

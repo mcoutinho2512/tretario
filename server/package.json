@@ -14,7 +14,8 @@
     "db:generate": "prisma generate",
     "prepare": "prisma generate",
     "test:db": "tsx tools/test-db.ts",
-    "admin": "tsx tools/admin.ts"
+    "admin": "tsx tools/admin.ts",
+    "telemetry": "tsx tools/telemetry.ts"
   },
   "devDependencies": {
     "@colyseus/sdk": "^0.18.4",

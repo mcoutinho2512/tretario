@@ -147,5 +147,34 @@ export function dataStoreContract(name: string, make: () => Promise<DataStore>) 
       const log = await s.audit.list(50);
       expect(log.find((x) => x.action === `teste.${tag}`)?.meta).toEqual({ n: 1 });
     });
+
+    it('progressão (rodada 9): load/save em lote, JSON do progresso, pares únicos sem duplicar recompensa', async () => {
+      const u = await newUser();
+      expect(await s.progression.load(u.id)).toBeNull();
+      const t = new Date(Date.now() - 60_000);
+      await s.progression.save(u.id, {
+        xp: 75, level: 1, data: { v: 1, active: [{ missionId: 'conheca_pv', values: { central: 1 }, startedAt: 1 }], seen: ['welcome'] },
+        completed: [{ missionId: 'boas_vindas', at: t }], achievements: [{ achievementId: 'primeiros_passos', at: t }], grants: [{ item: 'title:Teste', source: 'mission:boas_vindas', at: t }],
+      });
+      // segundo lote: XP sobe, repete conclusão/conquista/item (ignorados pelo par único) e acrescenta novos
+      await s.progression.save(u.id, {
+        xp: 300, level: 3, data: { v: 1, active: [], seen: ['welcome'] },
+        completed: [{ missionId: 'boas_vindas', at: new Date() }, { missionId: 'conheca_pv', at: new Date() }],
+        achievements: [{ achievementId: 'primeiros_passos', at: new Date() }],
+        grants: [{ item: 'title:Teste', source: 'outra', at: new Date() }, { item: 'shirt:206', source: 'mission:mobilidade', at: new Date() }],
+      });
+      const r = (await s.progression.load(u.id))!;
+      expect(r.xp).toBe(300);
+      expect(r.level).toBe(3);
+      expect(r.data).toEqual({ v: 1, active: [], seen: ['welcome'] });
+      expect(r.completed.map((c) => c.missionId).sort()).toEqual(['boas_vindas', 'conheca_pv']);
+      expect(+r.completed.find((c) => c.missionId === 'boas_vindas')!.completedAt).toBe(+t); // a primeira vale
+      expect(r.achievements.map((a) => a.achievementId)).toEqual(['primeiros_passos']);
+      expect(r.grants.map((g) => g.item).sort()).toEqual(['shirt:206', 'title:Teste']);
+      expect(r.grants.find((g) => g.item === 'title:Teste')!.source).toBe('mission:boas_vindas');
+      // outra conta não vê nada
+      const v = await newUser();
+      expect(await s.progression.load(v.id)).toBeNull();
+    });
   });
 }

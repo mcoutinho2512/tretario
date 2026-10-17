@@ -1,0 +1,12 @@
+[
+  { "item": "design:mar_e_mata", "label": "Bandeira/cartaz \"Mar e mata\"", "source": "PROGRESSION", "level": 2 },
+  { "item": "shirt:205", "label": "Camisa vermelha lisa", "source": "PROGRESSION", "level": 3 },
+  { "item": "action:jump_cheer", "label": "Pulo de comemoração", "source": "PROGRESSION", "level": 4 },
+  { "item": "shirt:207", "label": "Camisa listras azul e branco", "source": "PROGRESSION", "level": 5 },
+  { "item": "action:dance_classic", "label": "Dança clássica", "source": "PROGRESSION" },
+  { "item": "shirt:206", "label": "Camisa amarela com detalhes verdes", "source": "PROGRESSION" },
+  { "item": "acc:bolsa", "label": "Bolsa", "source": "PROGRESSION" },
+  { "item": "design:por_do_sol", "label": "Bandeira/cartaz \"Pôr do sol na avenida\"", "source": "EVENT_REWARD" },
+  { "item": "pack:poses_extras", "label": "Pacote de poses extras", "source": "PREMIUM_FUTURE" },
+  { "item": "pack:bandeiras_artistas", "label": "Bandeiras de artistas convidados", "source": "PREMIUM_FUTURE" }
+]

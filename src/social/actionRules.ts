@@ -6,6 +6,7 @@
 import { ACTION_BY_ID, NO_ACTION, actionExpired } from './actions';
 import { PROP_BY_ID, NO_PROP } from './props';
 import { DESIGN_BY_ID, NO_DESIGN } from './designs';
+import { isAvailable, type ItemEntitlements } from '../characters/unlocks';
 
 export const ACTION_RULES = {
   /** intervalo mínimo entre pedidos de ação/item (curto: "pegar megafone + usar" é um par legítimo; o anti-spam
@@ -35,6 +36,8 @@ export interface ActionActor {
   /** último pedido de cada tipo (o intervalo mínimo vale entre pedidos do MESMO tipo: "pegar item + usar" passa) */
   lastAct?: number;
   lastProp?: number;
+  /** rodada 9: direitos (recompensas) — com eles, ações/designs bloqueados (unlocks.ts) são negados ('bloqueado') */
+  ent?: ItemEntitlements;
 }
 
 export type RuleResult = { ok: true } | { ok: false; reason: string };
@@ -54,6 +57,7 @@ export function validateAction(a: ActionActor, actionId: unknown, now: number): 
     const d = ACTION_BY_ID.get(actionId);
     if (!d) return { ok: false, reason: 'acao_invalida' };
     if (a.vehicle && !a.onPlatform) return { ok: false, reason: 'em_veiculo' };
+    if (a.ent && !isAvailable(`action:${d.key}`, a.ent)) return { ok: false, reason: 'bloqueado' };
     if (d.needs) {
       const p = PROP_BY_ID.get(a.prop);
       if (!p || !d.needs.includes(p.kind)) return { ok: false, reason: 'sem_item' };
@@ -81,6 +85,7 @@ export function validateProp(a: ActionActor, propId: unknown, designId: unknown,
       const d = typeof designId === 'number' ? DESIGN_BY_ID.get(designId) : undefined;
       if (!d) return { ok: false, reason: 'design_invalido' };
       if (!p.designSlot || !d.targets.includes(p.designSlot)) return { ok: false, reason: 'design_incompativel' };
+      if (a.ent && !isAvailable(`design:${d.key}`, a.ent)) return { ok: false, reason: 'bloqueado' };
     }
   }
   return rate(a, now, a.lastProp);

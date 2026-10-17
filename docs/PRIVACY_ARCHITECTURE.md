@@ -88,6 +88,17 @@ clientId, e-mail, IP) a outros clientes. Identidade: `docs/IDENTITY.md`.
 - Perfil público mínimo (`PublicProfile`): sem e-mail, ids internos, IP ou datas exatas (só AAAA-MM).
 - Sessão em cookie HttpOnly; o banco guarda só o hash do token. Nenhum token em localStorage.
 
+## Progressão e telemetria de gameplay (rodada 9)
+- **Progressão** (`PlayerProgress`, `CompletedMission`, `AchievementUnlock`, `RewardGrant`): XP, nível, missões e
+  conquistas concluídas, itens/títulos ganhos e o progresso em andamento — só da própria conta, ligado ao `userId`;
+  nada de posição, texto de chat, grupo ou lado político. Retenção: **até a conta ser apagada** (cascata). `prog` vai
+  só ao dono; `GET /api/me/progress` só devolve a conta da sessão. Visitantes e anônimos: só memória da sessão
+  (o "já vi as boas-vindas" do visitante fica no aparelho, `localStorage pv3d.seen`).
+- **Telemetria de gameplay** (`server/src/telemetry`): só **agregados** (contadores e histogramas por período:
+  sessões, duração, atividades por sessão, missões, eventos, corridas, debate, confronto, zonas). Sem userId,
+  sessionId, apelido, IP, posição ou conteúdo; nenhum serviço externo; nenhuma rota pública — leitura pela CLI do
+  operador (`npm run dev:telemetry`). Arquivo local `server/data/telemetry.jsonl` (fora do git).
+
 ## Espectadores, presença e métricas públicas (rodada 8)
 
 - **Espectador visitante** (sem ticket) não tem conta nem identificador persistente: o servidor guarda só, em memória e

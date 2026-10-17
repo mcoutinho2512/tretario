@@ -30,6 +30,9 @@ import { GroupPicker } from './ui/groupPicker';
 import { metricsLine } from './ui/metricsText';
 import { openCharacterEditor, registerCharacterEditor } from './ui/editorBridge';
 import type { EventDef } from './events/types';
+// rodada 9 — recompensas: itens bloqueados no editor (cadeado + requisito); direitos vêm do servidor (GET /api/me/progress)
+import { isAvailable, localEntitlements, setLocalEntitlements, type ItemKey } from './characters/unlocks';
+import { parseCatalog, requirementOf, type ProgressionCatalog } from './progression/engine';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const appEl = $('app');
@@ -61,6 +64,8 @@ const ACC_LABEL: Record<Accessory, string> = { nenhum: 'Nenhum', bone: 'Boné', 
 const PALETTES = { skin: SKIN_TONES, hair: [...HAIR_YOUNG, ...HAIR_OLD], top: TOPS, bottom: BOTTOMS, shoes: SHOES, acc: ACC_COLORS };
 type ColorKey = keyof typeof PALETTES;
 const isOld = (b: BodyType) => b === 'idoso' || b === 'idosa';
+/** camada da peça → prefixo do ItemKey (src/characters/unlocks.ts) */
+const STYLE_ITEM: Record<GarmentSlot, string> = { SHIRT: 'top', PANTS: 'bottom', SHOES: 'shoes', HAIR: 'hair' };
 /** camisas de futebol: só cores/padrões (designs.ts, alvo 'shirt') */
 const SHIRT_DESIGNS = DESIGNS.filter((d) => d.targets.includes('shirt'));
 
@@ -68,6 +73,36 @@ const store = {
   get(k: string) { try { return localStorage.getItem(k); } catch { return null; } },
   set(k: string, v: string) { try { localStorage.setItem(k, v); } catch { /* sem storage */ } },
 };
+
+/** validador ÚNICO com os direitos da conta (rodada 9): o que se vê no editor é o que o servidor aceita */
+function vApp(raw: unknown) { return validateAppearance(raw, null, localEntitlements); }
+
+// ------------------------------------------------------------------ rodada 9 — itens liberados por progressão
+let progCat: ProgressionCatalog | null = null;
+async function refreshUnlocks() {
+  if (!progCat) {
+    const get = (f: string) => fetch(`/gameplay/${f}`).then((r) => (r.ok ? r.json() : undefined)).catch(() => undefined);
+    const [missions, achievements, levels, rewards] = await Promise.all(['missions.json', 'achievements.json', 'levels.json', 'rewards.json'].map(get));
+    progCat = parseCatalog({ missions, achievements, levels, rewards });
+  }
+  if (!authed()) return;
+  const r = await fetch('/api/me/progress', { credentials: 'same-origin' }).then((x) => (x.ok ? x.json() : null)).catch(() => null);
+  if (r && Array.isArray(r.unlocks)) setLocalEntitlements(r.unlocks);
+}
+/** item bloqueado: marca o botão (cadeado + requisito); devolve o requisito ou '' */
+function lockState(b: HTMLElement, item: string): string {
+  const locked = !isAvailable(item as ItemKey, localEntitlements);
+  const req = locked ? (progCat ? requirementOf(progCat, item) : 'Bloqueado') : '';
+  b.classList.toggle('locked', locked);
+  if (locked) b.title = `Bloqueado — ${req}`; else b.removeAttribute('title');
+  return req;
+}
+/** clique num item bloqueado: explica o requisito e não troca */
+function blocked(item: string): boolean {
+  if (isAvailable(item as ItemKey, localEntitlements)) return false;
+  setNote(`Bloqueado — ${progCat ? requirementOf(progCat, item) : 'liberado por progressão'}. Veja em ☰ → Progresso, na avenida.`, 'bad');
+  return true;
+}
 
 /** visual de VISITANTE guardado no navegador (fallback sem conta/sem servidor) */
 function loadLocalLook(): CharacterAppearance {
@@ -78,7 +113,7 @@ function loadLocalLook(): CharacterAppearance {
   let saved: unknown = null;
   try { saved = JSON.parse(store.get('pv3d.look') ?? 'null'); } catch { /* ignora */ }
   const base = { ...DEFAULT_PLAYER_APPEARANCE[body], accessory: 'nenhum' as Accessory, acc: ACC_COLORS[0] };
-  return validateAppearance(saved && typeof saved === 'object' ? { ...base, ...saved, body } : base) ?? base;
+  return vApp(saved && typeof saved === 'object' ? { ...base, ...saved, body } : base) ?? base;
 }
 let look = loadLocalLook();
 /** último visual salvo no servidor (para "alterações não salvas") */
@@ -158,11 +193,11 @@ function renderSwatches() {
       b.className = 'chip';
       b.dataset.acc = a;
       b.textContent = ACC_LABEL[a];
-      b.addEventListener('click', () => { look = { ...look, accessory: a }; changed(false); });
+      b.addEventListener('click', () => { if (blocked(`acc:${a}`)) return; look = { ...look, accessory: a }; changed(false); });
       chips.appendChild(b);
     }
   }
-  for (const b of chips.children as HTMLCollectionOf<HTMLElement>) b.setAttribute('aria-pressed', String(b.dataset.acc === (look.accessory ?? 'nenhum')));
+  for (const b of chips.children as HTMLCollectionOf<HTMLElement>) { b.setAttribute('aria-pressed', String(b.dataset.acc === (look.accessory ?? 'nenhum'))); lockState(b, `acc:${b.dataset.acc}`); }
   // modelo de cada peça (depende do corpo: só o que ele veste)
   for (const el of document.querySelectorAll<HTMLElement>('.style-chips[data-slot]')) {
     const slot = el.dataset.slot as GarmentSlot, field = SLOT_FIELD[slot];
@@ -176,6 +211,7 @@ function renderSwatches() {
         b.dataset.style = st;
         b.textContent = STYLE_LABELS[st as keyof typeof STYLE_LABELS] ?? st;
         b.addEventListener('click', () => {
+          if (blocked(`${STYLE_ITEM[slot]}:${st}`)) return;
           look = { ...look, [field]: st };
           if (slot === 'SHIRT' && st !== 'camiseta') look.shirtDesign = 0; // camisa de time é modelo camiseta
           changed(false);
@@ -184,7 +220,7 @@ function renderSwatches() {
       }));
     }
     const cur = resolveStyle(look.body, slot, look[field]);
-    for (const b of el.children as HTMLCollectionOf<HTMLElement>) b.setAttribute('aria-pressed', String(b.dataset.style === cur));
+    for (const b of el.children as HTMLCollectionOf<HTMLElement>) { b.setAttribute('aria-pressed', String(b.dataset.style === cur)); lockState(b, `${STYLE_ITEM[slot]}:${b.dataset.style}`); }
   }
   const des = $('shirt-designs');
   if (!des.childElementCount) {
@@ -199,6 +235,7 @@ function renderSwatches() {
       dot.style.background = p ? `linear-gradient(90deg, ${p.bg} 0 50%, ${p.accent ?? p.fg} 50% 100%)` : 'transparent';
       b.append(dot, d ? d.label : 'Nenhuma');
       b.addEventListener('click', () => {
+        if (d && blocked(`shirt:${d.id}`)) return;
         look = { ...look, shirtDesign: d?.id ?? 0 };
         if (d) { look.topStyle = 'camiseta'; look.top = parseInt(d.palette.bg.slice(1), 16); }
         changed(false);
@@ -206,7 +243,7 @@ function renderSwatches() {
       des.appendChild(b);
     }
   }
-  for (const b of des.children as HTMLCollectionOf<HTMLElement>) b.setAttribute('aria-pressed', String(Number(b.dataset.design) === (DESIGN_BY_ID.has(look.shirtDesign ?? 0) ? look.shirtDesign : 0)));
+  for (const b of des.children as HTMLCollectionOf<HTMLElement>) { b.setAttribute('aria-pressed', String(Number(b.dataset.design) === (DESIGN_BY_ID.has(look.shirtDesign ?? 0) ? look.shirtDesign : 0))); if (b.dataset.design !== '0') lockState(b, `shirt:${b.dataset.design}`); }
   document.querySelector('.acc-colors')!.classList.toggle('hidden', (look.accessory ?? 'nenhum') === 'nenhum');
   avatarRadios.forEach((r) => { r.checked = r.value === look.body; });
 }
@@ -227,7 +264,7 @@ function schedulePortraits() {
 }
 
 function changed(portraitsToo: boolean) {
-  look = validateAppearance(look) ?? look; // mesmo validador do servidor: o que se vê é o que será salvo
+  look = vApp(look) ?? look; // mesmo validador do servidor: o que se vê é o que será salvo
   saveLocalLook();
   renderSwatches();
   preview?.setAppearance(look);
@@ -249,7 +286,7 @@ $('randomize').addEventListener('click', () => {
   for (let i = 0; i < 20 && (sameAppearance(r, look) || clashes(r)); i++) {
     const body = BODIES[Math.floor(Math.random() * BODIES.length)];
     const a = randomAppearance((Math.random() * 2 ** 32) >>> 0, body, { football: 0.2 });
-    r = validateAppearance({ ...a, accessory: a.accessory ?? 'nenhum', acc: a.acc ?? ACC_COLORS[0] }) ?? r;
+    r = vApp({ ...a, accessory: a.accessory ?? 'nenhum', acc: a.acc ?? ACC_COLORS[0] }) ?? r;
   }
   look = r;
   changed(true);
@@ -278,6 +315,7 @@ let editorDone: EditorDone | null = null;
 /** abre o editor (conta: salva no servidor; sem conta: só no navegador) */
 function openEditor(opts: { first?: boolean; overlay?: boolean } = {}): Promise<boolean> {
   renderSwatches();
+  void refreshUnlocks().then(() => { if (!start.classList.contains('hidden')) renderSwatches(); }); // rodada 9 — cadeados
   const acc = authed();
   $('name-field').classList.toggle('hidden', acc);
   const an = $('account-nick');
@@ -320,7 +358,7 @@ function closeEditor(saved: boolean) {
 }
 
 btn.addEventListener('click', async () => {
-  look = validateAppearance(look) ?? look;
+  look = vApp(look) ?? look;
   if (!authed()) { saveLocalLook(); closeEditor(true); return; }
   btn.disabled = true;
   setNote('Salvando…');
@@ -424,7 +462,8 @@ async function refreshMe() {
       const a = await accountApi.getAppearance();
       me.appearance = a.ok ? a.data?.appearance ?? null : null;
     }
-    savedLook = me.appearance ? validateAppearance(me.appearance) : null;
+    await refreshUnlocks(); // rodada 9: direitos antes de validar o visual salvo (item liberado não "some")
+    savedLook = me.appearance ? vApp(me.appearance) : null;
     if (savedLook) look = { ...savedLook };
     if (me.preferences?.quality) setQuality(me.preferences.quality as QualityChoice, false);
     if (me.membership === undefined && ev) me.membership = ev.membership;
@@ -443,7 +482,7 @@ async function pickGroup(first = false): Promise<void> {
   if (me) me.membership = choice.groupKey && ev ? { eventId: ev.event.id, groupKey: choice.groupKey } : null;
   const g = groupOf(choice.groupKey);
   if (g && choice.wearColors) {
-    const a = await accountApi.putAppearance(validateAppearance(withGroupShirt(look, g))!);
+    const a = await accountApi.putAppearance(vApp(withGroupShirt(look, g))!);
     if (a.ok && a.data) { look = a.data.appearance; savedLook = look; if (me) me.appearance = look; game?.setAppearance(look); }
   } else game?.setAppearance(look); // avisa a sala para reler o grupo
   applyGroupDesigns();
@@ -456,7 +495,7 @@ async function afterLogin() {
   await refreshMe();
   if (!me) return;
   if (!savedLook) {
-    look = validateAppearance(look) ?? look;
+    look = vApp(look) ?? look;
     const saved = await openEditor({ first: true });
     if (!saved) return;
     await pickGroup(true);

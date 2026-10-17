@@ -84,6 +84,10 @@ model User {
   reportsAbout Report[]         @relation("reported")
   mutes       MuteRelationship[] @relation("muteOwner")
   mutedBy     MuteRelationship[] @relation("muteTarget")
+  progress    PlayerProgress?
+  completedMissions CompletedMission[]
+  achievementUnlocks AchievementUnlock[]
+  rewardGrants RewardGrant[]
 }
 
 /// mute pessoal (rodada 8.1): identidade IMUTÁVEL (userId), nunca apelido. Apelido só como cópia para a UI.
@@ -291,4 +295,54 @@ model AuditLog {
   createdAt  DateTime @default(now())
 
   @@index([createdAt])
+}
+
+// ---------------------------------------------------------------- rodada 9 — progressão (server/src/progression)
+// Gravada em LOTES (ProgressionService: marca suja, a cada PV_PROG_FLUSH_S e na saída/queda/fim da graça/desligamento),
+// nunca por evento. Retenção: até a conta ser apagada (onDelete: Cascade). Visitantes/anônimos não gravam nada.
+
+/// XP/nível e o progresso EM ANDAMENTO (missões ativas, conquistas parciais, telas vistas) — JSON versionado
+model PlayerProgress {
+  userId    String   @id
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  xp        Int      @default(0)
+  level     Int      @default(1)
+  /// { v, active: MissionProgress[], ach: {id: valores}, seen: string[], tracked, evx } — sem conteúdo privado
+  data      Json     @default("{}")
+  updatedAt DateTime @updatedAt
+}
+
+/// missão concluída — par ÚNICO (a recompensa da missão só é dada uma vez)
+model CompletedMission {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  missionId   String
+  completedAt DateTime @default(now())
+
+  @@unique([userId, missionId])
+}
+
+/// conquista desbloqueada — par ÚNICO
+model AchievementUnlock {
+  id            String   @id @default(uuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  achievementId String
+  unlockedAt    DateTime @default(now())
+
+  @@unique([userId, achievementId])
+}
+
+/// recompensa cosmética/título concedido (ItemKey de src/characters/unlocks.ts ou "title:<texto>") — par ÚNICO
+/// (userId, item): o mesmo item nunca é concedido duas vezes, venha de onde vier. Fonte: "mission:<id>" | "achievement:<id>"
+model RewardGrant {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  item      String
+  source    String
+  grantedAt DateTime @default(now())
+
+  @@unique([userId, item])
 }

@@ -60,6 +60,8 @@ export interface AchievementDefinition {
   objectives: MissionObjective[];
   rewards: Reward[];
   hidden?: boolean;
+  /** rodada 9: progresso só da SESSÃO (ex.: Central → Candelária na mesma visita); recomeça a cada entrada */
+  session?: boolean;
 }
 
 /** XP total para chegar a cada nível (levels[0] = nível 1 = 0 XP) */
@@ -92,6 +94,15 @@ export interface PlayerProgression {
   achievements: string[];
   unlocks: string[];
   active: MissionProgress[];
+  /** rodada 9 (aditivo): XP do nível atual e do próximo (null = nível máximo) — barra de XP */
+  xpLevel?: number;
+  xpNext?: number | null;
+  /** títulos ganhos (recompensa `title`) */
+  titles?: string[];
+  /** missão em destaque escolhida pelo jogador (mission_track) */
+  tracked?: string | null;
+  /** telas de boas-vindas/dicas já vistas (contas: no servidor; visitantes: na sessão) */
+  seen?: string[];
 }
 
 /* ── protocolo ─────────────────────────────────────────────────────────────────────────────────────────────────── */
@@ -108,3 +119,5 @@ export interface ProgressionNotice {
 }
 /** cliente → servidor `mission_track {id}`: escolher a missão em destaque no HUD (só preferência de UI) */
 export interface MissionTrackRequest { id: string }
+/** cliente → servidor `prog_seen {k}`: marcou uma tela de boas-vindas/dica como vista (só preferência de UI) */
+export interface ProgressionSeenRequest { k: string }

@@ -26,6 +26,7 @@
     "dev:reports": "npm --prefix server run --silent admin -- reports",
     "dev:remove-graffiti": "npm --prefix server run --silent admin -- remove-graffiti",
     "dev:cleanup": "npm --prefix server run --silent admin -- cleanup",
+    "dev:telemetry": "npm --prefix server run --silent telemetry --",
     "verify": "tsc --noEmit && vitest run --reporter=dot && vite build --logLevel error && (cd server && npx tsc -p .)",
     "prepare": "git config core.hooksPath .githooks || true"
   },

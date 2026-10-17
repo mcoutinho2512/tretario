@@ -7,6 +7,7 @@ import { worldClock } from '../net/clock';
 import { ACTION_BY_ID, NO_ACTION, actionExpired } from './actions';
 import { PROP_BY_ID, NO_PROP } from './props';
 import { DESIGN_BY_ID, NO_DESIGN, designsFor } from './designs';
+import { isAvailable, localEntitlements } from '../characters/unlocks';
 import { cancelsOnMove } from './actionRules';
 import type { SocialState } from './types';
 
@@ -22,6 +23,7 @@ export const DENIAL_TEXT: Record<string, string> = {
   rapido: 'Devagar…',
   spam: 'Muitas ações seguidas — espere um pouco',
   design_incompativel: 'Esse design não serve para esse item',
+  bloqueado: 'Item bloqueado — veja os requisitos em PROGRESSO', // rodada 9 — recompensas
 };
 
 export class SocialController {
@@ -80,7 +82,8 @@ export class SocialController {
   cycleDesign(step = 1) {
     const p = PROP_BY_ID.get(this.prop);
     if (!p?.designSlot) return;
-    const list = designsFor(p.designSlot);
+    const list = designsFor(p.designSlot).filter((d) => isAvailable(`design:${d.key}`, localEntitlements)); // rodada 9: sem os bloqueados
+    if (!list.length) return;
     const i = list.findIndex((d) => d.id === this.design);
     const next = list[(i + step + list.length) % list.length];
     this.prop = p.id; this.design = next.id;

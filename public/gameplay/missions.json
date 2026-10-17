@@ -1,0 +1,134 @@
+[
+  {
+    "id": "boas_vindas",
+    "title": "BEM-VINDO À PRESIDENTE VARGAS",
+    "description": "Explore a avenida: dê os primeiros passos a pé.",
+    "category": "exploracao",
+    "objectives": [
+      { "id": "andar", "label": "Caminhe 30 m pela avenida", "on": "distance", "where": { "mode": "foot" }, "sumField": "meters", "count": 30 }
+    ],
+    "rewards": [{ "kind": "xp", "amount": 50 }]
+  },
+  {
+    "id": "conheca_pv",
+    "title": "CONHEÇA A PRESIDENTE VARGAS",
+    "description": "Percorra a avenida da Central do Brasil até a Candelária.",
+    "category": "exploracao",
+    "requires": ["boas_vindas"],
+    "objectives": [
+      { "id": "central", "label": "Visite a Central do Brasil", "on": "zone_enter", "where": { "zone": "CENTRAL" } },
+      { "id": "campo", "label": "Visite o Campo de Santana", "on": "zone_enter", "where": { "zone": "CAMPO_DE_SANTANA" } },
+      { "id": "rio_branco", "label": "Visite a Av. Rio Branco", "on": "zone_enter", "where": { "zone": "RIO_BRANCO" } },
+      { "id": "candelaria", "label": "Visite a Candelária", "on": "zone_enter", "where": { "zone": "CANDELARIA" } }
+    ],
+    "rewards": [{ "kind": "xp", "amount": 200 }, { "kind": "title", "title": "Conhece a avenida" }]
+  },
+  {
+    "id": "entre_no_clima",
+    "title": "ENTRE NO CLIMA",
+    "description": "Participe do ambiente da avenida: bandeira, dança, gesto, concentração e trio.",
+    "category": "social",
+    "requires": ["boas_vindas"],
+    "objectives": [
+      { "id": "bandeira", "label": "Pegue uma bandeira", "on": "prop", "where": { "slot": "flag" } },
+      { "id": "danca", "label": "Dance", "on": "action", "where": { "category": "danca" } },
+      { "id": "gesto", "label": "Faça um gesto", "on": "action", "where": { "category": "gestos" } },
+      { "id": "concentracao", "label": "Fique numa concentração (trio, carro de som ou palco)", "on": "rally_visit" },
+      { "id": "trio", "label": "Suba no trio elétrico", "on": "trio_board" }
+    ],
+    "rewards": [{ "kind": "xp", "amount": 200 }, { "kind": "unlock", "item": "action:dance_classic" }]
+  },
+  {
+    "id": "mobilidade",
+    "title": "MOBILIDADE",
+    "description": "Ande a pé, de bicicleta e de patinete pela avenida fechada.",
+    "category": "mobilidade",
+    "requires": ["boas_vindas"],
+    "objectives": [
+      { "id": "a_pe", "label": "Caminhe 500 m", "on": "distance", "where": { "mode": "foot" }, "sumField": "meters", "count": 500 },
+      { "id": "bicicleta", "label": "Use uma bicicleta", "on": "vehicle_enter", "where": { "kind": "bicycle" } },
+      { "id": "patinete", "label": "Use um patinete", "on": "vehicle_enter", "where": { "kind": "scooter" } },
+      { "id": "centro", "label": "Chegue ao Centro", "on": "zone_enter", "where": { "zone": "CENTRO" } }
+    ],
+    "rewards": [{ "kind": "xp", "amount": 200 }, { "kind": "unlock", "item": "shirt:206" }]
+  },
+  {
+    "id": "voz_na_avenida",
+    "title": "VOZ NA AVENIDA",
+    "description": "Some-se à multidão com cartazes e gestos de manifestação.",
+    "category": "social",
+    "requires": ["entre_no_clima"],
+    "objectives": [
+      { "id": "cartaz", "label": "Pegue um cartaz", "on": "prop", "where": { "slot": "sign" } },
+      { "id": "manifestacao", "label": "Faça 3 gestos de manifestação", "on": "action", "where": { "category": "manifestacao" }, "count": 3 },
+      { "id": "concentracoes", "label": "Visite 3 concentrações", "on": "rally_visit", "count": 3 }
+    ],
+    "rewards": [{ "kind": "xp", "amount": 250 }]
+  },
+  {
+    "id": "grande_passeio",
+    "title": "GRANDE PASSEIO",
+    "description": "Conheça a avenida com calma: a pé e de bicicleta.",
+    "category": "mobilidade",
+    "requires": ["conheca_pv", "mobilidade"],
+    "objectives": [
+      { "id": "a_pe", "label": "Caminhe 2 km", "on": "distance", "where": { "mode": "foot" }, "sumField": "meters", "count": 2000 },
+      { "id": "pedal", "label": "Pedale 1 km", "on": "distance", "where": { "mode": "bicycle" }, "sumField": "meters", "count": 1000 }
+    ],
+    "rewards": [{ "kind": "xp", "amount": 300 }]
+  },
+  {
+    "id": "participe_evento",
+    "title": "PARTICIPE DE UM EVENTO",
+    "description": "Entre num evento da agenda e fique até o fim.",
+    "category": "evento",
+    "requires": ["boas_vindas"],
+    "minLevel": 2,
+    "objectives": [
+      { "id": "entrar", "label": "Entre num evento", "on": "event_join" },
+      { "id": "concluir", "label": "Conclua o evento", "on": "event_complete" }
+    ],
+    "rewards": [{ "kind": "xp", "amount": 250 }]
+  },
+  {
+    "id": "ouvinte",
+    "title": "ASSISTA A UM DEBATE",
+    "description": "Acompanhe um debate na avenida e reaja.",
+    "category": "social",
+    "requires": ["boas_vindas"],
+    "minLevel": 2,
+    "objectives": [
+      { "id": "assistir", "label": "Assista 2 minutos de debate", "on": "debate_watch", "sumField": "seconds", "count": 120 },
+      { "id": "reagir", "label": "Reaja a um debate", "on": "debate_react" }
+    ],
+    "rewards": [{ "kind": "xp", "amount": 150 }]
+  },
+  {
+    "id": "ponta_a_ponta",
+    "title": "DE PONTA A PONTA",
+    "description": "Complete uma corrida da agenda (qualquer posição).",
+    "category": "evento",
+    "requires": ["mobilidade"],
+    "minLevel": 3,
+    "objectives": [
+      { "id": "corrida", "label": "Termine uma corrida", "on": "race_finish" }
+    ],
+    "rewards": [{ "kind": "xp", "amount": 150 }]
+  },
+  {
+    "id": "treino_confronto",
+    "title": "TREINO DE CONFRONTO",
+    "description": "Opcional: pratique com o boneco de treino (nunca é exigido para progredir).",
+    "category": "confronto",
+    "optional": true,
+    "requires": ["boas_vindas"],
+    "minLevel": 2,
+    "objectives": [
+      { "id": "soco", "label": "Dê um soco", "on": "combat_action", "where": { "key": "soco" } },
+      { "id": "chute", "label": "Dê um chute", "on": "combat_action", "where": { "key": "chute" } },
+      { "id": "esquiva", "label": "Esquive", "on": "combat_dodge" },
+      { "id": "boneco", "label": "Derrube o boneco de treino", "on": "dummy_knockdown" }
+    ],
+    "rewards": [{ "kind": "xp", "amount": 150 }]
+  }
+]
