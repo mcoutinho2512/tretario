@@ -19,7 +19,7 @@ no ar): `cd /opt/tretario/current`. Contexto: [PRODUCTION.md](PRODUCTION.md). In
 | **Manutenção ligar/desligar** | `scripts/maintenance.sh on "motivo"` · `scripts/maintenance.sh off` · `scripts/maintenance.sh status` (vale na hora, sem reload do Nginx; `/health/live` continua respondendo; WebSockets abertos continuam até reconectar) |
 | **Commit no ar** | `readlink /opt/tretario/current` · `cat /opt/tretario/current/version.json` · de fora: `curl -s https://<domínio>/api/status` |
 | **Parar o jogo sem parar o Postgres** | `scripts/maintenance.sh on "parado"` e `sudo systemctl stop tretario` (o PostgreSQL é outro serviço e continua). Voltar: `sudo systemctl start tretario` e `scripts/maintenance.sh off`. `Restart=always` não religa um stop manual. |
-| **SSH** | `ssh -p 22022 admin@143.95.164.238` (porta 22022; a 22 não é aberta no ufw) |
+| **SSH** | `ssh -p 22022 sanaris@143.95.164.238` (só `sanaris` entra: `AllowUsers`; root sem login) (porta 22022; a 22 não é aberta no ufw) |
 | **Desbanir IP no fail2ban** | `sudo fail2ban-client status sshd` (lista) · `sudo fail2ban-client set sshd unbanip <IP>` · nunca banir: `--admin-ip <IP>` no `provision-vps.sh` (vira `ignoreip`) |
 | **Aprovar conta (beta, sem SMTP)** | `cd /opt/tretario/current && sudo -u tretario bash -c 'set -a; . /opt/tretario/shared/env/server.env; npm run prod:approve -- <email>'` (script do app, rodada 9.1) |
 | **Releases guardados** | `ls -lt /opt/tretario/releases` · histórico: `sudo cat /opt/tretario/shared/releases.log` |

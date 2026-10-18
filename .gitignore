@@ -31,3 +31,4 @@ server/.env
 # versão do build (npm run build:version; gerada no deploy)
 /version.json
 /server/version.json
+screenshots/prod_e2e/
