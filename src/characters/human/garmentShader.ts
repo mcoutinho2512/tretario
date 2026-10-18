@@ -86,15 +86,20 @@ export function patchShirtShader(sh: THREE.WebGLProgramParametersWithUniforms, s
  *  - instanced: aparência por instância (`aLook` = [look empacotado, slot do design]; cores aSkin/aTop)
  *  - senão: uniformes do personagem (`uLook`, `uTints`)
  */
-export function patchLookShader(sh: THREE.WebGLProgramParametersWithUniforms, o: { instanced: boolean; layerAvg: { value: THREE.Color[] }; look?: { value: THREE.Vector2 } }) {
+export function patchLookShader(sh: THREE.WebGLProgramParametersWithUniforms, o: { instanced: boolean; layerAvg: { value: THREE.Color[] }; look?: { value: THREE.Vector2 }; inflate?: number }) {
   Object.assign(sh.uniforms, designUniforms, { uLayerAvg: o.layerAvg }, o.look ? { uLook: o.look } : {});
+  // rodada 9.1: a pele decimada atravessava camisa/calça em manchas ("buracos" de perto): roupa afastada pela normal
+  // (como a camiseta do LOD0), depois do skinning/VAT; camisa mais que a calça (fica por cima na cintura) e presa na
+  // gola (`_rest.w` = distância à borda, `_rest.y` = altura sobre o peito) para não abrir fresta escura no pescoço
+  const k = (o.inflate ?? 0).toFixed(4);
+  const inflate = o.inflate ? `{ int il = int(_layer + 0.5); if (il == 2 || il == 3) transformed += normalize(objectNormal) * ${k} * (il == 2 ? (_rest.y > 0.1 ? smoothstep(0.0, 0.03, _rest.w) : 1.0) : 0.45); }\n` : '';
   const src = o.instanced
     ? 'vLook = aLook; vSkinAbs = aSkin * uLayerAvg[0]; vTopAbs = aTop * uLayerAvg[2];'
     : 'vLook = uLook; vSkinAbs = uTints[0] * uLayerAvg[0]; vTopAbs = uTints[2] * uLayerAvg[2];';
   const vary = 'varying vec4 vRest;\nvarying vec2 vZone;\nvarying float vLayer;\nvarying vec2 vLook;\nvarying vec3 vSkinAbs;\nvarying vec3 vTopAbs;\nuniform vec3 uLayerAvg[5];';
   sh.vertexShader = sh.vertexShader
     .replace('#include <common>', `#include <common>\nattribute vec4 _rest;\nattribute vec2 _zone;\n${o.instanced ? 'attribute vec2 aLook;' : 'uniform vec2 uLook;'}\n${vary}`)
-    .replace('#include <project_vertex>', `vRest = _rest; vZone = _zone; vLayer = _layer; ${src}\n#include <project_vertex>`);
+    .replace('#include <project_vertex>', `${inflate}vRest = _rest; vZone = _zone; vLayer = _layer; ${src}\n#include <project_vertex>`);
   sh.fragmentShader = sh.fragmentShader
     .replace('#include <common>', `#include <common>\n${vary}\n${PATTERN_GLSL}`)
     .replace('diffuseColor.rgb *= vTint;', `diffuseColor.rgb *= vTint;
@@ -114,6 +119,10 @@ export function patchLookShader(sh: THREE.WebGLProgramParametersWithUniforms, o:
   } else if (layer == 4) {
     if (sho == 2) diffuseColor.rgb = mix(vSkinAbs, diffuseColor.rgb, 0.3);
   } else if (layer == 1) {
+    // cabelo: a cor de vértice foi assada da textura com alfa (cartões) e trazia os texels transparentes (manchas
+    // verdes/marrons): só a luminância, perto da média, sobre a cor do cabelo
+    float hl = dot(vColor.rgb, vec3(0.333)) / max(0.04, dot(uLayerAvg[1], vec3(0.333)));
+    diffuseColor.rgb = uLayerAvg[1] * vTint * clamp(hl, 0.8, 1.15);
     if (mod(floor(lk / 128.0), 2.0) > 0.5) diffuseColor.rgb = vSkinAbs;
   }
 }`);

@@ -15,7 +15,7 @@ import * as THREE from 'three';
 import { clone as cloneSkeleton } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { BODY_TYPES, type BodyType } from '../bodyTypes';
 import { loadLod, LAYER_INDEX } from '../human/HumanAssets';
-import { clipsFor, tint } from '../human/HumanCharacter';
+import { SINGLE_INFLATE, clipsFor, tint } from '../human/HumanCharacter';
 import { measureNatural, groundOffsets } from '../human/HumanAnimator';
 import { clipFloor, proceduralClip, withBase } from '../human/proceduralClips';
 import { ACTIONS, ACTION_BY_ID } from '../../social/actions';
@@ -47,6 +47,9 @@ export const CROWD_ACTION_FRAMES: Record<string, [number, number]> = {
   dance_simple: [12, 8], dance_lively: [12, 8], dance_arms: [12, 8], dance_party: [12, 8], dance: [12, 8],
 };
 const TEX_W = 1024;
+/** abaixo disto (m/s) a caminhada se mistura ao parado; faixa (m/s) em que caminhada e trote se misturam */
+const WALK_IN = 0.55;
+const JOG_BAND: [number, number] = [2.0, 2.4];
 
 interface ClipRows { row0: number; n: number; dur: number; once?: boolean }
 interface VatSet {
@@ -211,7 +214,8 @@ export class CrowdRenderer {
     g.setAttribute('aLook', aLook);
 
     const src = sm.material as THREE.MeshStandardMaterial;
-    const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: src.roughness ?? 0.8, metalness: 0, color: 0xffffff });
+    // dois lados (rodada 9.1): cartões de cabelo e bordas de roupa vistos por trás sumiam — via-se o chão através
+    const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: src.roughness ?? 0.8, metalness: 0, color: 0xffffff, side: THREE.DoubleSide });
     const uniforms = { uVat: { value: tex }, uVatW: { value: TEX_W }, uVerts: { value: V } };
     mat.onBeforeCompile = (sh) => {
       Object.assign(sh.uniforms, uniforms);
@@ -243,8 +247,8 @@ vTint = li == 0 ? aSkin : li == 1 ? aHair : li == 2 ? aTop : li == 3 ? aBottom :
     };
     // ---- variantes de roupa e camisas de futebol por instância (garmentShader), sobre a tinta por camada
     const vatPatch = mat.onBeforeCompile, layerAvgU = { value: layerAvg };
-    mat.onBeforeCompile = (sh, r) => { vatPatch.call(mat, sh, r); patchLookShader(sh, { instanced: true, layerAvg: layerAvgU }); };
-    mat.customProgramCacheKey = () => 'pv-crowd-vat';
+    mat.onBeforeCompile = (sh, r) => { vatPatch.call(mat, sh, r); patchLookShader(sh, { instanced: true, layerAvg: layerAvgU, inflate: SINGLE_INFLATE[lod] }); };
+    mat.customProgramCacheKey = () => `pv-crowd-vat${lod}`;
     const mesh = new THREE.InstancedMesh(g, mat, cap);
     mesh.name = `crowd_${body}_lod${lod}`;
     mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
@@ -292,13 +296,25 @@ vTint = li == 0 ? aSkin : li == 1 ? aHair : li == 2 ? aTop : li == 3 ? aBottom :
         // animação: ciclo pela velocidade, cadência casada com o deslocamento (como o HumanAnimator)
         const clip = a.speed < 0.15 ? s.clips.idle : a.speed < 2.2 ? s.clips.walk : s.clips.jog;
         const nat = clip === s.clips.walk ? s.natural.walk : clip === s.clips.jog ? s.natural.jog : 0;
-        const rate = nat > 0 ? Math.min(2.2, Math.max(0.35, a.speed / nat)) / clip.dur : 1 / clip.dur;
+        const rate = nat > 0 ? Math.min(2.2, Math.max(0.35, a.speed / (nat * (a.scale || 1)))) / clip.dur : 1 / clip.dur;
         a.phase = (a.phase + dt * rate) % 1;
         const f = a.phase * clip.n, f0 = Math.floor(f);
         const an = s.aAnim.array as Float32Array;
         an[i * 3] = clip.row0 + (f0 % clip.n);
         an[i * 3 + 1] = clip.row0 + ((f0 + 1) % clip.n);
         an[i * 3 + 2] = f - f0;
+        // rodada 9.1 — transições sem estalo: perto dos limites (parado↔andar, andar↔trote) mistura o quadro mais
+        // próximo dos DOIS ciclos (antes trocava de ciclo de uma vez ao cruzar 0,15 e 2,2 m/s)
+        const w = s.clips.walk, j = s.clips.jog;
+        if (clip === w && a.speed < WALK_IN) {
+          an[i * 3] = w.row0 + (Math.round(f) % w.n);
+          an[i * 3 + 1] = s.clips.idle.row0 + (a.id % s.clips.idle.n);
+          an[i * 3 + 2] = 1 - (a.speed - 0.15) / (WALK_IN - 0.15);
+        } else if (a.speed > JOG_BAND[0] && a.speed < JOG_BAND[1]) {
+          an[i * 3] = w.row0 + (Math.round(a.phase * w.n) % w.n);
+          an[i * 3 + 1] = j.row0 + (Math.round(a.phase * j.n) % j.n);
+          an[i * 3 + 2] = (a.speed - JOG_BAND[0]) / (JOG_BAND[1] - JOG_BAND[0]);
+        }
         // ação social (parado): clipe assado da ação; entrada/saída misturando o quadro do idle com o da ação
         const act = a.act && a.speed < 0.15 ? s.acts.get(ACTION_BY_ID.get(a.act)?.crowdClip ?? '') : undefined;
         if (act) {

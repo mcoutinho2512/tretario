@@ -274,7 +274,8 @@ export class Game {
     this.peds.radius = this.preset.pedestrianRadius;
     this.peds.shadowDistance = this.preset.npcShadowDistance;
     // no início, NPCs/remotos no máximo LOD1: o LOD0 (1,2–1,6 MB por corpo) não disputa banda com o mundo
-    const npcDetail = this.preset.level === 'low' ? 2 : this.preset.level === 'medium' ? 1 : 0;
+    // (BAIXO: LOD1 só para os 2 mais próximos — teto no orçamento da multidão, crowdBudget.ts)
+    const npcDetail = this.preset.level === 'low' || this.preset.level === 'medium' ? 1 : 0;
     this.peds.maxDetail = Math.max(1, npcDetail) as 1 | 2;
     AvatarVisual.maxRemoteDetail = this.peds.maxDetail;
     this.deferredDetail = npcDetail as 0 | 1 | 2;
@@ -331,6 +332,8 @@ export class Game {
     // multidão de concentração (instanciada) ao redor do trio/carros de som/palco — quantidade pelo evento e preset
     this.rallyCrowd = new RallyCrowd(this.collision, this.crowd, this.events.current?.social ?? { activity: 0.25, propShare: 0.06 });
     this.rallyCrowd.setConfig(this.events.current?.social, RallyCrowd.presetScale(this.crowd.budget.total));
+    this.rallyCrowd.shadowDistance = this.preset.npcShadowDistance;
+    this.scene.add(this.rallyCrowd.group); // esqueletos dos membros mais próximos (rodada 9.1)
     // designs de campanha (DADOS, não código): mesmo arquivo que o servidor usa para validar
     try {
       const r = await fetch(`${import.meta.env.BASE_URL}designs/campaigns.json`);
@@ -675,7 +678,8 @@ export class Game {
     }
     mark('movimento');
     const ppos = this.avatar.root.position;
-    if (this.freeCam) { this.camera.position.set(...this.freeCam.p); this.camera.lookAt(...this.freeCam.t); }
+    // (matriz atualizada já: o frustum da multidão neste quadro usa a câmera livre, não a da 3ª pessoa)
+    if (this.freeCam) { this.camera.position.set(...this.freeCam.p); this.camera.lookAt(...this.freeCam.t); this.camera.updateMatrixWorld(); }
     this.signals.setTime(worldClock.seconds());
     if (this.net) {
       this.net.update(dt, this.player, this.riding ? this.riding.state.id : null, this.camera, { w: this.canvas.clientWidth, h: this.canvas.clientHeight });
@@ -686,6 +690,7 @@ export class Game {
     // espectador no alto: o ambiente vem das células (impostores) — pedestres/concentração locais não duplicam
     const aerial = this.aerial;
     this.peds.group.visible = !aerial;
+    if (this.rallyCrowd) this.rallyCrowd.group.visible = !aerial;
     if (!aerial) { this.peds.update(dt, this.camera, this.player); this.rallyCrowd?.update(dt); }
     if (this.cells && this.net) this.cells.update(dt, this.net.specCells, this.net.specCellsVersion, aerial, this.spec!.cam.altitude, (fn) => this.net!.forEachRemotePos(fn));
     mark('pedestres');
@@ -1232,7 +1237,7 @@ export class Game {
       carHeading: () => this.riding?.state.heading ?? null,
       /** anda até (x,z) usando o movimento normal (aceito pelo servidor) */
       hitches: () => this.hitchLog.slice(),
-      rallyCrowd: () => ({ ...this.rallyCrowd?.stats, rally: rallyPoints.all().map((p) => ({ id: p.id, kind: p.kind, x: Math.round(p.x), z: Math.round(p.z), strength: p.strength })) }),
+      rallyCrowd: () => ({ ...this.rallyCrowd?.stats, near: this.rallyCrowd?.qaNear(this.player.x, this.player.z), rally: rallyPoints.all().map((p) => ({ id: p.id, kind: p.kind, x: Math.round(p.x), z: Math.round(p.z), strength: p.strength })) }),
       // ações sociais / itens (QA): chave ou id
       act: (k: string | number) => { const d = typeof k === 'number' ? ACTION_BY_ID.get(k) : ACTION_BY_KEY.get(k); this.social.requestAction(d?.id ?? 0); return this.social.state; },
       prop: (kind: string | null, design?: string) => { this.social.requestProp(kind ? PROP_BY_KIND.get(kind as PropKind)?.id ?? 0 : 0, design ? DESIGN_BY_KEY.get(design)?.id : undefined); return this.social.state; },

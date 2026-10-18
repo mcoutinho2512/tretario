@@ -102,8 +102,8 @@ export class AvatarVisual {
     this.human.setShadow(dist < 45);
   }
 
-  /** já há malha visível (o personagem humano carrega de forma assíncrona) */
-  get ready(): boolean { return !!this.legacy || !!this.human?.showing; }
+  /** já há malha visível com detalhe compatível com o LOD pedido (o LOD3 do primeiro carregamento não vale de perto) */
+  get ready(): boolean { return !!this.legacy || !!this.human?.showingDetail; }
 
   /** devolve ao estado inicial para ser reaproveitado por outro jogador do mesmo corpo (pool) */
   resetForReuse() {

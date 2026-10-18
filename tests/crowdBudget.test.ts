@@ -19,11 +19,17 @@ describe('orçamento de humanos (crowdBudget)', () => {
     expect(st.lod[0]).toBe(b.lod0);
   });
 
-  it('LOW nunca usa LOD mais detalhado que LOD2 e os instanciados usam só LOD3', () => {
+  it('LOW: só os 2 mais próximos (< 10 m) no LOD1, o resto dos esqueletos no LOD2; instanciado LOD2 só < 10 m', () => {
     const a = ring(50, 0.5);
     assignTiers(a, CROWD_BUDGETS.low);
-    expect(a.filter((x) => x.tier === 2).every((x) => x.lod >= 2)).toBe(true);
-    expect(a.filter((x) => x.tier === 1).every((x) => x.lod === 3)).toBe(true);
+    const sk = a.filter((x) => x.tier === 2);
+    expect(sk.every((x) => x.lod >= 1)).toBe(true);
+    expect(sk.filter((x) => x.lod === 1).map((x) => x.dist)).toEqual([1, 1.5]);
+    expect(a.filter((x) => x.tier === 1).every((x) => x.lod === (x.dist < 10 ? 2 : 3))).toBe(true);
+    // LOD1 nunca além de 10 m
+    const far = ring(5, 0).map((x) => Object.assign(x, { dist: 12 }));
+    assignTiers(far, CROWD_BUDGETS.low);
+    expect(far.every((x) => x.lod === 2)).toBe(true);
   });
 
   it('esqueleto só até skinnedMaxDist; multidão distante da rede (maxTier 1) nunca ganha esqueleto', () => {

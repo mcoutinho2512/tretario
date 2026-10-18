@@ -758,7 +758,7 @@ export class NetworkClient {
       const visual = r.visual ?? this.acquire(r);
       ag.skinReady = visual.ready;
       if (r.socApplied !== visual) { visual.setSocial(socialOf(r.soc)); visual.setFx(r.fx); visual.setPhys(r.status); r.socApplied = visual; }
-      if (crowd) { visual.applyLod(ag.lod, d); visual.root.visible = ag.inView || d < 6 || visual.isDown; }
+      if (crowd) { visual.applyLod(ag.lod, d); visual.root.visible = visual.isDown || ((ag.inView || d < 6) && visual.ready); }
       else visual.setDistance(d);
       if (c.vehicle && !visual.isDown) {
         // tipo REAL do veículo (sincronizado), não deduzido do id

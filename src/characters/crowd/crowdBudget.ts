@@ -26,10 +26,15 @@ export interface CrowdBudget {
   total: number;
   /** instanciados a menos desta distância usam a malha LOD2 (~2,5 k tri); além, LOD3 (~600 tri). 0 = só LOD3 */
   instancedLod2Dist: number;
+  /** teto de esqueletos no LOD1 e distância máxima para ele (BAIXO: só os 2 mais próximos; sem campo = sem teto) */
+  lod1?: number;
+  lod1Dist?: number;
 }
 
 export const CROWD_BUDGETS: Record<QualityLevel, CrowdBudget> = {
-  low: { skinned: 8, lod0: 0, maxDetail: 2, skinnedMaxDist: 35, total: 200, instancedLod2Dist: 0 },
+  // rodada 9.1: no BAIXO os 2 mais próximos (< 10 m) ganham o LOD1 e o instanciado de perto (< 10 m) é o LOD2 — antes
+  // quem estava colado no jogador era LOD2/LOD3 (600 tri), facetado
+  low: { skinned: 8, lod0: 0, maxDetail: 1, skinnedMaxDist: 35, total: 200, instancedLod2Dist: 10, lod1: 2, lod1Dist: 10 },
   medium: { skinned: 16, lod0: 2, maxDetail: 1, skinnedMaxDist: 50, total: 350, instancedLod2Dist: 30 },
   high: { skinned: 24, lod0: 6, maxDetail: 0, skinnedMaxDist: 60, total: 600, instancedLod2Dist: 45 },
   ultra: { skinned: 32, lod0: 10, maxDetail: 0, skinnedMaxDist: 80, total: 800, instancedLod2Dist: 60 },
@@ -114,7 +119,7 @@ export function assignTiers(agents: CrowdAgent[], b: CrowdBudget, order: number[
   }
   order.sort((i, j) => rank[i] - rank[j]);
   const st: TierStats = { skinned: 0, instanced: 0, hidden: 0, lod: [0, 0, 0, 0] };
-  let lod0 = 0;
+  let lod0 = 0, lod1 = 0;
   for (let k = 0; k < n; k++) {
     const a = agents[order[k]];
     if (k >= b.total) { a.tier = 0; st.hidden++; continue; }
@@ -122,9 +127,12 @@ export function assignTiers(agents: CrowdAgent[], b: CrowdBudget, order: number[
     if (a.maxTier >= 2 && st.skinned < b.skinned && a.dist < maxD && (a.inView || a.dist < 6)) {
       a.tier = 2;
       let l = skinnedLodFor(a.dist);
-      if (l === 0 && lod0 >= b.lod0) l = 1;
+      // LOD0 só para quem está À VISTA (os colados atrás da câmera ganham esqueleto, mas não gastam vaga de LOD0)
+      if (l === 0 && (lod0 >= b.lod0 || !a.inView)) l = 1;
       l = Math.max(l, b.maxDetail) as Lod;
+      if (l === 1 && b.lod1 !== undefined && (lod1 >= b.lod1 || a.dist > (b.lod1Dist ?? Infinity))) l = 2;
       if (l === 0) lod0++;
+      if (l === 1) lod1++;
       a.lod = l;
       a.animEvery = animEveryFor(a.dist);
       st.skinned++;

@@ -258,11 +258,15 @@ if (q.get('crowd')) {
   await crowd.init();
   scene.add(crowd.group);
   const acts = [0, ...Object.keys(CROWD_ACTION_FRAMES).map((n) => ACTIONS.find((a) => a.crowdClip === n)?.id ?? 0)];
-  acts.forEach((act, col) => CROWD_BODIES.forEach((_, body) => crowdAgents.push(createAgent({
-    x: (col - (acts.length - 1) / 2) * 0.9, z: -2 - body * 1.2, body, lod, act, actAt: performance.now() / 1000, heading: 0,
-  }))));
+  // &cbody=N: só um corpo; &cyaw=rad: rumo (π = de costas); &ccam=close: câmera a ~2 m da primeira coluna (rodada 9.1)
+  const only = q.get('cbody') !== null ? Number(q.get('cbody')) : -1;
+  acts.forEach((act, col) => CROWD_BODIES.forEach((_, body) => { if (only < 0 || only === body) crowdAgents.push(createAgent({
+    x: (col - (acts.length - 1) / 2) * 0.9, z: -2 - (only < 0 ? body : 0) * 1.2, body, lod, act, actAt: performance.now() / 1000, heading: Number(q.get('cyaw') ?? 0),
+    hair: app.hair, top: app.top, bottom: app.bottom, skin: app.skin,
+  })); }));
   chars.forEach((c) => { c.root.visible = false; });
   cam.position.set(0, 3.2, 7.5); cam.lookAt(0, 0.6, -3.5);
+  if (q.get('ccam') === 'close') { const x0 = -((acts.length - 1) / 2) * 0.9; cam.position.set(x0 + 0.9, 1.55, 0.2); cam.lookAt(x0, 1.15, -2); }
   (window as any).__crowd = { stats: crowd.stats, acts };
 }
 frame();

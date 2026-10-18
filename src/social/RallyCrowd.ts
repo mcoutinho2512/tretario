@@ -8,8 +8,17 @@
  *  - Lugares no anel de cada ponto, distribuição orgânica (mais gente perto do veículo); fora de prédios.
  *  - Mesma agenda social dos pedestres (crowdSocial.ts): ações irregulares e desfasadas, itens/designs pelo evento.
  *  - O ponto andou (trio em movimento)? Cada pessoa caminha até o novo lugar (sem teletransporte).
+ *  - Rodada 9.1: os mais PRÓXIMOS da câmera disputam o esqueleto no orçamento (como pedestres e remotos) e ganham um
+ *    HumanCharacter de um pool por corpo — antes eram sempre instanciados (LOD2/LOD3 a 2–5 m do jogador: facetados).
  */
+import * as THREE from 'three';
 import type { CollisionWorld } from '../physics/CollisionWorld';
+import { HumanCharacter } from '../characters/human/HumanCharacter';
+import type { Lod } from '../characters/human/HumanAssets';
+import { packLook } from '../characters/garments';
+import { NPC_CLIPS } from '../npc/PedestrianSystem';
+import { seeded, turnToward } from '../npc/gait';
+import type { CharacterAppearance } from '../characters/bodyTypes';
 import type { CrowdDirector } from '../characters/crowd/CrowdDirector';
 import { createAgent, type CrowdAgent } from '../characters/crowd/crowdBudget';
 import { randomAppearance, type BodyType } from '../characters/bodyTypes';
@@ -19,6 +28,7 @@ import { startNpcReaction, stepNpcReaction, type NpcHittable, type NpcReaction, 
 
 const BODIES: BodyType[] = ['homem', 'mulher', 'homem', 'mulher', 'idoso', 'idosa'];
 const BODY_INDEX: Record<BodyType, number> = { homem: 0, mulher: 1, idoso: 2, idosa: 3 };
+const BODIES_OF: BodyType[] = ['homem', 'mulher', 'idoso', 'idosa'];
 
 interface Member {
   agent: CrowdAgent;
@@ -32,7 +42,15 @@ interface Member {
   look: number;
   /** golpe recebido (src/combat/npcHits.ts): recua/cai/curva-se e depois volta ao lugar no anel */
   react: NpcReaction | null;
+  app: CharacterAppearance;
+  /** esqueleto emprestado do pool (só quando o orçamento concede) */
+  skin: Skin | null;
 }
+
+/** personagem com esqueleto do pool (reaproveitado entre membros do mesmo corpo) */
+interface Skin { human: HumanCharacter; body: BodyType; lod: number; acc: number; social: string }
+/** esqueletos livres guardados por corpo (além disso são descartados) */
+const POOL_SPARE = 3;
 
 export class RallyCrowd implements NpcHittable {
   private members: Member[] = [];
@@ -41,9 +59,68 @@ export class RallyCrowd implements NpcHittable {
   private time = 0;
   /** referência do evento para o preset ALTO (0 = desligado) */
   private target = 0;
-  stats = { members: 0, submitted: 0, points: 0, reacted: 0, hits: 0, reacting: 0 };
+  stats = { members: 0, submitted: 0, points: 0, reacted: 0, hits: 0, reacting: 0, skinned: 0, pool: 0 };
 
-  constructor(private world: CollisionWorld, private crowd: CrowdDirector, private cfg: SocialCrowdConfig) {}
+  /** esqueletos dos membros mais próximos (adicionar à cena) */
+  readonly group = new THREE.Group();
+  private pool: Skin[] = [];
+  /** sombra dos esqueletos até esta distância (m; preset) */
+  shadowDistance = 0;
+
+  constructor(private world: CollisionWorld, private crowd: CrowdDirector, private cfg: SocialCrowdConfig) {
+    this.group.name = 'rally_skinned';
+  }
+
+  private acquire(m: Member): Skin {
+    const body = BODIES_OF[m.agent.body];
+    const i = this.pool.findIndex((k) => k.body === body);
+    let k: Skin;
+    if (i >= 0) { k = this.pool.splice(i, 1)[0]; k.human.resetPose(); k.human.setAppearance(m.app); k.human.setVariant(m.seed); }
+    else {
+      const human = new HumanCharacter(m.app, { lod: 2, castShadow: false, clips: NPC_CLIPS, seed: m.seed });
+      human.root.rotation.order = 'YXZ'; // rumo, depois a inclinação da queda
+      this.group.add(human.root);
+      k = { human, body, lod: 2, acc: 0, social: '' };
+    }
+    k.human.root.visible = false;
+    k.social = '';
+    m.skin = k;
+    return k;
+  }
+
+  private release(m: Member) {
+    const k = m.skin;
+    if (!k) return;
+    m.skin = null;
+    k.human.root.visible = false;
+    k.human.root.rotation.x = 0;
+    k.human.animator?.stopClip();
+    if (this.pool.filter((x) => x.body === k.body).length >= POOL_SPARE) k.human.dispose();
+    else this.pool.push(k);
+  }
+
+  /** um quadro do esqueleto de um membro (o orçamento concedeu tier 2 no quadro anterior) */
+  private drawSkin(m: Member, tilt: number, nowS: number) {
+    const ag = m.agent;
+    const k = m.skin ?? this.acquire(m);
+    const h = k.human;
+    if (ag.lod !== k.lod) { h.setLod(ag.lod as Lod); k.lod = ag.lod; }
+    h.setShadow(ag.dist < this.shadowDistance);
+    // ação/item da agenda: só quando muda (a fase segue o relógio local da ação)
+    const key = `${ag.act}:${ag.prop}:${ag.design}:${Math.round(ag.actAt * 10)}`;
+    if (key !== k.social) {
+      k.social = key;
+      h.setSocial({ act: ag.act, phase: Math.max(0, nowS - ag.actAt), variation: m.seed & 7, prop: ag.prop, design: ag.design });
+    }
+    ag.skinReady = h.showingDetail;
+    h.root.visible = ag.skinReady;
+    h.root.position.set(ag.x, ag.y + (tilt > 0 ? 0.12 * Math.sin(tilt) : 0), ag.z);
+    h.root.rotation.y = ag.heading;
+    h.root.rotation.x = -tilt;
+    k.acc += this.dt;
+    if (this.crowd.shouldAnimate(ag)) { h.animator?.update(ag.speed, true, k.acc); h.updateProps(k.acc); k.acc = 0; }
+  }
+  private dt = 0;
 
   /** escala do preset (também vale para os NPCs reservados dos pontos de evento) */
   private scale = 1;
@@ -57,6 +134,7 @@ export class RallyCrowd implements NpcHittable {
 
   /** distribui as pessoas entre os pontos ativos, proporcional à força × área do anel */
   private rebuild() {
+    for (const m of this.members) this.release(m);
     this.members = [];
     const pts = rallyPoints.all().filter((p) => p.strength > 0);
     this.stats.points = pts.length;
@@ -76,10 +154,10 @@ export class RallyCrowd implements NpcHittable {
         if (this.blocked(spot.x, spot.z)) continue;
         const body = BODIES[seed % BODIES.length];
         const app = randomAppearance(seed, body);
-        const agent = createAgent({ maxTier: 1, body: BODY_INDEX[body], skin: app.skin, hair: app.hair, top: app.top, bottom: app.bottom, scale: app.scale, x: spot.x, z: spot.z });
+        const agent = createAgent({ maxTier: 2, body: BODY_INDEX[body], skin: app.skin, hair: app.hair, top: app.top, bottom: app.bottom, scale: app.scale, look: packLook(app), shirt: app.shirtDesign ?? 0, x: spot.x, z: spot.z });
         this.members.push({
           agent, seed, point: p.id, u1, u2, x: spot.x, z: spot.z, heading: Math.atan2(p.x - spot.x, p.z - spot.z), speed: 0,
-          look: (r() - 0.5) * 0.5, schedule: new SocialSchedule(seed, this.cfg), react: null,
+          look: (r() - 0.5) * 0.5, schedule: new SocialSchedule(seed, this.cfg), react: null, app, skin: null,
         });
       }
     });
@@ -94,6 +172,7 @@ export class RallyCrowd implements NpcHittable {
 
   update(dt: number) {
     this.time += dt;
+    this.dt = dt;
     // redistribui quando o CONJUNTO de pontos ativos muda (andar não muda: cada um acompanha a pé)
     if (this.version !== rallyPoints.version) {
       this.version = rallyPoints.version;
@@ -104,49 +183,60 @@ export class RallyCrowd implements NpcHittable {
     const room = Math.max(0, Math.floor(this.crowd.budget.total * 0.75) - this.crowd.othersCount);
     const n = Math.min(this.members.length, room);
     const nowS = performance.now() / 1000;
-    let reacting = 0;
+    let reacting = 0, skinned = 0;
+    for (let i = n; i < this.members.length; i++) if (this.members[i].skin) this.release(this.members[i]);
     for (let i = 0; i < n; i++) {
       const m = this.members[i];
       const p = rallyPoints.get(m.point);
-      if (!p) continue;
+      if (!p) { if (m.skin) this.release(m); continue; }
+      const ag = m.agent;
+      let tilt = 0;
       if (m.react) {
         // atingido: recua na direção do golpe, inclina (instanciado: tilt), sem ação/item; no fim volta a pé ao lugar
         reacting++;
         const st = stepNpcReaction(m.react, dt);
         if (st.step > 0 && !this.blocked(m.x + m.react.dx * st.step, m.z + m.react.dz * st.step)) { m.x += m.react.dx * st.step; m.z += m.react.dz * st.step; }
-        const ag = m.agent;
         ag.x = m.x; ag.z = m.z; ag.y = this.world.groundHeight(m.x, m.z); ag.heading = m.heading; ag.speed = 0;
-        ag.tilt = st.done ? 0 : st.tilt; ag.act = 0; ag.prop = 0;
+        tilt = ag.tilt = st.done ? 0 : st.tilt; ag.act = 0; ag.prop = 0;
         if (st.done) m.react = null;
-        this.crowd.submit(ag, 'ped');
-        continue;
-      }
-      // lugar atual no anel (o ponto pode ter andado): vai a pé até lá
-      const spot = RallyRegistry.spotFor(p, m.u1, m.u2);
-      const dx = spot.x - m.x, dz = spot.z - m.z, d = Math.hypot(dx, dz);
-      if (d > 0.6) {
-        m.speed += (1.2 - m.speed) * (1 - Math.exp(-3 * dt));
-        const st = Math.min(d, m.speed * dt);
-        m.x += (dx / d) * st; m.z += (dz / d) * st;
-        m.heading = Math.atan2(dx, dz);
       } else {
-        m.speed = Math.max(0, m.speed - dt * 3);
-        const want = Math.atan2(p.x - m.x, p.z - m.z) + m.look;
-        let dh = want - m.heading;
-        while (dh > Math.PI) dh -= Math.PI * 2;
-        while (dh < -Math.PI) dh += Math.PI * 2;
-        m.heading += dh * (1 - Math.exp(-2 * dt));
+        // lugar atual no anel (o ponto pode ter andado): vai a pé até lá, no ritmo próprio, girando o corpo aos poucos
+        const spot = RallyRegistry.spotFor(p, m.u1, m.u2);
+        const dx = spot.x - m.x, dz = spot.z - m.z, d = Math.hypot(dx, dz);
+        if (d > 0.6) {
+          const pace = 1.05 + seeded(m.seed, 1) * 0.3;
+          // chegando: desacelera nos últimos ~1,5 m (sem parar de golpe e patinar)
+          m.speed += (pace * Math.min(1, d / 1.5 + 0.25) - m.speed) * (1 - Math.exp(-3 * dt));
+          m.heading = turnToward(m.heading, Math.atan2(dx, dz), dt);
+          // anda na direção do corpo (com o giro limitado, sem andar de lado), corrigindo para o lugar
+          const st = Math.min(d, m.speed * dt);
+          const hx = Math.sin(m.heading), hz = Math.cos(m.heading), dot = Math.max(0, (hx * dx + hz * dz) / d);
+          m.x += (hx * 0.6 + (dx / d) * 0.4) * st * dot; m.z += (hz * 0.6 + (dz / d) * 0.4) * st * dot;
+        } else {
+          m.speed = Math.max(0, m.speed - dt * 2.2);
+          const want = Math.atan2(p.x - m.x, p.z - m.z) + m.look;
+          m.heading = turnToward(m.heading, want, dt, 2, 1.5);
+        }
+        const sc = m.schedule;
+        sc.update(this.time, m.speed > 0.3, p);
+        ag.x = m.x; ag.z = m.z; ag.y = this.world.groundHeight(m.x, m.z); ag.heading = m.heading; ag.speed = m.speed;
+        ag.act = sc.act; ag.actAt = nowS - Math.max(0, this.time - sc.startedAt);
+        ag.prop = sc.profile.prop; ag.design = sc.profile.design;
       }
-      const sc = m.schedule;
-      sc.update(this.time, m.speed > 0.3, p);
-      const ag = m.agent;
-      ag.x = m.x; ag.z = m.z; ag.y = this.world.groundHeight(m.x, m.z); ag.heading = m.heading; ag.speed = m.speed;
-      ag.act = sc.act; ag.actAt = nowS - Math.max(0, this.time - sc.startedAt);
-      ag.prop = sc.profile.prop; ag.design = sc.profile.design;
       this.crowd.submit(ag, 'ped');
+      // esqueleto concedido pelo orçamento (quadro anterior) e à vista; senão o instanciado desenha
+      if (ag.tier === 2 && (ag.inView || ag.dist < 3)) { this.drawSkin(m, tilt, nowS); skinned++; }
+      else { ag.skinReady = false; if (m.skin) this.release(m); }
     }
     this.stats.submitted = n;
     this.stats.reacting = reacting;
+    this.stats.skinned = skinned;
+    this.stats.pool = this.pool.length;
+  }
+
+  /** QA: membros a até `r` m de (x, z) — representação decidida pelo orçamento */
+  qaNear(x: number, z: number, r = 8) {
+    return this.members.filter((m) => Math.hypot(m.x - x, m.z - z) < r).map((m) => ({ x: +m.x.toFixed(1), z: +m.z.toFixed(1), tier: m.agent.tier, lod: m.agent.lod, inView: m.agent.inView, dist: +m.agent.dist.toFixed(1), skin: !!m.skin, ready: m.agent.skinReady }));
   }
 
   /** membros desenhados agora a até `r` m (caixa) — atingíveis pelo golpe local (src/combat/npcHits.ts) */
@@ -157,6 +247,11 @@ export class RallyCrowd implements NpcHittable {
       out.push({ x: m.x, z: m.z, react: (k, dx, dz, kb) => {
         m.react = startNpcReaction(k, dx, dz, kb);
         if (k === 'down') m.heading = Math.atan2(-dx, -dz); // cai de costas, de frente para quem bateu
+        // com esqueleto: sem ação/item durante a reação e o mesmo clipe dos pedestres (cambaleio / desorientado)
+        if (m.skin) {
+          m.skin.human.setSocial({ act: 0, phase: 0, variation: 0, prop: 0, design: 0 }); m.skin.social = '';
+          if (k !== 'down') m.skin.human.animator?.playClip(k === 'flinch' ? 'disoriented' : 'stagger');
+        }
         this.stats.hits++;
       } });
     }
