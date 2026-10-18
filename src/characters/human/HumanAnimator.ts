@@ -156,6 +156,8 @@ export function groundOffsets(bodyKey: string, root: THREE.Object3D, clips: Map<
 }
 
 export class HumanAnimator {
+  /** balanço procedural dos NPCs (QA: ?sway=0 desliga, comparação de custo) */
+  static sway = typeof location === 'undefined' || new URLSearchParams(location.search).get('sway') !== '0';
   /** fração do sprint na corrida do jogo (0 = só trote) */
   static sprintShare = 0.35;
   readonly mixer: THREE.AnimationMixer;
@@ -565,7 +567,7 @@ export class HumanAnimator {
     const runW = ((this.w.jog ?? 0) + (this.w.sprint ?? 0)) * (1 - aw.full) * (1 - 0.7 * aw.upper);
     const idleW = (this.w.idle ?? 0) * (1 - aw.full) * (1 - 0.8 * aw.upper);
     const walkW = (this.w.walk ?? 0) * (1 - aw.full);
-    const swayOn = this.vary.on && this.detail && (idleW > 0.01 || walkW > 0.01);
+    const swayOn = this.vary.on && HumanAnimator.sway && this.detail && (idleW > 0.01 || walkW > 0.01);
     if (this.detail && ((this.w.idle ?? 0) > 0.01 || runW > 0.01 || this.show === 'acenando' || swayOn)) {
       this.root.updateMatrixWorld(true);
       this.narrowStance(1 - aw.full);

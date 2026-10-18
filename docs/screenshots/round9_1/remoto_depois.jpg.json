@@ -1,0 +1,9 @@
+{
+ "samples": 484,
+ "straight": 108,
+ "meanSpeed": 1.795,
+ "speedSd": 0.235,
+ "speedCv": 0.131,
+ "maxHeadingStep": 0.122,
+ "framesWithZeroMove": 0
+}

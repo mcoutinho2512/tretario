@@ -68,13 +68,13 @@ function inventory() {
 
 const all = {};
 for (const q of PRESETS) {
-  const br = await puppeteer.launch({ executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', headless: 'new', args: ['--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist'], defaultViewport: { width: 1280, height: 720 } });
+  const br = await puppeteer.launch({ executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', headless: 'new', args: ['--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist', ...(process.env.UNCAPPED ? ['--disable-frame-rate-limit', '--disable-gpu-vsync'] : [])], defaultViewport: { width: 1280, height: 720 } });
   const page = await br.newPage();
   const errs = [];
   page.on('pageerror', (e) => errs.push(e.message));
   try {
     const qual = q === 'auto' ? '' : `&quality=${q}`;
-    await page.goto(`${BASE}/?autostart=1&welcome=0${qual}&time=10:30&mem=1&name=Probe${MP ? `&mp=${MP}` : ''}${EXTRA}`);
+    await page.goto(`${BASE}/?autostart=1&welcome=0${qual}&time=10:30&mem=1&name=Probe${MP ? `&mp=${MP}` : ''}${process.env.UNCAPPED ? '&uncapped=1' : ''}${EXTRA}`);
     await page.waitForFunction('window.__pvReady === true', { timeout: 240000 });
     await w(2000);
     const rally = await page.evaluate(() => window.__pv.rallyCrowd());
@@ -101,7 +101,7 @@ for (const q of PRESETS) {
       await w(3000);
       const inv = await page.evaluate(inventory);
       for (const h of [...inv.skinned, ...inv.instanced]) h.dCam = +Math.hypot(h.x - cam.x, h.z - cam.z).toFixed(1);
-      const met = await page.evaluate(() => { const m = window.__pv.metrics(); return { fps: m.fps, calls: m.calls, triangles: m.triangles, quality: m.quality, crowd: m.crowd, peds: m.pedestrians }; });
+      const met = await page.evaluate(() => { const m = window.__pv.metrics(); return { cpuMs: m.cpuMs, gpuMs: m.gpuMs, fps: m.fps, calls: m.calls, triangles: m.triangles, quality: m.quality, crowd: m.crowd, peds: m.pedestrians }; });
       await page.screenshot({ path: `${OUT}/${q}_${d}m.jpg`, type: 'jpeg', quality: 85 });
       res.shots[d] = { cam, metrics: met, inv };
       const near = (arr) => arr.filter((h) => h.dCam < 16).sort((a, b) => a.dCam - b.dCam);

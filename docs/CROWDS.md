@@ -105,7 +105,7 @@ pedestres NPC                        ─┘    (cada sistema aplica o tier      
 
 | Preset | Esqueletos | LOD0 máx. | LOD mais detalhado | Esqueleto até | Teto total | Instanciado LOD2 até |
 |---|---|---|---|---|---|---|
-| BAIXO | 8 | 0 | LOD2 | 35 m | 200 | — (só LOD3) |
+| BAIXO | 8 | 0 (LOD1: 2, < 10 m — rodada 9.1) | LOD1 | 35 m | 200 | 10 m (rodada 9.1; antes só LOD3) |
 | MÉDIO | 16 | 2 | LOD1 | 50 m | 350 | 30 m |
 | ALTO | 24 | 6 | LOD0 | 60 m | 600 | 45 m |
 | ULTRA | 32 | 10 | LOD0 | 80 m | 800 | 60 m |
@@ -164,6 +164,40 @@ Antes / sem o orçamento (ALTO, `crowd_bench_antes.json` e `crowd_bench_sem_orca
 | Antes: servidor sem limite + todo remoto com esqueleto | 17,7 FPS · 4 927 calls · 12,3 M tri · CPU 56 ms · pior quadro 2,0 s | **6,1 FPS** · 9 193 calls · 22,5 M tri · CPU 120 ms · pior quadro 2,8 s |
 | Só o limite do servidor (48), cliente sem orçamento (`crowd=0`) | 63 FPS · 2 007 calls · CPU 15,4 ms | 60 FPS · 2 000 calls · CPU 16,4 ms (e os 450 distantes não aparecem) |
 | Depois (limite + orçamento + instanciados) | 94 FPS · 1 426 calls · CPU 10,1 ms | **90 FPS · 1 422 calls · CPU 10,5 ms** (500 visíveis) |
+
+## Rodada 9.1: personagens de perto
+
+Relato do dono: de perto (2–6 m, junto de um carro de som) os bonecos pareciam LOD distante, "dava para ver através"
+e o rabo de cavalo tinha manchas verdes/marrons. Sonda: `node tools/qa/char_probe.mjs <url> low,medium,high,auto
+<pasta>` (build de produção, `?mem=1`) — por humano visível: esqueleto ou instanciado, LOD, triângulos, materiais por
+camada (transparent/alphaTest/depthWrite/side), recorte da pele (`userData.cull`); resumo com
+`tools/qa/char_probe_summary.mjs`. Dados: `docs/screenshots/round9_1/char_probe.json`.
+
+**Causas**
+1. A **concentração** (`src/social/RallyCrowd.ts`) era só instanciada (`maxTier: 1`): no ALTO, 12–15 humanos a < 6 m
+   da câmera eram LOD2 instanciados (2,5 k tri, normais de repouso); no BAIXO, LOD3 (600 tri) a 2 m. O orçamento de
+   esqueletos ficava quase vazio nessa cena (5–7 de 24).
+2. **Malhas únicas** (LOD2/LOD3; instanciadas e com esqueleto): o material VAT era de um lado só (cartões de cabelo e
+   bordas de roupa vistos por trás sumiam → chão através do personagem); a pele decimada atravessava camisa/calça
+   (manchas); o cabelo assado em cor de vértice trazia a cor dos texels transparentes da textura (manchas verdes/marrons).
+3. **Fallback LOD3**: o pedestre que entrava no orçamento mostrava o LOD3 com esqueleto até o LOD0 terminar de vestir
+   (peças + recorte no Worker), por cima do instanciado.
+
+**Correções**
+- RallyCrowd: os mais próximos da câmera (até metade de `budget.skinned`, < 10 m; distância do quadro anterior) recebem
+  `maxTier: 2` e disputam o esqueleto como todos; quem ganha usa um `HumanCharacter` de um pool por corpo (reaproveitado,
+  ≤ 3 livres por corpo), com ação/item da agenda, reação a golpe (inclinação/cambaleio) e sombra só < 12 m.
+  `__pv.rallyCrowd().near` (QA) lista os membros perto do jogador com tier/LOD.
+- `garmentShader.patchLookShader({ inflate })`: camisa/calça afastadas pela normal depois do skinning/VAT (presa na
+  gola); cabelo pela cor da camada; VAT `DoubleSide`.
+- `HumanCharacter.showingDetail` + LOD2 interino: o esqueleto só substitui o instanciado com detalhe compatível.
+- Movimento da multidão VAT: transição parado↔andar (0,15–0,55 m/s) e andar↔trote (2,0–2,4 m/s) misturando o quadro
+  mais próximo dos dois ciclos; cadência dividida pela escala do agente (sem patinar). NPCs com esqueleto: variação por
+  semente (`HumanAnimator.setVariant`), giro limitado (`src/npc/gait.ts`).
+
+**Custo medido** (sem vsync): na concentração, ALTO 167 → 119 FPS a 4 m (CPU 5,7 → 8,3 ms, 569 → ~900 draw calls),
+ULTRA 107 → 99 (4 m) e 108 → 75 (15 m). A bancada de bots densos não muda no ALTO/MÉDIO; BAIXO −6 % (LOD1 e VAT LOD2).
+Sem teto, a concentração ocupava os 24–32 esqueletos (ALTO 70 FPS, CPU 15 ms) — por isso a metade do orçamento.
 
 ## 3. Limites e problemas conhecidos
 - **Picos isolados no ALTO**: depois do merge, o pior quadro da janela chegou a 115–140 ms (uma vez por cena),

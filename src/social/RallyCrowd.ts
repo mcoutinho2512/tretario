@@ -49,6 +49,9 @@ interface Member {
 
 /** personagem com esqueleto do pool (reaproveitado entre membros do mesmo corpo) */
 interface Skin { human: HumanCharacter; body: BodyType; lod: number; acc: number; social: string }
+/** fração do orçamento de esqueletos que a concentração pode ocupar, e até que distância da câmera (m) */
+const RALLY_SKIN_SHARE = 0.5;
+const RALLY_SKIN_DIST = 10;
 /** esqueletos livres guardados por corpo (além disso são descartados) */
 const POOL_SPARE = 3;
 
@@ -105,7 +108,8 @@ export class RallyCrowd implements NpcHittable {
     const k = m.skin ?? this.acquire(m);
     const h = k.human;
     if (ag.lod !== k.lod) { h.setLod(ag.lod as Lod); k.lod = ag.lod; }
-    h.setShadow(ag.dist < this.shadowDistance);
+    // sombra só bem perto: na concentração densa os esqueletos são muitos e cada sombra é mais um passe por camada
+    h.setShadow(ag.dist < Math.min(this.shadowDistance, 12));
     // ação/item da agenda: só quando muda (a fase segue o relógio local da ação)
     const key = `${ag.act}:${ag.prop}:${ag.design}:${Math.round(ag.actAt * 10)}`;
     if (key !== k.social) {
@@ -121,6 +125,7 @@ export class RallyCrowd implements NpcHittable {
     if (this.crowd.shouldAnimate(ag)) { h.animator?.update(ag.speed, true, k.acc); h.updateProps(k.acc); k.acc = 0; }
   }
   private dt = 0;
+  private near: number[] = [];
 
   /** escala do preset (também vale para os NPCs reservados dos pontos de evento) */
   private scale = 1;
@@ -154,7 +159,7 @@ export class RallyCrowd implements NpcHittable {
         if (this.blocked(spot.x, spot.z)) continue;
         const body = BODIES[seed % BODIES.length];
         const app = randomAppearance(seed, body);
-        const agent = createAgent({ maxTier: 2, body: BODY_INDEX[body], skin: app.skin, hair: app.hair, top: app.top, bottom: app.bottom, scale: app.scale, look: packLook(app), shirt: app.shirtDesign ?? 0, x: spot.x, z: spot.z });
+        const agent = createAgent({ maxTier: 1, body: BODY_INDEX[body], skin: app.skin, hair: app.hair, top: app.top, bottom: app.bottom, scale: app.scale, look: packLook(app), shirt: app.shirtDesign ?? 0, x: spot.x, z: spot.z });
         this.members.push({
           agent, seed, point: p.id, u1, u2, x: spot.x, z: spot.z, heading: Math.atan2(p.x - spot.x, p.z - spot.z), speed: 0,
           look: (r() - 0.5) * 0.5, schedule: new SocialSchedule(seed, this.cfg), react: null, app, skin: null,
@@ -185,6 +190,14 @@ export class RallyCrowd implements NpcHittable {
     const nowS = performance.now() / 1000;
     let reacting = 0, skinned = 0;
     for (let i = n; i < this.members.length; i++) if (this.members[i].skin) this.release(this.members[i]);
+    // só os K mais próximos da câmera (distância do quadro anterior) PODEM disputar o esqueleto: a concentração é
+    // densa e, sem teto, ocupava todo o orçamento do preset (24–32 esqueletos de NPC: CPU 6 → 15 ms no ALTO); metade do orçamento, até 10 m
+    const k = Math.max(2, Math.round(this.crowd.budget.skinned * RALLY_SKIN_SHARE));
+    this.near.length = 0;
+    for (let i = 0; i < n; i++) { const a = this.members[i].agent; if (a.dist < RALLY_SKIN_DIST) this.near.push(i); }
+    if (this.near.length > k) this.near.sort((x, y) => this.members[x].agent.dist - this.members[y].agent.dist);
+    for (let i = 0; i < n; i++) this.members[i].agent.maxTier = 1;
+    for (let j = 0; j < Math.min(k, this.near.length); j++) this.members[this.near[j]].agent.maxTier = 2;
     for (let i = 0; i < n; i++) {
       const m = this.members[i];
       const p = rallyPoints.get(m.point);

@@ -1,0 +1,593 @@
+{
+ "antes_low": {
+  "2m": {
+   "calls": 158,
+   "triangles": 242166,
+   "quality": "low",
+   "skinned": 1,
+   "lods": [
+    0,
+    0,
+    1,
+    0
+   ],
+   "near6m": [
+    "inst_lod3/600"
+   ]
+  },
+  "4m": {
+   "calls": 162,
+   "triangles": 248923,
+   "quality": "low",
+   "skinned": 1,
+   "lods": [
+    0,
+    0,
+    1,
+    0
+   ],
+   "near6m": [
+    "inst_lod3/600",
+    "inst_lod3/600"
+   ]
+  },
+  "8m": {
+   "calls": 163,
+   "triangles": 270160,
+   "quality": "low",
+   "skinned": 1,
+   "lods": [
+    0,
+    0,
+    1,
+    0
+   ],
+   "near6m": [
+    "inst_lod3/599"
+   ]
+  },
+  "15m": {
+   "calls": 163,
+   "triangles": 276366,
+   "quality": "low",
+   "skinned": 1,
+   "lods": [
+    0,
+    0,
+    1,
+    0
+   ],
+   "near6m": []
+  }
+ },
+ "antes_medium": {
+  "2m": {
+   "calls": 221,
+   "triangles": 475921,
+   "quality": "medium",
+   "skinned": 4,
+   "lods": [
+    0,
+    1,
+    3,
+    0
+   ],
+   "near6m": [
+    "inst_lod2/2499",
+    "inst_lod2/2499",
+    "inst_lod2/2500"
+   ]
+  },
+  "4m": {
+   "calls": 226,
+   "triangles": 479429,
+   "quality": "medium",
+   "skinned": 5,
+   "lods": [
+    0,
+    1,
+    4,
+    0
+   ],
+   "near6m": [
+    "inst_lod2/2499",
+    "inst_lod2/2499",
+    "inst_lod2/2500"
+   ]
+  },
+  "8m": {
+   "calls": 225,
+   "triangles": 498816,
+   "quality": "medium",
+   "skinned": 4,
+   "lods": [
+    0,
+    2,
+    2,
+    0
+   ],
+   "near6m": [
+    "inst_lod2/2499"
+   ]
+  },
+  "15m": {
+   "calls": 242,
+   "triangles": 549375,
+   "quality": "medium",
+   "skinned": 4,
+   "lods": [
+    0,
+    2,
+    2,
+    0
+   ],
+   "near6m": []
+  }
+ },
+ "antes_high": {
+  "2m": {
+   "calls": 575,
+   "triangles": 2043194,
+   "quality": "high",
+   "skinned": 7,
+   "lods": [
+    1,
+    0,
+    6,
+    0
+   ],
+   "near6m": [
+    "lod0/40495",
+    "inst_lod2/2499",
+    "inst_lod2/2500",
+    "inst_lod2/2500",
+    "inst_lod2/2499",
+    "inst_lod2/2500",
+    "inst_lod2/2499",
+    "inst_lod2/2499",
+    "inst_lod2/2499",
+    "inst_lod2/2500",
+    "inst_lod2/2499",
+    "inst_lod2/2500",
+    "inst_lod2/2499",
+    "inst_lod2/2499",
+    "inst_lod2/2500",
+    "inst_lod2/2499"
+   ]
+  },
+  "4m": {
+   "calls": 601,
+   "triangles": 2088122,
+   "quality": "high",
+   "skinned": 6,
+   "lods": [
+    1,
+    1,
+    4,
+    0
+   ],
+   "near6m": [
+    "lod0/40495",
+    "inst_lod2/2499",
+    "inst_lod2/2500",
+    "inst_lod2/2500",
+    "inst_lod2/2499",
+    "inst_lod2/2500",
+    "inst_lod2/2499",
+    "inst_lod2/2499",
+    "inst_lod2/2499",
+    "inst_lod2/2499",
+    "inst_lod2/2500",
+    "inst_lod2/2499",
+    "inst_lod2/2499"
+   ]
+  },
+  "8m": {
+   "calls": 659,
+   "triangles": 2168608,
+   "quality": "high",
+   "skinned": 7,
+   "lods": [
+    2,
+    1,
+    4,
+    0
+   ],
+   "near6m": [
+    "lod0/40495",
+    "lod0/35496"
+   ]
+  },
+  "15m": {
+   "calls": 631,
+   "triangles": 2140842,
+   "quality": "high",
+   "skinned": 6,
+   "lods": [
+    2,
+    0,
+    4,
+    0
+   ],
+   "near6m": []
+  }
+ },
+ "antes_auto": {
+  "2m": {
+   "calls": 675,
+   "triangles": 2483780,
+   "quality": "ultra",
+   "skinned": 12,
+   "lods": [
+    4,
+    0,
+    8,
+    0
+   ],
+   "near6m": [
+    "lod0/40495",
+    "lod0/35375",
+    "inst_lod2/2499",
+    "inst_lod2/2499",
+    "inst_lod2/2499",
+    "inst_lod2/2500",
+    "inst_lod2/2500",
+    "inst_lod2/2499",
+    "inst_lod2/2499",
+    "inst_lod2/2500"
+   ]
+  },
+  "4m": {
+   "calls": 693,
+   "triangles": 2527254,
+   "quality": "ultra",
+   "skinned": 13,
+   "lods": [
+    4,
+    0,
+    9,
+    0
+   ],
+   "near6m": [
+    "lod0/40495",
+    "lod0/35375",
+    "inst_lod2/2499",
+    "inst_lod2/2499",
+    "inst_lod2/2499",
+    "inst_lod2/2500",
+    "inst_lod2/2499"
+   ]
+  },
+  "8m": {
+   "calls": 693,
+   "triangles": 2461410,
+   "quality": "ultra",
+   "skinned": 14,
+   "lods": [
+    3,
+    1,
+    10,
+    0
+   ],
+   "near6m": [
+    "inst_lod2/2500"
+   ]
+  },
+  "15m": {
+   "calls": 695,
+   "triangles": 2550958,
+   "quality": "ultra",
+   "skinned": 14,
+   "lods": [
+    3,
+    1,
+    10,
+    0
+   ],
+   "near6m": []
+  }
+ },
+ "depois_low": {
+  "2m": {
+   "calls": 166,
+   "triangles": 257901,
+   "quality": "low",
+   "skinned": 4,
+   "lods": [
+    0,
+    2,
+    2,
+    0
+   ],
+   "near6m": [
+    "lod1/10636"
+   ]
+  },
+  "4m": {
+   "calls": 177,
+   "triangles": 270807,
+   "quality": "low",
+   "skinned": 5,
+   "lods": [
+    0,
+    2,
+    3,
+    0
+   ],
+   "near6m": [
+    "lod1/10636",
+    "lod1/10702"
+   ]
+  },
+  "8m": {
+   "calls": 174,
+   "triangles": 286052,
+   "quality": "low",
+   "skinned": 5,
+   "lods": [
+    0,
+    2,
+    3,
+    0
+   ],
+   "near6m": [
+    "lod1/10836"
+   ]
+  },
+  "15m": {
+   "calls": 173,
+   "triangles": 287113,
+   "quality": "low",
+   "skinned": 2,
+   "lods": [
+    0,
+    1,
+    1,
+    0
+   ],
+   "near6m": []
+  }
+ },
+ "depois_medium": {
+  "2m": {
+   "calls": 277,
+   "triangles": 551700,
+   "quality": "medium",
+   "skinned": 9,
+   "lods": [
+    0,
+    6,
+    3,
+    0
+   ],
+   "near6m": [
+    "lod1/11796",
+    "lod1/8624",
+    "lod1/12230"
+   ]
+  },
+  "4m": {
+   "calls": 282,
+   "triangles": 553488,
+   "quality": "medium",
+   "skinned": 10,
+   "lods": [
+    0,
+    7,
+    3,
+    0
+   ],
+   "near6m": [
+    "lod1/11796",
+    "lod1/8624",
+    "lod1/12230"
+   ]
+  },
+  "8m": {
+   "calls": 288,
+   "triangles": 576386,
+   "quality": "medium",
+   "skinned": 9,
+   "lods": [
+    0,
+    7,
+    2,
+    0
+   ],
+   "near6m": [
+    "lod1/9807"
+   ]
+  },
+  "15m": {
+   "calls": 269,
+   "triangles": 587228,
+   "quality": "medium",
+   "skinned": 5,
+   "lods": [
+    0,
+    4,
+    1,
+    0
+   ],
+   "near6m": []
+  }
+ },
+ "depois_high": {
+  "2m": {
+   "calls": 857,
+   "triangles": 2873306,
+   "quality": "high",
+   "skinned": 18,
+   "lods": [
+    6,
+    7,
+    5,
+    0
+   ],
+   "near6m": [
+    "lod0/40495",
+    "lod0/32540",
+    "lod0/34964",
+    "lod0/28363",
+    "lod0/34199",
+    "lod1/10231",
+    "lod1/9103",
+    "lod0/32031",
+    "lod1/11110",
+    "lod1/12602",
+    "lod1/11081",
+    "lod1/9839",
+    "inst_lod2/2500",
+    "inst_lod2/2499",
+    "inst_lod2/2500",
+    "inst_lod2/2499"
+   ]
+  },
+  "4m": {
+   "calls": 873,
+   "triangles": 2909088,
+   "quality": "high",
+   "skinned": 18,
+   "lods": [
+    6,
+    7,
+    5,
+    0
+   ],
+   "near6m": [
+    "lod0/40495",
+    "lod0/32540",
+    "lod0/34964",
+    "lod1/9103",
+    "lod0/34199",
+    "lod1/10231",
+    "lod1/9103",
+    "lod0/32031",
+    "lod1/11110",
+    "lod0/33876",
+    "lod1/12602",
+    "lod1/9839",
+    "inst_lod2/2499"
+   ]
+  },
+  "8m": {
+   "calls": 953,
+   "triangles": 2932198,
+   "quality": "high",
+   "skinned": 19,
+   "lods": [
+    6,
+    8,
+    5,
+    0
+   ],
+   "near6m": [
+    "lod0/40495",
+    "lod0/35496"
+   ]
+  },
+  "15m": {
+   "calls": 625,
+   "triangles": 2139466,
+   "quality": "high",
+   "skinned": 5,
+   "lods": [
+    2,
+    0,
+    3,
+    0
+   ],
+   "near6m": []
+  }
+ },
+ "depois_auto": {
+  "2m": {
+   "calls": 1277,
+   "triangles": 4424442,
+   "quality": "ultra",
+   "skinned": 18,
+   "lods": [
+    8,
+    7,
+    3,
+    0
+   ],
+   "near6m": [
+    "lod0/40495",
+    "lod0/35375",
+    "lod0/32507",
+    "lod0/29540",
+    "lod0/41887",
+    "lod1/9924",
+    "lod0/33720"
+   ]
+  },
+  "4m": {
+   "calls": 1291,
+   "triangles": 4436202,
+   "quality": "ultra",
+   "skinned": 20,
+   "lods": [
+    8,
+    9,
+    3,
+    0
+   ],
+   "near6m": [
+    "lod0/40495",
+    "lod0/35375",
+    "lod0/32507",
+    "lod0/29540",
+    "lod0/41887",
+    "lod0/30468",
+    "lod0/29600",
+    "lod1/11375"
+   ]
+  },
+  "8m": {
+   "calls": 1409,
+   "triangles": 4741618,
+   "quality": "ultra",
+   "skinned": 22,
+   "lods": [
+    10,
+    9,
+    3,
+    0
+   ],
+   "near6m": [
+    "lod0/35375",
+    "lod0/30468",
+    "lod0/34219",
+    "lod0/36896",
+    "lod0/36714",
+    "lod0/34763",
+    "lod0/30805",
+    "lod0/34352",
+    "lod0/31943",
+    "lod1/10306",
+    "inst_lod3/600"
+   ]
+  },
+  "15m": {
+   "calls": 1649,
+   "triangles": 5122660,
+   "quality": "ultra",
+   "skinned": 21,
+   "lods": [
+    10,
+    8,
+    3,
+    0
+   ],
+   "near6m": [
+    "lod0/35074",
+    "lod0/40950",
+    "lod0/31180",
+    "lod0/34570",
+    "lod0/30136",
+    "lod1/10803"
+   ]
+  }
+ }
+}
