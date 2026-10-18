@@ -40,7 +40,7 @@ import { runtime, sweepHealthLimits } from './http/health.ts';
 import { CleanupService, liveMemorySweepers } from './cleanup/CleanupService.ts';
 import { sweepAuthLimits } from './auth/routes.ts';
 import { sweepProfileLimits } from './http/profile.ts';
-import { buildInfo } from './buildInfo.ts';
+import { buildInfo, shortCommit } from './buildInfo.ts';
 import { registrationMode } from './auth/mail.ts';
 
 const port = Number(process.env.PORT ?? 2567);
@@ -63,7 +63,7 @@ runtime.accepting = true;
 const b = buildInfo();
 // a linha "[pv3d-server]" é o sinal de pronto dos testes/QA (saída legível); em JSON vai como evento startup
 log.info(log.json ? 'startup' : 'pv3d-server', `ws://${host}:${port} · sala "${ROOM_NAME}"${prod ? '' : ' (desenvolvimento)'}`, {
-  port, apiPort: port + 1, protocol: PROTOCOL_VERSION, version: b.commit.slice(0, 7), buildTime: b.buildTime, env: process.env.NODE_ENV ?? 'development',
+  port, apiPort: port + 1, protocol: PROTOCOL_VERSION, version: shortCommit(), buildTime: b.buildTime, env: process.env.NODE_ENV ?? 'development',
   store: svc.store.kind, registration: registrationMode(), maxPlayers: ROOM_CAPS.players, maxSpectators: ROOM_CAPS.spectators, node: process.version,
 });
 // limpeza de efêmeros vencidos (sessões, códigos, tickets, limites): primeira passada alguns segundos depois, sem
