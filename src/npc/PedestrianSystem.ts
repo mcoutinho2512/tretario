@@ -26,7 +26,7 @@ import { rallyPoints, RallyRegistry, type RallyPoint } from '../social/rally';
 import { ACTIONS } from '../social/actions';
 import { PROPS } from '../social/props';
 import type { SocialState } from '../social/types';
-import { startNpcReaction, stepNpcReaction, type NpcHittable, type NpcReaction, type NpcReactionKind, type NpcTarget } from '../combat/npcHits';
+import { npcDownPhase, startNpcReaction, stepNpcReaction, type NpcHittable, type NpcReaction, type NpcReactionKind, type NpcTarget } from '../combat/npcHits';
 import { seeded, turnToward } from './gait';
 
 /** clipes que os NPCs carregam: locomoção + todos os de ações/itens (camada social) */
@@ -49,6 +49,8 @@ interface PedVisual {
   setLodDirect(l: Lod): void;
   /** clipe avulso (stagger/disoriented — golpe recebido); no-op no procedural antigo */
   playClip(name: string): void;
+  /** encerra um clipe avulso (crossfade) */
+  stopClip(name: string): void;
   /** individualidade da animação (fase, balanço do parado); no-op no procedural antigo */
   setVariant(seed: number): void;
   /** já há malha visível */
@@ -59,12 +61,14 @@ interface PedAnim { update(speed: number, grounded: boolean, dt: number): void }
 function legacyVisual(app: CharacterAppearance): { rig: PedVisual; anim: PedAnim } {
   const r = createCharacter(app);
   const anim = new CharacterAnimator(r);
-  return { rig: { mesh: r.mesh, body: r.body, setAppearance: (a) => r.setAppearance(a), setShadow: (on) => { r.mesh.castShadow = on; }, setLod() {}, setLodDirect() {}, setSocial() {}, playClip() {}, setVariant() {}, ready: () => true }, anim };
+  return { rig: { mesh: r.mesh, body: r.body, setAppearance: (a) => r.setAppearance(a), setShadow: (on) => { r.mesh.castShadow = on; }, setLod() {}, setLodDirect() {}, setSocial() {}, playClip() {}, stopClip() {}, setVariant() {}, ready: () => true }, anim };
 }
 import type { PedCrossing } from '../world/types';
 import type { SignalController } from '../traffic/SignalController';
 
 interface Ped {
+  /** rodada 9.1: fase do clipe de queda (esqueleto) */
+  downPhase?: 'down' | 'getup' | null;
   rig: PedVisual;
   anim: PedAnim;
   x: number; z: number; y: number;
@@ -180,6 +184,7 @@ export class PedestrianSystem implements NpcHittable {
     p.agent.act = 0; p.agent.prop = 0; // instanciado inclinado: sem item solto no ar
     p.agent.priority = 0.5; // como jogador caído: disputa o esqueleto com vantagem
     if (kind !== 'down') p.rig.playClip(kind === 'flinch' ? 'disoriented' : 'stagger');
+    else { p.rig.stopClip('getup'); p.rig.playClip('npc_down'); p.downPhase = 'down'; } // cai sentado (clipe), não rígido
     this.stats.hits++;
   }
 
@@ -187,12 +192,16 @@ export class PedestrianSystem implements NpcHittable {
   private stepReact(p: Ped, dt: number): number {
     const r = p.react!;
     const st = stepNpcReaction(r, dt);
+    // queda com esqueleto: de 'down' para 'getup' uma vez — levanta pelo clipe a partir da mesma pose
+    const ph = npcDownPhase(r);
+    if (ph === 'getup' && p.downPhase === 'down') { p.rig.stopClip('npc_down'); p.rig.playClip('getup'); p.downPhase = 'getup'; }
     if (st.step > 0) {
       const pos = { x: p.x + r.dx * st.step, y: p.y, z: p.z + r.dz * st.step };
       this.world.resolveCircle(pos, 0.3, 1.7);
       if (this.world.isPedestrianWalkable(pos.x, pos.z)) { p.x = pos.x; p.z = pos.z; }
     }
     if (st.done) {
+      if (p.downPhase) { p.rig.stopClip('npc_down'); p.downPhase = null; }
       p.react = null; p.mode = 'walk'; p.agent.priority = 1;
       p.speed = p.cruise; p.walkTimer = 4 + (p.tick % 5);
       this.applySocial(p);
@@ -280,7 +289,8 @@ export class PedestrianSystem implements NpcHittable {
       },
       setLodDirect: (l) => { if (l !== lastLod) { human.setLod(l); lastLod = l; } },
       setSocial: (s) => human.setSocial(s),
-      playClip: (n) => { human.animator?.playClip(n); },
+      playClip: (n) => { human.animator?.playClip(n, n === 'npc_down'); },
+      stopClip: (n) => { human.animator?.stopClip(n); },
       setVariant: (sd) => human.setVariant(sd),
       ready: () => human.showingDetail,
     };
@@ -564,9 +574,9 @@ export class PedestrianSystem implements NpcHittable {
       const mesh = p.rig.mesh;
       // corpo gira para o rumo com velocidade angular limitada (parado/esperando: mais devagar)
       p.face = p.react ? p.heading : turnToward(p.face, p.heading, dt, p.speed > 0.3 ? 8 : 4, p.speed > 0.3 ? 4.5 : 2.5);
-      mesh.position.set(p.x, p.y + (tilt > 0 ? 0.12 * Math.sin(tilt) : 0), p.z);
+      mesh.position.set(p.x, p.y + (tilt > 0 && p.react?.kind !== 'down' ? 0.12 * Math.sin(tilt) : 0), p.z);
       mesh.rotation.y = p.face;
-      mesh.rotation.x = -tilt;
+      mesh.rotation.x = p.react?.kind === 'down' ? 0 : -tilt; // derrubado: a pose vem do clipe (esqueleto)
       if (crowd) {
         // orçamento único: esqueleto só se o diretor concedeu (quadro anterior); senão a multidão instanciada desenha
         const ag = p.agent;

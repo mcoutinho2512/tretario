@@ -7,7 +7,7 @@ import { checkPath } from './authority';
 import { TRIO, distToCabDoor } from '../vehicles/platform';
 
 export const RULES = {
-  pushRange: 1.9, // m (centro a centro)
+  pushRange: 1.6, // m (centro a centro) — rodada 9.1: alcance realista, como os golpes (combat.json)
   pushAngleDeg: 75, // alvo dentro deste ângulo da frente do atacante
   pushCooldownMs: 1000,
   rateWindowMs: 15000, // anti-spam: no máximo N ações por janela

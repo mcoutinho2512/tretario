@@ -24,7 +24,7 @@ import { createAgent, type CrowdAgent } from '../characters/crowd/crowdBudget';
 import { randomAppearance, type BodyType } from '../characters/bodyTypes';
 import { SocialSchedule, rng, type SocialCrowdConfig } from './crowdSocial';
 import { RallyRegistry, rallyPoints } from './rally';
-import { startNpcReaction, stepNpcReaction, type NpcHittable, type NpcReaction, type NpcTarget } from '../combat/npcHits';
+import { startNpcReaction, stepNpcReaction, type NpcHittable, type NpcReaction, type NpcTarget, npcDownPhase } from '../combat/npcHits';
 
 const BODIES: BodyType[] = ['homem', 'mulher', 'homem', 'mulher', 'idoso', 'idosa'];
 const BODY_INDEX: Record<BodyType, number> = { homem: 0, mulher: 1, idoso: 2, idosa: 3 };
@@ -48,7 +48,7 @@ interface Member {
 }
 
 /** personagem com esqueleto do pool (reaproveitado entre membros do mesmo corpo) */
-interface Skin { human: HumanCharacter; body: BodyType; lod: number; acc: number; social: string }
+interface Skin { human: HumanCharacter; body: BodyType; lod: number; acc: number; social: string; downPh?: 'down' | 'getup' | null }
 /** fração do orçamento de esqueletos que a concentração pode ocupar, e até que distância da câmera (m) */
 const RALLY_SKIN_SHARE = 0.5;
 const RALLY_SKIN_DIST = 10;
@@ -97,7 +97,7 @@ export class RallyCrowd implements NpcHittable {
     m.skin = null;
     k.human.root.visible = false;
     k.human.root.rotation.x = 0;
-    k.human.animator?.stopClip();
+    k.human.animator?.stopClip(); k.downPh = null;
     if (this.pool.filter((x) => x.body === k.body).length >= POOL_SPARE) k.human.dispose();
     else this.pool.push(k);
   }
@@ -118,9 +118,18 @@ export class RallyCrowd implements NpcHittable {
     }
     ag.skinReady = h.showingDetail;
     h.root.visible = ag.skinReady;
-    h.root.position.set(ag.x, ag.y + (tilt > 0 ? 0.12 * Math.sin(tilt) : 0), ag.z);
+    // rodada 9.1: derrubado com esqueleto → clipes (cai sentado `npc_down`, levanta `getup`), sem inclinar rígido
+    const ph = npcDownPhase(m.react);
+    if (ph !== (k.downPh ?? null)) {
+      if (ph === 'down') h.animator?.playClip('npc_down', true);
+      else if (ph === 'getup') { h.animator?.stopClip('npc_down'); h.animator?.playClip('getup'); }
+      else h.animator?.stopClip('npc_down');
+      k.downPh = ph;
+    }
+    const down = m.react?.kind === 'down';
+    h.root.position.set(ag.x, ag.y + (tilt > 0 && !down ? 0.12 * Math.sin(tilt) : 0), ag.z);
     h.root.rotation.y = ag.heading;
-    h.root.rotation.x = -tilt;
+    h.root.rotation.x = down ? 0 : -tilt;
     k.acc += this.dt;
     if (this.crowd.shouldAnimate(ag)) { h.animator?.update(ag.speed, true, k.acc); h.updateProps(k.acc); k.acc = 0; }
   }

@@ -1117,7 +1117,8 @@ export class Game {
         zone: () => this.hudShell.zones.current, flash: (m) => this.flash(m), touch: this.touchCtl, hud,
         consent: this.combatRules.combatConsent,
         // NPCs de ambiente são locais: o golpe neles não vai ao servidor (src/combat/npcHits.ts)
-        npcHit: (x, z, h, def) => hitNpcs([this.peds, this.rallyCrowd], { x, z, h }, def, this.combat!.tuning),
+        // NPC é local (sem latência): sem folga de alcance — só a do arco
+        npcHit: (x, z, h, def) => hitNpcs([this.peds, this.rallyCrowd], { x, z, h }, def, { rangeSlackM: 0, arcSlackDeg: 10 }),
         aimTargets: (x, z, r, out) => {
           this.net?.forEachRemotePos((rx, rz) => { if ((rx - x) ** 2 + (rz - z) ** 2 <= r * r) out.push({ x: rx, z: rz }); });
           const npcs: NpcTarget[] = [];

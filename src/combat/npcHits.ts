@@ -20,7 +20,7 @@ export const NPC_HIT = {
   /** teto de NPCs por golpe (custo limitado) */
   maxTargets: 3,
   /** caindo → deitado → levantando (s) */
-  fallS: 0.35, downS: 3.4, getupS: 0.8,
+  fallS: 0.35, downS: 3.2, getupS: 1.4, // getupS = duração do clipe `getup` (proceduralClips)
   /** cambaleio e mãos nos olhos (s) — durações dos clipes `stagger`/`disoriented` */
   staggerS: 0.8, flinchS: 2.4,
   /** recuo: parte do empurrão do golpe nos primeiros instantes (m mínimos) */
@@ -107,3 +107,13 @@ export function stepNpcReaction(r: NpcReaction, dt: number): { tilt: number; ste
   else tilt = -0.22 * Math.min(1, r.t / 0.3, Math.max(0, (r.dur - r.t) / 0.4));
   return { tilt, step, done: r.t >= r.dur };
 }
+
+/**
+ * rodada 9.1 — NPC com ESQUELETO derrubado usa clipes (cai sentado e levanta como gente), não a inclinação rígida:
+ * 'fall'/'down' → clipe `npc_down` (pose inicial do `getup`); 'getup' → `getup` inteiro. Instanciado segue com `tilt`.
+ */
+export function npcDownPhase(r: NpcReaction | null): 'down' | 'getup' | null {
+  if (!r || r.kind !== 'down') return null;
+  return r.t < NPC_HIT.fallS + NPC_HIT.downS ? 'down' : 'getup';
+}
+

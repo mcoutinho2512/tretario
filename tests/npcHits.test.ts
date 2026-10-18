@@ -45,7 +45,7 @@ describe('NPC: reação', () => {
     for (const k of ['chute', 'chute_final', 'empurrao', 'golpe_taco', 'golpe_barra']) expect(npcReactionFor(def(k))).toBe('down');
     expect(npcReactionFor(def('spray'))).toBe('flinch');
   });
-  it('queda: deita (π/2) por ~3,4 s, levanta e acaba; recuo total = empurrão', () => {
+  it('queda: deita (π/2) por ~3,2 s, levanta e acaba; recuo total = empurrão', () => {
     const r = startNpcReaction('down', 0, 1, 1.6);
     let moved = 0, lying = 0, last = { tilt: 0, step: 0, done: false };
     for (let t = 0; t < 10 && !last.done; t += 0.05) { last = stepNpcReaction(r, 0.05); moved += last.step; if (last.tilt >= Math.PI / 2 - 1e-6) lying += 0.05; }
@@ -72,5 +72,21 @@ describe('mira assistida (rodada 9.1)', () => {
     expect(h).toBeCloseTo(Math.atan2(1, 1.1), 3);
     expect(aimHeading(0, 0, 0, 1.8, [{ x: 0, z: -1 }])).toBe(0); // só atrás: mantém
     expect(aimHeading(0, 0, 0, 1.8, [{ x: 0, z: 5 }])).toBe(0); // longe demais: mantém
+  });
+});
+
+import { npcDownPhase } from '../src/combat/npcHits';
+import { aimTarget } from '../src/combat/CombatClient';
+describe('queda com esqueleto e avanço curto (rodada 9.1)', () => {
+  it('fase do clipe: cai/fica (npc_down) e depois levanta (getup); só para queda', () => {
+    const r = startNpcReaction('down', 0, 1, 1);
+    expect(npcDownPhase(r)).toBe('down');
+    stepNpcReaction(r, 3.6);
+    expect(npcDownPhase(r)).toBe('getup');
+    expect(npcDownPhase(startNpcReaction('stagger', 0, 1, 0.3))).toBeNull();
+  });
+  it('alvo da mira devolve distância (avanço só um pouco além do alcance)', () => {
+    expect(aimTarget(0, 0, 0, 1.2, [{ x: 0, z: 1.6 }]).d).toBeCloseTo(1.6, 5);
+    expect(aimTarget(0, 0, 0, 1.2, [{ x: 0, z: -1 }]).d).toBe(Infinity);
   });
 });

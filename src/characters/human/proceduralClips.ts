@@ -463,6 +463,34 @@ function danceLegs(c: Poser, shift: number, bounce: number, liftR = 0, liftL = 0
   c.plant('l', [-0.04, liftL, fwdL], liftL * 3);
 }
 
+/** levantar do chão: sentado reclinado → agachado com as mãos nos joelhos → em pé (rodada 9.1) */
+function getupPose(c: Poser) {
+      const t = c.t;
+      const pel = c.pos('pelvis', new THREE.Vector3());
+      const seat = (c.floorY + 0.13 * c.kLeg - pel.y) / c.kLeg; // pelve no chão (negativo)
+      const up = keyed(t, [[0, 1], [0.38, 1], [0.78, 0.45], [1.18, 0.05], [1.4, 0]]);
+      const back = keyed(t, [[0, -0.32], [0.3, -0.26], [0.6, -0.1], [0.9, -0.04], [1.4, 0]]);
+      c.hips(0, seat * up, back);
+      c.bone('pelvis', 1, 0, 0, keyed(t, [[0, -0.45], [0.38, -0.2], [0.8, 0.15], [1.4, 0]]));
+      const fwd = keyed(t, [[0, 0.42], [0.38, 0.3], [0.62, 0.05], [1.4, 0]]);
+      c.plant('r', [0.06, 0, fwd], 0, [0.25, 0.5, 1]);
+      c.plant('l', [0.04, 0, fwd * 0.8], keyed(t, [[0, 0], [0.5, 0.25], [0.9, 0], [1.4, 0]]), [0.25, 0.5, 1]);
+      // tronco: reclinado → à frente (peso sobre os pés) → ereto
+      c.bone('spine_01', 1, 0, 0, keyed(t, [[0, -0.15], [0.35, 0.3], [0.75, 0.55], [1.15, 0.12], [1.4, 0]]));
+      c.bone('spine_02', 1, 0, 0, keyed(t, [[0, 0], [0.5, 0.2], [1.15, 0.05], [1.4, 0]]));
+      c.bone('neck_01', 1, 0, 0, keyed(t, [[0, 0.2], [0.75, -0.35], [1.4, 0]]));
+      // mãos: apoiadas no chão atrás/ao lado → nos joelhos (empurrando) → soltas
+      const hw = keyed(t, [[0, 1], [1.05, 1], [1.4, 0]]);
+      const hand = keyed3(t, [[0, [0.14, -0.05, -0.3]], [0.35, [0.18, -0.1, -0.12]], [0.7, [0.02, 0.0, 0.0]], [1.05, [-0.02, 0.04, 0.02]]]);
+      const onKnee = keyed(t, [[0, 0], [0.42, 0], [0.72, 1]]);
+      c.reach('r', 'pelvis', hand, [1, 0.3, -0.6], hw);
+      c.reach('l', 'pelvis', [hand[0] - 0.02, hand[1], hand[2]], [1, 0.3, -0.6], hw);
+      c.reach('r', 'knee', [-0.04, 0.06, 0.1], [0.7, 0.1, -0.7], hw * onKnee);
+      c.reach('l', 'knee', [-0.02, 0.06, 0.1], [0.7, 0.1, -0.7], hw * onKnee);
+      c.fingers('r', 0.35, {}, hw);
+      c.fingers('l', 0.35, {}, hw);
+}
+
 export const SPECS: Record<string, ClipSpec> = {
   // ------------------------------------------------------------------ gestos
   emote_wave: {
@@ -974,35 +1002,10 @@ export const SPECS: Record<string, ClipSpec> = {
    * → apoia as mãos e passa o peso para os pés (agachado, tronco à frente) → empurra e endireita. A pose do chão
    * (ragdoll) mistura com o começo do clipe; antes os ossos iam direto do chão ao idle (pernas para o ar no meio)
    */
-  getup: {
-    dur: 1.4, layer: 'full', fade: 0.05,
-    pose: (c) => {
-      const t = c.t;
-      const pel = c.pos('pelvis', new THREE.Vector3());
-      const seat = (c.floorY + 0.13 * c.kLeg - pel.y) / c.kLeg; // pelve no chão (negativo)
-      const up = keyed(t, [[0, 1], [0.38, 1], [0.78, 0.45], [1.18, 0.05], [1.4, 0]]);
-      const back = keyed(t, [[0, -0.32], [0.3, -0.26], [0.6, -0.1], [0.9, -0.04], [1.4, 0]]);
-      c.hips(0, seat * up, back);
-      c.bone('pelvis', 1, 0, 0, keyed(t, [[0, -0.45], [0.38, -0.2], [0.8, 0.15], [1.4, 0]]));
-      const fwd = keyed(t, [[0, 0.42], [0.38, 0.3], [0.62, 0.05], [1.4, 0]]);
-      c.plant('r', [0.06, 0, fwd], 0, [0.25, 0.5, 1]);
-      c.plant('l', [0.04, 0, fwd * 0.8], keyed(t, [[0, 0], [0.5, 0.25], [0.9, 0], [1.4, 0]]), [0.25, 0.5, 1]);
-      // tronco: reclinado → à frente (peso sobre os pés) → ereto
-      c.bone('spine_01', 1, 0, 0, keyed(t, [[0, -0.15], [0.35, 0.3], [0.75, 0.55], [1.15, 0.12], [1.4, 0]]));
-      c.bone('spine_02', 1, 0, 0, keyed(t, [[0, 0], [0.5, 0.2], [1.15, 0.05], [1.4, 0]]));
-      c.bone('neck_01', 1, 0, 0, keyed(t, [[0, 0.2], [0.75, -0.35], [1.4, 0]]));
-      // mãos: apoiadas no chão atrás/ao lado → nos joelhos (empurrando) → soltas
-      const hw = keyed(t, [[0, 1], [1.05, 1], [1.4, 0]]);
-      const hand = keyed3(t, [[0, [0.14, -0.05, -0.3]], [0.35, [0.18, -0.1, -0.12]], [0.7, [0.02, 0.0, 0.0]], [1.05, [-0.02, 0.04, 0.02]]]);
-      const onKnee = keyed(t, [[0, 0], [0.42, 0], [0.72, 1]]);
-      c.reach('r', 'pelvis', hand, [1, 0.3, -0.6], hw);
-      c.reach('l', 'pelvis', [hand[0] - 0.02, hand[1], hand[2]], [1, 0.3, -0.6], hw);
-      c.reach('r', 'knee', [-0.04, 0.06, 0.1], [0.7, 0.1, -0.7], hw * onKnee);
-      c.reach('l', 'knee', [-0.02, 0.06, 0.1], [0.7, 0.1, -0.7], hw * onKnee);
-      c.fingers('r', 0.35, {}, hw);
-      c.fingers('l', 0.35, {}, hw);
-    },
-  },
+  getup: { dur: 1.4, layer: 'full', fade: 0.05, pose: (c) => getupPose(c) },
+  // rodada 9.1 — NPC derrubado: cai (crossfade 0,35 s) na pose inicial do `getup` (sentado no chão, reclinado) e fica;
+  // depois o `getup` toca inteiro a partir dessa mesma pose (emenda sem salto). Nada de girar o corpo rígido.
+  npc_down: { dur: 1.0, layer: 'full', fade: 0.35, pose: (c) => { const t = c.t; c.t = 0; getupPose(c); c.t = t; } },
   cbt_punch: { dur: 0.45, layer: 'upper', pose: (c) => punchPose(c, 'r', 0.12) },
   cbt_punch2: { dur: 0.46, layer: 'upper', pose: (c) => punchPose(c, 'l', 0.1) },
   cbt_kick: { dur: 0.72, layer: 'full', pose: (c) => kickPose(c, 0.22, 1) },

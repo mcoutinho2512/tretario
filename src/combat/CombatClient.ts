@@ -53,8 +53,12 @@ export interface CombatClientDeps {
 }
 
 /** mira assistida: o golpe vira para o alvo mais perto à frente (o servidor valida alcance/arco pelo `h` enviado) */
-export const AIM_ASSIST = { extraM: 1.2, halfArcDeg: 80 } as const;
+export const AIM_ASSIST = { extraM: 1.2, halfArcDeg: 80, lungeM: 0.6, lungeReachM: 0.7 } as const;
 export function aimHeading(x: number, z: number, heading: number, range: number, targets: readonly { x: number; z: number }[]): number {
+  return aimTarget(x, z, heading, range, targets).h;
+}
+/** alvo da mira assistida: rumo e distância (Infinity = nenhum à frente) — o avanço curto usa a distância */
+export function aimTarget(x: number, z: number, heading: number, range: number, targets: readonly { x: number; z: number }[]): { h: number; d: number } {
   let best = Infinity, bh = heading;
   const max = range + AIM_ASSIST.extraM, half = (AIM_ASSIST.halfArcDeg * Math.PI) / 180;
   for (const t of targets) {
@@ -65,7 +69,7 @@ export function aimHeading(x: number, z: number, heading: number, range: number,
     if (Math.abs(dh) > half) continue;
     if (d < best) { best = d; bh = h; }
   }
-  return bh;
+  return { h: bh, d: best };
 }
 
 export class CombatClient {
@@ -213,8 +217,14 @@ export class CombatClient {
     else if (this.d.aimTargets) { // mira assistida: vira o corpo para o alvo mais perto à frente
       this.aimBuf.length = 0;
       this.d.aimTargets(p.x, p.z, def.range + AIM_ASSIST.extraM, this.aimBuf);
-      h = aimHeading(p.x, p.z, p.heading, def.range, this.aimBuf);
+      for (const dm of this.dummies.values()) if (dm.st !== 1) this.aimBuf.push({ x: dm.root.position.x, z: dm.root.position.z }); // boneco de treino também
+      const tg = aimTarget(p.x, p.z, p.heading, def.range, this.aimBuf);
+      h = tg.h;
       p.heading = h;
+      // avanço curto: alvo um pouco além do alcance → passo rápido até ele (o servidor valida a posição pelos movimentos)
+      if (tg.d > def.range - 0.1 && tg.d <= def.range + AIM_ASSIST.lungeReachM) {
+        this.dash = { dx: Math.sin(h), dz: Math.cos(h), left: Math.min(AIM_ASSIST.lungeM, tg.d - def.range + 0.3) };
+      }
     }
     this.d.net.send('cbt', { a: base.id, h: Math.round(h * 1000) / 1000, seq: this.d.net.moveSeq });
     this.stats.sent++;
