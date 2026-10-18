@@ -1,4 +1,4 @@
-/** Rodada 8 — texto de pessoas na tela inicial: multidão simulada nunca vira "jogadores"; bots de teste não contam. */
+/** Rodada 8/9.1 — texto de pessoas na tela inicial: NPCs nunca viram "jogadores" nem são citados; bots de teste não contam. */
 import { describe, it, expect } from 'vitest';
 import { metricsLine } from '../src/ui/metricsText';
 
@@ -7,11 +7,11 @@ const text = (m: Parameters<typeof metricsLine>[0]) => (metricsLine(m) ?? '').re
 
 describe('métricas públicas na tela inicial', () => {
   it('jogadores = pessoas com conta; NPCs rotulados como simulados; bots e conexões fora', () => {
-    expect(text(base)).toBe('38 jogadores na avenida · multidão simulada ~360');
+    expect(text(base)).toBe('38 jogadores na avenida'); // NPCs não são citados nem contados (rodada 9.1)
     expect(text(base)).not.toContain('538');
     expect(text(base)).not.toContain('500');
     expect(text({ ...base, playersOnline: 1, environmentCrowd: 0 })).toBe('1 jogador na avenida');
-    expect(text({ ...base, playersOnline: 0, spectatorsOnline: 3 })).toBe('Nenhum jogador na avenida agora · 3 assistindo · multidão simulada ~360');
+    expect(text({ ...base, playersOnline: 0, spectatorsOnline: 3 })).toBe('Nenhum jogador na avenida agora · 3 assistindo');
   });
   it('sem métricas → null (a tela mostra texto neutro)', () => {
     expect(metricsLine(null)).toBeNull();

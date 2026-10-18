@@ -117,7 +117,7 @@ export class ScreenFeed {
     x.font = '700 34px Arial, sans-serif';
     x.fillText(`${i.players} ${i.players === 1 ? 'pessoa' : 'pessoas'} na avenida`, W / 2, 222);
     x.font = '600 14px Arial, sans-serif'; x.globalAlpha = 0.7;
-    x.fillText('SIMULAÇÃO · PRESIDENTE VARGAS 3D', W / 2, 270);
+    x.fillText('PRESIDENTE VARGAS 3D', W / 2, 270);
     x.globalAlpha = 1;
   }
 

@@ -761,7 +761,7 @@ export class Game {
       const t = this.net.specTier;
       let p = 0, e = 0;
       for (const c of this.net.specCells.values()) { p += c.players; e += c.env; }
-      this.spec!.setLayer(t === 'AGGREGATE' ? `avenida inteira · ${p} jogadores + ${e} ambiente` : t === 'FAR' ? `vista do alto · ${p} jogadores + ${e} ambiente` : '');
+      this.spec!.setLayer(t === 'AGGREGATE' ? `avenida inteira · ${p} ${p === 1 ? 'jogador' : 'jogadores'}` : t === 'FAR' ? `vista do alto · ${p} ${p === 1 ? 'jogador' : 'jogadores'}` : '');
     }
     this.rideables.sync(this.camera.position);
     this.hudShell.setPrompt('');

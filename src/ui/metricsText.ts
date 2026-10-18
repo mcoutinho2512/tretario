@@ -1,6 +1,6 @@
 /**
  * Texto das métricas públicas na tela inicial (rodada 8). Semântica: "jogadores" = pessoas com conta jogando;
- * a multidão de NPCs é SEMPRE rotulada como simulada; bots de teste nunca entram na conta de jogadores.
+ * NPCs e bots de teste NUNCA entram na conta de jogadores (rodada 9.1: a multidão de NPCs não é mais citada na home).
  */
 import type { PublicMetrics } from '../identity/types';
 
@@ -13,7 +13,6 @@ export function metricsLine(m: Partial<PublicMetrics> | null | undefined): strin
   const parts = [p === 0 ? 'Nenhum jogador na avenida agora' : `<b>${n(p)}</b> ${p === 1 ? 'jogador' : 'jogadores'} na avenida`];
   const s = Math.max(0, Math.floor(m.spectatorsOnline ?? 0));
   if (s > 0) parts.push(`<b>${n(s)}</b> assistindo`);
-  const crowd = Math.max(0, Math.floor(m.environmentCrowd ?? 0));
-  if (crowd > 0) parts.push(`<span class="muted">multidão simulada ~${n(crowd)}</span>`);
+  // rodada 9.1 (dono): a multidão de NPCs não é anunciada na home; o contador continua SÓ com pessoas reais
   return parts.join(' <span class="sep">·</span> ');
 }
