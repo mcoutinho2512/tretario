@@ -97,6 +97,8 @@ export interface HumanOptions {
   castShadow?: boolean;
   /** subconjunto de clipes (NPCs só precisam de locomoção: menos memória e CPU no mixer) */
   clips?: string[];
+  /** semente da individualidade da animação (NPCs: fase própria, balanço do parado — HumanAnimator.setVariant) */
+  seed?: number;
 }
 
 const warmed = new Set<string>();
@@ -235,6 +237,8 @@ function culled(target: THREE.SkinnedMesh, cloths: THREE.SkinnedMesh[], opts?: H
 }
 
 const WHITE = new THREE.Color(1, 1, 1);
+/** malhas únicas (LOD2/LOD3, também na multidão instanciada): quanto camisa/calça são afastadas da pele (m) */
+export const SINGLE_INFLATE: Record<number, number> = { 2: 0.014, 3: 0.022 };
 const kitTextures = new Map<string, Promise<THREE.Texture>>();
 /** textura de uniforme licenciado (design com `texture`), no layout de UV da camiseta base */
 function kitTexture(url: string): Promise<THREE.Texture> {
@@ -272,6 +276,10 @@ export class HumanCharacter {
   private castShadow: boolean;
   private clipFilter: string[] | undefined;
   private disposed = false;
+  private seed: number | undefined;
+
+  /** troca a semente da individualidade (NPC reciclado / esqueleto do pool emprestado a outra pessoa) */
+  setVariant(seed: number) { this.seed = seed; this.animator?.setVariant(seed); }
 
   constructor(app: CharacterAppearance, opts: HumanOptions = {}) {
     this.app = { ...app };
@@ -279,7 +287,9 @@ export class HumanCharacter {
     this.want = opts.lod ?? 0;
     this.castShadow = opts.castShadow ?? true;
     this.clipFilter = opts.clips;
+    this.seed = opts.seed;
     this.root.name = `human_${app.body}`;
+    this.root.userData.pvHuman = this; // QA (tools/qa/char_probe.mjs)
     // o esqueleto vem do LOD pedido (ou do mais barato, se o pedido for detalhado: aparece logo e melhora depois)
     const first: Lod = this.want <= 1 ? 3 : this.want;
     this.ready = this.ensure(first).then(() => {
@@ -308,8 +318,16 @@ export class HumanCharacter {
   updateProps(dt: number) { this.propAttachment?.update(dt, performance.now() / 1000, this.want <= 1); }
 
   get lod(): Lod { return this.want; }
+  /** LOD visível agora (−1 = nenhum) */
+  get shownLod(): number { return this.shown; }
   /** já há algum LOD carregado e visível (antes disso o personagem é invisível) */
   get showing(): boolean { return this.shown >= 0; }
+  /**
+   * rodada 9.1: visível com detalhe compatível com o pedido — o LOD3 (~600 tri) do primeiro carregamento só vale se o
+   * pedido for o LOD3. Antes, de perto, o pedestre aparecia facetado enquanto o LOD0 carregava/vestia; agora quem
+   * usa o orçamento mantém o instanciado (ou a malha única LOD2) até lá
+   */
+  get showingDetail(): boolean { return this.shown >= 0 && (this.shown <= 2 || this.want >= 3); }
   /** volta todos os ossos ao repouso (antes do mixer), p.ex. depois do ragdoll */
   resetPose() { for (const [b, r] of this.rest) { b.quaternion.copy(r.q); b.position.copy(r.p); } }
   hasLod(l: Lod) { return !!this.lods[l]; }
@@ -319,6 +337,9 @@ export class HumanCharacter {
     if (l === this.want) return;
     this.want = l;
     if (!this.lods[l]) void this.ensure(l);
+    // camadas (LOD0/1) demoram (peças, recorte no Worker, shaders): a malha única LOD2 (já baixada para a multidão,
+    // sem vestir) cobre a espera em vez do LOD3
+    if (l <= 1 && !this.lods[0] && !this.lods[1] && !this.lods[2]) void this.ensure(2);
     this.show();
   }
 
@@ -374,6 +395,8 @@ export class HumanCharacter {
     const clips = this.clipFilter ? new Map([...all].filter(([k]) => this.clipFilter!.includes(k))) : all;
     this.animator = new HumanAnimator(this.armature, clips, this.body, BODY_TYPES[this.body].speedFactor, all);
     this.animator.detail = this.want <= 1;
+    if (this.seed !== undefined) this.animator.setVariant(this.seed);
+    this.animator.strideScale = this.app.scale || 1;
     // estado social recebido antes de o esqueleto carregar
     if (this.social !== EMPTY_SOCIAL) this.animator.setSocial(this.social);
   }
@@ -387,7 +410,7 @@ export class HumanCharacter {
     this.armature!.add(group);
     const single = parts.some((p) => !!p.src.geometry.getAttribute('_layer'));
     const inst: LodInst = { group, meshes: parts.map((p) => p.mesh), single, parts, pieceLoads: new Map(), dressed: '', dressing: '' };
-    if (single) this.prepTints(inst);
+    if (single) this.prepTints(inst, l);
     return inst;
   }
 
@@ -519,6 +542,7 @@ export class HumanCharacter {
         for (const k of inst.cullKeys ?? []) releaseCombo(k);
         inst.cullKeys = pc ? [b.key, pc.key] : [b.key];
         body.mesh.geometry = b.geo;
+        body.mesh.userData.cull = { key: b.key.split('|').map((x) => x.slice(0, 8)).join('|'), hidden: b.hidden, of: (body.src.geometry.index?.count ?? 0) / 3 };
         if (pa) pa.mesh.geometry = pc ? pc.geo : pa.src.geometry;
         lastCull = { hidden: b.hidden, pantsHidden: pc?.hidden ?? 0, mainMs: 0, totalMs: +(performance.now() - t0).toFixed(1) };
       } catch (e) { console.warn('[human] recorte da pele falhou', e); }
@@ -577,7 +601,7 @@ export class HumanCharacter {
   }
 
   /** malha única: tinta por camada no shader (cor de vértice × tinta[_layer]) */
-  private prepTints(inst: LodInst) {
+  private prepTints(inst: LodInst, l: Lod) {
     const tints = { value: [0, 1, 2, 3, 4].map(() => new THREE.Color(1, 1, 1)) };
     inst.tints = tints;
     const mesh = inst.meshes[0];
@@ -610,9 +634,9 @@ export class HumanCharacter {
         sh.fragmentShader = sh.fragmentShader
           .replace('#include <common>', '#include <common>\nvarying vec3 vTint;')
           .replace('#include <color_fragment>', '#include <color_fragment>\ndiffuseColor.rgb *= vTint;');
-        patchLookShader(sh, { instanced: false, layerAvg, look });
+        patchLookShader(sh, { instanced: false, layerAvg, look, inflate: SINGLE_INFLATE[l] });
       };
-      mat.customProgramCacheKey = () => 'pv-human-lod-look';
+      mat.customProgramCacheKey = () => `pv-human-lod-look${l}`;
       mat.needsUpdate = true;
     }
   }
@@ -686,6 +710,7 @@ export class HumanCharacter {
       }
     }
     this.root.scale.setScalar(a.scale || 1);
+    if (this.animator) this.animator.strideScale = a.scale || 1;
   }
 
   dispose() {

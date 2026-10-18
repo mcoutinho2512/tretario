@@ -2,6 +2,61 @@
 
 _Atualizado em 2026-10-17 (rodada 8: identidade, grupos, chat, espectador e mundo persistente)._
 
+## Personagens (rodada 9.1) — de perto, sem buracos e menos "robô"
+
+Relato do dono (Mac, Chrome, produção): bonecos facetados de perto, "opacos, consigo ver através", cabelo com manchas
+verdes/marrons, movimento robotizado. Reproduzido no build de produção com `tools/qa/char_probe.mjs` (inventário de
+cada humano visível: esqueleto/instanciado, LOD, triângulos, materiais e recorte da pele) junto do carro de som.
+Detalhes e números em [CROWDS.md](CROWDS.md#rodada-91-personagens-de-perto); imagens em `docs/screenshots/round9_1/`.
+
+| Causa (com evidência) | Correção |
+|---|---|
+| A **multidão de concentração** (RallyCrowd, ao redor do trio/carros de som/palco — onde o dono estava) era **sempre instanciada** (`maxTier: 1`, desde a rodada 7; a rodada 9 pôs mais gente nos pontos de evento): no ALTO, 12–15 humanos a < 6 m da câmera eram a malha única LOD2 (2,5 k tri); no BAIXO, LOD3 (600 tri) a 2 m | os mais próximos da câmera disputam o esqueleto no orçamento como pedestres/remotos (pool de `HumanCharacter` por corpo; até metade do orçamento do preset, < 10 m); a < 6 m agora: ALTO 6 LOD0 + 6 LOD1 (+1–4 LOD2 instanciados no anel mais denso), MÉDIO LOD1, BAIXO LOD1 (2 mais próximos) |
+| **Buracos/ver através** nas malhas únicas (LOD2/LOD3, instanciadas e com esqueleto): material da multidão VAT de **um lado só** — cartões de cabelo e bordas de roupa vistos por trás sumiam (via-se o chão); **pele decimada atravessando** camisa/calça (manchas de pele e da calça na camisa); cabelo com a **cor dos texels transparentes** assada no vértice (manchas verdes/marrons) | VAT com `DoubleSide`; camisa/calça afastadas pela normal no shader (1,4 cm LOD2, 2,2 cm LOD3; presa na gola); cabelo = cor da camada × luminância limitada (sem matiz dos texels transparentes). Folha antes/depois: `closeup_malha_unica_antes_depois.jpg` |
+| Pedestre que chegava perto mostrava o **LOD3 com esqueleto** (600 tri) enquanto o LOD0 carregava/vestia (peças + recorte no Worker) — e por cima o instanciado (os dois desenhados) | `HumanCharacter.showingDetail`: o esqueleto só aparece com detalhe compatível; a malha única LOD2 (já baixada, sem vestir) cobre a espera em vez do LOD3 |
+| BAIXO: nunca mais detalhado que LOD2, instanciado só LOD3 | 2 mais próximos (< 10 m) no LOD1; instanciado LOD2 < 10 m |
+| QA: `__pv.lookFrom` não atualizava a matriz da câmera antes do frustum da multidão (sondas com câmera livre mediam a visibilidade da câmera anterior) | `camera.updateMatrixWorld()` na câmera livre |
+
+Descartados com evidência: `dropLod` não solta o LOD em uso (só `!single && l ≠ pedido && l ≠ visível`); a máscara do
+`hideCovered` é por par de geometrias e aplicada à mesma geometria (corpo/peça do mesmo LOD); nenhum `rotation.x` de
+queda ficou em quem estava de pé (sonda: `rotX 0` em todos); materiais do LOD0/1 já eram `DoubleSide`, cabelo
+`alphaTest 0,45` com `depthWrite` (sem ordenação de transparência). Não houve regressão nas rodadas 8.1–9.1: o defeito
+existia desde a rodada 7 e ficou mais visível com as concentrações da rodada 9.
+
+**Movimento** (prioridade do dono: "os movimentos dos avatares está muito ruim"):
+- Jogador local e remotos (`AvatarVisual`): rumo visível com giro limitado (sem estalo), velocidade suavizada para a
+  animação, inclinação do corpo para dentro da curva (ω·v) e para a frente/trás ao acelerar/frear; passada pela escala
+  do corpo (sem patinar).
+- Remotos: carimbo de tempo das amostras sem o jitter de chegada + filtro curto da posição desenhada. Variação da
+  velocidade quadro a quadro andando reto (`tools/qa/remote_motion.mjs`): **CV 0,30–0,33 → 0,11–0,13** (desvio
+  0,50–0,60 → 0,21–0,24 m/s a 1,8 m/s).
+- Golpes reescritos como poses-chave (preparação → estalo → acompanhamento → recuperação): soco com torção do tronco
+  e ombro, chute frontal com recolha/extensão/contrapeso, **taco a duas mãos** (carrega atrás do ombro, varre, acompanha),
+  barra de cima para baixo. **Levantar** depois da queda: clipe novo (senta → agacha apoiando nos joelhos → endireita)
+  em vez de misturar osso a osso da pose do chão ao idle (pernas para o ar no meio).
+- NPCs: fase própria dos ciclos e andamento do parado por semente (grupos não respiram/andam em uníssono), troca de
+  peso/olhar em volta no parado e postura própria andando (camada procedural, só de perto), giro limitado, ritmo
+  oscilante ±6 %, chegada desacelerando; multidão VAT mistura parado↔andar e andar↔trote (antes trocava de ciclo de
+  uma vez), cadência pela escala.
+- Folhas antes/depois (12 quadros): `andar`, `correr`, `curva90`, `parar`, `pulo`, `queda_levantar`, `soco`, `chute`,
+  `taco`, `barra`, `esquiva`, `remoto`, `multidao_movimento` (`*_antes.jpg` / `*_depois.jpg`).
+
+**Desempenho** (M5 Pro, sem vsync, médias; ruído de ±5–10 % entre repetições):
+- Bancada de multidão (bots densos, `crowd_bench_r91_antes.json` / `_depois.json`, FPS antes → depois): 50 bots
+  BAIXO 431 → 469, MÉDIO 232 → 265, ALTO 92 → 102; 500 bots BAIXO 410 → 426, MÉDIO 166 → 202, ALTO 56 → 83 (draw calls
+  iguais ±20, triângulos ±3 %; a diferença de FPS é sobretudo ruído da máquina). Em pares repetidos lado a lado: ALTO
+  50 bots igual (95/93 vs 95/89 FPS); BAIXO 500 bots −6 % (+0,2 ms CPU, +16 draw calls, ~+50 MB de heap e +90 texturas:
+  LOD1 dos 2 mais próximos e VAT LOD2).
+- Junto do carro de som (sonda, `char_probe.json`): ALTO 569–627 → 625–953 draw calls, 2,0 → 2,1–2,9 M tri, 167 →
+  119 FPS a 4 m (CPU 5,7 → 8,3 ms); ULTRA 4 m 107 → 99 FPS, 15 m 108 → 75 FPS (CPU 9 → 12,7 ms). Com vsync todos a 60.
+  O custo extra é o orçamento de esqueletos do preset sendo usado onde antes ficava vazio.
+- Testes: `npm run verify` OK; walkthrough 36/36; social_mp 12/12; combat_mp 37/37 (reações de NPC ao golpe intactas).
+
+Pendências: VAT continua com normais de repouso (iluminação dos braços no LOD2/3 instanciado); cabelo do LOD2/3 ainda
+mostra pontos do couro cabeludo; o primeiro LOD0 de uma combinação nova de roupa ainda espera o recorte no Worker
+(coberto pelo LOD2); levantar começa no lugar do servidor (o ragdoll pode ter rolado — a pelve volta em 0,9 s);
+ULTRA na concentração densa fica perto de 60 FPS sem folga em máquinas mais fracas que o M5 Pro.
+
 ## Rodada 9 — gameplay, confronto arcade, missões, progressão e eventos ([GAMEPLAY.md](GAMEPLAY.md))
 
 | Item | Estado |

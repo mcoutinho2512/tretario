@@ -156,6 +156,8 @@ export function groundOffsets(bodyKey: string, root: THREE.Object3D, clips: Map<
 }
 
 export class HumanAnimator {
+  /** balanço procedural dos NPCs (QA: ?sway=0 desliga, comparação de custo) */
+  static sway = typeof location === 'undefined' || new URLSearchParams(location.search).get('sway') !== '0';
   /** fração do sprint na corrida do jogo (0 = só trote) */
   static sprintShare = 0.35;
   readonly mixer: THREE.AnimationMixer;
@@ -377,6 +379,52 @@ export class HumanAnimator {
 
   get naturalSpeeds() { return { ...this.natural }; }
 
+  /**
+   * rodada 9.1 — individualidade (NPCs): a partir de uma semente, fase própria dos ciclos (um grupo não respira/anda
+   * em uníssono), andamento do parado ±8 %, e parâmetros do balanço procedural do parado (troca do peso de uma perna
+   * para a outra, tronco e cabeça olhando em volta) e da postura ao andar. Barato: só ajustes de osso perto da câmera.
+   */
+  setVariant(seed: number) {
+    const r = (k: number) => {
+      let h = Math.imul((seed ^ Math.imul(k + 1, 0x9e3779b1)) >>> 0, 0x85ebca6b) >>> 0;
+      h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35) >>> 0;
+      return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+    };
+    this.vary = {
+      on: true, t0: r(1) * 60,
+      shift: 0.6 + r(2) * 0.6, shiftHz: 0.07 + r(3) * 0.06,
+      look: 0.5 + r(4) * 0.7, lookHz: 0.05 + r(5) * 0.05,
+      lean: (r(6) - 0.5) * 0.08, bob: 0.6 + r(7) * 0.8,
+    };
+    const idle = this.act.get('idle');
+    if (idle) { idle.timeScale = 0.92 + r(8) * 0.16; idle.time = r(9) * idle.getClip().duration; }
+    for (const l of ['walk', 'jog', 'sprint'] as Loco[]) {
+      const a = this.act.get(l);
+      if (a) a.time = r(10) * a.getClip().duration; // fase comum entre walk/jog/sprint (sincronizadas no update)
+    }
+  }
+  private vary = { on: false, t0: 0, shift: 1, shiftHz: 0.1, look: 1, lookHz: 0.07, lean: 0, bob: 1 };
+
+  /** parado: troca de peso (pelve inclina, tronco compensa), olhar em volta; andando: postura própria */
+  private sway(idleW: number, moveW: number) {
+    const v = this.vary, t = this.t + v.t0;
+    if (idleW > 0.01) {
+      // ruído suave = soma de senos incomensuráveis (sem padrão repetido visível)
+      const sh = (Math.sin(t * v.shiftHz * 6.283) + 0.4 * Math.sin(t * v.shiftHz * 2.71 * 6.283 + 1.3)) * v.shift * idleW;
+      this.rot('pelvis', 0, 0, 1, 0.02 * sh);
+      this.rot('spine_01', 0, 0, 1, -0.02 * sh);
+      this.rot('spine_03', 0, 0, 1, -0.015 * sh);
+      const lk = (Math.sin(t * v.lookHz * 6.283 + 0.7) + 0.5 * Math.sin(t * v.lookHz * 3.3 * 6.283)) * v.look * idleW;
+      this.rot('spine_03', 0, 1, 0, 0.05 * lk);
+      this.rot('neck_01', 0, 1, 0, 0.12 * lk);
+      this.rot('head', 1, 0, 0, 0.04 * Math.sin(t * 0.21 + v.t0) * idleW);
+    }
+    if (moveW > 0.01) {
+      this.rot('spine_01', 1, 0, 0, v.lean * moveW);
+      this.rot('neck_01', 1, 0, 0, -v.lean * 0.5 * moveW);
+    }
+  }
+
   /** pose de exibição (tela inicial) */
   setShow(p: ShowPose | null) { this.show = p; this.t = 0; }
 
@@ -463,8 +511,12 @@ export class HumanAnimator {
     return out;
   }
 
+  /** escala do personagem (aparência ±6 %): passada proporcional — a cadência usa velocidade / escala (sem patinar) */
+  strideScale = 1;
+
   update(speed: number, grounded: boolean, dt: number) {
     this.t += dt;
+    speed /= this.strideScale;
     const targets: Record<string, number> = {};
     for (const k of this.act.keys()) targets[k] = 0;
     if (this.show) {
@@ -513,11 +565,15 @@ export class HumanAnimator {
     this.applyGround(dt, aw.full);
     // os ajustes procedurais da locomoção cedem à camada de ação (a dança tem pernas próprias; o tronco da ação já é ereto)
     const runW = ((this.w.jog ?? 0) + (this.w.sprint ?? 0)) * (1 - aw.full) * (1 - 0.7 * aw.upper);
-    if (this.detail && ((this.w.idle ?? 0) > 0.01 || runW > 0.01 || this.show === 'acenando')) {
+    const idleW = (this.w.idle ?? 0) * (1 - aw.full) * (1 - 0.8 * aw.upper);
+    const walkW = (this.w.walk ?? 0) * (1 - aw.full);
+    const swayOn = this.vary.on && HumanAnimator.sway && this.detail && (idleW > 0.01 || walkW > 0.01);
+    if (this.detail && ((this.w.idle ?? 0) > 0.01 || runW > 0.01 || this.show === 'acenando' || swayOn)) {
       this.root.updateMatrixWorld(true);
       this.narrowStance(1 - aw.full);
       this.uprightRun(runW);
       if (this.show === 'acenando') this.wave();
+      if (swayOn) this.sway(idleW, walkW);
     }
   }
 

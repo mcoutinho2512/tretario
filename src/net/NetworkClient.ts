@@ -99,6 +99,8 @@ interface Remote {
   app: CharacterAppearance;
   agent: CrowdAgent;
   state: PlayerState;
+  /** rodada 9.1: posição DESENHADA (filtrada) — `state` continua a interpolação crua usada pelas regras */
+  view?: PlayerState;
   buf: Snapshot[];
   label: HTMLDivElement;
   /** faixa atual do rótulo (LOD dos apelidos, src/net/nameLod.ts) e último transform escrito */
@@ -115,6 +117,8 @@ interface Remote {
   platform: string;
   link: number;
   lastArrival: number;
+  /** carimbo de tempo (sem jitter) da última amostra — rodada 9.1 */
+  lastStamp: number;
   /** vida social vinda do servidor (actAt no relógio do servidor) */
   soc: { act: number; actAt: number; actVar: number; prop: number; design: number };
   /** o esqueleto atual já recebeu o estado social atual */
@@ -536,7 +540,7 @@ export class NetworkClient {
     this.labels.appendChild(label);
     const r: Remote = {
       id, nid, visual: null, app, agent, state: createPlayerState(id, p.x, p.y, p.z, p.heading), buf: [], label, labelTier: 'hidden', labelPos: '', speakingUntil: 0, name: p.name, body: p.body, accessory: p.accessory || 'nenhum',
-      interaction: p.interaction, status: p.status, vehicle: p.vehicle, platform: p.platform ?? '', link: 0, lastArrival: performance.now(),
+      interaction: p.interaction, status: p.status, vehicle: p.vehicle, platform: p.platform ?? '', link: 0, lastArrival: performance.now(), lastStamp: 0,
       soc: { act: p.act ?? 0, actAt: p.actAt ?? 0, actVar: p.actVar ?? 0, prop: p.prop ?? 0, design: p.design ?? 0 }, socApplied: null,
       fx: p.fx ?? 0, fall: new FallSync(),
     };
@@ -626,7 +630,13 @@ export class NetworkClient {
     const ia = now - r.lastArrival;
     r.lastArrival = now;
     if (ia < 1000) this.jitterMs = this.jitterMs * 0.9 + Math.abs(ia - 50) * 0.1;
-    r.buf.push({ t: now, x: p.x, y: p.y, z: p.z, heading: p.heading, speed: p.speed, loco: p.loco, vehicle: p.vehicle, platform: p.platform ?? '', plx: p.plx ?? 0, plz: p.plz ?? 0, plh: p.plh ?? 0 });
+    // rodada 9.1: carimbo sem o jitter de chegada — amostras do servidor saem a cada 50 ms; carimbar pela CHEGADA dava
+    // velocidades desiguais entre amostras (o remoto "tremia" andando em linha reta). Perto do ritmo esperado, segue a
+    // grade de 50 ms corrigindo devagar a deriva; longe (pausa, perda), volta ao relógio real
+    const exp = r.lastStamp + 50;
+    const stamp = Math.abs(now - exp) < 40 ? exp + (now - exp) * 0.15 : now;
+    r.lastStamp = stamp;
+    r.buf.push({ t: stamp, x: p.x, y: p.y, z: p.z, heading: p.heading, speed: p.speed, loco: p.loco, vehicle: p.vehicle, platform: p.platform ?? '', plx: p.plx ?? 0, plz: p.plz ?? 0, plh: p.plh ?? 0 });
     if (r.buf.length > 40) r.buf.shift();
     // rodada 9 — queda pela mudança de status (sem `knock`), cambaleio e efeitos
     if (r.fall.onStatus(p.status, now) === 'start') this.statusFall(r);
@@ -758,14 +768,14 @@ export class NetworkClient {
       const visual = r.visual ?? this.acquire(r);
       ag.skinReady = visual.ready;
       if (r.socApplied !== visual) { visual.setSocial(socialOf(r.soc)); visual.setFx(r.fx); visual.setPhys(r.status); r.socApplied = visual; }
-      if (crowd) { visual.applyLod(ag.lod, d); visual.root.visible = ag.inView || d < 6 || visual.isDown; }
+      if (crowd) { visual.applyLod(ag.lod, d); visual.root.visible = visual.isDown || ((ag.inView || d < 6) && visual.ready); }
       else visual.setDistance(d);
       if (c.vehicle && !visual.isDown) {
         // tipo REAL do veículo (sincronizado), não deduzido do id
         const def = RIDEABLE_DEFS[(this.vehicleKinds.get(c.vehicle) ?? 'bicycle') as RideableKind] ?? RIDEABLE_DEFS.bicycle;
         const seat = seatWorld(def, s.x, s.z, s.heading); // carro de som/trio: banco na cabine, longe do centro
         visual.updateRiding(seat.x, s.y, seat.z, s.heading, def.pose, s.speed, def.seatHeight, dt);
-      } else visual.update(s, dt, crowd ? visual.root.visible && crowd.shouldAnimate(ag) : undefined);
+      } else visual.update(this.viewOf(r, !!c.platform, dt), dt, crowd ? visual.root.visible && crowd.shouldAnimate(ag) : undefined);
     }
     this.updateLabels(camera, viewport, nowP);
     // multidão distante: interpolação simples entre as duas últimas posições (2 Hz), só instanciada
@@ -785,6 +795,21 @@ export class NetworkClient {
     }
   }
   private lastCam = new THREE.Vector3();
+
+  /**
+   * rodada 9.1 — posição desenhada do remoto: as amostras chegam com o ritmo irregular de quem as enviou (quadros do
+   * outro cliente), e a interpolação linear entre elas dava velocidade aos trancos (desvio de ~0,55 m/s andando a
+   * 1,8 m/s). Filtro exponencial curto (constante de ~70 ms; atraso ~13 cm andando); saltos (> 1,5 m), trio e queda
+   * seguem direto.
+   */
+  private viewOf(r: Remote, snap: boolean, dt: number): PlayerState {
+    const s = r.state;
+    const v = (r.view ??= { ...s });
+    if (snap || Math.hypot(s.x - v.x, s.z - v.z) > 1.5 || dt <= 0) { v.x = s.x; v.z = s.z; }
+    else { const k = 1 - Math.exp(-14 * dt); v.x += (s.x - v.x) * k; v.z += (s.z - v.z) * k; }
+    v.y = s.y; v.heading = s.heading; v.speed = s.speed; v.grounded = s.grounded;
+    return v;
+  }
 
   /** espectador: foco da câmera a 2 Hz quando anda ≥ 6 m, e a cada 3 s de qualquer forma (batimento); ping do relógio */
   private sendSpectatorCam(dt: number) {

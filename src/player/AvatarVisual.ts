@@ -17,6 +17,7 @@ import { Ragdoll, type RagdollParams } from '../physics/Ragdoll';
 import { FX } from '../combat/types';
 import { STATUS } from '../net/rules';
 import { ProtectedAura } from '../combat/fxVisuals';
+import { angleDelta, turnToward } from '../npc/gait';
 
 /** ossos do ragdoll (nomes do rig antigo) → rig "game_engine" do personagem humano */
 const HUMAN_BONES: Record<BoneName, string> = {
@@ -45,6 +46,8 @@ export class AvatarVisual {
   private fall: { phase: 'down' | 'getup' | 'none'; t: number; down: number; getup: number; captured: THREE.Quaternion[]; hipsFrom: THREE.Vector3 } =
     { phase: 'none', t: 0, down: 0, getup: 0, captured: [], hipsFrom: new THREE.Vector3() };
   private fallback = { tilt: 0 };
+  /** o levantar está sendo feito pelo clipe `getup` (senão: mistura direta da pose do chão para o idle) */
+  private getupClip = false;
   /** rodada 9: cada queda/reuso/descarte troca a geração — um ragdoll que termina de carregar depois é liberado */
   private fallGen = 0;
   /** rodada 9: efeitos (bits FX) e estado físico aplicados; brilho de proteção (criado no primeiro uso) */
@@ -102,8 +105,8 @@ export class AvatarVisual {
     this.human.setShadow(dist < 45);
   }
 
-  /** já há malha visível (o personagem humano carrega de forma assíncrona) */
-  get ready(): boolean { return !!this.legacy || !!this.human?.showing; }
+  /** já há malha visível com detalhe compatível com o LOD pedido (o LOD3 do primeiro carregamento não vale de perto) */
+  get ready(): boolean { return !!this.legacy || !!this.human?.showingDetail; }
 
   /** devolve ao estado inicial para ser reaproveitado por outro jogador do mesmo corpo (pool) */
   resetForReuse() {
@@ -114,9 +117,10 @@ export class AvatarVisual {
     this.fx = 0; this.phys = STATUS.OK; this.aura?.set(false); this.human?.animator?.stopClip();
     this.fall = { phase: 'none', t: 0, down: 0, getup: 0, captured: [], hipsFrom: new THREE.Vector3() };
     const pivot = this.human?.armature ?? this.legacy?.rig.mesh;
-    if (pivot) pivot.rotation.x = 0;
+    if (pivot) { pivot.rotation.x = 0; pivot.rotation.z = 0; }
     this.human?.resetPose();
     this.initialized = false;
+    this.gait.init = false; this.gait.roll = this.gait.pitch = this.gait.yawRate = this.gait.accel = 0;
     this.animAcc = 0;
     this.pushT = 0;
   }
@@ -176,6 +180,7 @@ export class AvatarVisual {
     this.ragdoll = null;
     this.fall = { phase: 'down', t: 0, down: p.downMs / 1000, getup: p.getupMs / 1000, captured: [], hipsFrom: new THREE.Vector3() };
     this.fallback = { tilt: 0 };
+    { const pv = this.human?.armature; if (pv) { pv.rotation.x = 0; pv.rotation.z = 0; } this.gait.roll = this.gait.pitch = 0; }
     // item na mão: some durante a queda (o servidor larga o de confronto; o social volta ao levantar)
     this.human?.propAttachment?.setVisible(false);
     this.human?.animator?.stopClip('stagger');
@@ -227,6 +232,7 @@ export class AvatarVisual {
     const f = this.fall;
     if (f.phase === 'none') return false;
     f.t += dt;
+    this.gait.face = heading; this.gait.speed = 0;
     const hips = this.hips();
     if (f.phase === 'down') {
       this.root.position.set(x, y, z);
@@ -254,6 +260,8 @@ export class AvatarVisual {
         this.ragdoll = null;
         f.phase = 'getup';
         f.t = 0;
+        // rodada 9.1: clipe de levantar (senta → agacha apoiando → endireita); a pose do chão só mistura no começo
+        this.getupClip = !!this.human?.animator?.playClip('getup');
       }
       return true;
     }
@@ -263,12 +271,40 @@ export class AvatarVisual {
     this.root.rotation.y = heading;
     this.human?.resetPose();
     this.animate(0, true, dt);
-    const k = Math.min(1, f.t / f.getup);
-    const e = k * k * (3 - 2 * k);
+    // com o clipe: rotações da pose do chão saem em 0,5 s (o clipe já começa sentado); a pelve volta ao lugar do
+    // servidor mais devagar (0,9 s) — o ragdoll pode ter rolado e o corpo não "desliza" de uma vez
+    const smooth = (x: number) => { const k = Math.min(1, x); return k * k * (3 - 2 * k); };
+    const e = smooth(f.t / (this.getupClip ? Math.min(f.getup, 0.5) : f.getup));
+    const eh = smooth(f.t / (this.getupClip ? Math.min(f.getup, 0.9) : f.getup));
     this.allBones().forEach((bone, i) => { if (f.captured[i]) bone.quaternion.copy(f.captured[i].clone().slerp(bone.quaternion, e)); });
-    if (hips) hips.position.lerpVectors(f.hipsFrom, hips.position.clone(), e);
-    if (f.t >= f.getup) { f.phase = 'none'; this.human?.propAttachment?.setVisible(true); }
+    if (hips) hips.position.lerpVectors(f.hipsFrom, hips.position.clone(), eh);
+    if (f.t >= f.getup) { f.phase = 'none'; this.getupClip = false; this.human?.propAttachment?.setVisible(true); }
     return true;
+  }
+
+  /**
+   * rodada 9.1 — corpo sem "robô": o rumo VISÍVEL segue o da simulação/rede com giro limitado (sem estalo nas
+   * amostras da rede), a velocidade que dirige a animação é suavizada (ruído da rede não troca o ciclo a cada amostra)
+   * e o corpo inteiro inclina para dentro da curva e para a frente/trás ao acelerar/frear (pivô nos pés).
+   */
+  private gait = { face: 0, speed: 0, yawRate: 0, accel: 0, roll: 0, pitch: 0, init: false };
+  private steer(s: PlayerState, dt: number) {
+    const g = this.gait;
+    if (!g.init || dt <= 0) { g.face = s.heading; g.speed = s.speed; g.init = true; this.root.rotation.y = g.face; return; }
+    const prev = g.face, prevSpeed = g.speed;
+    g.face = turnToward(g.face, s.heading, dt, 16, 7.5);
+    g.speed += (s.speed - g.speed) * (1 - Math.exp(-12 * dt));
+    const k = 1 - Math.exp(-8 * dt);
+    g.yawRate += (angleDelta(prev, g.face) / dt - g.yawRate) * k;
+    g.accel += ((g.speed - prevSpeed) / dt - g.accel) * k;
+    // inclinação: centrípeta ~ ω·v (curva aberta correndo inclina mais), aceleração inclina para a frente
+    const rollT = THREE.MathUtils.clamp(-g.yawRate * g.speed * 0.035, -0.2, 0.2);
+    const pitchT = THREE.MathUtils.clamp(g.accel * 0.018 + g.speed * 0.008, -0.1, 0.12) * (s.grounded ? 1 : 0.3);
+    g.roll += (rollT - g.roll) * k;
+    g.pitch += (pitchT - g.pitch) * k;
+    this.root.rotation.y = g.face;
+    const pivot = this.human?.armature;
+    if (pivot) { pivot.rotation.z = g.roll; pivot.rotation.x = g.pitch; }
   }
 
   /** animação curta do empurrão — sobreposta à animação normal */
@@ -288,6 +324,8 @@ export class AvatarVisual {
   updateRiding(x: number, y: number, z: number, heading: number, pose: 'sit-pedal' | 'stand' | 'drive' | 'ride', speed: number, seatHeight: number, dt: number) {
     this.smoothY = y;
     this.root.rotation.y = heading;
+    this.gait.face = heading;
+    { const pv = this.human?.armature; if (pv) { pv.rotation.x = 0; pv.rotation.z = 0; } }
     if (this.legacy) {
       this.root.position.set(x, y, z);
       this.legacy.anim.updateRiding(pose === 'ride' ? 'sit-pedal' : pose, speed, seatHeight, dt);
@@ -317,14 +355,14 @@ export class AvatarVisual {
     this.smoothY += (s.y - this.smoothY) * (1 - Math.exp(-18 * dt));
     if (Math.abs(s.y - this.smoothY) > 0.6) this.smoothY = s.y;
     this.root.position.set(s.x, this.smoothY, s.z);
-    this.root.rotation.y = s.heading;
+    this.steer(s, dt);
     // LOD de atualização: personagens distantes animam com menos frequência
     const lod = this.human?.lod ?? 0;
     const every = lod <= 1 ? 1 : lod === 2 ? 2 : 4;
     this.animAcc += dt;
     ++this.frame;
     if (animate === false || (animate === undefined && this.frame % every !== 0)) return;
-    this.animate(s.speed, s.grounded, this.animAcc);
+    this.animate(this.gait.speed, s.grounded, this.animAcc);
     this.animAcc = 0;
     if (this.legacy && this.pushT > 0) {
       this.pushT -= dt;
