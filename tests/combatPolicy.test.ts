@@ -6,7 +6,28 @@ const pol = (z: string | null): ZoneCombatPolicy => (z && zones[z]) || 'PEACE';
 const party = (o: Partial<CombatParty> = {}): CombatParty => ({ zone: 'ARENA', inPeaceArea: false, mode: 'pacifico', groupKey: null, combatEventId: '', protectedUntil: 0, ...o });
 const NOW = 1_000_000;
 
-describe('política de confronto (zona + evento + estado)', () => {
+describe('consentimento "none" (decisão do dono 2026-10-18: bater em todos, sem K)', () => {
+  const none = (a: CombatParty, b: CombatParty, ev: Parameters<typeof combatAllowed>[3] = null, now = NOW) => combatAllowed(pol, a, b, ev, now, 'none');
+  it('COMBAT: impacto em qualquer modo (pacífico ataca e sofre)', () => {
+    expect(none(party(), party())).toEqual({ ok: true });
+    expect(none(party({ mode: 'interacao' }), party())).toEqual({ ok: true });
+    expect(none(party(), party({ mode: 'interacao' }))).toEqual({ ok: true });
+  });
+  it('proteção de retorno continua bloqueando', () => {
+    expect(none(party(), party({ protectedUntil: NOW + 1 }))).toEqual({ ok: false, reason: 'protegido' });
+    expect(none(party(), party({ protectedUntil: NOW }))).toEqual({ ok: true });
+  });
+  it('fogo amigo do evento continua valendo; PEACE/área de paz/CONTESTED (se existirem nos dados) também', () => {
+    const ev = { eventId: 'e1', zones: ['ARENA'], friendlyFire: false };
+    expect(none(party({ combatEventId: 'e1', groupKey: 'x' }), party({ combatEventId: 'e1', groupKey: 'x' }), ev)).toEqual({ ok: false, reason: 'politica' });
+    expect(none(party({ combatEventId: 'e1', groupKey: 'x' }), party({ combatEventId: 'e1', groupKey: 'y' }), ev)).toEqual({ ok: true });
+    expect(none(party(), party({ zone: 'PAZ' }))).toEqual({ ok: false, reason: 'zona_paz' });
+    expect(none(party(), party({ inPeaceArea: true }))).toEqual({ ok: false, reason: 'zona_paz' });
+    expect(none(party({ zone: 'DISPUTA' }), party({ zone: 'DISPUTA' })).ok).toBe(false);
+  });
+});
+
+describe('política de confronto (zona + evento + estado) — consentimento "both" (regra antiga, padrão do parâmetro)', () => {
   it('PEACE nunca permite, mesmo com consentimento e evento', () => {
     const ev = { eventId: 'e1', zones: ['PAZ'], friendlyFire: true };
     const a = party({ zone: 'PAZ', mode: 'interacao', combatEventId: 'e1' }), b = party({ zone: 'PAZ', mode: 'interacao', combatEventId: 'e1' });

@@ -125,6 +125,14 @@ describe('itens de confronto no mundo (servidor)', () => {
     expect(validateProp(a, 1, 0, 0)).toEqual({ ok: true }); // social continua livre
     expect(validateProp({ ...a, carried: 11 }, 0, 0, 0)).toEqual({ ok: true }); // guardar
   });
+
+  it('freeCombatProps (dados): taco/barra/spray direto da roda, sem posse; caído/veículo continuam negando', () => {
+    expect(loadCombatProps().freeCombatProps).toBe(true);
+    const a: ActionActor = { act: 0, actAt: 0, prop: 0, design: 0, status: 0, vehicle: '', recent: [], freeCombat: true };
+    for (const id of [11, 12, 13]) expect(validateProp({ ...a, recent: [] }, id, 0, 0)).toEqual({ ok: true });
+    expect(validateProp({ ...a, status: 1 }, 11, 0, 0)).toEqual({ ok: false, reason: 'caido' });
+    expect(validateProp({ ...a, vehicle: 'car0' }, 11, 0, 0)).toEqual({ ok: false, reason: 'em_veiculo' });
+  });
 });
 
 describe('RoomItems (ganchos da sala, sem Colyseus)', () => {

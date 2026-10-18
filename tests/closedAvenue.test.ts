@@ -120,6 +120,8 @@ describe('modo pacífico: veículo não atropela', () => {
     expect(impactAllowed('interacao', 'pacifico')).toBe(false);
     expect(impactAllowed('pacifico', 'interacao')).toBe(false);
     expect(impactAllowed('interacao', 'interacao')).toBe(true);
+    // sem consentimento (zones.json combatConsent "none"): o modo não conta; zona/proteção/evento são da política
+    expect(impactAllowed('pacifico', 'pacifico', 'none')).toBe(true);
   });
   it('carro para ANTES de encostar num jogador pacífico (não atravessa)', () => {
     const person = { x: 0, z: 5 };

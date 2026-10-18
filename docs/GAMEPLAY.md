@@ -29,19 +29,30 @@ ENTRAR → VER O QUE ESTÁ ACONTECENDO → ESCOLHER → PARTICIPAR → PROGREDIR
 | Caminhada Central → Candelária | agenda a cada 60 min; líder virtual + NPCs que acompanham; vista da câmera aérea | 0 (`minParticipants` 0) |
 | Corridas de bicicleta e patinete | Cidade Nova, a cada 30 min; checkpoints, voltas, tempo e posição pelo servidor | 1 (contra o relógio) |
 | Debate em texto | palco, fila, turnos com cronômetro, reações da plateia (NPCs reagem junto) | 0 para assistir |
-| Treino de confronto | boneco de treino no Campo de Santana; missão opcional TREINO DE CONFRONTO | 0 |
+| Treino de confronto | boneco de treino no Campo de Santana; missão opcional TREINO DE CONFRONTO; NPCs de ambiente reagem a golpes em toda a avenida | 0 |
 | Confronto de grupos | evento de protótipo (evento `classico-exemplo`), zona CONTESTED, pontuação por objetivo | 2 |
 
 Missões: 10 (exploração, social, mobilidade, evento, debate, confronto opcional). Conquistas: 11. Um caminho
 **pacífico**, sem confronto nem eventos agendados, chega ao nível 6 (teste `tests/progression.test.ts`).
 
-## Confronto: parte do jogo, nunca obrigatório
+## Confronto: a avenida toda (decisão do dono, 2026-10-18)
 
-- **Zonas** (dados, `public/world/zones.json`): CIDADE_NOVA **COMBAT**; CENTRAL (spawn) **PEACE**; CAMPO_DE_SANTANA
-  **CONTESTED**; CENTRO (o ato/trio) **PEACE**; RIO_BRANCO **CONTESTED** (palco com área de paz); CANDELARIA **PEACE**.
-  Áreas de paz móveis em volta do trio e dos carros de som.
-- **Consentimento por contexto**: impacto só entre quem está em modo interação (K) numa zona COMBAT, ou entre inscritos
-  num evento de confronto ativo nas zonas dele. Pacífico e fora de eventos de confronto = nunca sofre impacto.
+Decisão do dono, literal: **"Avenida toda, sem nenhuma área de paz"** + **"bater em todos"** (NPCs da multidão e outros
+jogadores, sem modo interação/K) + taco/barra/spray direto. Tudo por dados — o código das regras antigas continua e
+volta pelos mesmos campos:
+
+- **Zonas** (`public/world/zones.json`): as 6 zonas são **COMBAT**, sem `peaceAreas`; `derivedPeaceAreas: false`
+  desliga as áreas de paz do spawn, do palco, dos anéis do trio/carros de som e dos retornos de evento.
+- **Sem consentimento** (`combatConsent: "none"`): **jogador pacífico também pode ser atingido em qualquer lugar** —
+  golpe, empurrão (F) e carro/moto. K continua existindo, mas não protege. **Só a proteção de retorno de 5 s** (entrar,
+  reconectar, levantar, retorno de evento) bloqueia impacto; regras de evento (`friendlyFire`) continuam valendo.
+- **Golpe sempre anima** para todos, mesmo quando o impacto é bloqueado; SOCO/CHUTE/ESQUIVA de toque sempre visíveis.
+- **NPCs de ambiente** (pedestres e multidão das concentrações) reagem no cliente: cambaleiam, caem e levantam
+  (~4 s), ou cobrem os olhos (spray). São locais de cada cliente; não afetam ninguém mais.
+- **Itens**: taco, barra e spray direto da roda de ações (ITENS), em qualquer lugar (`freeCombatProps`); os pontos de
+  apoio e o chão continuam funcionando. Espectador não segura item nem golpeia.
+- Regra anterior (até 2026-10-18, religável): CIDADE_NOVA COMBAT; CENTRAL, CENTRO e CANDELARIA PEACE; CAMPO_DE_SANTANA e
+  RIO_BRANCO CONTESTED; impacto só entre quem estava em modo interação (K) ou inscrito num evento de confronto.
 - **Arcade**: soco, chute, empurrão, esquiva, combos, taco/barra/spray (spray = desorientação abstrata curta),
   condição e fôlego abstratos, queda e levantar, proteção de retorno. Sem sangue, lesão, morte, arma de fogo.
 - **Servidor decide tudo** (alvo, alcance, arco, janela, estado, zona/evento, fôlego, recarga). Detalhes:

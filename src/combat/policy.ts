@@ -7,13 +7,34 @@
  *   COMBAT     impacto entre quem aceitou o confronto: os dois em modo 'interacao' (K) OU os dois inscritos num
  *              evento de confronto ativo que inclua a zona
  *
- * Consentimento por contexto: quem fica em modo pacífico e fora de eventos de confronto NUNCA sofre impacto, em
- * nenhuma zona. Fogo amigo (mesmo grupo) vem da regra do EVENTO (`friendlyFire`), comparando chaves por igualdade —
+ * Consentimento (DADO: zones.json `combatConsent`):
+ *   'both'  quem fica em modo pacífico e fora de eventos de confronto NUNCA sofre impacto (regra até 2026-10)
+ *   'none'  decisão do dono (2026-10-18, "bater em todos"): em zona COMBAT qualquer jogador sofre impacto, em
+ *           qualquer modo — só a proteção de retorno (protectedUntil) e as regras de evento (friendlyFire) bloqueiam
+ * Fogo amigo (mesmo grupo) vem da regra do EVENTO (`friendlyFire`), comparando chaves por igualdade —
  * nenhuma chave de grupo aparece no código.
  */
 import type { CombatDenial } from './types';
 
 export type ZoneCombatPolicy = 'PEACE' | 'CONTESTED' | 'COMBAT';
+/** consentimento exigido fora de evento em zona COMBAT ('both' = os dois em modo interação; 'none' = ninguém) */
+export type CombatConsent = 'none' | 'both';
+
+/** regras gerais de confronto (raiz de public/world/zones.json) — servidor e cliente leem o MESMO arquivo */
+export interface CombatRules {
+  combatConsent: CombatConsent;
+  /** áreas de paz derivadas do mundo (spawn, palco, anéis do trio/carro de som, retornos de evento) ligadas? */
+  derivedPeaceAreas: boolean;
+}
+/** ausente = regra antiga (consentimento dos dois, áreas derivadas ligadas) */
+export const DEFAULT_COMBAT_RULES: CombatRules = { combatConsent: 'both', derivedPeaceAreas: true };
+export function parseCombatRules(raw: unknown): CombatRules {
+  const o = (raw ?? {}) as { combatConsent?: unknown; derivedPeaceAreas?: unknown };
+  return {
+    combatConsent: o.combatConsent === 'none' ? 'none' : 'both',
+    derivedPeaceAreas: o.derivedPeaceAreas !== false,
+  };
+}
 
 /** regras de confronto de um evento (EventDef/ScheduledEventDef → `combat`) */
 export interface CombatEventRules {
@@ -47,6 +68,7 @@ export function combatAllowed(
   b: CombatParty,
   event: CombatEventRules | null,
   now: number,
+  consent: CombatConsent = 'both',
 ): PolicyResult {
   if (a.inPeaceArea || b.inPeaceArea) return { ok: false, reason: 'zona_paz' };
   const pa = zonePolicy(a.zone), pb = zonePolicy(b.zone);
@@ -58,8 +80,9 @@ export function combatAllowed(
     if (!event!.friendlyFire && a.groupKey !== null && a.groupKey === b.groupKey) return { ok: false, reason: 'politica' };
     return { ok: true };
   }
-  // fora de evento: CONTESTED exige evento; COMBAT exige consentimento dos dois
+  // fora de evento: CONTESTED exige evento; COMBAT exige o consentimento dos dados
   if (pa === 'CONTESTED' || pb === 'CONTESTED') return { ok: false, reason: 'politica' };
+  if (consent === 'none') return { ok: true };
   if (a.mode === 'interacao' && b.mode === 'interacao') return { ok: true };
   return { ok: false, reason: 'politica' };
 }

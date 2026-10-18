@@ -15,6 +15,7 @@ import { createAgent, type CrowdAgent } from '../characters/crowd/crowdBudget';
 import { randomAppearance, type BodyType } from '../characters/bodyTypes';
 import { SocialSchedule, rng, type SocialCrowdConfig } from './crowdSocial';
 import { RallyRegistry, rallyPoints } from './rally';
+import { startNpcReaction, stepNpcReaction, type NpcHittable, type NpcReaction, type NpcTarget } from '../combat/npcHits';
 
 const BODIES: BodyType[] = ['homem', 'mulher', 'homem', 'mulher', 'idoso', 'idosa'];
 const BODY_INDEX: Record<BodyType, number> = { homem: 0, mulher: 1, idoso: 2, idosa: 3 };
@@ -29,16 +30,18 @@ interface Member {
   x: number; z: number; heading: number; speed: number;
   /** desvio individual de rumo (ninguém olha exatamente para o mesmo ponto) */
   look: number;
+  /** golpe recebido (src/combat/npcHits.ts): recua/cai/curva-se e depois volta ao lugar no anel */
+  react: NpcReaction | null;
 }
 
-export class RallyCrowd {
+export class RallyCrowd implements NpcHittable {
   private members: Member[] = [];
   private version = -1;
   private ids = '';
   private time = 0;
   /** referência do evento para o preset ALTO (0 = desligado) */
   private target = 0;
-  stats = { members: 0, submitted: 0, points: 0, reacted: 0 };
+  stats = { members: 0, submitted: 0, points: 0, reacted: 0, hits: 0, reacting: 0 };
 
   constructor(private world: CollisionWorld, private crowd: CrowdDirector, private cfg: SocialCrowdConfig) {}
 
@@ -76,7 +79,7 @@ export class RallyCrowd {
         const agent = createAgent({ maxTier: 1, body: BODY_INDEX[body], skin: app.skin, hair: app.hair, top: app.top, bottom: app.bottom, scale: app.scale, x: spot.x, z: spot.z });
         this.members.push({
           agent, seed, point: p.id, u1, u2, x: spot.x, z: spot.z, heading: Math.atan2(p.x - spot.x, p.z - spot.z), speed: 0,
-          look: (r() - 0.5) * 0.5, schedule: new SocialSchedule(seed, this.cfg),
+          look: (r() - 0.5) * 0.5, schedule: new SocialSchedule(seed, this.cfg), react: null,
         });
       }
     });
@@ -101,10 +104,23 @@ export class RallyCrowd {
     const room = Math.max(0, Math.floor(this.crowd.budget.total * 0.75) - this.crowd.othersCount);
     const n = Math.min(this.members.length, room);
     const nowS = performance.now() / 1000;
+    let reacting = 0;
     for (let i = 0; i < n; i++) {
       const m = this.members[i];
       const p = rallyPoints.get(m.point);
       if (!p) continue;
+      if (m.react) {
+        // atingido: recua na direção do golpe, inclina (instanciado: tilt), sem ação/item; no fim volta a pé ao lugar
+        reacting++;
+        const st = stepNpcReaction(m.react, dt);
+        if (st.step > 0 && !this.blocked(m.x + m.react.dx * st.step, m.z + m.react.dz * st.step)) { m.x += m.react.dx * st.step; m.z += m.react.dz * st.step; }
+        const ag = m.agent;
+        ag.x = m.x; ag.z = m.z; ag.y = this.world.groundHeight(m.x, m.z); ag.heading = m.heading; ag.speed = 0;
+        ag.tilt = st.done ? 0 : st.tilt; ag.act = 0; ag.prop = 0;
+        if (st.done) m.react = null;
+        this.crowd.submit(ag, 'ped');
+        continue;
+      }
       // lugar atual no anel (o ponto pode ter andado): vai a pé até lá
       const spot = RallyRegistry.spotFor(p, m.u1, m.u2);
       const dx = spot.x - m.x, dz = spot.z - m.z, d = Math.hypot(dx, dz);
@@ -130,6 +146,20 @@ export class RallyCrowd {
       this.crowd.submit(ag, 'ped');
     }
     this.stats.submitted = n;
+    this.stats.reacting = reacting;
+  }
+
+  /** membros desenhados agora a até `r` m (caixa) — atingíveis pelo golpe local (src/combat/npcHits.ts) */
+  npcTargetsNear(x: number, z: number, r: number, out: NpcTarget[]) {
+    for (let i = 0; i < this.stats.submitted && i < this.members.length; i++) {
+      const m = this.members[i];
+      if (m.react?.kind === 'down' || Math.abs(m.x - x) > r || Math.abs(m.z - z) > r) continue;
+      out.push({ x: m.x, z: m.z, react: (k, dx, dz, kb) => {
+        m.react = startNpcReaction(k, dx, dz, kb);
+        if (k === 'down') m.heading = Math.atan2(-dx, -dz); // cai de costas, de frente para quem bateu
+        this.stats.hits++;
+      } });
+    }
   }
 
   /**

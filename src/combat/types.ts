@@ -78,6 +78,8 @@ export interface CombatActionDefinition {
   comboOf?: number;
   /** (aditivo) máximo de alvos por golpe (padrão 1: o mais próximo no arco; spray atinge vários) */
   maxTargets?: number;
+  /** (aditivo) reação dos NPCs de ambiente do cliente (src/combat/npcHits.ts); ausente = derivada do impacto */
+  npcReaction?: 'stagger' | 'down' | 'flinch';
 }
 
 /** item de confronto: o MESMO registro de props (src/social/props.ts), categoria COMBAT_PROP */

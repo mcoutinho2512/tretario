@@ -80,6 +80,8 @@ export interface CombatPropsData {
   version: 1;
   props: CombatPropDefinition[];
   supply: SupplyConfig;
+  /** taco/barra/spray direto da roda (ITENS), sem passar pelo apoio — servidor (validateProp) e cliente (roda) */
+  freeCombatProps?: boolean;
 }
 
 /** apoio resolvido no mundo + posição de cada vaga (itens lado a lado, 0,45 m) */

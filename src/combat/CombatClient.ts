@@ -4,8 +4,10 @@
  *  entrada     teclas/mouse/toque → buffer curto (inputBufferMs): o golpe sai assim que a recuperação local termina
  *  pedido      `cbt {a, h, seq}`: a ação BASE (soco/chute/esquiva; com item de confronto na mão, o golpe do item) e a
  *              orientação — o combo é decidido no servidor (a previsão local usa a mesma tabela)
- *  previsão    animação local (e o deslocamento da esquiva) SÓ com contexto de confronto (zona COMBAT/CONTESTED,
- *              área de treino, evento): em zona de paz não se prevê nada e o servidor responde 'zona_paz'
+ *  previsão    animação local (e o deslocamento da esquiva) com contexto de confronto (zona COMBAT/CONTESTED,
+ *              área de treino, evento; sem consentimento — zones.json `combatConsent: "none"` — SEMPRE): com a
+ *              regra antiga, em zona de paz não se prevê nada e o servidor responde 'zona_paz'
+ *  NPCs        na janela ativa do golpe LOCAL, os NPCs de ambiente à frente reagem (src/combat/npcHits.ts; só local)
  *  rede        `cbt_act` (todos animam igual), `cbt_hit` (resultado: cambaleio + empurrão no próprio, reação dos
  *              remotos e bonecos), `cbt_self` (fôlego/condição/fx ≤ 5 Hz), `cbt_denied`, `cbt_dummy`, `jump_denied`
  *  pulo        cooldown local igual ao do servidor (JUMP), `jump {seq}` junto com o impulso previsto
@@ -19,7 +21,7 @@ import type { CollisionWorld } from '../physics/CollisionWorld';
 import type { ZoneDefinition } from '../world/zones';
 import { PROP_BY_ID } from '../social/props';
 import { CombatTable, JUMP, inDummyArea } from './data';
-import { inPeaceArea, type ZoneCombatPolicy } from './policy';
+import { inPeaceArea, type CombatConsent, type ZoneCombatPolicy } from './policy';
 import { FX, PHYS, type CombatActEvent, type CombatActionDefinition, type CombatDenied, type CombatDummyWire, type CombatHitEvent, type CombatSelf, type JumpDenied } from './types';
 import { CombatHud } from './CombatHud';
 import { DummyVisual } from './DummyVisual';
@@ -42,6 +44,10 @@ export interface CombatClientDeps {
   flash: (msg: string) => void;
   touch: { setCombatVisible(v: boolean): void } | null;
   hud: CombatHud;
+  /** consentimento (zones.json `combatConsent`, o mesmo do servidor) */
+  consent: CombatConsent;
+  /** golpe local chegou à janela ativa: NPCs de ambiente à frente reagem (devolve quantos) */
+  npcHit?: (x: number, z: number, h: number, def: CombatActionDefinition) => number;
 }
 
 export class CombatClient {
@@ -62,7 +68,9 @@ export class CombatClient {
   /** evento de confronto ativo (agente D liga; até lá só zona/área/modo) */
   eventActive = false;
   /** QA */
-  readonly stats = { sent: 0, predicted: 0, acts: 0, hitsOut: 0, hitsIn: 0, dodgedIn: 0, dodgedOut: 0, blocked: 0, denied: [] as string[], jumps: 0, jumpDenied: [] as string[], dummyHits: 0, lastHit: null as CombatHitEvent | null };
+  /** golpe local esperando a janela ativa para os NPCs (só local; o servidor não conhece NPC) */
+  private npcPending: { def: CombatActionDefinition; h: number; at: number } | null = null;
+  readonly stats = { npcHits: 0, npcSwings: 0, sent: 0, predicted: 0, acts: 0, hitsOut: 0, hitsIn: 0, dodgedIn: 0, dodgedOut: 0, blocked: 0, denied: [] as string[], jumps: 0, jumpDenied: [] as string[], dummyHits: 0, lastHit: null as CombatHitEvent | null };
 
   constructor(private d: CombatClientDeps) {
     const t = d.table.tuning;
@@ -90,8 +98,9 @@ export class CombatClient {
     return pol;
   }
 
-  /** há confronto possível aqui (mostrar botões de toque, prever animação)? */
+  /** há confronto possível aqui (mostrar botões de toque, prever animação)? sem consentimento: sempre */
   context(p: PlayerState): boolean {
+    if (this.d.consent === 'none') return true;
     const pol = this.policyAt(p.x, p.z);
     return pol !== 'PEACE' || this.eventActive || this.d.net.self.interaction === 'interacao';
   }
@@ -122,6 +131,11 @@ export class CombatClient {
       this.d.collision.resolveCircle(q, 0.32, 1.78);
       p.x = q.x; p.z = q.z;
       this.knock = null;
+    }
+    if (this.npcPending && now >= this.npcPending.at) {
+      const q = this.npcPending; this.npcPending = null;
+      this.stats.npcSwings++;
+      this.stats.npcHits += this.d.npcHit?.(p.x, p.z, q.h, q.def) ?? 0;
     }
     if (!this.wasGrounded && p.grounded) this.landedAt = now;
     this.wasGrounded = p.grounded;
@@ -179,7 +193,8 @@ export class CombatClient {
     this.d.net.send('cbt', { a: base.id, h: Math.round(h * 1000) / 1000, seq: this.d.net.moveSeq });
     this.stats.sent++;
     this.recentAt = now;
-    if (!this.context(p) || this.policyAt(p.x, p.z) === 'PEACE') return; // em paz: sem previsão (o servidor nega)
+    // regra antiga, em paz: sem previsão (o servidor nega). Sem consentimento o servidor sempre aceita o golpe válido
+    if (!this.context(p) || (this.d.consent === 'both' && this.policyAt(p.x, p.z) === 'PEACE')) return;
     // previsão: recuperação, cooldown, combo, fôlego e animação (o servidor corrige pelo cbt_self/cbt_denied)
     this.stats.predicted++;
     const activeEnd = now + def.windupMs + def.activeMs;
@@ -189,6 +204,7 @@ export class CombatClient {
     this.stamina -= def.staminaCost;
     this.predictedAt = now;
     this.d.avatar.playCombat(def.animation);
+    if (def.kind !== 'dodge') this.npcPending = { def, h, at: now + def.windupMs };
     if (def.kind === 'dodge') { this.lockUntil = 0; if (def.dashM) this.dash = { dx: Math.sin(h), dz: Math.cos(h), left: def.dashM }; }
   }
   private predictedAt = -1e9;
@@ -211,8 +227,11 @@ export class CombatClient {
     const def = this.d.table.byId.get(m.a);
     if (!def) return;
     if (m.by === this.d.net.selfNid) {
-      // confirmado pelo servidor; sem previsão (contexto local divergiu): anima agora
-      if (performance.now() - this.predictedAt > 400) this.d.avatar.playCombat(def.animation);
+      // confirmado pelo servidor; sem previsão (contexto local divergiu): anima agora (e os NPCs reagem na janela)
+      if (performance.now() - this.predictedAt > 400) {
+        this.d.avatar.playCombat(def.animation);
+        if (def.kind !== 'dodge') this.npcPending = { def, h: m.h, at: performance.now() + def.windupMs };
+      }
       this.last = { id: def.id, activeEnd: performance.now() + def.windupMs + def.activeMs };
       return;
     }
@@ -241,7 +260,7 @@ export class CombatClient {
       this.recentAt = now;
       if (m.r === 'hit') { this.stats.hitsOut++; this.d.hud.pulse(); }
       else if (m.r === 'dodged') { this.stats.dodgedOut++; this.d.flash('Esquivou do seu golpe'); }
-      else { this.stats.blocked++; this.d.flash('Sem efeito (modo pacífico, proteção ou regra do local)'); }
+      else { this.stats.blocked++; this.d.flash(this.d.consent === 'none' ? 'Sem efeito (proteção de retorno ou regra do evento)' : 'Sem efeito (modo pacífico, proteção ou regra do local)'); }
     }
   }
   /** empurrão sofrido, aplicado no próximo `update` */
@@ -253,8 +272,8 @@ export class CombatClient {
     if (m.reason === 'zona_paz') this.d.hud.peace();
     else if (m.reason === 'stamina') this.d.flash('Sem fôlego');
     else if (m.reason === 'sem_item') this.d.flash('Esse golpe precisa do item na mão');
-    // previsão errada: libera a recuperação local (o servidor não começou nada)
-    if (m.reason !== 'spam') { this.busyUntil = 0; this.last = null; this.cd.delete(m.a); }
+    // previsão errada: libera a recuperação local (o servidor não começou nada) — e os NPCs não reagem
+    if (m.reason !== 'spam') { this.busyUntil = 0; this.last = null; this.cd.delete(m.a); this.npcPending = null; }
   }
 
   private onDummy(w: CombatDummyWire) {
@@ -276,6 +295,14 @@ export class CombatClient {
       dummies: [...this.dummies.values()].map((d) => ({ id: d.id, st: d.st, cond: d.cond, x: +d.root.position.x.toFixed(1), z: +d.root.position.z.toFixed(1) })),
       stats: { ...this.stats, denied: [...this.stats.denied], jumpDenied: [...this.stats.jumpDenied] },
     };
+  }
+
+  /** empurrão F sem jogador ao alcance: a definição EMPURRÃO nos NPCs à frente, na hora (só local) */
+  npcPush(p: PlayerState): number {
+    const def = this.d.table.byKey.get('empurrao');
+    const n = def ? this.d.npcHit?.(p.x, p.z, p.heading, def) ?? 0 : 0;
+    this.stats.npcHits += n;
+    return n;
   }
 
   /** QA: aperta uma entrada (como a tecla) */

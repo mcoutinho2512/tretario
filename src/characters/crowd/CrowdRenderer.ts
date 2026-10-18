@@ -276,13 +276,19 @@ vTint = li == 0 ? aSkin : li == 1 ? aHair : li == 2 ? aTop : li == 3 ? aBottom :
         if (!s || s.count >= this.capacity) continue;
         const i = s.count++;
         if (s.lod === 2) lod2++; else lod3++;
-        // matriz: rotação Y (rumo) × escala, translação
+        // matriz: rotação Y (rumo) × inclinação X (NPC atingido: tilt) × escala, translação
         const m = s.mesh.instanceMatrix.array as Float32Array;
         const c = Math.cos(a.heading) * a.scale, sn = Math.sin(a.heading) * a.scale, o = i * 16;
         m[o] = c; m[o + 1] = 0; m[o + 2] = -sn; m[o + 3] = 0;
-        m[o + 4] = 0; m[o + 5] = a.scale; m[o + 6] = 0; m[o + 7] = 0;
-        m[o + 8] = sn; m[o + 9] = 0; m[o + 10] = c; m[o + 11] = 0;
-        m[o + 12] = a.x; m[o + 13] = a.y; m[o + 14] = a.z; m[o + 15] = 1;
+        if (a.tilt) {
+          const ct = Math.cos(a.tilt), st = Math.sin(a.tilt);
+          m[o + 4] = -st * sn; m[o + 5] = ct * a.scale; m[o + 6] = -st * c; m[o + 7] = 0;
+          m[o + 8] = ct * sn; m[o + 9] = st * a.scale; m[o + 10] = ct * c; m[o + 11] = 0;
+        } else {
+          m[o + 4] = 0; m[o + 5] = a.scale; m[o + 6] = 0; m[o + 7] = 0;
+          m[o + 8] = sn; m[o + 9] = 0; m[o + 10] = c; m[o + 11] = 0;
+        }
+        m[o + 12] = a.x; m[o + 13] = a.y + (a.tilt > 0 ? 0.12 * Math.sin(a.tilt) : 0); m[o + 14] = a.z; m[o + 15] = 1;
         // animação: ciclo pela velocidade, cadência casada com o deslocamento (como o HumanAnimator)
         const clip = a.speed < 0.15 ? s.clips.idle : a.speed < 2.2 ? s.clips.walk : s.clips.jog;
         const nat = clip === s.clips.walk ? s.natural.walk : clip === s.clips.jog ? s.natural.jog : 0;

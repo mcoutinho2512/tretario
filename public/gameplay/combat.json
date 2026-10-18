@@ -167,7 +167,8 @@
         "knockback": 1.1,
         "state": "STAGGERED",
         "staggerMs": 650
-      }
+      },
+      "npcReaction": "down"
     },
     {
       "id": 11,
@@ -188,7 +189,8 @@
         "knockback": 1.3,
         "state": "STAGGERED",
         "staggerMs": 700
-      }
+      },
+      "npcReaction": "down"
     },
     {
       "id": 12,

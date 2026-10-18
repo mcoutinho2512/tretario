@@ -4,7 +4,7 @@
  *
  * Pedido `cbt {a, h, seq}` (só intenção + orientação; alvo/dano/posição enviados pelo cliente são IGNORADOS):
  *   taxa (maxRequestsPerS) → capacidade `combat.act` → ação válida (combo resolvido aqui) → veículo/trio → estado
- *   físico (e no ar) → zona (atacante em PAZ = 'zona_paz') → item na mão → stamina → recuperação/cooldown →
+ *   físico (e no ar) → zona (só com consentimento 'both': atacante em PAZ = 'zona_paz') → item na mão → stamina → recuperação/cooldown →
  *   aceita: gasta stamina, agenda preparação → janela ATIVA → recuperação no relógio do servidor; `cbt_act` à AOI.
  * Janela ativa (no início e, sem acerto, no fim): posição do atacante NO SERVIDOR naquele instante; candidatos SÓ
  * pela grade espacial (host.forEachNear); alcance + folga, arco + folga, parede (checkPath), estado do alvo (esquiva
@@ -17,7 +17,7 @@ import { checkPath } from '../../../src/net/authority';
 import type { WallGrid } from '../../../src/physics/walls';
 import { CombatTable, inArc, inDummyArea } from '../../../src/combat/data';
 import { FX, PHYS, type CombatActionDefinition, type CombatDenial, type CombatDummyDefinition, type CombatDummyWire, type CombatHitEvent, type PhysState } from '../../../src/combat/types';
-import { combatAllowed, inPeaceArea, type CombatEventRules, type CombatParty, type PeaceArea, type ZoneCombatPolicy } from '../../../src/combat/policy';
+import { combatAllowed, inPeaceArea, type CombatConsent, type CombatEventRules, type CombatParty, type PeaceArea, type ZoneCombatPolicy } from '../../../src/combat/policy';
 import type { GameplayEvent } from '../../../src/gameplay/events';
 
 /** o que o sistema precisa ver de um jogador (montado pela sala a partir do estado autoritativo) */
@@ -41,6 +41,8 @@ export interface CombatHost {
   zoneDef(id: string | null): { combatPolicy?: ZoneCombatPolicy; peaceAreas?: PeaceArea[] } | undefined;
   /** áreas de paz derivadas/móveis (trio, carros de som, spawn, palco, retornos) — opcional */
   peaceAt?(x: number, z: number): boolean;
+  /** consentimento (zones.json `combatConsent`; ausente = 'both', a regra antiga) */
+  consent?: CombatConsent;
   groupKey(sid: string): string | null;
   /** tipo do prop pelo id (src/social/props.ts PropKind; agente B acrescenta barra/spray) */
   propKind(propId: number): string | undefined;
@@ -151,7 +153,9 @@ export class CombatSystem {
     if (me.vehicle || me.platform) return this.deny(sid, a, 'em_veiculo', now);
     const st = this.physOf(sid, me, F, now);
     if (!this.table.stateAllowed(def, st) || this.host.airborne(sid)) return this.deny(sid, a, 'estado', now);
-    if (this.attackerContext(sid, me) === 'PEACE') return this.deny(sid, a, 'zona_paz', now);
+    // regra antiga: atacante em paz nem anima. Sem consentimento (decisão do dono) o golpe SEMPRE sai e anima para
+    // todos; o impacto é que pode ser bloqueado na janela ativa (proteção, área de paz) — nunca "nada acontece"
+    if (this.consent === 'both' && this.attackerContext(sid, me) === 'PEACE') return this.deny(sid, a, 'zona_paz', now);
     if (!this.table.itemOk(def, me.prop ? this.host.propKind(me.prop) : undefined)) return this.deny(sid, a, 'sem_item', now);
     if (F.stamina < def.staminaCost) return this.deny(sid, a, 'stamina', now);
     const combo = def.comboOf !== undefined;
@@ -195,6 +199,8 @@ export class CombatSystem {
     if (p.inPeaceArea) return 'PEACE';
     return this.zonePolicy(p.zone);
   }
+
+  private get consent(): CombatConsent { return this.host.consent ?? 'both'; }
 
   private zonePolicy = (zone: string | null): ZoneCombatPolicy => {
     if (zone?.startsWith(TRAINING)) return 'COMBAT';
@@ -291,7 +297,7 @@ export class CombatSystem {
         this.host.emit(c.sid, { type: 'combat_dodge' });
         continue;
       }
-      const pol = combatAllowed(this.zonePolicy, pa, this.party(c.sid, c.a), ev, now);
+      const pol = combatAllowed(this.zonePolicy, pa, this.party(c.sid, c.a), ev, now, this.consent);
       if (!pol.ok) {
         this.stats.blocked++;
         // só os dois envolvidos (não polui a AOI); zona de paz também vira aviso discreto para quem golpeou
@@ -414,7 +420,7 @@ export class CombatSystem {
     const me = this.host.actor(sid), ta = this.host.actor(tsid);
     if (!me || !ta) return { ok: false, reason: 'alvo_invalido' };
     const ev = this.combatEventFor(sid);
-    return combatAllowed(this.zonePolicy, this.party(sid, me, ev), this.party(tsid, ta, ev), ev, this.host.now());
+    return combatAllowed(this.zonePolicy, this.party(sid, me, ev), this.party(tsid, ta, ev), ev, this.host.now(), this.consent);
   }
 
   legacyPushImpact(sid: string, tsid: string) {

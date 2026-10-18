@@ -56,8 +56,12 @@ export class RoomItems {
   /** QA/telemetria: mensagens/bytes de item_list */
   stats = { lists: 0, bytes: 0 };
 
+  /** combat_props.json `freeCombatProps`: item de confronto na mão sem posse (roda); apoios e chão continuam */
+  readonly free: boolean;
+
   constructor(private host: ItemsHost, data: CombatPropsData, axis: [number, number][]) {
     this.items = new GroundItems(data, axis);
+    this.free = data.freeCombatProps === true;
     log.info('items', `${this.items.items.size} itens de confronto em ${this.items.racks.length} pontos de apoio`);
   }
 

@@ -1,8 +1,10 @@
 /**
  * Rodada 9 — CONFRONTO no servidor REAL (subprocesso, PV_TEST=1, banco em memória, evento 'cotidiano' = interação
  * opcional) com clientes do SDK mandando mensagens CRUAS (cliente forjado). Tudo abaixo tem de ser NEGADO/ignorado:
- *   golpe a 100 m · golpe atravessando zona de paz · 30 pedidos/s · item que não está na mão · campos alvo/dano
- *   forjados · ignorar stamina e cooldown · teleporte e golpe · espectador golpeando · pulo no ar / cooldown / y forjado
+ *   golpe a 100 m · 30 pedidos/s · item que não está na mão · campos alvo/dano forjados · ignorar stamina e cooldown
+ *   · teleporte e golpe · espectador golpeando · pulo no ar / cooldown / y forjado
+ * Dados atuais (decisão do dono 2026-10-18): avenida toda COMBAT, sem consentimento — pacífico no spawn sofre impacto;
+ * taco/barra/spray direto da roda (combat_props.json freeCombatProps).
  * Latência simulada: tests/combatLatency.test.ts. PV_SKIP_NET_TESTS=1 pula.
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -51,9 +53,10 @@ async function join(ep: string, name: string, at: { x: number; z: number }, o: R
   for (let i = 0; i < 50 && !p.msgs.some((x) => x.type === 'spawn'); i++) await w(40);
   return p;
 }
-/** modo interação (consentimento) e o nid do jogador pelo estado sincronizado */
-async function ready(...ps: Peer[]) {
-  for (const p of ps) p.room.send('mode', 'interacao');
+/** modo interação (sem efeito com combatConsent "none") e o nid do jogador pelo estado sincronizado */
+async function ready(...ps: Peer[]) { return nids(true, ...ps); }
+async function nids(interacao: boolean, ...ps: Peer[]) {
+  if (interacao) for (const p of ps) p.room.send('mode', 'interacao');
   await w(700);
   for (const p of ps) {
     for (const q of ps) {
@@ -99,23 +102,18 @@ describe.skipIf(skip)('confronto — servidor real, cliente forjado', () => {
     expect(of(C, 'cbt_hit').filter((h) => h.tgt === C.nid)).toEqual([]);
   });
 
-  it('golpe atravessando zona de paz: atacante em paz → zona_paz; alvo fora da área de treino → sem impacto', async () => {
-    // atacante numa zona de PAZ de verdade (spawn: zona CENTRAL PEACE + área de paz do spawn — dados do agente B)
+  it('avenida toda, sem consentimento: pacíficos no spawn (sem K) se acertam; o golpe anima para os dois', async () => {
     const SPN = { x: SPAWN.p[0] + 6, z: SPAWN.p[1] };
     const A = await join(ep, 'A2', SPN), B = await join(ep, 'B2', { x: SPN.x, z: SPN.z + 1.1 });
-    await ready(A, B); await w(400);
+    await nids(false, A, B); await w(400);
+    expect((A.room.state as { players: Map<string, { interaction: string }> }).players.get(B.sid)?.interaction).toBe('pacifico');
+    move(A, SPN, 0);
     cbt(A, ID('soco'), 0);
-    expect(await until(() => of(A, 'cbt_denied').some((d) => d.reason === 'zona_paz'))).toBe(true);
-    expect(of(A, 'cbt_act')).toEqual([]);
-    // borda: A dentro da área de treino, B 1,2 m para fora dela (zona de paz)
-    const edge = { x: D.x + D.areaR - 0.4, z: D.z }, out = { x: D.x + D.areaR + 0.8, z: D.z };
-    const E = await join(ep, 'E2', edge), F = await join(ep, 'F2', out);
-    await ready(E, F); await w(400);
-    move(E, edge, heading(edge, out));
-    cbt(E, ID('soco'), heading(edge, out));
-    expect(await until(() => of(E, 'cbt_hit').some((h) => h.r === 'blocked'))).toBe(true);
-    // fora da área de treino vale a política da zona (aqui CONTESTED sem evento): golpe `blocked`, nenhum impacto
-    expect(lastSelf(F)?.cd ?? 100).toBe(100);
+    expect(await until(() => of(B, 'cbt_hit').some((h) => h.tgt === B.nid && h.r === 'hit'))).toBe(true);
+    expect(of(B, 'cbt_act').some((a) => a.by === A.nid)).toBe(true);
+    expect(of(A, 'cbt_denied').map((d) => d.reason)).not.toContain('zona_paz');
+    await w(300);
+    expect(lastSelf(B)?.cd).toBe(100 - 12);
   }, 15_000);
 
   it('30 pedidos/s: só maxRequestsPerS processados, o resto "spam" (aviso ≤ 1/s)', async () => {
@@ -130,18 +128,17 @@ describe.skipIf(skip)('confronto — servidor real, cliente forjado', () => {
     expect(denied.filter((r) => r === 'cooldown').length).toBeGreaterThan(0);
   });
 
-  it('item que não está na mão: golpe de taco/barra/spray negado (sem_item); com o taco, aceito', async () => {
+  it('item que não está na mão: golpe negado (sem_item); taco direto da roda (freeCombatProps) e do apoio, aceito', async () => {
     const A = await join(ep, 'A4', IN(-4, -6));
     await ready(A); await w(400);
     for (const k of ['golpe_taco', 'golpe_barra', 'spray']) { cbt(A, ID(k), 0); await w(250); }
     expect(of(A, 'cbt_denied').map((d) => d.reason)).toEqual(['sem_item', 'sem_item', 'sem_item']);
-    // declarar o taco na mão sem tê-lo pego não adianta (itens de confronto: posse no servidor — server/src/items)
+    // dados atuais: o taco sai direto da roda (prop), sem passar pelo apoio — o servidor aceita pelo mesmo dado
     A.room.send('prop', { p: 11, d: 0 });
     await w(300);
     cbt(A, ID('golpe_taco'), 0);
-    await w(300);
-    expect(of(A, 'cbt_act').some((a) => a.a === ID('golpe_taco'))).toBe(false);
-    // pegando o taco de verdade num ponto de apoio (Cidade Nova, zona COMBAT), o golpe é aceito
+    expect(await until(() => of(A, 'cbt_act').some((a) => a.a === ID('golpe_taco')))).toBe(true);
+    // o ponto de apoio continua funcionando (Cidade Nova)
     const rack = RACKS[0], pt = pointOnAxis(AXIS, rack.at.t, rack.at.side ?? 0);
     const P = await join(ep, 'P4', { x: pt.x + 1, z: pt.z });
     const lists: ItemView[][] = [];
