@@ -15,11 +15,14 @@
  *                (rodada 8.1) com altitude: no alto o servidor manda células agregadas (`spec_cells`, binário, 1 Hz)
  *  reconexão     (rodada 8) queda → RECONECTANDO (token do Colyseus, exponencial + jitter) → mesma entidade; graça
  *                vencida → entra de novo (ticket novo se autenticado); sessão substituída → para (src/net/reconnect.ts)
+ *  reinício      (rodada 9.1) servidor reiniciando (aviso `server_restarting` ou fechamento 4001) ou processo novo sem a
+ *                sala antiga → entra de novo (entidade nova, conta/progresso preservados) com backoff; versão nova
+ *                (4010) / sala cheia (4011) param e avisam (`onJoinRefused`) — docs/SHARED_WORLD.md § Reinício
  */
 import './netWebSocket'; // precisa vir ANTES do SDK (instrumenta globalThis.WebSocket)
 import * as THREE from 'three';
 import { Client, Callbacks, type Room } from '@colyseus/sdk';
-import { ROOM_NAME, NET_TICK_HZ, LOCO, type JoinOptions } from './protocol';
+import { ROOM_NAME, NET_TICK_HZ, LOCO, JOIN_ERROR, PROTOCOL_VERSION, type JoinOptions } from './protocol';
 import { packMove, RULES } from './rules';
 import { FallSync } from '../player/fallSync';
 import { netStats, SIM } from './netWebSocket';
@@ -123,6 +126,8 @@ interface Remote {
 
 export interface KnockMsg { target: string; by: string; kind: 'push' | 'impact' | 'combat'; dx: number; dz: number; strength: number; rx: number; rz: number; downMs: number; getupMs: number }
 
+/** versão do protocolo enviada na entrada; QA: ?pvTest=N simula uma aba com bundle antigo (só afeta quem usa) */
+const pvForJoin = (): number => { const t = new URLSearchParams(location.search).get('pvTest'); return t !== null && /^\d+$/.test(t) ? Number(t) : PROTOCOL_VERSION; };
 /** QA (servidor PV_TEST=1): ?testGroup=chave → grupo do jogador anônimo (canal GRUPO do chat); o servidor real ignora */
 const testGroupOpt = (): { testGroup?: string } => { const g = new URLSearchParams(location.search).get('testGroup'); return g ? { testGroup: g } : {}; };
 
@@ -194,11 +199,19 @@ export class NetworkClient {
   /** estado do enlace (src/net/reconnect.ts) */
   get link(): LinkState { return this.linkM.state; }
   private linkM = new LinkMachine('client');
-  /** mudança de estado do enlace ('REPLACED' = outra sessão da mesma conta assumiu) */
-  onLink: ((s: LinkState | 'REPLACED') => void) | null = null;
+  /** mudança de estado do enlace ('REPLACED' = outra sessão da mesma conta assumiu; 'RESTARTING' = servidor reiniciando) */
+  onLink: ((s: LinkState | 'REPLACED' | 'RESTARTING') => void) | null = null;
+  /** rodada 9.1 — entrada recusada de vez (JOIN_ERROR: versão nova, sala cheia…): o jogo mostra o aviso */
+  onJoinRefused: ((code: number, message: string) => void) | null = null;
+  /** rodada 9.1 — o servidor avisou que vai reiniciar (SIGTERM): a saída que vier a seguir é reinício, não expulsão */
+  restarting = false;
   /** reconectou na MESMA entidade: estado autoritativo do servidor */
   onResume: ((r: ResumeMsg) => void) | null = null;
-  /** ticket de uso único para cada entrada NOVA (jogador autenticado — POST /api/session/ticket); sem ele, anônimo */
+  /**
+   * ticket de uso único para cada entrada NOVA (jogador autenticado — POST /api/session/ticket); `undefined` = sem
+   * ticket (entra como visitante). Falha PASSAGEIRA (API fora no reinício, 429) deve LANÇAR: a entrada é tentada de
+   * novo em vez de rebaixar a conta a visitante.
+   */
   ticketProvider: (() => Promise<string | undefined>) | null = null;
   /** a sessão foi substituída por outra da mesma conta: não reconecta */
   replaced = false;
@@ -259,10 +272,10 @@ export class NetworkClient {
     const { app, name, testSpawn, o } = this.joinArgs!;
     const client = new Client(this.endpoint);
     // ticket de uso único: o da 1ª entrada (se veio pronto) e, depois, um NOVO a cada entrada (ticketProvider)
-    const ticket = o.ticket ?? await this.ticketProvider?.().catch(() => undefined);
+    const ticket = o.ticket ?? await this.ticketProvider?.();
     o.ticket = undefined;
     const spec = o.role === 'spectator' ? (this.spectatorFocus ?? o.specCam) : undefined;
-    const opts: JoinOptions = { name, body: app.body, skin: app.skin, hair: app.hair, top: app.top, bottom: app.bottom, shoes: app.shoes, accessory: app.accessory ?? 'nenhum', acc: app.acc ?? 0x222222, topStyle: app.topStyle, bottomStyle: app.bottomStyle, shoeStyle: app.shoeStyle, hairStyle: app.hairStyle, shirtDesign: app.shirtDesign ?? 0, cid: anonymousClientId(), ...(testSpawn ? { testSpawn } : {}), ...testGroupOpt(), ...(this.crowd ? { aoiMax: Math.max(16, Math.min(64, this.crowd.budget.skinned * 2)) } : {}),
+    const opts: JoinOptions = { pv: pvForJoin(), name, body: app.body, skin: app.skin, hair: app.hair, top: app.top, bottom: app.bottom, shoes: app.shoes, accessory: app.accessory ?? 'nenhum', acc: app.acc ?? 0x222222, topStyle: app.topStyle, bottomStyle: app.bottomStyle, shoeStyle: app.shoeStyle, hairStyle: app.hairStyle, shirtDesign: app.shirtDesign ?? 0, cid: anonymousClientId(), ...(testSpawn ? { testSpawn } : {}), ...testGroupOpt(), ...(this.crowd ? { aoiMax: Math.max(16, Math.min(64, this.crowd.budget.skinned * 2)) } : {}),
       ...(o.role ? { role: o.role } : {}), ...(ticket ? { ticket } : {}), ...(spec ? { specCam: { x: spec.x, z: spec.z, ...(spec.alt !== undefined ? { alt: Math.round(spec.alt) } : {}) } } : {}), ...(o.testUser ? { testUser: o.testUser } : {}) };
     const room = await client.joinOrCreate(ROOM_NAME, opts);
     this.bind(room);
@@ -293,6 +306,7 @@ export class NetworkClient {
       room.onDrop(() => { if (this.room === room) { this.status = 'connecting'; this.setLink('drop'); } });
       room.onReconnect(() => { if (this.room === room) { this.status = 'online'; this.reconnects++; this.setLink('reconnected'); } });
       room.onMessage('session_replaced', () => { this.replaced = true; });
+      room.onMessage('server_restarting', () => { if (this.room === room) { this.restarting = true; this.onLink?.('RESTARTING'); } });
       room.onMessage('resume', (r: ResumeMsg) => { this.holdMoves = false; this.onResume?.(r); });
       room.onMessage('denied', (d: { cap: string }) => { this.lastDenial = `cap:${d?.cap}`; if (this.capDenials.length < 64) this.capDenials.push(String(d?.cap)); });
       room.onMessage('spawn', (s: { x: number; y: number; z: number; heading: number; policy: 'pacifico' | 'opcional'; seed: number; role?: WorldRole }) => {
@@ -378,6 +392,15 @@ export class NetworkClient {
       this.onLink?.('REPLACED');
       return;
     }
+    // rodada 9.1 — reinício do servidor (aviso prévio ou fechamento SERVER_SHUTDOWN 4001): não há graça possível (a sala
+    // some com o processo); entra de novo quando o processo novo subir, mostrando RECONECTANDO no meio
+    if (this.restarting || code === 4001) {
+      this.restarting = false;
+      this.linkM.apply('replaced', Date.now());
+      this.onLink?.('RESTARTING');
+      void this.rejoinFresh();
+      return;
+    }
     if (this.linkM.state === 'CONNECTED') {
       this.linkM.apply('replaced', Date.now());
       this.lastError = `saída pelo servidor (${code})`;
@@ -407,7 +430,16 @@ export class NetworkClient {
         this.linkM.apply('rejoined', Date.now());
         this.onLink?.('CONNECTED');
         return;
-      } catch (e) { this.lastError = (e as Error)?.message ?? String(e); }
+      } catch (e) {
+        this.lastError = (e as Error)?.message ?? String(e);
+        // recusa DEFINITIVA (versão nova, lotação): não insiste — o jogo mostra o aviso com a decisão
+        const code = (e as { code?: number })?.code;
+        if (code === JOIN_ERROR.protocol || code === JOIN_ERROR.roomFull || code === JOIN_ERROR.spectatorsFull) {
+          this.status = 'error';
+          this.onJoinRefused?.(code, this.lastError);
+          return;
+        }
+      }
     }
     this.status = 'error';
   }

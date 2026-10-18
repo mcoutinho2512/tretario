@@ -8,6 +8,7 @@
  */
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
+import { log } from '../log';
 
 /**
  * registro persistido. Autor: sessão + nome + id anônimo do aparelho e, com login (rodada 8), `userId` da conta —
@@ -64,7 +65,7 @@ export class JsonFileGraffitiStore implements GraffitiStore {
         this.nextId = Math.max(Number(raw.nextId) || 1, ...[...this.map.keys()].map((k) => k + 1));
       } catch (e) {
         // arquivo ilegível: guarda uma cópia para análise e começa vazio (nunca derruba o servidor)
-        console.warn(`[graffiti] ${this.file} ilegível (${(e as Error).message}); copiado para .bad`);
+        log.warn('error', `arquivo de grafites ilegível (${(e as Error).message}); copiado para .bad`, { file: this.file });
         try { renameSync(this.file, `${this.file}.bad`); } catch { /* */ }
       }
     }

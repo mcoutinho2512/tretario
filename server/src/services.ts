@@ -6,6 +6,7 @@
 import { MemoryDataStore } from './data/memory';
 import type { DataStore } from './data/types';
 import { TicketService } from './identity/tickets';
+import { log } from './log';
 
 export interface Services {
   store: DataStore;
@@ -25,7 +26,7 @@ export async function initServices(): Promise<Services> {
   const wantPrisma = !!process.env.DATABASE_URL && process.env.PV_STORE !== 'memory' && !testDefault;
   const store = wantPrisma && storeFactories.prisma ? await storeFactories.prisma() : new MemoryDataStore();
   current = { store, tickets: new TicketService() };
-  console.log(`[services] banco: ${store.kind}`);
+  log.info('services', `banco: ${store.kind}`, { store: store.kind });
   return current;
 }
 

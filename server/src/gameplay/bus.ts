@@ -3,6 +3,7 @@
  * conquistas e telemetria assinam. Um assinante que lança erro não derruba os outros nem o tick.
  */
 import type { GameplayEnvelope, GameplayEvent } from '../../../src/gameplay/events';
+import { log } from '../log';
 
 export type GameplayListener = (e: GameplayEnvelope) => void;
 
@@ -17,7 +18,7 @@ export class GameplayBus {
     this.emitted++;
     const env: GameplayEnvelope = { sid, at, ev };
     for (const fn of this.ls) {
-      try { fn(env); } catch (err) { this.errors++; if (this.errors < 20) console.warn('[gameplay] assinante falhou:', (err as Error).message); }
+      try { fn(env); } catch (err) { this.errors++; if (this.errors < 20) log.warn('error', 'assinante de gameplay falhou', { err: err as Error }); }
     }
   }
 

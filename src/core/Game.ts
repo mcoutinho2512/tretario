@@ -87,6 +87,8 @@ import type { TrafficData } from '../world/types';
 import type { SpectatorMode } from '../spectator/SpectatorMode';
 import type { CellImpostors } from '../spectator/CellImpostors';
 import { ReconnectBadge } from '../net/ReconnectBadge';
+import { gameEndpoint } from '../net/endpoint'; // rodada 9.1 — mesma origem em produção
+import { noticeForJoinError } from '../ui/netNotice'; // rodada 9.1 — versão nova / sala cheia
 import { ProgressionUI } from '../ui/progress/ProgressionUI'; // rodada 9 — progressão
 import { mountAgendaDebate, type AgendaDebate } from '../ui/agendaDebateMount'; // rodada 9 — agenda/debate/telões
 // rodada 9 — confronto (src/combat; carregado com o multiplayer)
@@ -438,7 +440,7 @@ export class Game {
     this.hud.appendChild(this.toast);
     const attr = document.createElement('div');
     attr.className = 'attribution';
-    attr.innerHTML = 'Dados do mapa © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a> (ODbL)';
+    attr.innerHTML = '<span class="beta-tag" title="Versão beta pública">BETA</span>Dados do mapa © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a> (ODbL)';
     this.hud.appendChild(attr);
     const lock = document.createElement('div');
     lock.className = 'lock-hint';
@@ -755,12 +757,12 @@ export class Game {
     this.hudShell.setPrompt('');
   }
 
-  /** Multiplayer opcional (desenvolvimento): ?mp=1 conecta em ws://<host>:2567; ?mp=ws://… usa outro servidor. Espectador sempre conecta. */
+  /** Multiplayer: ?mp=1 conecta no servidor padrão (dev: ws://<host>:2567; produção: wss://<host>/game — src/net/endpoint.ts); ?mp=ws://… usa outro servidor. Espectador sempre conecta. */
   private async connectMultiplayer() {
     const q = new URLSearchParams(location.search);
     const mp = this.startOpts.mp ?? q.get('mp') ?? (this.spectator ? '1' : null); // espectador sempre conecta
     if (!mp) return;
-    const endpoint = mp === '1' ? `ws://${location.hostname}:2567` : mp;
+    const endpoint = mp === '1' ? gameEndpoint() : mp;
     const { NetworkClient } = await import('../net/NetworkClient');
     this.net = new NetworkClient(endpoint, this.hud);
     this.net.namesMode = this.hudShell.prefs.value.names;
@@ -827,6 +829,7 @@ export class Game {
     // rodada 8: reconexão (mesma entidade: volta para a posição do servidor) e sessão substituída
     this.net.ticketProvider = this.startOpts.getTicket ?? null; // entrada NOVA depois da graça: ticket novo
     this.net.onLink = (st) => this.linkBadge.set(st);
+    this.net.onJoinRefused = (code) => { this.linkBadge.set('CONNECTED'); noticeForJoinError(code); }; // rodada 9.1
     this.net.onResume = (r) => {
       if (this.spectator) return;
       if (!this.riding && !this.trio.active && Math.hypot(r.x - this.player.x, r.z - this.player.z) > 0.5) { this.player.x = r.x; this.player.z = r.z; this.player.y = this.collision.groundHeight(r.x, r.z); }
@@ -846,7 +849,8 @@ export class Game {
         { ticket: this.startOpts.ticket ?? await this.startOpts.getTicket?.(), role: this.startOpts.role ?? (q.get('spectate') === '1' ? 'spectator' : undefined), ...(f ? { specCam: { x: f.x, z: f.z } } : {}), ...(q.get('testUser') ? { testUser: q.get('testUser')! } : {}) });
       this.flash(`Multiplayer conectado (${endpoint})`);
     } catch (e) {
-      this.flash(`Multiplayer indisponível: ${(e as Error).message ?? e}`);
+      // rodada 9.1 — recusa com decisão (versão nova, sala cheia): aviso claro em vez de erro misterioso
+      if (!noticeForJoinError((e as { code?: number })?.code)) this.flash(`Multiplayer indisponível: ${(e as Error).message ?? e}`);
       console.warn('[mp] falha ao conectar', e);
     }
   }

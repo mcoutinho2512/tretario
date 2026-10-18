@@ -6,7 +6,7 @@
 import { accountApi, errorText } from '../identity/client';
 import { textModeration, TEXT_LIMITS, type TextRejection } from '../moderation/text';
 
-export type AccountView = 'login' | 'register' | 'verify' | 'forgot' | 'reset';
+export type AccountView = 'login' | 'register' | 'verify' | 'forgot' | 'reset' | 'pending';
 
 const NICK_REASON: Record<TextRejection, string> = {
   vazio: 'Escolha um apelido.',
@@ -33,6 +33,8 @@ export class AccountDialog {
   private resendAt = 0;
   /** chamado quando a pessoa entrou (sessão criada no servidor) */
   onAuthenticated: (() => void) | null = null;
+  /** rodada 9.1 — cadastro BETA recebido (conta pendente; sessão aberta) */
+  onPending: (() => void) | null = null;
 
   constructor(parent: HTMLElement) {
     this.root = document.createElement('div');
@@ -97,6 +99,11 @@ export class AccountDialog {
           ${pw('a-pass', 'Senha', 'new-password')}${pw('a-pass2', 'Confirmar senha', 'new-password')}
           <p class="status" role="alert"></p><button class="submit" type="submit">CRIAR CONTA</button></form>
         <p class="alt"><span>Já possui conta?</span><button type="button" class="home-link" data-go="login">ENTRAR</button></p>`,
+      // rodada 9.1 — beta sem SMTP: nada de código; a equipe libera a conta (npm run prod:approve)
+      pending: `
+        <span class="eyebrow">BETA</span><h2 id="acct-title">Cadastro recebido</h2>
+        <p class="lead">O acesso beta é liberado pela equipe. Você já pode entrar com seu e-mail e senha; enquanto a conta não é liberada, você assiste à avenida.</p>
+        <form novalidate><p class="status" role="status"></p><button class="submit" type="submit">ENTENDI</button></form>`,
       verify: `
         <span class="eyebrow">VERIFICAR E-MAIL</span><h2 id="acct-title">Digite o código</h2>
         <p class="lead">Enviamos um código de 6 dígitos para <b>${em || 'seu e-mail'}</b>.</p>
@@ -214,6 +221,7 @@ export class AccountDialog {
         case 'register': {
           const r = await accountApi.register(email, pass, this.val('a-nick'));
           if (!r.ok) return this.setStatus(errorText(r.error));
+          if ((r.data as { me?: { registration?: string } } | null)?.me?.registration === 'beta') { this.pendingPassword = ''; return this.show('pending'); }
           this.pendingPassword = pass;
           this.resendAt = Date.now() + 30_000;
           return this.show('verify', 'Conta criada. Confira seu e-mail.', true);
@@ -235,6 +243,11 @@ export class AccountDialog {
           // resposta igual para e-mail existente ou não (o servidor não revela contas)
           if (!r.ok && r.status !== 404) return this.setStatus(errorText(r.error));
           return this.show('reset', 'Se o e-mail tiver conta, o código chega em instantes.', true);
+        }
+        case 'pending': {
+          this.root.classList.add('hidden');
+          this.onPending?.();
+          return;
         }
         case 'reset': {
           const r = await accountApi.reset(email, code, pass);

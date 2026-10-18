@@ -12,13 +12,18 @@
  *   npm run dev:reports [-- --status=OPEN] [--limit=50]
  *   npm run dev:remove-graffiti -- <id> [--reason="..."]
  *   npm run dev:cleanup            — uma passada do CleanupService no banco (sessões/códigos vencidos) e imprime as métricas
+ *
+ * PRODUÇÃO (rodada 9.1 — liberados com NODE_ENV=production; ver docs/SECURITY_PRODUCTION.md):
+ *   npm run prod:approve -- <email> [--grant] [--hours=N]   cadastro BETA pendente → e-mail verificado (+ DEV_GRANTED)
+ *   npm run prod:promote -- <email>                          concessão STAFF global (equipe)
+ *   npm run prod:demote -- <email>                           retira STAFF
  */
 import 'dotenv/config';
 import { userInfo } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { Client } from '@colyseus/sdk';
 import { createPrismaStore } from '../src/data/prisma.ts';
-import { AdminError, ban, grantAccess, listReports, recordGraffitiRemoval, revokeAccess, suspend, unban, unsuspend, type AdminCtx } from '../src/access/admin.ts';
+import { AdminError, approveBeta, ban, demoteStaff, grantAccess, promoteStaff, listReports, recordGraffitiRemoval, revokeAccess, suspend, unban, unsuspend, type AdminCtx } from '../src/access/admin.ts';
 import { JsonFileGraffitiStore } from '../src/graffiti/store.ts';
 import { ROOM_NAME } from '../../src/net/protocol.ts';
 import type { ReportStatus } from '../src/data/types.ts';
@@ -31,7 +36,9 @@ const flag = (k: string) => { const a = argv.find((x) => x === `--${k}` || x.sta
 
 function die(msg: string): never { console.error(`[admin] ${msg}`); process.exit(1); }
 
-if (process.env.NODE_ENV === 'production' && flag('operador-confirmado') !== 'true') {
+/** comandos feitos PARA produção (beta sem SMTP): não pedem --operador-confirmado */
+const PROD_CMDS = new Set(['approve', 'promote-staff', 'demote-staff']);
+if (process.env.NODE_ENV === 'production' && !PROD_CMDS.has(cmd) && flag('operador-confirmado') !== 'true') {
   die('NODE_ENV=production: recusado. Use --operador-confirmado se você é o operador e sabe o que está fazendo.');
 }
 if (!process.env.DATABASE_URL || process.env.PV_STORE === 'memory') die('DATABASE_URL ausente (server/.env) — a CLI só atua no PostgreSQL');
@@ -81,6 +88,13 @@ async function main() {
         console.log(`[admin] acesso DEV_GRANTED concedido (${g.eventId ? `evento ${g.eventId}` : 'global'}${g.expiresAt ? `, até ${g.expiresAt.toISOString()}` : ''})`);
         break;
       }
+      case 'approve': {
+        const r = await approveBeta(ctx, needEmail(), { grant: flag('grant') === 'true', hours: num('hours') ?? null });
+        console.log(`[admin] ${r.verified ? 'cadastro liberado (e-mail marcado como verificado)' : 'conta já estava liberada'}${r.grantId ? ' · DEV_GRANTED concedido (joga como PLAYER)' : ' · sem concessão (entra como espectador; use --grant para jogar)'}`);
+        break;
+      }
+      case 'promote-staff': await promoteStaff(ctx, needEmail()); console.log('[admin] concessão STAFF gravada (vale na próxima entrada na sala)'); break;
+      case 'demote-staff': console.log(`[admin] ${await demoteStaff(ctx, needEmail())} concessão(ões) STAFF revogada(s)`); break;
       case 'revoke-access': console.log(`[admin] ${await revokeAccess(ctx, needEmail(), { eventId: flag('event') ?? null })} concessão(ões) revogada(s)`); break;
       case 'suspend': {
         const until = await suspend(ctx, needEmail(), num('hours') ?? 0, flag('reason') ?? '');
@@ -119,7 +133,7 @@ async function main() {
         break;
       }
       default:
-        die('comandos: grant-access | revoke-access | suspend | unsuspend | ban | unban | reports | remove-graffiti | cleanup');
+        die('comandos: approve | promote-staff | demote-staff | grant-access | revoke-access | suspend | unsuspend | ban | unban | reports | remove-graffiti | cleanup');
     }
   } catch (e) {
     if (e instanceof AdminError) die(e.message);

@@ -4,6 +4,8 @@
  * Corpo JSON limitado; cookies lidos aqui; respostas sempre JSON com `Cache-Control: no-store`.
  */
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import { clientIp, originAllowed, publicOrigin } from './clientIp';
+import { log } from '../log';
 
 export interface ApiRequest {
   method: string;
@@ -14,7 +16,8 @@ export interface ApiRequest {
   body: any;
   cookies: Record<string, string>;
   headers: IncomingMessage['headers'];
-  /** endereço do cliente — SÓ para limitação de taxa em memória; nunca gravado em claro (ver PRIVACY_ARCHITECTURE) */
+  /** endereço do cliente — SÓ para limitação de taxa em memória; nunca gravado em claro (ver PRIVACY_ARCHITECTURE).
+   *  Cabeçalhos do proxy só com PV_TRUST_PROXY=loopback e conexão de 127.0.0.1 (server/src/http/clientIp.ts) */
   ip: string;
 }
 
@@ -28,6 +31,8 @@ export interface ApiResponse {
 export type Handler = (req: ApiRequest) => Promise<ApiResponse> | ApiResponse;
 
 const MAX_BODY = 32 * 1024;
+/** prefixos tratados aqui (rodada 9.1: health e o diagnóstico interno também; o Nginx nega /internal/ e /metrics) */
+const PREFIXES = ['/api/', '/health/', '/internal/'];
 
 export function parseCookies(header: string | undefined): Record<string, string> {
   const out: Record<string, string> = {};
@@ -64,28 +69,34 @@ export class Router {
   /** trata a requisição se for da API; devolve false para deixar outro tratador seguir */
   async handle(req: IncomingMessage, res: ServerResponse): Promise<boolean> {
     const url = new URL(req.url ?? '/', 'http://local');
-    if (!url.pathname.startsWith('/api/')) return false;
-    const m = this.match(req.method ?? 'GET', url.pathname);
+    if (!PREFIXES.some((p) => url.pathname.startsWith(p))) return false;
+    const method = req.method ?? 'GET';
+    const m = this.match(method, url.pathname);
+    // CORS: nunca `*`; só a origem pública (e a mesma origem pelo Nginx/Vite nem precisa) — credenciais só para ela
+    const origin = req.headers.origin, allowed = publicOrigin();
+    const cors = allowed && origin === allowed ? { 'Access-Control-Allow-Origin': allowed, 'Access-Control-Allow-Credentials': 'true', Vary: 'Origin' } : {};
     const send = (status: number, body: unknown, cookies: string[] = []) => {
-      res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', ...(cookies.length ? { 'Set-Cookie': cookies } : {}) });
+      res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', ...cors, ...(cookies.length ? { 'Set-Cookie': cookies } : {}) });
       res.end(JSON.stringify(body ?? {}));
     };
     if (!m) { send(404, { error: 'nao_encontrado' }); return true; }
+    // CSRF (cookie de sessão): rota que muda estado vinda de outra origem → 403 antes de ler o corpo
+    if (!originAllowed(method, req.headers)) { log.rate(`origem:/${m.r.parts.join('/')}`); send(403, { error: 'origem_invalida' }); return true; }
     let raw = '';
     try {
       for await (const chunk of req) { raw += chunk; if (raw.length > MAX_BODY) { send(413, { error: 'grande_demais' }); return true; } }
     } catch { send(400, { error: 'corpo_invalido' }); return true; }
     let body: unknown = {};
     if (raw) { try { body = JSON.parse(raw); } catch { send(400, { error: 'json_invalido' }); return true; } }
-    const fwd = (req.headers['x-forwarded-for'] as string | undefined)?.split(',')[0]?.trim();
     try {
       const out = await m.r.handler({
         method: req.method ?? 'GET', path: url.pathname, params: m.params, query: url.searchParams, body,
-        cookies: parseCookies(req.headers.cookie), headers: req.headers, ip: fwd || req.socket.remoteAddress || '',
+        cookies: parseCookies(req.headers.cookie), headers: req.headers, ip: clientIp(req.headers, req.socket.remoteAddress),
       });
       send(out.status ?? 200, out.body, out.cookies);
     } catch (e) {
-      console.error('[api] erro', req.method, url.pathname, e);
+      log.error('error', 'erro na API', { route: `/${m.r.parts.join('/')}`, method, err: e as Error, ...(log.json ? { stack: (e as Error)?.stack?.split('\n').slice(1, 6).join(' | ') } : {}) });
+      if (!log.json) console.error(e); // desenvolvimento: pilha completa
       send(500, { error: 'erro_interno' });
     }
     return true;

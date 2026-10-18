@@ -27,6 +27,11 @@
     "dev:remove-graffiti": "npm --prefix server run --silent admin -- remove-graffiti",
     "dev:cleanup": "npm --prefix server run --silent admin -- cleanup",
     "dev:telemetry": "npm --prefix server run --silent telemetry --",
+    "prod:approve": "npm --prefix server run --silent admin -- approve",
+    "prod:promote": "npm --prefix server run --silent admin -- promote-staff",
+    "prod:demote": "npm --prefix server run --silent admin -- demote-staff",
+    "build:version": "node tools/prod/build_version.mjs",
+    "check:bundle": "node tools/prod/check_bundle.mjs",
     "verify": "tsc --noEmit && vitest run --reporter=dot && vite build --logLevel error && (cd server && npx tsc -p .)",
     "prepare": "git config core.hooksPath .githooks || true"
   },

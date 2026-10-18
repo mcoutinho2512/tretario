@@ -72,6 +72,9 @@ const ERRORS: Record<string, string> = {
   aparencia_invalida: 'Visual inválido. Tente outra combinação.',
   grupo_invalido: 'Grupo indisponível neste evento.',
   perfil_inexistente: 'Perfil ainda não criado.',
+  // rodada 9.1 — produção beta
+  aguardando_liberacao: 'Cadastro recebido — o acesso beta é liberado pela equipe.',
+  origem_invalida: 'Pedido recusado por segurança. Recarregue a página.',
 };
 export function errorText(code: string | null | undefined): string {
   if (!code) return 'Algo deu errado. Tente de novo.';

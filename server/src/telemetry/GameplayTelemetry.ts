@@ -10,6 +10,7 @@ import { appendFile, mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import type { GameplayEnvelope } from '../../../src/gameplay/events';
 import type { ProgressionObserver } from '../progression/ProgressionService';
+import { log } from '../log';
 
 export const DURATION_BUCKETS = [['<1min', 60e3], ['1-5min', 300e3], ['5-15min', 900e3], ['15-60min', 3600e3], ['60min+', Infinity]] as const;
 export const ACTIVITY_BUCKETS = [['0', 0], ['1-4', 4], ['5-19', 19], ['20-99', 99], ['100+', Infinity]] as const;
@@ -101,7 +102,7 @@ export class GameplayTelemetry {
     this.lastLog = now;
     if (!this.file || !(p.sessionsStarted || p.sessionsEnded || Object.keys(p.gameplay).length)) return;
     const line = JSON.stringify({ v: 1, from: new Date(from).toISOString(), to: new Date(now).toISOString(), open: this.sessions.size, c: p }) + '\n';
-    try { await mkdir(dirname(this.file), { recursive: true }); await appendFile(this.file, line); this.lines++; } catch (e) { console.warn(`[telemetria] falha ao gravar: ${(e as Error).message}`); }
+    try { await mkdir(dirname(this.file), { recursive: true }); await appendFile(this.file, line); this.lines++; } catch (e) { log.warn('error', 'telemetria: falha ao gravar', { err: e as Error }); }
   }
 }
 

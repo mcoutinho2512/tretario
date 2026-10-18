@@ -13,6 +13,7 @@ import type { ZoneDefinition } from '../../src/world/zones.ts';
 import { parseSurfaceFile, solidRing, type GraffitiSurface } from '../../src/graffiti/surfaces.ts';
 import { parseCombatData } from '../../src/combat/data.ts';
 import type { CombatData } from '../../src/combat/types.ts';
+import { log } from './log';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const PUBLIC = resolve(here, '../../public');
@@ -46,13 +47,13 @@ export function loadWorld(): ServerWorld {
   // designs de campanha são DADOS (mesmo arquivo do cliente): o servidor valida ids de design contra eles
   const camp = `${PUBLIC}/designs/campaigns.json`;
   const nCamp = existsSync(camp) ? registerCampaigns(JSON.parse(readFileSync(camp, 'utf8'))) : 0;
-  console.log(`[world] ${nCamp} designs de campanha`);
+  log.info('world', `${nCamp} designs de campanha`);
   // grafite: superfícies autorizadas; tapumes são sólidos (mesma colisão que o cliente adiciona)
   const gfFile = `${PUBLIC}/world/graffiti_surfaces.json`;
   const gf = parseSurfaceFile(existsSync(gfFile) ? JSON.parse(readFileSync(gfFile, 'utf8')) : {});
   for (const b of gf.solids) walls.addPolygon(solidRing(b), 0, b.height);
-  console.log(`[world] ${gf.surfaces.length} superfícies de grafite, ${gf.solids.length} tapumes`);
-  console.log(`[world] ${walls.segmentCount} paredes, ${manifest.vehicleSpawns?.length ?? 0} veículos, ${events.size} eventos (${Date.now() - t0} ms)`);
+  log.info('world', `${gf.surfaces.length} superfícies de grafite, ${gf.solids.length} tapumes`);
+  log.info('world', `${walls.segmentCount} paredes, ${manifest.vehicleSpawns?.length ?? 0} veículos, ${events.size} eventos (${Date.now() - t0} ms)`);
   const zf = `${PUBLIC}/world/zones.json`;
   const zones = existsSync(zf) ? ((JSON.parse(readFileSync(zf, 'utf8')) as { zones?: ZoneDefinition[] }).zones ?? []) : [];
   const combat = parseCombatData(JSON.parse(readFileSync(`${PUBLIC}/gameplay/combat.json`, 'utf8')));

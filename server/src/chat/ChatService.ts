@@ -30,6 +30,7 @@ import type { PlayerIdentity } from '../../../src/identity/types';
 import { CHAT_MUTE_MAX, type ChatMuteEntry, type ChatMuteRejection } from '../../../src/chat/protocol';
 import type { DataStore } from '../data/types';
 import { createHmac } from 'node:crypto';
+import { log } from '../log';
 
 export interface ChatOut { send(type: string, msg: unknown): void }
 
@@ -145,7 +146,7 @@ export class ChatService {
     this.eventId = o.eventId ?? '';
     this.generalPerSec = o.generalPerSec ?? CHAT_SERVER.generalPerSec;
     this.keepMs = o.keepMs ?? CHAT_SERVER.keepMs;
-    this.log = o.log ?? ((m) => console.log(`[chat] ${m}`));
+    this.log = o.log ?? ((m) => log.info('chat', m));
     this.secret = o.secret ?? (process.env.PV_SESSION_SECRET || 'dev-only-change-me');
   }
 

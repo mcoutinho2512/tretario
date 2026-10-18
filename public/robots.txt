@@ -1,0 +1,4 @@
+# BETA pública (rodada 9.1): sem indexação até o lançamento — decisão documentada em docs/SECURITY_PRODUCTION.md.
+# (index.html também traz <meta name="robots" content="noindex,nofollow">.)
+User-agent: *
+Disallow: /

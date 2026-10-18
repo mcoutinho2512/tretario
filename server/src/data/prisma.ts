@@ -207,6 +207,7 @@ export class PrismaDataStore implements DataStore {
   };
 
   async close() { await this.db.$disconnect(); }
+  async ping() { await this.db.$queryRawUnsafe('SELECT 1'); }
 }
 
 export async function createPrismaStore(url = process.env.DATABASE_URL ?? ''): Promise<PrismaDataStore> {

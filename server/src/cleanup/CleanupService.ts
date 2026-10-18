@@ -13,6 +13,7 @@
  */
 import type { DataStore } from '../data/types';
 import { CODE_TTL_MS } from '../auth/codes';
+import { log } from '../log';
 
 export interface CleanupConfig {
   intervalMs: number;
@@ -132,7 +133,9 @@ export class CleanupService {
     t.runs++;
     t.expiredSessionsDeleted += m.expiredSessionsDeleted; t.expiredOtpDeleted += m.expiredOtpDeleted;
     t.expiredTicketsDeleted += m.expiredTicketsDeleted; t.rateLimitKeysDeleted += m.rateLimitKeysDeleted;
-    (this.o.log ?? ((l: string) => console.log(l)))(formatCleanupLine(m));
+    if (this.o.log) this.o.log(formatCleanupLine(m));
+    else if (log.json) (m.error ? log.warn : log.info)('cleanup', undefined, { sessions: m.expiredSessionsDeleted, codes: m.expiredOtpDeleted, tickets: m.expiredTicketsDeleted, limits: m.rateLimitKeysDeleted, batches: m.batches, ms: m.durationMs, truncated: m.truncated, ...(m.error ? { err: m.error } : {}) });
+    else console.log(formatCleanupLine(m));
     return m;
   }
 

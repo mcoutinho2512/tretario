@@ -26,11 +26,11 @@
  *               Jogador: nada muda (mesmo AOI, nunca recebe spec_cells)
  */
 import { fileURLToPath } from 'node:url';
-import { Room, type Client } from '@colyseus/core';
+import { Room, ServerError, type Client } from '@colyseus/core';
 import { StateView } from '@colyseus/schema';
 import { WorldState, NetPlayer, NetVehicle } from './state.ts';
 import { loadWorld, type ServerWorld } from './world.ts';
-import { BODIES, MAX_SPEED, sanitizeName, type JoinOptions, type MoveMode } from '../../src/net/protocol.ts';
+import { BODIES, JOIN_ERROR, MAX_SPEED, PROTOCOL_VERSION, sanitizeName, type JoinOptions, type MoveMode } from '../../src/net/protocol.ts';
 import { validateAppearance } from '../../src/characters/validateAppearance.ts';
 import { DEFAULT_PLAYER_APPEARANCE, type CharacterAppearance } from '../../src/characters/bodyTypes.ts';
 import { loadPlayerLook } from './identity/appearance.ts';
@@ -92,6 +92,10 @@ import { isCombatProp } from '../../src/social/props.ts';
 import { EventRuntime } from './events/EventRuntime.ts';
 import { loadAgenda } from './events/agenda.ts';
 import { FX } from '../../src/combat/types.ts';
+import { log } from './log.ts'; // rodada 9.1 — logs estruturados
+import { clientIp } from './http/clientIp.ts';
+import { ipKey, Window } from './auth/rateLimit.ts';
+import { runtime } from './http/health.ts';
 
 const AOI_RADIUS = Number(process.env.PV_AOI ?? 220); // m — jogadores/veículos visíveis
 /** histerese da AOI: entra a ≤ R, sai só além de R × AOI_HYST */
@@ -120,6 +124,31 @@ const SIM_JITTER = Number(process.env.PV_JITTER ?? 0);
 const SIM_LOSS = Number(process.env.PV_LOSS ?? 0);
 /** prazo de graça da reconexão (s) — src/net/reconnect.ts */
 const GRACE_S = Number(process.env.PV_GRACE_S ?? RECONNECT.graceS);
+
+/**
+ * rodada 9.1 — lotação por PAPEL (deploy/CONTRACT.md): MAX_PLAYERS_PER_ROOM jogadores (entidades, incluindo as em graça)
+ * e MAX_SPECTATORS_PER_ROOM espectadores; lotado → recusa clara no onAuth (JOIN_ERROR.roomFull / spectatorsFull), nunca
+ * espera. `maxClients` do Colyseus = soma + folga (assentos reservados), para a sala nunca "trancar" antes e o
+ * joinOrCreate abrir um segundo mundo. Sem as variáveis: PV_MAX_CLIENTS (legado, 600) vale para cada papel e no total.
+ */
+const envInt = (k: string): number | null => { const v = Number(process.env[k]); return process.env[k] && Number.isInteger(v) && v >= 0 ? v : null; };
+const LEGACY_MAX = envInt('PV_MAX_CLIENTS') ?? 600;
+export const ROOM_CAPS = {
+  players: envInt('MAX_PLAYERS_PER_ROOM') ?? LEGACY_MAX,
+  spectators: envInt('MAX_SPECTATORS_PER_ROOM') ?? LEGACY_MAX,
+  get total() { return envInt('MAX_PLAYERS_PER_ROOM') !== null || envInt('MAX_SPECTATORS_PER_ROOM') !== null ? this.players + this.spectators + 32 : LEGACY_MAX; },
+};
+/**
+ * rodada 9.1 — entradas por minuto no WebSocket: por IP (PV_JOIN_RATE_IP, 120 — folga para CGNAT de operadora/evento)
+ * e por CONTA autenticada (PV_JOIN_RATE_USER, 20). 0 desliga; servidor de teste (PV_TEST=1) desliga por padrão (bots/QA).
+ */
+const JOIN_RATE_IP = envInt('PV_JOIN_RATE_IP') ?? (process.env.PV_TEST === '1' ? 0 : 120);
+const JOIN_RATE_USER = envInt('PV_JOIN_RATE_USER') ?? (process.env.PV_TEST === '1' ? 0 : 20);
+const joinIp = new Window({ max: Math.max(1, JOIN_RATE_IP), windowMs: 60_000 });
+const joinUser = new Window({ max: Math.max(1, JOIN_RATE_USER), windowMs: 60_000 });
+liveMemorySweepers.add(joinIp); liveMemorySweepers.add(joinUser);
+/** salas vivas (desligamento gracioso: avisa `server_restarting` antes de fechar) */
+export const liveRooms = new Set<{ announceShutdown(): void }>();
 
 let WORLD: ServerWorld | null = null;
 const world = () => (WORLD ??= loadWorld());
@@ -152,7 +181,7 @@ interface PlayerRT {
 }
 
 export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
-  maxClients = Number(process.env.PV_MAX_CLIENTS ?? 600);
+  maxClients = ROOM_CAPS.total;
   maxMessagesPerSecond = 60;
   state = new WorldState();
   private rt = new Map<string, PlayerRT>();
@@ -299,6 +328,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     this.setupEvents(W, ev); // rodada 9 — eventos
     this.metricsSource = { counts: (now) => this.pres.counts(now), eventId: ev, eventName: evDef?.name ?? ev, environmentCrowd: environmentCrowdFor(evDef) };
     liveWorlds.add(this.metricsSource);
+    liveRooms.add(this); // rodada 9.1 — desligamento gracioso
     const gfStore = process.env.PV_GRAFFITI_STORE === 'memory' ? new MemoryGraffitiStore() : new JsonFileGraffitiStore(process.env.PV_GRAFFITI_FILE ?? fileURLToPath(new URL('../data/graffiti.json', import.meta.url)));
     this.graffiti = new GraffitiService(W.graffitiSurfaces, gfStore, { radius: Number(process.env.PV_GRAFFITI_AOI ?? 120), adminToken: process.env.PV_ADMIN_TOKEN ?? '', onReport: (e) => this.gfReported(e) });
     void this.graffiti.init();
@@ -322,7 +352,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     this.clock.setInterval(() => void this.recheckIdentities(), IDENTITY_RECHECK_MS);
     const kinds: Record<string, number> = {};
     this.state.vehicles.forEach((v) => { kinds[v.kind] = (kinds[v.kind] ?? 0) + 1; });
-    console.log(`[room] ${this.roomId} evento=${ev} (interação: ${this.interactionPolicy}) sem trânsito NPC · veículos ${JSON.stringify(kinds)} AOI=${AOI_RADIUS} m`);
+    log.info('room.create', `${this.roomId} evento=${ev} (interação: ${this.interactionPolicy}) sem trânsito NPC · veículos ${JSON.stringify(kinds)} AOI=${AOI_RADIUS} m`, { room: this.roomId, eventId: ev, maxPlayers: ROOM_CAPS.players, maxSpectators: ROOM_CAPS.spectators });
   }
 
   /** conexão pelo sessionId (jogadores e espectadores) */
@@ -336,11 +366,15 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
       reporterUserId: e.reporterUserId, targetUserId: e.author.userId ?? null, targetType: 'GRAFFITI', targetRef: `graffiti:${e.id}`,
       category: e.category, details: null, eventId: this.state.eventId || null, reportedNicknameAtTime: e.author.name || null,
       evidence: { kind: 'graffiti', graffitiId: e.id, surface: e.surface, authorName: e.author.name, authorUserId: e.author.userId ?? null, ...(e.author.userId ? {} : { authorClientId: e.author.clientId }), state: e.state, reports: e.reports, hasText: e.hasText, createdAt: new Date(e.createdAt).toISOString(), persistence: e.persistence },
-    }).then((r) => console.log(`[graffiti] denúncia ${r.id} (${e.category}) do grafite #${e.id}`))
-      .catch((err) => console.warn(`[graffiti] falha ao gravar denúncia: ${(err as Error).message}`));
+    }).then((r) => log.info('graffiti.report', `denúncia ${r.id} (${e.category}) do grafite #${e.id}`, { category: e.category, graffiti: e.id }))
+      .catch((err) => log.warn('error', 'falha ao gravar denúncia de grafite', { err: err as Error }));
   }
 
+  /** rodada 9.1 — SIGTERM: avisa todos ("servidor reiniciando"); o cliente mostra RECONECTANDO e entra de novo sozinho */
+  announceShutdown() { this.broadcast('server_restarting', { retryInMs: 3000 }); }
+
   async onDispose() {
+    liveRooms.delete(this);
     if (this.metricsSource) liveWorlds.delete(this.metricsSource);
     if (this.chat) liveMemorySweepers.delete(this.chat);
     if (this.debate) liveMemorySweepers.delete(this.debate); // rodada 9 — debate
@@ -450,7 +484,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
       emit: (sid, e, now) => this.gameplay.emit(sid, e, now),
       // gesto da reação: a MESMA validação das ações sociais (não interrompe veículo/queda)
       gesture: (sid, key) => { const c = this.clients2.get(sid), a = ACTION_BY_KEY.get(key); if (c && a && this.allowed(c, 'action.perform') && this.state.players.get(sid)?.act !== a.id) this.onAct(c, { a: a.id }); },
-      log: (m) => console.log(`[debate] ${m}`),
+      log: (m) => log.debug(`[debate] ${m}`),
     }, { store: storeOrNull(), eventId: ev });
     liveMemorySweepers.add(this.debate);
     this.chat.onMute((owners, key, on) => this.debate?.muted(owners, key, on));
@@ -614,7 +648,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
       },
       // proteção de retorno: a MESMA da sala (Actor.immuneUntil; bit FX.PROTECTED pelo CombatSystem) — integração rodada 9
       protect: (sid, until) => { const now = Date.now(); if (until > now) this.applyProtection(sid, now, until - now); },
-      log: (m) => console.log(`[eventos] ${m}`),
+      log: (m) => log.info('eventos', m),
       // palco de debate (agente E) entra na MESMA agenda (Acontecendo agora, Agenda, telões) — integração rodada 9
       extraAgenda: (now) => this.debate?.agenda(now) ?? [],
     }, (W.manifest.pvAxis ?? []) as [number, number][], { epoch: ag.epoch });
@@ -625,7 +659,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     // dbt_queue/dbt_say/dbt_react: tratados pelo palco de debate (server/src/debate, agente E) — integração rodada 9
     // CombatSystem (agente A) lê as regras do evento por `room.combat.combatEventFor` — ligado depois do onCreate
     this.clock.setTimeout(() => { const cb = (this as unknown as { combat?: { combatEventFor?: unknown } }).combat; if (cb) cb.combatEventFor = (sid: string) => this.evt.combatEventFor(sid); }, 0);
-    console.log(`[eventos] agenda (${ag.source}): ${ag.defs.map((d) => `${d.id}/${d.format}`).join(', ') || '—'}${ag.epoch ? ` · epoch ${new Date(ag.epoch).toISOString()}` : ''}`);
+    log.info('eventos', `agenda (${ag.source}): ${ag.defs.map((d) => `${d.id}/${d.format}`).join(', ') || '—'}${ag.epoch ? ` · epoch ${new Date(ag.epoch).toISOString()}` : ''}`);
   }
 
   private rebuildVehicleGrid() {
@@ -641,7 +675,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
       if (v.state === VEHICLE_STATE.RESETTING) {
         v.x = rt.spawnX; v.z = rt.spawnZ; v.heading = rt.spawnHeading; v.speed = 0; v.y = 0;
         v.state = VEHICLE_STATE.AVAILABLE; rt.idleSince = now;
-        console.log(`[room] veículo ${id} voltou para a vaga`);
+        log.debug(`[room] veículo ${id} voltou para a vaga`);
         return;
       }
       let nearest = Infinity;
@@ -788,9 +822,36 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
   /** identidade resolvida pelo SERVIDOR (ticket → conta; sem ticket → espectador) — ver server/src/identity */
   readonly identities = new Map<string, RoomIdentity>();
 
-  async onAuth(_client: Client, options: JoinOptions) {
+  /** entradas aceitas no onAuth que ainda não chegaram ao onJoin (lotação sem corrida) — sessionId → papel e quando */
+  private pendingJoins = new Map<string, { role: 'player' | 'spectator'; at: number }>();
+
+  /** lotação do papel (entidades + espectadores + entradas aceitas em curso); quem já tem entidade da conta assume a vaga */
+  private roomFull(role: 'player' | 'spectator', userId: string | null): boolean {
+    const now = Date.now();
+    let pending = 0;
+    for (const [sid, p] of this.pendingJoins) { if (now - p.at > 20_000) this.pendingJoins.delete(sid); else if (p.role === role) pending++; }
+    if (role === 'spectator') return this.specs.size + pending >= ROOM_CAPS.spectators;
+    if (userId) for (const [sid, other] of this.identities) if (other.userId === userId && other.role === 'player' && this.state.players.has(sid)) return false; // login duplicado: substitui
+    return this.state.players.size + pending >= ROOM_CAPS.players;
+  }
+
+  async onAuth(_client: Client, options: JoinOptions, context?: { headers?: Headers }) {
+    // rodada 9.1 — versão do protocolo: diferente → recusa (ausente só é aceita fora de produção: bots/testes antigos)
+    const pv = options?.pv;
+    if (pv !== PROTOCOL_VERSION && (pv !== undefined || process.env.NODE_ENV === 'production')) throw new ServerError(JOIN_ERROR.protocol, 'protocolo');
+    if (runtime.shuttingDown) throw new ServerError(JOIN_ERROR.restarting, 'servidor_reiniciando');
+    // rodada 9.1 — entradas por minuto por IP (do socket; cabeçalhos do Nginx só com PV_TRUST_PROXY=loopback)
+    const h = context?.headers;
+    const ip = clientIp({ 'x-real-ip': h?.get?.('x-real-ip') ?? undefined, 'x-forwarded-for': h?.get?.('x-forwarded-for') ?? undefined }, (_client as unknown as { ref?: { _socket?: { remoteAddress?: string } } }).ref?._socket?.remoteAddress);
+    if (JOIN_RATE_IP && !joinIp.hit(ipKey(ip))) { log.rate('ws_join_ip'); throw new ServerError(JOIN_ERROR.rateLimited, 'muitas_entradas'); }
     try {
       const id: RoomIdentity = await resolveIdentity(services(), options, this.state.eventId);
+      if (JOIN_RATE_USER && id.userId && !joinUser.hit(id.userId)) { log.rate('ws_join_user'); throw new ServerError(JOIN_ERROR.rateLimited, 'muitas_entradas'); }
+      if (this.roomFull(id.role, id.userId)) {
+        log.rate(id.role === 'player' ? 'sala_cheia' : 'espectadores_lotado');
+        throw new ServerError(id.role === 'player' ? JOIN_ERROR.roomFull : JOIN_ERROR.spectatorsFull, id.role === 'player' ? 'sala_cheia' : 'espectadores_lotado');
+      }
+      this.pendingJoins.set(_client.sessionId, { role: id.role, at: Date.now() });
       // servidor de TESTE: bot de carga / conta fictícia para QA (ignorado em produção — server/src/presence/testJoin.ts)
       const tf = testJoinFlags(options);
       if (tf.bot && id.role === 'player') id.bot = true;
@@ -802,6 +863,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
       }
       return id;
     } catch (e) {
+      this.pendingJoins.delete(_client.sessionId);
       if (e instanceof JoinRefused) throw new Error(e.reason);
       throw e;
     }
@@ -818,7 +880,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
         this.identities.set(a.sessionId, a.identity); // gate() passa a negar já, antes da desconexão
         if (a.kind !== 'update') this.clients.getById(a.sessionId)?.leave(a.kind === 'kick' ? CLOSE_BANNED : CLOSE_DOWNGRADED);
       }
-    } catch (e) { console.warn('[room] releitura de identidades falhou', (e as Error).message); }
+    } catch (e) { log.warn('error', 'releitura de identidades falhou', { err: e as Error }); }
     finally { this.rechecking = false; }
   }
 
@@ -849,7 +911,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     this.pres.enterWorld(client.sessionId, Date.now());
     client.send('spawn', { x: sp.cam.x, y: 0, z: sp.cam.z, heading: this.spawn.heading, sessionId: client.sessionId, policy: this.interactionPolicy, seed: this.state.seed, role: 'spectator' });
     // entrou já no alto: o `full` sai no próximo período de células (≤ 1 s) — antes disso o cliente nem registrou a mensagem
-    console.log(`[room] espectador ${client.sessionId} — ${this.specs.size} assistindo`);
+    log.debug(`[room] espectador ${client.sessionId} — ${this.specs.size} assistindo`);
   }
 
   /** espectador sai sem deixar entidade (e sem graça de reconexão: o cliente simplesmente entra de novo) */
@@ -938,10 +1000,12 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
   }
 
   onJoin(client: Client, options: JoinOptions, auth?: RoomIdentity) {
+    this.pendingJoins.delete(client.sessionId);
     const id = auth ?? { userId: null, authSessionId: null, nickname: sanitizeName(options?.name), state: 'PLAYER', grant: 'NONE', role: 'player', groupKey: null, test: true } as RoomIdentity;
     // TESTE (PV_TEST=1): grupo do jogador anônimo para QA do canal GRUPO; contas reais vêm do EventMembership
     if (id.test && process.env.PV_TEST === '1' && typeof options?.testGroup === 'string') id.groupKey = options.testGroup.replace(/[^a-z0-9_-]/gi, '').slice(0, 32) || null;
     this.identities.set(client.sessionId, id);
+    if (log.json) log.info('ws.join', undefined, { conn: client.sessionId, role: id.role, auth: !!id.userId && !id.test, players: this.state.players.size + (id.role === 'player' ? 1 : 0), spectators: this.specs.size + (id.role === 'spectator' ? 1 : 0) });
     this.pres.join(client.sessionId, { userId: id.userId, role: id.role, bot: !!id.bot }, Date.now());
     this.chat.join(client.sessionId, id, client); // todas as conexões (espectador lê o GERAL)
     if (this.ads) client.send('ads', { slots: this.ads.snapshot(), full: true }); // rodada 9 — telões
@@ -996,7 +1060,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     client.send('spawn', { x: p.x, y: p.y, z: p.z, heading: p.heading, sessionId: client.sessionId, policy: this.interactionPolicy, seed: this.state.seed, role: 'player', ...(taken ? { takeover: true } : {}) });
     this.pres.enterWorld(client.sessionId, Date.now());
     metrics.join(client.sessionId);
-    console.log(`[room] entrou ${client.sessionId} (${p.name}, ${p.body})${taken ? ' — assumiu a sessão anterior da conta' : ''} — total ${this.state.players.size}`);
+    log.debug(`[room] entrou ${client.sessionId} (${p.name}, ${p.body})${taken ? ' — assumiu a sessão anterior da conta' : ''} — total ${this.state.players.size}`);
   }
 
   /**
@@ -1027,7 +1091,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
       this.removePlayer(sid);
       if (g) { this.grace.delete(sid); g.deferred.reject(new Error('session_replaced')); }
       if (old) { old.send('session_replaced', { reason: 'outra_sessao' }); old.leave(RECONNECT.replacedCloseCode, 'session_replaced'); }
-      console.log(`[room] sessão ${sid} substituída por ${newSid} (mesma conta)`);
+      log.debug(`[room] sessão ${sid} substituída por ${newSid} (mesma conta)`);
     }
     return out;
   }
@@ -1056,7 +1120,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     this.chat.leave(client.sessionId); // volta no onReconnect (o anti-flood por conta continua)
     this.pres.drop(client.sessionId);
     this.r9.drop(client.sessionId); // rodada 9 — progressão: grava já (pode não voltar)
-    console.log(`[room] caiu ${client.sessionId} — em graça por ${GRACE_S} s`);
+    log.debug(`[room] caiu ${client.sessionId} — em graça por ${GRACE_S} s`);
     try {
       const deferred = this.allowReconnection(client, GRACE_S);
       this.grace.set(client.sessionId, { since: now, deferred: deferred as unknown as { reject: (e?: unknown) => void } });
@@ -1083,12 +1147,14 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     this.r9bReconnect(sid, now); // rodada 9 — proteção de retorno + lista de itens/item próprio de novo
     // estado autoritativo para o cliente retomar (posição segura do servidor, veículo/trio, item)
     client.send('resume', { x: p.x, y: p.y, z: p.z, heading: p.heading, vehicle: p.vehicle || '', platform: p.platform || '', plx: p.plx ?? 0, plz: p.plz ?? 0, prop: p.prop ?? 0, design: p.design ?? 0, seq: r.last.seq });
-    console.log(`[room] reconectou ${sid} (mesma entidade)`);
+    log.debug(`[room] reconectou ${sid} (mesma entidade)`);
   }
 
   onLeave(client: Client) {
+    this.pendingJoins.delete(client.sessionId);
     this.evt.gone(client.sessionId); // rodada 9 — eventos: saída de vez (graça vencida) desiste da inscrição
     const ident = this.identities.get(client.sessionId);
+    if (ident && log.json) log.info('ws.leave', undefined, { conn: client.sessionId, role: ident.role, players: this.state.players.size - (ident.role === 'player' ? 1 : 0), spectators: this.specs.size - (ident.role === 'spectator' ? 1 : 0) });
     this.identities.delete(client.sessionId);
     this.grace.delete(client.sessionId);
     this.pres.leave(client.sessionId);
@@ -1127,7 +1193,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     const existed = this.state.players.delete(sid);
     this.rt.delete(sid);
     this.clients2.delete(sid);
-    if (existed) { metrics.leave(sid); console.log(`[room] saiu ${sid} — total ${this.state.players.size}`); }
+    if (existed) { metrics.leave(sid); log.debug(`[room] saiu ${sid} — total ${this.state.players.size}`); }
   }
 
   private onMove(client: Client, raw: unknown) {
@@ -1202,7 +1268,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     if (!p || !r) return;
     if (p.platform) { client.send('enter_denied', { id, reason: 'em_cima_do_trio' }); return; }
     const c = canEnter({ x: r.last.x, z: r.last.z, status: p.status, vehicle: p.vehicle }, v ? { x: v.x, z: v.z, occupant: v.occupant, heading: v.heading, kind: v.kind } : undefined);
-    if (!c.ok) { client.send('enter_denied', { id, reason: c.reason }); metrics.denied(); console.log(`[room] entrar negado ${client.sessionId} → ${JSON.stringify(id)}: ${c.reason}`); return; }
+    if (!c.ok) { client.send('enter_denied', { id, reason: c.reason }); metrics.denied(); log.debug(`[room] entrar negado ${client.sessionId} → ${JSON.stringify(id)}: ${c.reason}`); return; }
     v!.occupant = client.sessionId;
     v!.state = VEHICLE_STATE.OCCUPIED;
     p.vehicle = id;
@@ -1214,7 +1280,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     p.x = v!.x; p.z = v!.z;
     client.send('enter_ok', { id, x: v!.x, z: v!.z, heading: v!.heading });
     this.r9.e.vehicle(client.sessionId, v!.kind); // rodada 9 — progressão
-    console.log(`[room] ${client.sessionId} entrou em ${id}`);
+    log.debug(`[room] ${client.sessionId} entrou em ${id}`);
   }
 
   private onExit(client: Client, seq?: number) {
@@ -1269,7 +1335,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     const v = id ? this.state.vehicles.get(id) : undefined;
     if (!p || !r) return;
     const c = canBoard({ x: r.last.x, z: r.last.z, status: p.status, vehicle: p.vehicle, platform: p.platform }, v ? { x: v.x, z: v.z, heading: v.heading, kind: v.kind } : undefined, this.riders.get(id)?.size ?? 0);
-    if (!c.ok) { client.send('board_denied', { id, reason: c.reason }); metrics.denied(); console.log(`[room] subir negado ${client.sessionId} → ${JSON.stringify(id)}: ${c.reason}`); return; }
+    if (!c.ok) { client.send('board_denied', { id, reason: c.reason }); metrics.denied(); log.debug(`[room] subir negado ${client.sessionId} → ${JSON.stringify(id)}: ${c.reason}`); return; }
     const now = Date.now();
     const seq = Math.max(r.last.seq, Number.isFinite(m.seq) ? (m.seq as number) : r.last.seq);
     p.platform = id; p.plx = TRIO.ladderTop[0]; p.plz = TRIO.ladderTop[1]; p.plh = 0;
@@ -1283,7 +1349,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     this.carryRiders(id, true);
     client.send('board_ok', { id, lx: p.plx, lz: p.plz });
     this.r9.e.trio(client.sessionId); // rodada 9 — progressão
-    console.log(`[room] ${client.sessionId} subiu no ${id} (${set.size} em cima)`);
+    log.debug(`[room] ${client.sessionId} subiu no ${id} (${set.size} em cima)`);
   }
 
   private onUnboard(client: Client, seq?: number) {
@@ -1404,7 +1470,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     this.combat.onKnockdown(targetId); this.jump.reset(targetId, 0);
     metrics.knock(kind);
     this.evt.onKnockdown(by, targetId); // rodada 9 — eventos: derrubada entre inscritos de um confronto ativo pontua lá
-    console.log(`[room] queda (${kind}) ${targetId} por ${by} força ${strength.toFixed(1)}`);
+    log.debug(`[room] queda (${kind}) ${targetId} por ${by} força ${strength.toFixed(1)}`);
   }
 
   private onPush(client: Client, targetId: string) {
@@ -1413,7 +1479,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     if (!r) return;
     const now = Date.now();
     const v = canPush(r.actor, t?.actor, now, world().walls);
-    if (!v.ok) { client.send('push_denied', v.reason); metrics.denied(); console.log(`[room] empurrão negado ${client.sessionId} → ${targetId}: ${v.reason}`); return; }
+    if (!v.ok) { client.send('push_denied', v.reason); metrics.denied(); log.debug(`[room] empurrão negado ${client.sessionId} → ${targetId}: ${v.reason}`); return; }
     const pol = this.combat.pushPolicy(client.sessionId, targetId); // rodada 9 — confronto: zona de paz/evento valem para o empurrão
     if (!pol.ok) { client.send('push_denied', pol.reason); metrics.denied(); return; }
     r.actor.lastActionAt = now;

@@ -209,6 +209,29 @@ entidade some para B no prazo, o servidor a remove (sem fantasma) e, com a rede 
 tem `WebSocket` global e TODA reconexão falhava (`ReferenceError`, o cliente perdia a entidade).
 `server/src/polyfills.ts` (importado primeiro em `server/src/index.ts`) define o global com o `ws`.
 
+## Reinício do servidor (rodada 9.1)
+A sala vive na memória do processo: depois de um reinício a entidade antiga **não existe mais** (não há graça possível).
+O cliente (`NetworkClient.onRoomLeft`/`rejoinFresh`) volta sozinho, sem recarregar a página, como entidade NOVA com a
+MESMA conta (ticket novo de `POST /api/session/ticket`; aparência, grupo, progressão e itens vêm do banco):
+
+- **Reinício gracioso** (SIGTERM — deploy, `systemctl restart`): o servidor manda `server_restarting` e fecha com 4001;
+  o cliente mostra **SERVIDOR REINICIANDO — RECONECTANDO…** e tenta entrar de novo com backoff (300 ms × 2ⁿ, teto
+  4 s, até 40 tentativas ≈ 2 min) até o processo novo subir. Progressão, grafites e telemetria já foram gravados no
+  `onDispose` (`docs/SECURITY_PRODUCTION.md` § Desligamento gracioso).
+- **Queda do processo** (sem aviso): a queda parece de rede → **RECONECTANDO…** e reconexão do SDK com o token; no
+  processo novo o token não acha a sala (fechamento 4003) → **CONEXÃO PERDIDA — ENTRANDO DE NOVO…** → entrada nova.
+- **Queda de rede com o servidor de pé**: continua como antes — volta na MESMA entidade dentro da graça.
+- Falha passageira do ticket (API ainda subindo, 429, 5xx) faz a entrada ser tentada de novo; só uma recusa
+  definitiva (sem licença) entra como visitante. Recusas que pedem decisão param as tentativas e mostram aviso:
+  versão nova (4010, "Nova versão disponível — recarregar") e lotação (4011 "Sala cheia — entrar como espectador?",
+  4012). `4013` (entradas demais) e `4014` (servidor encerrando) são tentados de novo.
+
+Medido (`tools/qa/restart_mp.mjs`, navegador real + conta real no PostgreSQL: **19/19**): SIGTERM → selo
+REINICIANDO em < 1 s, processo sai com 0 em ~0,5 s; servidor fora por ~3 s → o cliente entrou de novo ~1,4 s depois de
+o processo novo responder, com outro `sessionId`, papel jogador, mesma página e o mesmo `GET /api/me/progress`; um
+espectador do SDK vê exatamente UMA entidade com o apelido da conta. SIGKILL → RECONECTANDO → entrada nova, idem.
+Queda de rede curta com o servidor de pé → mesma entidade (controle).
+
 ## Login duplicado (rodada 8)
 **Uma entidade jogável por conta (userId).** Política: a sessão **nova assume** (mais robusta para quem trocou de
 aparelho/aba ou ficou com uma aba "zumbi"). Em `takeOver()` (no `onJoin` do jogador): a entidade antiga é removida

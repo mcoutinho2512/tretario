@@ -148,4 +148,6 @@ export interface DataStore {
     list(limit?: number): Promise<AuditRecord[]>;
   };
   close(): Promise<void>;
+  /** rodada 9.1 — `SELECT 1` (GET /health/ready); ausente = sem banco a conferir (memória) */
+  ping?(): Promise<void>;
 }

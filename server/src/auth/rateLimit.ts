@@ -36,6 +36,9 @@ export class Backoff {
 
   reset(key: string) { this.m.delete(key); }
 
+  /** falhas seguidas da chave (log de login suspeito) */
+  count(key: string): number { return this.m.get(key)?.fails ?? 0; }
+
   /** remove chaves esquecidas (CleanupService; `fail` também chama acima de 5000 chaves); devolve quantas */
   sweep(now = Date.now(), force = true): number {
     if (!force && this.m.size < 5000) return 0;

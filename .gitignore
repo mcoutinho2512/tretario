@@ -27,3 +27,7 @@ server/.env
 
 # exemplo de configuração local (sem segredo real) — versionado
 !server/.env.example
+
+# versão do build (npm run build:version; gerada no deploy)
+/version.json
+/server/version.json
