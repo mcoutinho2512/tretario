@@ -31,6 +31,7 @@ while (($#)); do
     --domain=*) DOMAIN="${1#*=}"; shift ;;
     --email) EMAIL="${2:?}"; shift 2 ;;
     --email=*) EMAIL="${1#*=}"; shift ;;
+    --no-email) EMAIL="-"; shift ;; # certificado sem e-mail de contato (sem avisos de expiração; renovação continua automática)
     --repo) REPO_URL="${2:?}"; shift 2 ;;
     --repo=*) REPO_URL="${1#*=}"; shift ;;
     --admin-ip) ADMIN_IPS+=("${2:?}"); shift 2 ;;
@@ -51,7 +52,7 @@ done
 ADMIN_USER="${SUDO_USER:-root}"
 [[ $DOMAIN =~ ^[A-Za-z0-9.-]*$ ]] || die "domínio inválido: $DOMAIN"
 if [[ -n $DOMAIN && -z $EMAIL && ! -e /etc/letsencrypt/live/$DOMAIN/fullchain.pem ]]; then
-  die "--domain sem --email: o Let's Encrypt precisa de um e-mail na primeira emissão"
+  die "--domain sem --email (ou --no-email): o Let's Encrypt pede um contato na primeira emissão"
 fi
 # shellcheck source=/dev/null
 . /etc/os-release
@@ -254,7 +255,7 @@ if [[ -n $DOMAIN ]]; then
   fi
   if ((need_cert)); then
     log "certbot: certificado para ${CERT_ARGS[*]} (webroot; o DNS precisa apontar para esta VPS)"
-    certbot certonly --webroot -w /var/www/letsencrypt "${CERT_ARGS[@]}" ${EMAIL:+--email "$EMAIL"} --agree-tos \
+    certbot certonly --webroot -w /var/www/letsencrypt "${CERT_ARGS[@]}" $( [[ $EMAIL == - ]] && echo --register-unsafely-without-email || echo "${EMAIL:+--email $EMAIL}") --agree-tos \
       --no-eff-email --non-interactive --keep-until-expiring --expand ||
       MISSING+=("certificado de ${CERT_ARGS[*]} não emitido (DNS A/AAAA apontando para cá? porta 80 aberta?) — rode de novo")
   fi
