@@ -207,3 +207,42 @@ describe('persistência (JSON local)', () => {
     expect(svc2.create('Z', { s: 'perto', d: content() }, { x: 1.5, z: 2, ok: true }, 10_002).i).toBeGreaterThan(p);
   });
 });
+
+describe('GraffitiService — limpeza dos limites temporários (rodada 9.1)', () => {
+  const H = 3600_000;
+  it('não derruba cooldown nem cota por hora ativos; vencidos saem (e a cota volta a valer do zero)', async () => {
+    const { svc, join } = await setup({ ...GF_RULES, cooldownMs: 10_000, maxPerHour: 2, maxActivePerPlayer: 10 });
+    join('A', 1.5, 2, 'aparelho-1');
+    expect(svc.create('A', { s: 'perto', d: content() }, { x: 1.5, z: 2, ok: true }, 0).ok).toBe(true);
+    expect(svc.limitKeys).toBe(2); // c:aparelho-1, s:A (sem conta)
+    expect(svc.sweep(5000)).toBe(0); // cooldown ativo: fica
+    expect(svc.create('A', { s: 'perto', d: content() }, { x: 1.5, z: 2, ok: true }, 6000).r).toBe('cooldown');
+    expect(svc.create('A', { s: 'perto', d: content() }, { x: 1.5, z: 2, ok: true }, 20_000).ok).toBe(true);
+    expect(svc.sweep(60_000)).toBe(0); // cooldown venceu, mas a janela de 1 h ainda conta (cota_hora)
+    expect(svc.create('A', { s: 'perto', d: content() }, { x: 1.5, z: 2, ok: true }, 60_000).r).toBe('cota_hora');
+    expect(svc.sweep(H + 19_000)).toBe(0); // a criação de 20 s ainda está na janela
+    expect(svc.sweep(H + 20_001)).toBe(2);
+    expect(svc.limitKeys).toBe(0);
+    expect(svc.sweep(H + 30_000)).toBe(0); // idempotente
+  });
+
+  it('denúncias recentes seguram a chave; conta (u:) entra na contagem; pela limpeza periódica conta em rateLimitKeysDeleted', async () => {
+    const { CleanupService, liveMemorySweepers } = await import('../server/src/cleanup/CleanupService');
+    const { MemoryDataStore } = await import('../server/src/data/memory');
+    const { svc, join } = await setup({ ...GF_RULES, cooldownMs: 10_000 });
+    const v = new Viewer();
+    svc.join('U', 'nome_U', 'aparelho-u', v, 'conta-1'); svc.update(0, () => ({ x: 1.5, z: 2 }), 'U');
+    join('B', 3, 2, 'aparelho-b');
+    const res = svc.create('U', { s: 'perto', d: content() }, { x: 1.5, z: 2, ok: true }, 0);
+    expect(res.ok).toBe(true);
+    expect(svc.report('B', res.i, H - 30_000).ok).toBe(true); // denúncia de B (chave c:aparelho-b)
+    expect(svc.limitKeys).toBe(4); // c:aparelho-u, s:U, u:conta-1, c:aparelho-b
+    liveMemorySweepers.add(svc);
+    try {
+      const c = new CleanupService(new MemoryDataStore(), { config: { intervalMs: 0, firstDelayMs: 0, sessionGraceMs: 0, codeGraceMs: 0, batch: 10, maxRunMs: 1000 }, now: () => H + 1, log: () => {}, sweepers: [{ kind: 'rateLimit', sweep: (n) => [...liveMemorySweepers].reduce((k, s) => k + s.sweep(n), 0) }] });
+      expect((await c.run()).rateLimitKeysDeleted).toBe(3); // denúncia de B ainda na janela de 1 min: fica
+      expect(svc.limitKeys).toBe(1);
+      expect(svc.sweep(H + 31_000)).toBe(1);
+    } finally { liveMemorySweepers.delete(svc); }
+  });
+});

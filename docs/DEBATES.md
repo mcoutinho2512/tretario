@@ -113,7 +113,7 @@ Gameplay (`this.gameplay`): `debate_watch {seconds: 30}` em lotes para quem assi
   agregação das reações, sem palavra de "vencedor/votação", gameplay, denúncia DEBATE_LINE, dados/janela/lugares.
 - `tests/debateServer.test.ts`: sala real, contas reais, clientes forjados (dbt_say fora da vez, campos extras, rajada
   de 30 reações → 5, longe não assiste), turno avança, denúncia.
-- `node tools/qa/debate_mp.mjs http://localhost:5305` — 3 navegadores; servidor PV_TEST próprio na 3002: **25/25**.
+- `node tools/qa/debate_mp.mjs http://localhost:5305` — 3 navegadores; servidor PV_TEST próprio na 3002: **26/26** (rodada 9.1: agenda real do servidor, sem alimentador local).
 
 ## Limitações
 

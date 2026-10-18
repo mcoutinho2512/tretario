@@ -46,26 +46,37 @@ export function entryLine(e: AgendaEntry, now: number, zoneName?: (id: string) =
 }
 
 const LIVE: EventState[] = ['ACTIVE', 'STARTING'];
-const OPEN: EventState[] = ['REGISTRATION', 'SCHEDULED'];
+/** AGORA: inscrições abertas, começando ou acontecendo */
+const NOW_STATES: EventState[] = ['REGISTRATION', 'STARTING', 'ACTIVE'];
+/** EM BREVE: agendado que começa dentro disto (ms, relógio do servidor); depois disso, MAIS TARDE */
+export const AGENDA_SOON_MS = 15 * 60_000;
 
 /**
  * até `max` itens relevantes para o "Acontecendo agora": o que está acontecendo, depois inscrições abertas e o que
- * começa logo (≤ horizonMs). Inscritos primeiro em cada grupo. Nada encerrado/cancelado.
+ * começa logo (EM BREVE, ≤ horizonMs). Inscritos primeiro em cada grupo. Nada encerrado/cancelado.
  */
-export function pickNow(list: readonly AgendaEntry[], now: number, max = 3, horizonMs = 30 * 60_000): AgendaEntry[] {
+export function pickNow(list: readonly AgendaEntry[], now: number, max = 3, horizonMs = AGENDA_SOON_MS): AgendaEntry[] {
   const rank = (e: AgendaEntry) => (LIVE.includes(e.state) ? 0 : e.state === 'REGISTRATION' ? 1 : 2) * 2 + (e.joined ? 0 : 1);
   return list
-    .filter((e) => LIVE.includes(e.state) || (OPEN.includes(e.state) && e.startsAt - now <= horizonMs))
+    .filter((e) => NOW_STATES.includes(e.state) || (e.state === 'SCHEDULED' && e.startsAt - now <= horizonMs))
     .sort((a, b) => rank(a) - rank(b) || a.startsAt - b.startsAt)
     .slice(0, max);
 }
 
-/** tela AGENDA: agora / a seguir / encerrados há pouco (≤ recentMs) */
-export function agendaSections(list: readonly AgendaEntry[], now: number, recentMs = 45 * 60_000): { now: AgendaEntry[]; next: AgendaEntry[]; recent: AgendaEntry[] } {
+export type AgendaSectionKey = 'now' | 'soon' | 'later' | 'recent';
+
+/**
+ * tela AGENDA: AGORA (inscrição/começando/acontecendo) · EM BREVE (agendado, começa em ≤ soonMs) · MAIS TARDE (demais
+ * agendados) · ENCERRADOS RECENTEMENTE (encerrado/cancelado — a janela é do SERVIDOR: o que ele ainda manda, aparece)
+ */
+export function agendaSections(list: readonly AgendaEntry[], now: number, soonMs = AGENDA_SOON_MS): Record<AgendaSectionKey, AgendaEntry[]> {
+  const by = (a: AgendaEntry, b: AgendaEntry) => a.startsAt - b.startsAt;
+  const sched = list.filter((e) => e.state === 'SCHEDULED');
   return {
-    now: list.filter((e) => LIVE.includes(e.state)).sort((a, b) => a.startsAt - b.startsAt),
-    next: list.filter((e) => OPEN.includes(e.state)).sort((a, b) => a.startsAt - b.startsAt),
-    recent: list.filter((e) => (e.state === 'FINISHED' || e.state === 'CANCELLED') && now - e.endsAt <= recentMs).sort((a, b) => b.endsAt - a.endsAt),
+    now: list.filter((e) => NOW_STATES.includes(e.state)).sort(by),
+    soon: sched.filter((e) => e.startsAt - now <= soonMs).sort(by),
+    later: sched.filter((e) => e.startsAt - now > soonMs).sort(by),
+    recent: list.filter((e) => e.state === 'FINISHED' || e.state === 'CANCELLED').sort((a, b) => b.endsAt - a.endsAt),
   };
 }
 

@@ -161,14 +161,23 @@ conectar). Formatação pura: `src/events/agendaFormat.ts` (`tests/agendaFormat.
 
 - **Acontecendo agora** (`NowHappening`, alto à esquerda, abaixo do evento/estado; `hud-fadeable` — some com o HUD):
   até **3** itens da mensagem `agenda` do servidor — acontecendo primeiro, depois inscrições abertas, depois o que começa
-  em ≤ 30 min (inscritos primeiro em cada grupo). Linha: `DEBATE NO PALCO · acontecendo · 2/20` + zona;
+  em ≤ 15 min (`AGENDA_SOON_MS`, o mesmo corte do EM BREVE; inscritos primeiro em cada grupo). Linha: `DEBATE NO PALCO · acontecendo · 2/20` + zona;
   `CAMINHADA · começa em 03:42`; `CORRIDA DE BICICLETA · inscrições 9/20`. **Clique → direção, sem teleporte**: alvo no
   minimapa (anel dourado; mapa expandido) + aviso "TÍTULO: 320 m daqui · zona"; debate de longe abre o painel
   (`dbt_watch`). Relógio por intervalo de 1 s só enquanto há item; cada texto escreve no DOM só quando muda (TextSlot).
-- **AGENDA DA AVENIDA** (☰ → "Agenda da avenida"; `AgendaPanel`, `role=dialog`, Esc fecha): **Agora / A seguir /
-  Encerrados há pouco** (≤ 45 min), estado ao vivo, botão **Participar / Sair** (`evt_join` / `evt_leave {inst}`; a
+- **AGENDA DA AVENIDA** (☰ → "Agenda da avenida"; `AgendaPanel`, `role=dialog`, Esc fecha), seções (rodada 9.1,
+  `agendaSections`): **AGORA** (inscrições abertas, começando, acontecendo) · **EM BREVE** (agendado que começa em
+  ≤ 15 min — `AGENDA_SOON_MS` em `src/events/agendaFormat.ts`) · **MAIS TARDE** (os demais agendados) · **ENCERRADOS
+  RECENTEMENTE** (encerrado/cancelado: o cliente não corta por tempo — aparece enquanto o servidor manda, pela janela
+  recente do `EventRuntime`, 10 min). Estado ao vivo, botão **Participar / Sair** (`evt_join` / `evt_leave {inst}`; a
   resposta `evt_res` vira aviso). Só envia se a agenda veio do servidor (`serverDriven`): mensagem sem handler no
   servidor derruba a conexão (Colyseus). Alvos de 44 px; no toque, folha quase da largura da tela.
+- **Fonte única** (rodada 9.1): tudo o que a agenda e o "Acontecendo agora" mostram — início/fim, estado, inscritos,
+  capacidade, `joined` — vem SÓ da mensagem `agenda` do servidor (`AgendaFeed.attach`; não há alimentador local nem
+  agenda simulada; o palco de debate entra na mesma mensagem pelo `EventHost.extraAgenda`). Contagens regressivas no
+  relógio comum do servidor (`worldClock.now()`, `src/net/clock.ts`), nunca no `Date` local. As capturas `O`/`P` saem
+  de um servidor de teste real (`tools/qa/debate_mp.mjs`: agenda dos dados com horários encurtados por
+  `PV_AGENDA_FILE` + `PV_AGENDA_EPOCH=now`).
 - **Painel do debate** (`DebatePanel`, `mountOverlay`; ☰ → "Palco de debate" também abre): ver `docs/DEBATES.md`. À
   direita abaixo do minimapa (desktop), folha no alto no celular (não cobre joystick/botões; nenhum botão fixo novo:
   continua ≤ 4 fixos), recolhível. Abre sozinho na plateia; contagem regressiva a 1 Hz só aberto com orador.

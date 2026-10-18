@@ -41,7 +41,7 @@ export interface CleanupRunMetrics {
 export interface CleanupTotals { runs: number; errors: number; expiredSessionsDeleted: number; expiredOtpDeleted: number; expiredTicketsDeleted: number; rateLimitKeysDeleted: number }
 
 /** limpeza de um mapa em memória: devolve quantos itens removeu */
-/** mapas por usuário que vivem em instâncias de sala (anti-flood/denúncias do chat): cada sala entra/sai daqui; a
+/** mapas por usuário que vivem em instâncias de sala (anti-flood/denúncias do chat, debate, limites do grafite): cada sala entra/sai daqui; a
  *  limpeza conta o que removeu como chaves de limite (`rateLimitKeysDeleted`) */
 export const liveMemorySweepers = new Set<{ sweep(now: number): number }>();
 

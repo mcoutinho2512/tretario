@@ -42,6 +42,12 @@ export class ClashRunner implements EventRunner {
 
   onLeave(_ctx: RunnerContext, sid: string) { this.pendingReturn.delete(sid); }
 
+  /** mesma conta, sessão nova: lado (grupo), presença e derrubadas seguem o participante */
+  rebind(_ctx: RunnerContext, from: string, to: string) {
+    for (const m of [this.names, this.presence, this.kd] as Map<string, unknown>[]) if (m.has(from)) { m.set(to, m.get(from)); m.delete(from); }
+    if (this.pendingReturn.delete(from)) this.pendingReturn.add(to);
+  }
+
   start(ctx: RunnerContext) { this.evalAt = ctx.now(); }
 
   combat(ctx: RunnerContext): CombatEventRules {
@@ -105,10 +111,14 @@ export class ClashRunner implements EventRunner {
     if (reason === 'cancelled') return;
     const activeS = Math.max(1, (ctx.inst.endsAt - ctx.inst.startsAt) / 1000);
     for (const sid of ctx.inst.members) if ((this.presence.get(sid) ?? 0) >= activeS * CLASH_PRESENCE) ctx.complete(sid);
+    ctx.sendMembers('evt_result', { inst: ctx.inst.inst, format: this.format, ...this.results() });
+  }
+
+  results() {
     const score = Object.fromEntries([...this.score].map(([g, v]) => [g, Math.round(v)]));
     // empate = mesma posição (1 + grupos com mais pontos)
     const rows: EventResultRow[] = [...this.groups].sort((a, b) => score[b] - score[a]).map((g) => ({ name: g, group: g, rank: 1 + this.groups.filter((o) => score[o] > score[g]).length, timeMs: 0, status: 'ok' }));
-    ctx.sendMembers('evt_result', { inst: ctx.inst.inst, format: this.format, rows, score });
+    return { rows, score };
   }
 
   state() {

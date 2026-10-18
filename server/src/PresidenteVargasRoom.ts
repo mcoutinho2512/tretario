@@ -43,7 +43,7 @@ import { SpatialGrid, selectInterest, selectInterestSlots, InterestScratch, make
 import { CrowdTable } from '../../src/net/crowdCodec.ts';
 import { GraffitiService, sanitizeClientId } from './graffiti/GraffitiService.ts';
 import { JsonFileGraffitiStore, MemoryGraffitiStore } from './graffiti/store.ts';
-import { ChatService } from './chat/ChatService.ts';
+import { ChatService, authorKeyOf } from './chat/ChatService.ts';
 import { serverSecret } from './auth/service.ts';
 import type { GfReportEvent } from './graffiti/GraffitiService.ts';
 import { can, type Capability } from '../../src/access/policy.ts';
@@ -314,6 +314,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
       },
     }, { store: storeOrNull(), eventId: ev, secret: serverSecret() });
     liveMemorySweepers.add(this.chat);
+    liveMemorySweepers.add(this.graffiti); // rodada 9.1 — limites temporários do grafite (cooldown/cota por hora/denúncias)
     this.setupDebateAds(W, ev); // rodada 9 — debate e telões
     this.r9bSetup(W, ev); // rodada 9 — itens/zonas/proteção
     this.patchRate = 50; // 20 Hz
@@ -343,6 +344,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
   async onDispose() {
     if (this.metricsSource) liveWorlds.delete(this.metricsSource);
     if (this.chat) liveMemorySweepers.delete(this.chat);
+    if (this.graffiti) liveMemorySweepers.delete(this.graffiti);
     if (this.debate) liveMemorySweepers.delete(this.debate); // rodada 9 — debate
     await this.graffiti?.flushStore();
     await this.r9.dispose(); // rodada 9 — progressão: grava tudo no desligamento
@@ -617,6 +619,8 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
       log: (m) => console.log(`[eventos] ${m}`),
       // palco de debate (agente E) entra na MESMA agenda (Acontecendo agora, Agenda, telões) — integração rodada 9
       extraAgenda: (now) => this.debate?.agenda(now) ?? [],
+      // inscrição é da IDENTIDADE (conta), não da conexão — mesma chave de autor do chat (rodada 9.1)
+      participantKey: (sid) => authorKeyOf(sid, this.identities.get(sid)?.userId ?? null),
     }, (W.manifest.pvAxis ?? []) as [number, number][], { epoch: ag.epoch });
     // pedidos do cliente: inscrever/sair/acompanhar; mensagens do formato (debate) vão ao runner da instância
     this.onMessage('evt_join', (c: Client, m: { inst?: unknown }) => this.evt.join(c.sessionId, m?.inst, this.allowed(c, 'event.join')));
@@ -948,6 +952,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     this.evt.hello(client.sessionId, (t, m) => client.send(t, m)); // rodada 9 — eventos: agenda e concentrações atuais
     if (id.role === 'spectator') { this.savedLooks.delete(client.sessionId); this.joinSpectator(client, id, options); return; }
     // login duplicado: UMA entidade jogável por conta — a sessão nova assume (a antiga recebe session_replaced)
+    this.evt.attach(client.sessionId); // rodada 9.1 — a inscrição em evento da conta passa para esta sessão (antes do takeOver)
     const taken = id.userId ? this.takeOver(id.userId, client.sessionId) : null;
     const p = new NetPlayer();
     // apelido: da CONTA (o cliente não escolhe o nome exibido); anônimo só em servidor de teste
@@ -1081,13 +1086,14 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     this.updateInterest(0, 1, sid);
     this.pres.resume(sid, now);
     this.r9bReconnect(sid, now); // rodada 9 — proteção de retorno + lista de itens/item próprio de novo
+    this.evt.reconnected(sid); // rodada 9.1 — inscrição continua (mesma sessão): agenda e estado do formato de novo
     // estado autoritativo para o cliente retomar (posição segura do servidor, veículo/trio, item)
     client.send('resume', { x: p.x, y: p.y, z: p.z, heading: p.heading, vehicle: p.vehicle || '', platform: p.platform || '', plx: p.plx ?? 0, plz: p.plz ?? 0, prop: p.prop ?? 0, design: p.design ?? 0, seq: r.last.seq });
     console.log(`[room] reconectou ${sid} (mesma entidade)`);
   }
 
   onLeave(client: Client) {
-    this.evt.gone(client.sessionId); // rodada 9 — eventos: saída de vez (graça vencida) desiste da inscrição
+    this.evt.gone(client.sessionId); // rodada 9 — eventos: saída de vez (graça vencida) desiste da inscrição; sessão substituída: nada
     const ident = this.identities.get(client.sessionId);
     this.identities.delete(client.sessionId);
     this.grace.delete(client.sessionId);

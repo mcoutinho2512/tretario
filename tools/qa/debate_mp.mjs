@@ -3,14 +3,18 @@
  *  painel abre sozinho na plateia · A e B entram na fila pelo botão · A fala no turno (campo só no turno) · B (fora da
  *  vez) forja dbt_say → recusado, ninguém recebe · C assiste e reage pelos botões (gesto do personagem; plateia NPC
  *  reage) · rajada de reações limitada · o relógio passa a vez para B · C denuncia a fala de A (Report no servidor)
- *  · "Acontecendo agora" + AGENDA (alimentador LOCAL da agenda: o agendador é de outro agente) · telão com evento.
+ *  · "Acontecendo agora" + AGENDA pela agenda REAL do servidor (rodada 9.1: nenhum alimentador local) — a agenda DOS
+ *    DADOS (public/events/manifestacao.json) com horários encurtados (PV_AGENDA_FILE + PV_AGENDA_EPOCH=now) para cobrir
+ *    AGORA / EM BREVE / MAIS TARDE / ENCERRADOS RECENTEMENTE; o debate entra pela mesma mensagem (extraAgenda) · telão.
  * Capturas (docs/screenshots/round9/): O_acontecendo_agora, P_agenda, U_debate, V_plateia, Y_telao_evento.
  * Servidor de teste próprio (PV_TEST=1, PV_STORE=memory, porta PV_DEBATE_PORT ou 3002, dados tests/fixtures/debate_qa.json).
  * uso: node tools/qa/debate_mp.mjs [baseUrl]   (requer o vite: PV_API=… npx vite --port 5305)
  */
 import puppeteer from 'puppeteer-core';
 import { spawn } from 'node:child_process';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join as pjoin } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const base = process.argv[2] ?? 'http://localhost:5305';
@@ -21,9 +25,23 @@ const w = (ms) => new Promise((r) => setTimeout(r, ms));
 const results = [];
 const check = (name, ok, detail = '') => { results.push({ name, ok: !!ok }); console.log(`${ok ? '✅' : '❌'} ${name}${detail ? ' — ' + detail : ''}`); };
 
+// agenda de QA: a dos DADOS, horários encurtados (origem = criação da sala, PV_AGENDA_EPOCH=now). Na hora das capturas
+// (~2–4 min): caminhada ACONTECENDO e a próxima EM BREVE (≤ 15 min) · bicicleta com INSCRIÇÕES · patinete CANCELADA
+// (ninguém inscrito, mínimo 1) em ENCERRADOS e a próxima MAIS TARDE · debate (palco) ACONTECENDO pela extraAgenda
+const man = JSON.parse(readFileSync('public/events/manifestacao.json', 'utf8'));
+const clone = (o) => JSON.parse(JSON.stringify(o));
+const walkD = clone(man.agenda.find((d) => d.format === 'caminhada'));
+walkD.recurrence = { everyMin: 14, offsetMin: 0.3, registrationMin: 0.2, startingS: 5, durationMin: 10 };
+const bikeD = clone(man.agenda.find((d) => d.race?.vehicle === 'bicycle'));
+bikeD.recurrence = { everyMin: 60, offsetMin: 12, registrationMin: 11.8, startingS: 20, durationMin: 8 };
+const scootD = clone(man.agenda.find((d) => d.race?.vehicle === 'scooter'));
+scootD.recurrence = { everyMin: 20, offsetMin: 0.6, registrationMin: 0.4, startingS: 5, durationMin: 6 };
+const AGENDA_FILE = pjoin(mkdtempSync(pjoin(tmpdir(), 'pv-debate-agenda-')), 'agenda.json');
+writeFileSync(AGENDA_FILE, JSON.stringify([walkD, bikeD, scootD]));
+
 const server = spawn('npx', ['tsx', 'src/index.ts'], {
   cwd: 'server', detached: true, stdio: ['ignore', 'pipe', 'pipe'],
-  env: { ...process.env, PORT: String(PORT), PV_TEST: '1', PV_STORE: 'memory', PV_GRAFFITI_STORE: 'memory', PV_DEBATE_FILE: fileURLToPath(new URL('../../tests/fixtures/debate_qa.json', import.meta.url)) },
+  env: { ...process.env, PORT: String(PORT), PV_TEST: '1', PV_STORE: 'memory', PV_GRAFFITI_STORE: 'memory', DATABASE_URL: '', PV_EVENT: 'manifestacao', PV_AGENDA_FILE: AGENDA_FILE, PV_AGENDA_EPOCH: 'now', PV_DEBATE_FILE: fileURLToPath(new URL('../../tests/fixtures/debate_qa.json', import.meta.url)) },
 });
 const log = [];
 server.stdout.on('data', (d) => log.push(...d.toString().split('\n').filter(Boolean)));
@@ -51,6 +69,7 @@ async function open(name, sp, vp = { width: 800, height: 500 }) {
   // registra o que este cliente manda (prova de que o botão da agenda/painel enviou a mensagem certa)
   await p.evaluate(() => {
     const n = window.__pvR9.debate.net; window.__sent = []; const s = n.send.bind(n); n.send = (t, m) => { window.__sent.push([t, m]); s(t, m); };
+    window.__agendaMsgs = []; n.on('agenda', (m) => window.__agendaMsgs.push(m)); // a ÚNICA fonte da agenda
     window.__adsLog = []; n.on('ads', (m) => { for (const x of m.slots) if (x.id === 'STAGE_SCREEN_01') window.__adsLog.push([Math.round(performance.now() / 100) / 10, x.c?.kind]); });
   });
   return p;
@@ -144,30 +163,27 @@ try {
   await ev(B, () => { const f = document.querySelector('.dp-field'); f.value = 'Concordo com a sombra; também mais banheiros públicos'; f.form.requestSubmit(); });
   check('B fala no turno dele → A recebe', !!(await until(async () => (await dinfo(A)).shown.includes('Concordo com a sombra; também mais banheiros públicos'))));
 
-  // ---- "Acontecendo agora" + AGENDA (alimentador LOCAL — o agendador/mensagem `agenda` é de outro agente)
-  await ev(A, () => {
-    const now = window.__pvR9.feed.now();
-    const E = (o) => ({ id: o.inst.split('@')[0], endsAt: now + 900_000, count: 0, capacity: 0, ...o });
-    window.__pvR9.feed.apply({ list: [
-      E({ inst: 'debate_palco@1', format: 'debate', name: 'Debate no palco', zone: 'RIO_BRANCO', state: 'ACTIVE', startsAt: now - 120_000, count: 2, capacity: 20 }),
-      E({ inst: 'caminhada@1', format: 'caminhada', name: 'Caminhada', zone: 'CENTRAL', state: 'SCHEDULED', startsAt: now + 222_000 }),
-      E({ inst: 'corrida@1', format: 'corrida', name: 'Corrida de bicicleta', zone: 'CENTRO', state: 'REGISTRATION', startsAt: now + 480_000, count: 9, capacity: 20 }),
-      E({ inst: 'trio@1', format: 'show', name: 'Trio', zone: 'CAMPO_DE_SANTANA', state: 'ACTIVE', startsAt: now - 600_000 }),
-      E({ inst: 'encontro@1', format: 'encontro', name: 'Encontro na Candelária', zone: 'CANDELARIA', state: 'SCHEDULED', startsAt: now + 40 * 60_000 }),
-      E({ inst: 'patinete@0', format: 'corrida', name: 'Corrida de patinete', zone: 'CENTRO', state: 'FINISHED', startsAt: now - 1_500_000, endsAt: now - 600_000, count: 6, capacity: 12 }),
-    ] });
-  });
+  // ---- "Acontecendo agora" + AGENDA: SÓ a mensagem `agenda` do servidor (horários, estado, contagem, capacidade, joined)
+  const agN = await until(() => ev(A, () => {
+    const l = window.__pvR9.feed.list, has = (f) => l.some(f);
+    return has((e) => e.format === 'debate' && e.state === 'ACTIVE') && has((e) => e.format === 'caminhada' && e.state === 'ACTIVE') && has((e) => e.format === 'corrida' && e.state === 'REGISTRATION')
+      && has((e) => e.state === 'CANCELLED') && has((e) => e.format === 'caminhada' && e.state === 'SCHEDULED') ? l.length : 0;
+  }), 60000);
+  const src = await ev(A, () => { const m = window.__agendaMsgs.at(-1); return { same: !!m && JSON.stringify(m.list) === JSON.stringify(window.__pvR9.feed.list), msgs: window.__agendaMsgs.length, list: window.__pvR9.feed.list.map((e) => `${e.inst}:${e.state}:${e.count}/${e.capacity}`) }; });
+  check('agenda vem do SERVIDOR: lista exibida = última mensagem `agenda` (o debate entra pela mesma, extraAgenda)', !!agN && src.same && src.list.some((s) => s.startsWith('debate_teste@')), JSON.stringify(src));
   await w(400);
   const nh = await ev(A, () => [...document.querySelectorAll('.nh-row:not([hidden])')].map((r) => r.textContent));
-  check('"Acontecendo agora": 3 itens relevantes (acontecendo, inscrições n/cap)', nh.length === 3 && nh.some((t) => /inscrições 9\/20/.test(t)) && nh.some((t) => /acontecendo/.test(t)), JSON.stringify(nh));
+  check('"Acontecendo agora": 3 itens relevantes (acontecendo, inscrições n/cap)', nh.length === 3 && nh.some((t) => /inscrições \d+\/\d+/.test(t)) && nh.some((t) => /acontecendo/.test(t)), JSON.stringify(nh));
   const t0 = await ev(A, () => window.__pvR9.now.renders);
   await w(2100);
   const t1 = await ev(A, () => window.__pvR9.now.renders);
   check('"Acontecendo agora" atualiza a ≤ 1 Hz (sem DOM por quadro)', t1 - t0 >= 1 && t1 - t0 <= 3, `${t1 - t0} renderizações em 2,1 s`);
   await ev(A, () => { window.__pvR9.debate.toggle(false); window.__pv.camera(Math.PI * 0.62, 0.24, 13); });
   await w(700);
-  await A.mouse.move(600, 300); await A.mouse.move(640, 340); // HUD aparece (auto-ocultar)
-  await w(500);
+  await A.mouse.move(600, 300); await A.mouse.move(640, 340); // HUD aparece (auto-ocultar; transição de 0,7 s)
+  const hudO = await ev(A, () => window.__pv.hudSet({ poke: true })); // com o mouse capturado o pointermove não acorda
+  await w(1500);
+  check('"Acontecendo agora" visível na captura O (HUD acordado, lista do servidor)', await ev(A, () => { const e = document.querySelector('.now-happening'); return !!e && !e.hidden && e.getBoundingClientRect().height > 20; }), JSON.stringify({ clean: hudO?.clean, dim: hudO?.dim }));
   await shot(A, 'O_acontecendo_agora');
   // clique num item → direção: alvo no minimapa (mapa expandido) + aviso com distância
   await click(A, '.nh-row:not([hidden])');
@@ -180,8 +196,11 @@ try {
   await click(A, '.hud-btns .hud-icon[aria-label="Menu"]');
   const menuOk = await ev(A, () => { const b = [...document.querySelectorAll('.hud-menu button')].find((x) => x.textContent === 'Agenda da avenida'); b?.click(); return !!b; });
   await w(500);
-  const ap = await ev(A, () => ({ open: !document.querySelector('.agenda-panel').hidden, now: document.querySelectorAll('.ap-sec:nth-of-type(1) .ap-item:not([hidden])').length, rows: [...document.querySelectorAll('.agenda-panel .ap-item:not([hidden])')].map((i) => i.textContent) }));
-  check('AGENDA DA AVENIDA pelo menu: agora / a seguir / encerrados', menuOk && ap.open && ap.rows.length === 6, JSON.stringify(ap.rows));
+  const ap = await ev(A, () => ({ open: !document.querySelector('.agenda-panel').hidden, n: window.__pvR9.feed.list.length, secs: Object.fromEntries([...document.querySelectorAll('.agenda-panel .ap-sec')].map((s) => [s.dataset.sec, [...s.querySelectorAll('.ap-item:not([hidden])')].map((i) => i.textContent)])) }));
+  const S = ap.secs ?? {};
+  const rowsN = Object.values(S).reduce((k, l) => k + l.length, 0);
+  check('AGENDA DA AVENIDA pelo menu: AGORA / EM BREVE (≤ 15 min) / MAIS TARDE / ENCERRADOS RECENTEMENTE, todas da mensagem do servidor',
+    menuOk && ap.open && S.now?.length >= 3 && S.soon?.some((t) => /CAMINHADA/.test(t)) && S.later?.length >= 1 && S.recent?.some((t) => /cancelad/.test(t)) && rowsN === ap.n, JSON.stringify(ap));
   // agenda do SERVIDOR (agendador da sala, agente D): o botão manda evt_join {inst}; o servidor decide (evt_res)
   const sent0 = await ev(A, () => { const li = [...document.querySelectorAll('.ap-item')].find((i) => /CORRIDA DE BICICLETA/i.test(i.textContent)); li?.querySelector('.ap-join:not([disabled])')?.click(); return { driven: window.__pvR9.feed.serverDriven, sent: window.__sent.filter(([t]) => t === 'evt_join') }; });
   check('"Participar" (agenda do servidor) manda evt_join {inst}', sent0.driven === true && sent0.sent.length >= 1 && /corrida/.test(String(sent0.sent.at(-1)?.[1]?.inst)), JSON.stringify(sent0));

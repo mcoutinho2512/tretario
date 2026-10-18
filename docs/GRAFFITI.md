@@ -101,6 +101,13 @@ createdAt, expiresAt, estado, denúncias, persistência, hasText }`.
 Motivos de recusa (`gf_res.r`): `superficie`, `distancia`, `lado`, `formato`, `tamanho`, `retangulo`, `itens`,
 `texto`, `texto_bloqueado`, `cooldown`, `cota`, `cota_hora`, `superficie_cheia`, `mundo_cheio`, `estado`.
 
+**Limpeza dos limites (rodada 9.1).** Os limites por autor (`c:<id anônimo>`, `s:<sessão>`, `u:<conta>`: último
+grafite, criações da última hora, denúncias do último minuto) ficavam na memória da sala para sempre.
+`GraffitiService.sweep(now)` apaga uma chave só quando NADA nela ainda vale: cooldown vencido, nenhuma criação na janela
+de 1 h (`cota_hora`) e nenhuma denúncia na janela de 1 min — um cooldown ou uma cota por hora ativos nunca são
+perdidos. Roda pela limpeza periódica existente (`CleanupService`, sala registrada em `liveMemorySweepers`, conta em
+`rateLimitKeysDeleted`; sem segundo agendador). Inventário: `docs/DATABASE.md`.
+
 ## Interesse (quem recebe o quê)
 
 - Grade espacial **estática** das superfícies (`SpatialGrid`, a mesma da AOI de jogadores). Cada cliente tem o conjunto
@@ -183,7 +190,8 @@ Variáveis: `PV_GRAFFITI_TTL_MS`, `PV_GRAFFITI_REPORTS`, `PV_GRAFFITI_COOLDOWN_M
 - Unitários: `tests/graffiti.test.ts` (codec ida/volta e bytes, lixo/truncado, simplificação, superfícies, filtro de
   texto, validação, alcance, cota/cooldown, TTL, máquina de moderação) e `tests/graffitiService.test.ts` (distribuição
   A/B/C/D, nada inválido vaza, cota por sessão e por id, máximo por superfície e total, AOI, denúncia → oculto →
-  restaurar, admin com token, TTL, persistência JSON com recarga).
+  restaurar, admin com token, TTL, persistência JSON com recarga; rodada 9.1: limpeza dos limites — cooldown e cota por
+  hora ativos ficam, vencidos saem, denúncia recente segura a chave, contagem pelo `CleanupService`).
 - Multiplayer real: `node tools/qa/graffiti_mp.mjs http://localhost:5173` (servidor de teste próprio na porta 2674,
   4 navegadores) — **26/26**: B não recebe nada durante o desenho de A; B vê após publicar; C distante não recebe;
   cliente modificado (lixo, superfície falsa, longe) recusado sem vazar nada; D que entra depois recebe; denúncia →

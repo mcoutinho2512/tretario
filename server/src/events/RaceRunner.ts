@@ -168,10 +168,23 @@ export class RaceRunner implements EventRunner {
     if (over || (this.racers.size > 0 && [...this.racers.values()].every((r) => r.finishMs !== null || r.status !== 'ok'))) ctx.finish();
   }
 
+  results() {
+    const rows: EventResultRow[] = this.ranking().map((r, i) => ({ name: r.name, rank: i + 1, timeMs: r.finishMs ?? 0, status: r.finishMs !== null ? 'ok' : r.status === 'ok' ? 'dnf' : r.status, ...(r.reason ? { reason: r.reason } : {}) }));
+    return { rows };
+  }
+
+  /** mesma conta, sessão nova: checkpoints, tempo e correções seguem o participante */
+  rebind(_ctx: RunnerContext, from: string, to: string) {
+    const r = this.racers.get(from);
+    if (!r) return;
+    this.racers.delete(from);
+    r.sid = to;
+    this.racers.set(to, r);
+  }
+
   end(ctx: RunnerContext, reason: 'finished' | 'cancelled') {
     if (reason === 'cancelled') return;
-    const rows: EventResultRow[] = this.ranking().map((r, i) => ({ name: r.name, rank: i + 1, timeMs: r.finishMs ?? 0, status: r.finishMs !== null ? 'ok' : r.status === 'ok' ? 'dnf' : r.status, ...(r.reason ? { reason: r.reason } : {}) }));
-    const msg = { inst: ctx.inst.inst, format: this.format, rows };
+    const msg = { inst: ctx.inst.inst, format: this.format, rows: this.results().rows };
     for (const sid of new Set([...this.racers.keys(), ...ctx.inst.members, ...ctx.watchers])) ctx.host.send(sid, 'evt_result', msg);
   }
 

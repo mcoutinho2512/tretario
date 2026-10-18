@@ -91,6 +91,8 @@ Inventário de tudo que vence/expira no servidor e o destino de cada item. **Aud
 | presença (`presence/PresenceTracker.ts`) | memória | batimento 45 s | sai no `leave` da conexão |
 | carência de reconexão (`PresidenteVargasRoom.grace`) | memória | `allowReconnection` | sai ao reconectar/expirar |
 | grafites temporários | arquivo JSON + memória | TTL do grafite | `GraffitiService.expire()` a ~1 Hz |
+| limites temporários do grafite por autor (`GraffitiService.limits`: chaves `c:<id anônimo>`, `s:<sessão>`, `u:<conta>` — cooldown, criações na janela de 1 h, denúncias na janela de 1 min) | memória (por sala) | cooldown (20 s) / 1 h / 1 min | rodada 9.1: **apagados** a cada passada do `CleanupService` (`GraffitiService.sweep` via `liveMemorySweepers`, conta em `rateLimitKeysDeleted`) só quando nada mais vale (cooldown vencido E nada nas duas janelas); antes cresciam até reiniciar |
+| inscrições e estado de eventos agendados (`events/EventRuntime.ts`: chave de participante → sessão, inscritos, estado do runner) | memória (por sala) | duração da instância | rodada 9.1: soltos **no fim** da instância; fica só o resumo (linhas posição/tempo/status, placar, nº de conclusões/inscritos) pela janela recente da agenda (10 min) e depois some. XP/progressão já foi gravado pelo `ProgressionService` |
 
 ### CleanupService (`server/src/cleanup/CleanupService.ts`)
 
@@ -113,6 +115,9 @@ Inventário de tudo que vence/expira no servidor e o destino de cada item. **Aud
   rateLimitKeysDeleted, batches, durationMs, truncated, error? }` + totais desde a partida. Log de UMA linha só com
   contagens (`[cleanup] sessões −N · códigos −N · tickets −N · limites −N · L lotes · T ms`) — nunca token, hash,
   código, senha ou e-mail. **Não** entra no endpoint público de métricas.
+- Mapas em memória de cada sala (`liveMemorySweepers`): anti-flood/denúncias do chat, debate e — rodada 9.1 — limites
+  temporários do grafite (`GraffitiService.sweep`). A sala entra no `onCreate` e sai no `onDispose`; tudo passa pelo
+  MESMO agendador (nenhum timer próprio) e soma em `rateLimitKeysDeleted`.
 - Operador: `npm run dev:cleanup` — uma passada no banco da `DATABASE_URL` (só sessões/códigos: tickets e limites
   vivem na memória do servidor), imprime as métricas em JSON e grava `CLEANUP_RUN` no `AuditLog` (só contagens).
 

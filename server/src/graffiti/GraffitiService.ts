@@ -344,6 +344,21 @@ export class GraffitiService {
   }
 
   /**
+   * Limites temporários por autor (rodada 9.1): cada chave (`c:`/`s:`/`u:`) só sai quando NADA nela ainda vale —
+   * cooldown vencido, nenhuma criação na janela de 1 h (cota_hora) e nenhuma denúncia na janela de 1 min. Chamado pela
+   * limpeza periódica (CleanupService via liveMemorySweepers → rateLimitKeysDeleted). Devolve quantas chaves saíram.
+   */
+  sweep(now = Date.now()): number {
+    let n = 0;
+    for (const [k, l] of this.limits) {
+      if (now - l.lastAt < this.rules.cooldownMs || l.created.some((t) => now - t < 3600_000) || l.reports.some((t) => now - t < 60_000)) continue;
+      this.limits.delete(k); n++;
+    }
+    return n;
+  }
+  get limitKeys() { return this.limits.size; }
+
+  /**
    * API de administração (servidor): remover/ocultar/restaurar. Sem painel — exposta pela mensagem de DESENVOLVIMENTO
    * gf_admin (exige PV_ADMIN_TOKEN) e chamável direto por código/ferramentas do servidor.
    */
