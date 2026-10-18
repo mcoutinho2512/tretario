@@ -20,6 +20,7 @@ import {
 import type { GfDelReason, GfRes, GfWire } from '../../../src/graffiti/protocol';
 import type { GraffitiStore, StoredGraffiti } from './store';
 import { REPORT_CATEGORIES, type ReportCategory } from '../../../src/chat/protocol';
+import { log } from '../log';
 
 export interface GfViewer { send(type: string, msg: unknown): void }
 export interface GfAuthorPos { x: number; z: number; ok: boolean }
@@ -97,7 +98,7 @@ export class GraffitiService {
     this.slices = Math.max(1, o.slices ?? 5);
     this.rules = o.rules ?? GF_RULES;
     this.adminToken = o.adminToken ?? '';
-    this.log = o.log ?? ((m) => console.log(`[graffiti] ${m}`));
+    this.log = o.log ?? ((m) => log.info('graffiti', m));
     this.onReport = o.onReport;
     this.sgrid = new SpatialGrid(Math.max(20, this.radius / 2));
     surfaces.forEach((sf) => {

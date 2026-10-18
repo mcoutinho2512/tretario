@@ -15,6 +15,30 @@ import { DESIGN_BY_ID } from '../social/designs';
 import type { IdentityJoinOptions } from '../identity/types';
 
 export const ROOM_NAME = 'presidente_vargas';
+
+/**
+ * Versão do PROTOCOLO cliente/servidor (rodada 9.1, deploy/CONTRACT.md). O cliente manda `pv` na entrada; o servidor
+ * recusa versão diferente (e, em produção, ausente) no onAuth com o erro `JOIN_ERROR.protocol` (4010) e o cliente
+ * mostra "Nova versão disponível — recarregar". REGRA: +1 sempre que um cliente ANTIGO (aba aberta com o bundle
+ * anterior) quebraria com o servidor novo — mensagem nova/renomeada que o cliente precisa, formato de mensagem ou de
+ * estado (schema) alterado, campo obrigatório novo na entrada. Mudança só aditiva e opcional (o antigo ignora) não sobe.
+ * O mesmo número sai em GET /api/status (`protocol`).
+ */
+export const PROTOCOL_VERSION = 1;
+
+/** códigos de erro na ENTRADA (onAuth → ServerError; o SDK rejeita joinOrCreate com `code`) — rodada 9.1 */
+export const JOIN_ERROR = {
+  /** versão do protocolo diferente: recarregar a página */
+  protocol: 4010,
+  /** sala cheia de JOGADORES (MAX_PLAYERS_PER_ROOM): o cliente oferece entrar como espectador */
+  roomFull: 4011,
+  /** lotação de ESPECTADORES (MAX_SPECTATORS_PER_ROOM) */
+  spectatorsFull: 4012,
+  /** entradas demais em pouco tempo (mesmo IP ou mesma conta) */
+  rateLimited: 4013,
+  /** servidor encerrando (SIGTERM): tentar de novo em instantes */
+  restarting: 4014,
+} as const;
 export const NET_TICK_HZ = 15; // envio de movimento pelo cliente
 export const SERVER_PATCH_MS = 50; // 20 Hz de patches de estado
 
@@ -33,6 +57,8 @@ export const MAX_SPEED = { foot: 6.4, bicycle: 7.3, scooter: 5.9, car: 8.8, moto
 export type MoveMode = keyof typeof MAX_SPEED;
 
 export interface JoinOptions extends IdentityJoinOptions {
+  /** rodada 9.1 — PROTOCOL_VERSION do cliente */
+  pv?: number;
   name?: string;
   body: NetBody;
   skin: number;

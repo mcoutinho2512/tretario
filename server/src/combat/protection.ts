@@ -10,6 +10,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { FX } from '../../../src/combat/types';
+import { log } from '../log';
 
 export const DEFAULT_PROTECT_MS = 4000;
 
@@ -21,7 +22,7 @@ export function readProtectMs(file: string): number {
     if (!existsSync(file)) return DEFAULT_PROTECT_MS;
     const v = (JSON.parse(readFileSync(file, 'utf8')) as { tuning?: { protectMs?: unknown } }).tuning?.protectMs;
     return typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 60_000 ? v : DEFAULT_PROTECT_MS;
-  } catch (e) { console.warn('[combat] combat.json ilegível, proteção padrão', (e as Error).message); return DEFAULT_PROTECT_MS; }
+  } catch (e) { log.warn('error', 'combat.json ilegível, proteção padrão', { err: e as Error }); return DEFAULT_PROTECT_MS; }
 }
 
 /** public/gameplay/combat.json `tuning.protectMs` (lido uma vez) ou 4000 ms */

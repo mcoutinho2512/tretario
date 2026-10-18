@@ -90,3 +90,41 @@ export async function listReports(c: AdminCtx, status?: ReportStatus, limit = 50
 export async function recordGraffitiRemoval(c: AdminCtx, id: number, reason: string | null, via: string): Promise<void> {
   await record(c, 'REMOVE_GRAFFITI', null, { targetType: 'GRAFFITI', targetRef: String(id), reason, meta: { via } });
 }
+
+// ------------------------------------------------------------------ rodada 9.1 — produção BETA (sem SMTP)
+
+/**
+ * libera um cadastro BETA pendente: marca o e-mail como verificado (a equipe conferiu por fora — não há código no beta)
+ * e, com `grant`, concede DEV_GRANTED global (vira PLAYER). Idempotente: conta já verificada só ganha a concessão.
+ */
+export async function approveBeta(c: AdminCtx, email: string, o: { grant?: boolean; hours?: number | null } = {}): Promise<{ verified: boolean; grantId: string | null }> {
+  const u = await userByEmail(c.store, email);
+  if (u.status === 'BANNED') throw new AdminError('argumento_invalido', 'conta banida: use unban antes');
+  const verified = !u.emailVerified;
+  if (verified) await c.store.users.update(u.id, { emailVerified: true });
+  await record(c, 'BETA_APPROVE', u, { moderation: false, meta: { verified, grant: !!o.grant } });
+  const g = o.grant ? await grantAccess(c, email, { hours: o.hours ?? null }) : null;
+  return { verified, grantId: g?.id ?? null };
+}
+
+/** equipe: concessão STAFF global (joga como PLAYER; papel de operador continua sendo a CLI + PV_ADMIN_TOKEN) */
+export async function promoteStaff(c: AdminCtx, email: string): Promise<AccessRecord> {
+  const u = await userByEmail(c.store, email);
+  if (u.status === 'BANNED') throw new AdminError('argumento_invalido', 'conta banida');
+  const now = new Date(c.now?.() ?? Date.now());
+  const cur = (await c.store.access.list(u.id)).find((a) => a.grant === 'STAFF' && !a.revokedAt && (!a.expiresAt || a.expiresAt > now));
+  if (cur) throw new AdminError('nada_a_fazer', 'conta já é STAFF');
+  const g = await c.store.access.grant({ userId: u.id, grant: 'STAFF', eventId: null, source: `cli:${c.actor}`, expiresAt: null });
+  await record(c, 'GRANT_ACCESS', u, { meta: { grant: 'STAFF', eventId: null, accessId: g.id } });
+  return g;
+}
+
+/** retira STAFF (revoga as concessões STAFF ativas) */
+export async function demoteStaff(c: AdminCtx, email: string): Promise<number> {
+  const u = await userByEmail(c.store, email);
+  const now = new Date(c.now?.() ?? Date.now());
+  const list = (await c.store.access.list(u.id)).filter((a) => a.grant === 'STAFF' && !a.revokedAt && (!a.expiresAt || a.expiresAt > now));
+  for (const a of list) await c.store.access.revoke(a.id);
+  await record(c, 'REVOKE_ACCESS', u, { meta: { grant: 'STAFF', revoked: list.length } });
+  return list.length;
+}

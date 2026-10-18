@@ -9,6 +9,7 @@ import { dirname, resolve } from 'node:path';
 import { encodeItemList, type CombatPropsData, type ItemDenial, type ItemSelf, type ItemView } from '../../../src/items/protocol';
 import { STATUS } from '../../../src/net/rules';
 import { GroundItems } from './GroundItems';
+import { log } from '../log';
 
 /** o que a sala sabe do jogador (NetPlayer + posição aceita) */
 export interface ItemPlayer { prop: number; status: number; vehicle: string; platform: string; heading: number }
@@ -33,7 +34,7 @@ export function loadCombatProps(file = COMBAT_PROPS_FILE): CombatPropsData {
   const empty: CombatPropsData = { version: 1, props: [], supply: { maxGround: 1, pickRangeM: 2.2, aoiM: 70, racks: [] } };
   if (!existsSync(file)) return empty;
   let data: CombatPropsData;
-  try { data = { ...empty, ...(JSON.parse(readFileSync(file, 'utf8')) as CombatPropsData) }; } catch (e) { console.warn('[items] combat_props.json ilegível', (e as Error).message); return empty; }
+  try { data = { ...empty, ...(JSON.parse(readFileSync(file, 'utf8')) as CombatPropsData) }; } catch (e) { log.warn('error', 'combat_props.json ilegível', { err: e as Error }); return empty; }
   // itens: fonte ÚNICA em combat.json `props` (ações + groundTtlMs); este arquivo só traz os pontos de apoio
   if (!data.props?.length && existsSync(COMBAT_FILE)) {
     try { data.props = ((JSON.parse(readFileSync(COMBAT_FILE, 'utf8')) as { props?: CombatPropsData['props'] }).props ?? []); } catch { /* sem itens */ }
@@ -57,7 +58,7 @@ export class RoomItems {
 
   constructor(private host: ItemsHost, data: CombatPropsData, axis: [number, number][]) {
     this.items = new GroundItems(data, axis);
-    console.log(`[items] ${this.items.items.size} itens de confronto em ${this.items.racks.length} pontos de apoio`);
+    log.info('items', `${this.items.items.size} itens de confronto em ${this.items.racks.length} pontos de apoio`);
   }
 
   private deny(sid: string, r: ItemDenial) { this.host.send(sid, 'item_denied', r); }

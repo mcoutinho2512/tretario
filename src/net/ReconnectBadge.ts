@@ -10,8 +10,8 @@ export class ReconnectBadge {
     this.el.setAttribute('role', 'status');
     this.el.setAttribute('aria-live', 'polite');
   }
-  set(s: LinkState | 'REPLACED', detail = '') {
-    const text = s === 'RECONNECTING' ? 'RECONECTANDO…' : s === 'EXPIRED' ? 'CONEXÃO PERDIDA — ENTRANDO DE NOVO…' : s === 'REPLACED' ? 'SUA CONTA ENTROU EM OUTRA JANELA' : '';
+  set(s: LinkState | 'REPLACED' | 'RESTARTING', detail = '') {
+    const text = s === 'RECONNECTING' ? 'RECONECTANDO…' : s === 'RESTARTING' ? 'SERVIDOR REINICIANDO — RECONECTANDO…' : s === 'EXPIRED' ? 'CONEXÃO PERDIDA — ENTRANDO DE NOVO…' : s === 'REPLACED' ? 'SUA CONTA ENTROU EM OUTRA JANELA' : '';
     this.el.textContent = text + (text && detail ? ` ${detail}` : '');
     this.el.classList.toggle('show', !!text);
     this.el.classList.toggle('bad', s === 'EXPIRED' || s === 'REPLACED');

@@ -34,7 +34,7 @@ Todas as respostas são JSON com `Cache-Control: no-store`. Erro: `{ "error": "<
 | `GET /api/me` | — | `MeResponse` (+ cookie renovado se tocou a sessão) | sem sessão: `{ authenticated:false, access:{ state:'VISITOR', grant:'NONE' } }` |
 | `POST /api/auth/forgot` | `{ email }` | **sempre** `{ ok, message }` | `429 muitas_tentativas` (10/h por IP, igual para qualquer e-mail); por e-mail: 3/h, limite silencioso |
 | `POST /api/auth/reset` | `{ email, code, password, confirm? }` | `{ ok }` + cookie apagado; revoga **todas** as sessões; marca e-mail verificado | `400 codigo_invalido` (genérico, também p/ e-mail inexistente) · regras de senha · `senhas_diferentes`; `429 muitas_tentativas` |
-| `POST /api/session/ticket` | `{ role?: 'player'\|'spectator' }` (sessão) | `{ ticket, expiresInS: 60, role, access }` — `role` é o papel que a sala dará | `401 sem_sessao`; `403 email_nao_verificado · banido` |
+| `POST /api/session/ticket` | `{ role?: 'player'\|'spectator' }` (sessão) | `{ ticket, expiresInS: 60, role, access }` — `role` é o papel que a sala dará | `401 sem_sessao`; `403 email_nao_verificado · aguardando_liberacao (beta) · banido`; `429` (30/min por conta, rodada 9.1) |
 | `GET /api/nickname/available?n=` | — | `{ available: true, nickname }` ou `{ available: false, reason }` | `429` (60/min por IP) |
 | `PUT /api/me/nickname` | `{ nickname }` (sessão) | `{ ok, me }`; auditado (`profile.nickname`) | `401 sem_sessao`; `403 sem_permissao`; `400/409` erros de apelido; `429 troca_de_apelido_limitada` (3/dia) |
 | `PUT /api/me/appearance` | `{ appearance }` (sessão) | `{ ok, appearance }` | `401`, `403`, `400 aparencia_invalida` — **mínimo**, para o E2E (`server/src/profile/appearanceMinimal.ts`); o módulo de perfil pode substituir |
@@ -76,10 +76,33 @@ carência.
 | Variável | Uso |
 |---|---|
 | `PV_SESSION_SECRET` | HMAC dos códigos. Obrigatório (≥ 32 caracteres, não `dev-only…`) em produção — senão o servidor não sobe |
+| `PV_REGISTRATION` | `beta` · `open` · `dev` (rodada 9.1; produção exige `beta`) |
+| `PV_PUBLIC_ORIGIN` · `PV_TRUST_PROXY` | origem pública (CORS/Origin) e confiança no proxy local (rodada 9.1) |
 | `PV_DEV_MAIL=1` | expõe `/api/dev/outbox` (testes automatizados). Ignorado em produção |
 | `PV_SCRYPT_LOGN` | custo do scrypt (padrão 15). Mudar faz rehash no próximo login |
 | `PV_IDENTITY_RECHECK_MS` | intervalo da releitura de identidades na sala (padrão 15000) |
 | `CLEANUP_INTERVAL_MINUTES` · `CLEANUP_SESSION_GRACE_MINUTES` · `CLEANUP_CODE_GRACE_MINUTES` · `CLEANUP_BATCH` | limpeza de sessões/códigos/tickets vencidos (`docs/DATABASE.md`) |
+
+## Produção beta (rodada 9.1)
+
+Detalhes de infraestrutura: `deploy/CONTRACT.md`; segurança: `docs/SECURITY_PRODUCTION.md`.
+
+- **`PV_REGISTRATION`**: `beta` (obrigatório em produção — não há SMTP), `open` (padrão em desenvolvimento) ou `dev`
+  (= open). No **beta**, o provedor de e-mail é `BetaHoldMailProvider` (descarta) e `sendCode` nem gera código: o
+  cadastro cria a conta e a sessão (cookie) **pendentes** (`emailVerified=false`), o `MeResponse` traz
+  `registration: 'beta'` e o cliente mostra "Cadastro recebido — o acesso beta é liberado pela equipe" (tela `pending`
+  do `AccountDialog`; a home diz "aguardando liberação beta"). Nenhum código aparece ao visitante, no corpo, no console
+  ou no log; `/api/dev/outbox` não existe (mesmo com `PV_DEV_MAIL=1`). `verify-email`, `resend-code` e o ticket
+  respondem `403 aguardando_liberacao`; esqueci-a-senha mantém a resposta genérica e não envia nada.
+- **Liberação**: `npm run prod:approve -- <email>` marca o e-mail como verificado (AuditLog `BETA_APPROVE`); com
+  `--grant [--hours=N]` também concede `DEV_GRANTED` (vira PLAYER). Sem `--grant` a conta entra só como espectadora
+  (REGISTERED). A sessão aberta no cadastro continua válida: a pessoa não precisa entrar de novo.
+- **Cookie** `Secure` em produção (+ `HttpOnly`, `SameSite=Lax`); rotas que mudam estado conferem `Origin` /
+  `Sec-Fetch-Site` contra `PV_PUBLIC_ORIGIN` (`403 origem_invalida`); IP dos limites só pelo proxy local
+  (`PV_TRUST_PROXY=loopback`). Tabela completa de limites: `docs/SECURITY_PRODUCTION.md`.
+- **Login suspeito**: `auth.suspicious` no log (ao começar o bloqueio e a cada 10/20 falhas), sem e-mail nem IP.
+- O cliente pede um ticket NOVO a cada entrada (inclusive depois de um reinício do servidor); falha passageira
+  (servidor fora, 429, 5xx) faz a entrada ser tentada de novo — nunca rebaixa a conta a visitante.
 
 ## Limitações (rodada 8)
 

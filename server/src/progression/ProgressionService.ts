@@ -24,6 +24,7 @@ import {
 } from '../../../src/progression/engine';
 import type { ItemEntitlements } from '../../../src/characters/unlocks';
 import type { DataStore, ProgressionRecord, ProgressionSave } from '../data/types';
+import { log } from '../log';
 
 /** teto por minuto de eventos que CONTAM para objetivos/conquistas (spam além disso é ignorado; nenhum dá XP direto) */
 export const EVENT_CAPS: Partial<Record<GameplayEventType, number>> = {
@@ -318,7 +319,7 @@ export class ProgressionService {
     if (persistent && userId && this.deps.store) {
       s.loading = this.deps.store.progression.load(userId)
         .then((rec) => { if (rec) this.hydrate(s, rec); })
-        .catch((e) => console.warn(`[progressão] falha ao carregar ${userId.slice(0, 8)}…: ${(e as Error).message}`))
+        .catch((e) => log.warn('error', 'progressão: falha ao carregar', { err: e as Error }))
         .finally(() => {
           s.loading = null;
           this.refreshActive(s, Date.now());
@@ -372,7 +373,7 @@ export class ProgressionService {
         this.stats.writeErrors++;
         st.pending.completed.unshift(...snap.completed); st.pending.achievements.unshift(...snap.achievements); st.pending.grants.unshift(...snap.grants);
         st.dirty = true;
-        console.warn(`[progressão] falha ao gravar: ${(e as Error).message}`);
+        log.warn('error', 'progressão: falha ao gravar', { err: e as Error });
       })
       .finally(() => { st.saving = null; });
     await st.saving;

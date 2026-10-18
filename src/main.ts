@@ -33,6 +33,8 @@ import type { EventDef } from './events/types';
 // rodada 9 — recompensas: itens bloqueados no editor (cadeado + requisito); direitos vêm do servidor (GET /api/me/progress)
 import { isAvailable, localEntitlements, setLocalEntitlements, type ItemKey } from './characters/unlocks';
 import { parseCatalog, requirementOf, type ProgressionCatalog } from './progression/engine';
+import { gameEndpoint } from './net/endpoint'; // rodada 9.1 — produção: wss://<host>/game (mesma origem)
+import './ui/beta.css';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const appEl = $('app');
@@ -42,8 +44,8 @@ const watchBtn = $<HTMLButtonElement>('btn-watch');
 const fill = $('bar-fill'), label = $('loading-label');
 const params = new URLSearchParams(location.search);
 const autostart = params.get('autostart') === '1' || params.get('bench') === '1';
-/** servidor do mundo compartilhado: ?mp=ws://… (QA), ?mp=off (sem rede); padrão: mesmo host, porta 2567 */
-const MP = params.get('mp') === 'off' ? undefined : params.get('mp') && params.get('mp') !== '1' ? params.get('mp')! : `ws://${location.hostname}:2567`;
+/** servidor do mundo compartilhado: ?mp=ws://… (QA), ?mp=off (sem rede); padrão: dev ws://<host>:2567 · produção wss://<host>/game */
+const MP = params.get('mp') === 'off' ? undefined : params.get('mp') && params.get('mp') !== '1' ? params.get('mp')! : gameEndpoint();
 
 const enginePromise = import('./core/Game');
 enginePromise.then(() => { watchBtn.disabled = false; btn.disabled = false; }).catch((e) => showError(e));
@@ -412,7 +414,8 @@ function renderHome() {
   $('home-me').classList.toggle('hidden', !a);
   const canPlay = a && can(me!.access.state, 'world.play');
   $('btn-join-label').textContent = a ? 'ENTRAR NA AVENIDA' : 'PARTICIPAR';
-  $('btn-join-sub').textContent = !a ? 'crie sua conta e seu personagem' : canPlay ? `como ${nick()}` : 'sua conta assiste até liberar a participação';
+  // rodada 9.1 — cadastro BETA pendente: sem código; a equipe libera (npm run prod:approve)
+  $('btn-join-sub').textContent = !a ? 'crie sua conta e seu personagem' : me?.registration === 'beta' ? 'cadastro recebido — aguardando liberação beta' : canPlay ? `como ${nick()}` : 'sua conta assiste até liberar a participação';
   const g = groupOf(me?.membership?.groupKey);
   const gl = $('btn-group-label');
   gl.innerHTML = '';
@@ -491,9 +494,11 @@ async function pickGroup(first = false): Promise<void> {
 }
 
 /** fluxo da conta logo após entrar/criar: personagem (se ainda não salvo) → grupo → avenida */
+const BETA_PENDING = 'Cadastro recebido — o acesso beta é liberado pela equipe. Enquanto isso, você pode assistir.';
 async function afterLogin() {
   await refreshMe();
   if (!me) return;
+  if (me.registration === 'beta') { showHome(BETA_PENDING); return; }
   if (!savedLook) {
     look = vApp(look) ?? look;
     const saved = await openEditor({ first: true });
@@ -505,6 +510,8 @@ async function afterLogin() {
 }
 
 dialog.onAuthenticated = () => void afterLogin();
+// rodada 9.1 — beta sem SMTP: cadastro recebido (conta pendente); a sessão já existe, então a home mostra "aguardando"
+dialog.onPending = () => void refreshMe().then(() => showHome(BETA_PENDING));
 $('btn-login').addEventListener('click', () => dialog.open('login'));
 $('btn-login2').addEventListener('click', () => dialog.open('login'));
 $('btn-join').addEventListener('click', () => { if (authed()) void enterAvenue(); else dialog.open('register'); });
@@ -554,7 +561,14 @@ async function launch(choice: QualityChoice, role?: WorldRole) {
     // conta: ticket de uso único pedido na hora de conectar (o servidor decide papel, nome e visual)
     const opts: GameStartOptions = role ? {
       mp: MP, role,
-      getTicket: authed() ? async () => (await accountApi.joinTicket(role)).data?.ticket : undefined,
+      // ticket recusado de vez (sem licença, beta pendente) → entra sem ticket (visitante); falha PASSAGEIRA (servidor
+      // reiniciando, 429) LANÇA para a reentrada tentar de novo em vez de rebaixar a conta (src/net/NetworkClient.ts)
+      getTicket: authed() ? async () => {
+        const r = await accountApi.joinTicket(role);
+        if (r.ok) return r.data?.ticket;
+        if (r.status === 0 || r.status === 429 || r.status >= 500) throw new Error(r.error ?? 'sem_conexao');
+        return undefined;
+      } : undefined,
     } : {};
     game = new Game(appEl, resolveQualityChoice(choice), { ...look }, opts);
     game.playerName = authed() ? nick() : nameInput.value.trim();

@@ -11,6 +11,7 @@
  */
 import { ITEM_STATE, rackPlacement, type CombatPropsData, type ItemDenial, type ItemView } from '../../../src/items/protocol';
 import { PROP_BY_ID, isCombatProp } from '../../../src/social/props';
+import { log } from '../log';
 
 export const CARRIED = 2;
 export type ServerItemState = typeof ITEM_STATE.RACK | typeof ITEM_STATE.GROUND | typeof CARRIED;
@@ -57,7 +58,7 @@ export class GroundItems {
       const pl = rackPlacement(r, axis);
       this.racks.push({ id: r.id, x: pl.x, z: pl.z });
       r.props.forEach((prop, k) => {
-        if (!isCombatProp(prop)) { console.warn(`[items] apoio ${r.id}: prop ${prop} não é item de confronto — ignorado`); return; }
+        if (!isCombatProp(prop)) { log.warn('items', `apoio ${r.id}: prop ${prop} não é item de confronto — ignorado`); return; }
         const slot = pl.slots[k];
         this.items.set(id, { id, prop, rack: ri, slot, state: ITEM_STATE.RACK, x: slot.x, z: slot.z, since: 0, by: '', ver: 0 });
         id++;

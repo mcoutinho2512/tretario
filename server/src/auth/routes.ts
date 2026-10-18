@@ -6,14 +6,17 @@ import { router } from '../http/router';
 import { services } from '../services';
 import { API } from '../../../src/identity/types';
 import { AuthService, serverSecret } from './service';
-import { DevelopmentMailProvider, devOutboxEnabled, type MailProvider } from './mail';
+import { BetaHoldMailProvider, DevelopmentMailProvider, devOutboxEnabled, registrationMode, type MailProvider } from './mail';
+import { log } from '../log';
 import { currentEventId } from '../events/seed';
 
 let instance: AuthService | null = null;
 let devMail: DevelopmentMailProvider | null = null;
 
-/** provedor de e-mail: só o de desenvolvimento existe (recusa produção — ver mail.ts) */
+/** provedor de e-mail: beta (rodada 9.1) não envia nada; senão o de desenvolvimento (recusa produção — ver mail.ts) */
+let betaMail: BetaHoldMailProvider | null = null;
 function mailProvider(): MailProvider {
+  if (registrationMode() === 'beta') return (betaMail ??= new BetaHoldMailProvider());
   devMail ??= new DevelopmentMailProvider();
   return devMail;
 }
@@ -49,5 +52,5 @@ if (devOutboxEnabled()) {
     const to = (r.query.get('email') ?? '').trim().toLowerCase();
     return { body: { messages: (devMail?.outbox(to || undefined) ?? []).slice(0, 20).map((m) => ({ to: m.to, kind: m.kind, code: m.code, at: m.at })) } };
   });
-  console.log('[auth] caixa de saída de desenvolvimento ATIVA em /api/dev/outbox (PV_DEV_MAIL=1)');
+  log.info('auth', 'caixa de saída de desenvolvimento ATIVA em /api/dev/outbox (PV_DEV_MAIL=1)');
 }

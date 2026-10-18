@@ -52,8 +52,25 @@ function benchCollector(): Plugin {
   };
 }
 
+/**
+ * Rodada 9.1 — build de produção sem endereço de desenvolvimento (npm run check:bundle): o SDK do Colyseus traz dois
+ * valores-padrão INERTES no navegador (endpoint quando não há `window.location` e o hostname do construtor de URL do
+ * Discord). O jogo sempre passa o endpoint (src/net/endpoint.ts); os literais são trocados por '' só no build.
+ */
+function colyseusNoDevDefaults(): Plugin {
+  return {
+    name: 'pv-colyseus-sem-padroes-de-dev',
+    apply: 'build',
+    transform(code, id) {
+      if (!id.includes('@colyseus/sdk')) return null;
+      const out = code.replace(/"ws:\/\/127\.0\.0\.1:2567"/g, '""').replace(/\|\| "localhost"/g, '|| ""');
+      return out === code ? null : { code: out, map: null };
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [ezTreeNoTextures(), benchCollector()],
+  plugins: [ezTreeNoTextures(), benchCollector(), colyseusNoDevDefaults()],
   resolve: { alias: [{ find: /^@dgreenheck\/ez-tree$/, replacement: EZ_TREE_SRC }] },
   // API da rodada 8 (contas/sessão): proxy para o servidor de jogo (porta da API = PORT + 1). Mesma origem → cookie
   // HttpOnly da sessão funciona sem CORS. PV_API = outro destino (testes de QA com servidor em outra porta).

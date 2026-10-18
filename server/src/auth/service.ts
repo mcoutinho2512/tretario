@@ -18,8 +18,9 @@ import { checkPasswordPolicy, DEFAULT_SCRYPT, type ScryptParams } from './passwo
 import { EmailPasswordProvider, normalizeEmail } from './providers';
 import { SessionService, type ActiveSession } from './session';
 import { CodeService } from './codes';
-import { codeMail, isProduction, type MailProvider } from './mail';
+import { codeMail, isProduction, registrationMode, type MailProvider } from './mail';
 import { Backoff, ipKey, Window } from './rateLimit';
+import { log } from '../log';
 
 type Req = Pick<ApiRequest, 'body' | 'cookies' | 'ip' | 'headers'> & { query?: URLSearchParams };
 
@@ -66,6 +67,8 @@ export class AuthService {
   private resendHour = new Window({ max: 5, windowMs: 60 * 60_000 });
   private nickProbe = new Window({ max: 60, windowMs: 60_000 });
   private nickChange = new Window({ max: 3, windowMs: 24 * 60 * 60_000 });
+  /** rodada 9.1 — tickets de entrada por conta (cada entrada/reentrada pede um; 30/min cobre reconexões com folga) */
+  private ticketUser = new Window({ max: 30, windowMs: 60_000 });
 
   constructor(private c: AuthConfig) {
     this.now = c.now ?? Date.now;
@@ -80,7 +83,7 @@ export class AuthService {
   sweepLimits(now = this.now()): number {
     let n = 0;
     for (const b of [this.loginEmail, this.loginIp, this.resetEmail]) n += b.sweep(now);
-    for (const w of [this.registerIp, this.forgotIp, this.forgotEmail, this.resendQuick, this.resendHour, this.nickProbe, this.nickChange]) n += w.sweep(now);
+    for (const w of [this.registerIp, this.forgotIp, this.forgotEmail, this.resendQuick, this.resendHour, this.nickProbe, this.nickChange, this.ticketUser]) n += w.sweep(now);
     return n;
   }
 
@@ -106,6 +109,8 @@ export class AuthService {
       appearance: (app?.data as MeResponse['appearance']) ?? null,
       preferences,
       membership: mem ? { eventId: mem.eventId, groupKey: mem.groupId.slice(mem.groupId.indexOf(':') + 1) } : null,
+      // rodada 9.1 — cadastro beta: conta pendente até a equipe liberar (o cliente explica; nada de código)
+      ...(!user.emailVerified && registrationMode() === 'beta' ? { registration: 'beta' as const } : {}),
     };
   }
 
@@ -127,7 +132,7 @@ export class AuthService {
   }
 
   async nicknameAvailable(req: Req): Promise<ApiResponse> {
-    if (!this.nickProbe.hit(ipKey(req.ip), this.now())) return err(429, 'muitas_tentativas', { retryAfterS: 60 });
+    if (!this.nickProbe.hit(ipKey(req.ip), this.now())) { log.rate('nickname_available'); return err(429, 'muitas_tentativas', { retryAfterS: 60 }); }
     const r = await this.checkNickname(req.query?.get('n') ?? '');
     return { body: r.ok ? { available: true, nickname: r.nickname } : { available: false, reason: r.error } };
   }
@@ -142,7 +147,7 @@ export class AuthService {
     const cur = await this.store.profiles.byUserId(s.user.id);
     if (cur?.nickname === r.nickname) return { body: { ok: true, me: await this.meOf(s.user) } };
     // troca rara: dificulta "pular" de nome em nome para se passar por outra pessoa
-    if (!this.nickChange.hit(s.user.id, this.now())) return err(429, 'troca_de_apelido_limitada');
+    if (!this.nickChange.hit(s.user.id, this.now())) { log.rate('nickname_change'); return err(429, 'troca_de_apelido_limitada'); }
     try {
       if (cur) await this.store.profiles.update(s.user.id, { nickname: r.nickname, nicknameKey: r.key });
       else await this.store.profiles.create({ userId: s.user.id, nickname: r.nickname, nicknameKey: r.key });
@@ -155,7 +160,7 @@ export class AuthService {
 
   async register(req: Req): Promise<ApiResponse> {
     const b = req.body ?? {};
-    if (!this.registerIp.hit(ipKey(req.ip), this.now())) return err(429, 'muitas_tentativas', { retryAfterS: Math.ceil(this.registerIp.retryIn(ipKey(req.ip), this.now()) / 1000) });
+    if (!this.registerIp.hit(ipKey(req.ip), this.now())) return log.rate('register'), err(429, 'muitas_tentativas', { retryAfterS: Math.ceil(this.registerIp.retryIn(ipKey(req.ip), this.now()) / 1000) });
     const email = normalizeEmail(b.email);
     if (!email) return err(400, 'email_invalido');
     if (str(b.password) !== str(b.confirm)) return err(400, 'senhas_diferentes');
@@ -184,15 +189,18 @@ export class AuthService {
   }
 
   private async sendCode(user: UserRecord, purpose: 'EMAIL_VERIFY' | 'PASSWORD_RESET') {
+    // rodada 9.1 — beta sem SMTP: nenhum código é gerado (ninguém o receberia; nunca aparece ao visitante)
+    if (registrationMode() === 'beta') { log.info('auth.pending', purpose === 'EMAIL_VERIFY' ? 'cadastro aguardando liberação da equipe' : 'pedido de nova senha sem e-mail (beta)', { purpose }); return; }
     const code = await this.codes.issue(user.id, purpose);
     try { await this.c.mail.send(codeMail(user.email, purpose, code)); }
-    catch (e) { console.error('[auth] falha ao enviar e-mail', (e as Error).message); }
+    catch (e) { log.error('error', 'falha ao enviar e-mail', { err: e as Error }); }
   }
 
   async verifyEmail(req: Req): Promise<ApiResponse> {
     const s = await this.session(req);
     if (!s) return err(401, 'sem_sessao');
     if (s.user.emailVerified) return { body: { ok: true, me: await this.meOf(s.user) } };
+    if (registrationMode() === 'beta') return err(403, 'aguardando_liberacao'); // rodada 9.1: não há código no beta
     const r = await this.codes.check(s.user.id, 'EMAIL_VERIFY', req.body?.code);
     if (r === 'expirado') return err(400, 'codigo_expirado');
     if (r === 'invalido') return err(400, 'codigo_invalido');
@@ -205,9 +213,10 @@ export class AuthService {
     const s = await this.session(req);
     if (!s) return err(401, 'sem_sessao');
     if (s.user.emailVerified) return err(400, 'ja_verificado');
+    if (registrationMode() === 'beta') return err(403, 'aguardando_liberacao');
     const now = this.now();
-    if (!this.resendQuick.hit(s.user.id, now)) return err(429, 'aguarde', { retryAfterS: Math.ceil(this.resendQuick.retryIn(s.user.id, now) / 1000) });
-    if (!this.resendHour.hit(s.user.id, now)) return err(429, 'aguarde', { retryAfterS: Math.ceil(this.resendHour.retryIn(s.user.id, now) / 1000) });
+    if (!this.resendQuick.hit(s.user.id, now)) return log.rate('resend_code'), err(429, 'aguarde', { retryAfterS: Math.ceil(this.resendQuick.retryIn(s.user.id, now) / 1000) });
+    if (!this.resendHour.hit(s.user.id, now)) return log.rate('resend_code'), err(429, 'aguarde', { retryAfterS: Math.ceil(this.resendHour.retryIn(s.user.id, now) / 1000) });
     await this.sendCode(s.user, 'EMAIL_VERIFY');
     return { body: { ok: true } };
   }
@@ -218,11 +227,15 @@ export class AuthService {
     const email = normalizeEmail(req.body?.email) ?? '';
     const ek = `e:${email}`, ik = ipKey(req.ip), now = this.now();
     const wait = Math.max(this.loginEmail.wait(ek, now), this.loginIp.wait(ik, now));
-    if (wait > 0) return err(429, 'muitas_tentativas', { retryAfterS: Math.ceil(wait / 1000) });
+    if (wait > 0) { log.rate('login'); return err(429, 'muitas_tentativas', { retryAfterS: Math.ceil(wait / 1000) }); }
     const password = str(req.body?.password);
     const user = email && password && password.length <= 128 ? await this.email.authenticate(email, password) : null;
     if (!user) {
       this.loginEmail.fail(ek, now); this.loginIp.fail(ik, now);
+      // rodada 9.1 — login suspeito: ao começar o bloqueio e a cada 10 falhas seguidas (sem e-mail nem IP no log)
+      const fe = this.loginEmail.count(ek), fi = this.loginIp.count(ik);
+      if (fe === 6 || (fe > 6 && fe % 10 === 0)) log.warn('auth.suspicious', 'falhas repetidas de login na mesma conta', { scope: 'conta', fails: fe });
+      if (fi === 21 || (fi > 21 && fi % 20 === 0)) log.warn('auth.suspicious', 'falhas repetidas de login do mesmo endereço', { scope: 'origem', fails: fi });
       return err(401, 'credenciais_invalidas');
     }
     this.loginEmail.reset(ek);
@@ -248,7 +261,7 @@ export class AuthService {
   /** SEMPRE a mesma resposta, exista ou não a conta (não revela cadastro) */
   async forgot(req: Req): Promise<ApiResponse> {
     const now = this.now();
-    if (!this.forgotIp.hit(ipKey(req.ip), now)) return err(429, 'muitas_tentativas', { retryAfterS: Math.ceil(this.forgotIp.retryIn(ipKey(req.ip), now) / 1000) });
+    if (!this.forgotIp.hit(ipKey(req.ip), now)) return log.rate('forgot'), err(429, 'muitas_tentativas', { retryAfterS: Math.ceil(this.forgotIp.retryIn(ipKey(req.ip), now) / 1000) });
     const same: ApiResponse = { body: { ok: true, message: 'Se houver uma conta com este e-mail, enviamos um código.' } };
     const email = normalizeEmail(req.body?.email);
     if (!email) return same;
@@ -263,7 +276,7 @@ export class AuthService {
     const email = normalizeEmail(b.email) ?? '';
     const ek = `r:${email}`, ik = ipKey(req.ip), now = this.now();
     const wait = Math.max(this.resetEmail.wait(ek, now), this.loginIp.wait(ik, now));
-    if (wait > 0) return err(429, 'muitas_tentativas', { retryAfterS: Math.ceil(wait / 1000) });
+    if (wait > 0) { log.rate('reset'); return err(429, 'muitas_tentativas', { retryAfterS: Math.ceil(wait / 1000) }); }
     if (b.confirm !== undefined && str(b.password) !== str(b.confirm)) return err(400, 'senhas_diferentes');
     const pw = checkPasswordPolicy(b.password, { email });
     if (pw) return err(400, pw);
@@ -287,7 +300,8 @@ export class AuthService {
   async ticket(req: Req): Promise<ApiResponse> {
     const s = await this.session(req);
     if (!s) return err(401, 'sem_sessao');
-    if (!s.user.emailVerified) return err(403, 'email_nao_verificado');
+    if (!this.ticketUser.hit(s.user.id, this.now())) { log.rate('ticket'); return err(429, 'muitas_tentativas', { retryAfterS: Math.ceil(this.ticketUser.retryIn(s.user.id, this.now()) / 1000) }); }
+    if (!s.user.emailVerified) return err(403, registrationMode() === 'beta' ? 'aguardando_liberacao' : 'email_nao_verificado');
     const access = await this.accessOf(s.user);
     const requested = req.body?.role === 'spectator' ? 'spectator' : 'player';
     const role = resolveRole(access.state, requested);

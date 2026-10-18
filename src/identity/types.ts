@@ -61,6 +61,8 @@ export interface MeResponse {
   preferences?: PlayerPreferences;
   /** grupo escolhido no evento atual */
   membership?: { eventId: string; groupKey: string } | null;
+  /** rodada 9.1 — cadastro BETA pendente (sem SMTP): a equipe libera; nenhum código é enviado nem mostrado */
+  registration?: 'beta';
 }
 
 /** rotas HTTP (mesma origem: o Vite faz proxy de /api para o servidor em desenvolvimento) */

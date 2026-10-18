@@ -50,6 +50,22 @@ Toda ação grava **AuditLog** (`actor = cli:<usuário do SO>`, sem senha/token/
 `PORT` indica a sala); com o servidor parado, remove direto do arquivo local (`PV_GRAFFITI_FILE`, padrão
 `server/data/graffiti.json`). Nunca edite o arquivo com o servidor no ar — ele regravaria o grafite.
 
+## Produção beta (rodada 9.1)
+
+Comandos feitos PARA produção — rodam com `NODE_ENV=production` sem `--operador-confirmado` (os `dev:*` continuam
+exigindo). Na VPS, carregue o ambiente do serviço antes (`docs/SECURITY_PRODUCTION.md` § Equipe e administração).
+
+```
+npm run prod:approve -- <email> [--grant] [--hours=N]   # cadastro beta pendente → e-mail verificado; --grant: DEV_GRANTED global (PLAYER)
+npm run prod:promote -- <email>                          # equipe: concessão STAFF global (PLAYER; recusa se já é STAFF)
+npm run prod:demote -- <email>                           # retira STAFF
+```
+
+Auditoria: `BETA_APPROVE` (AuditLog, `meta {verified, grant}`), `GRANT_ACCESS`/`REVOKE_ACCESS` com `grant: 'STAFF'`
+(AuditLog + ModerationAction). Não há papel "admin" no site nem conta fixa no código: administrar = CLI no servidor +
+`PV_ADMIN_TOKEN`. `STAFF` hoje dá o mesmo que uma licença (jogar); capacidades próprias da equipe, se vierem, entram na
+política central (`src/access/policy.ts`), nunca por e-mail/userId.
+
 ## Mudanças com jogadores conectados
 
 A CLI roda em outro processo. A sala relê, a cada `PV_IDENTITY_RECHECK_MS` (15 s), a conta de cada conexão
