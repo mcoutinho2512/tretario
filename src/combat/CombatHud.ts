@@ -33,6 +33,8 @@ export class CombatHud {
   private pulseTimer = 0;
   /** QA: escritas no DOM */
   writes = 0;
+  /** último estado recebido (a barra de ações lê daqui o resumo de condição/fôlego — sem recalcular nada) */
+  state: CombatHudState | null = null;
 
   constructor() {
     const div = (cls: string, parent?: HTMLElement) => { const d = document.createElement('div'); d.className = cls; parent?.appendChild(d); return d; };
@@ -50,6 +52,7 @@ export class CombatHud {
   }
 
   set(s: CombatHudState) {
+    this.state = s;
     if (setClass(this.el, 'show', s.visible)) this.writes++;
     if (!s.visible) return;
     if (this.zone.set(s.zone)) this.writes++;

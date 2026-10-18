@@ -26,6 +26,7 @@ import { SettingsPanel } from './SettingsPanel';
 import { HudPrefsStore } from './hudPrefs';
 import { AutoHide, RateGate, TextSlot, setClass } from './throttle';
 import type { ZoneCombatPolicy } from '../../combat/policy';
+import type { ActionBar } from './ActionBar';
 
 /** rodada 9 — rótulo discreto da política de confronto da zona (aviso de zona e legenda do minimapa) */
 export const POLICY_LABEL: Record<ZoneCombatPolicy, string> = { PEACE: 'Zona de paz', CONTESTED: 'Disputa', COMBAT: 'Zona de confronto' };
@@ -92,6 +93,8 @@ export class HudShell {
   private specSlot: HTMLDivElement;
   private nowSlot: HTMLDivElement;
   private chat: ChatPanelLike | null = null;
+  /** rodada 9.1 — barra de ações (centro inferior, só jogador) */
+  private bar: ActionBar | null = null;
   private density: DensitySource | null = null;
   private focusProvider: (() => { x: number; z: number }) | null = null;
   private zoneListeners = new Set<(c: ZoneChange) => void>();
@@ -183,8 +186,8 @@ export class HudShell {
     this.helpEl = div('hud-help');
     this.helpEl.hidden = true;
     this.helpEl.innerHTML = opts.touch
-      ? '<b>Controles</b><br>Joystick: andar (até o fim corre) · Arraste: câmera · Pinça: zoom<br>PULAR · USAR (quando há algo perto) · AÇÕES · CHAT · ☰ menu<br>SOCO · CHUTE · ESQUIVA: só onde há confronto (zona de combate, treino, evento ou modo interação)'
-      : '<b>Controles</b><br><kbd>WASD</kbd> andar · <kbd>Shift</kbd> correr · <kbd>Espaço</kbd> pular · <kbd>Mouse</kbd> câmera · <kbd>Roda</kbd> zoom<br><kbd>E</kbd> usar / subir no trio / pichar · <kbd>G</kbd> ações · <kbd>K</kbd> modo · <kbd>F</kbd> empurrar (modo interação)<br><kbd>Clique</kbd>/<kbd>R</kbd> soco · <kbd>Q</kbd>/botão direito chute · <kbd>C</kbd> esquiva (zonas de combate e treino)<br><kbd>T</kbd> pegar/trocar item · <kbd>Z</kbd> largar · <kbd>X</kbd> guardar/sacar<br><kbd>M</kbd> mapa · <kbd>H</kbd>/<kbd>P</kbd> HUD limpo · <kbd>F1</kbd> controles · <kbd>F3</kbd> debug · <kbd>Esc</kbd> soltar o mouse';
+      ? '<b>Controles</b><br>Joystick: andar (até o fim corre) · Arraste: câmera · Pinça: zoom<br>PULAR · USAR (quando há algo perto) · CHAT · CORRER · ☰ menu<br>Barra de ícones acima dos botões: veículos, itens, pichar, confronto, gestos, personagem, mapa<br>SOCO · CHUTE · ESQUIVA: só onde há confronto (zona de combate, treino, evento ou modo interação)'
+      : '<b>Controles</b><br><kbd>WASD</kbd> andar · <kbd>Shift</kbd> correr · <kbd>Espaço</kbd> pular · <kbd>Mouse</kbd> câmera · <kbd>Roda</kbd> zoom<br><kbd>E</kbd> usar / subir no trio / pichar · <kbd>G</kbd> ações · <kbd>K</kbd> modo · <kbd>F</kbd> empurrar (modo interação)<br><kbd>Clique</kbd>/<kbd>R</kbd> soco · <kbd>Q</kbd>/botão direito chute · <kbd>C</kbd> esquiva (zonas de combate e treino)<br><kbd>T</kbd> pegar/trocar item · <kbd>Z</kbd> largar · <kbd>X</kbd> guardar/sacar<br>Barra de ações embaixo (solte o mouse com <kbd>Esc</kbd>) · <kbd>M</kbd> mapa · <kbd>H</kbd>/<kbd>P</kbd> HUD limpo · <kbd>F1</kbd> controles · <kbd>F3</kbd> debug · <kbd>Esc</kbd> soltar o mouse';
     this.helpEl.addEventListener('click', () => this.toggleHelp(false));
     const restore = document.createElement('button');
     restore.type = 'button';
@@ -205,7 +208,7 @@ export class HudShell {
     window.addEventListener('keydown', (e) => {
       if (MOVE_KEYS.has(e.code)) return;
       poke();
-      if (e.code === 'Escape') { this.toggleMenu(false); this.toggleHelp(false); }
+      if (e.code === 'Escape') { this.toggleMenu(false); this.toggleHelp(false); this.bar?.close(); }
     });
     document.addEventListener('pointerdown', (e) => { if (!this.menu.hidden && !this.menu.contains(e.target as Node) && e.target !== this.menuBtn) this.toggleMenu(false); });
     this.poke();
@@ -256,6 +259,19 @@ export class HudShell {
   }
   /** rodada 9 — indicador MÃOS / ITEM ATUAL (canto inferior direito, acima de Ações) */
   mountHand(panel: HudPanel) { this.handSlot.replaceChildren(panel.el); }
+
+  /**
+   * rodada 9.1 — barra de ações (src/ui/hud/ActionBar.ts) no centro inferior; a ação contextual e o HUD de confronto
+   * sobem (classe `has-bar`); no toque substitui o botão AÇÕES. Popover aberto = modal (solta o mouse, não esmaece).
+   */
+  mountActionBar(bar: ActionBar) {
+    this.bar = bar;
+    this.root.appendChild(bar.el);
+    setClass(this.root, 'has-bar', true);
+    bar.onPoke = () => this.poke();
+    // abrir solta o mouse; fechar NÃO recaptura (a barra é para clicar de novo; clicar no cenário recaptura, como sempre)
+    bar.onModal = (open) => { this.poke(); if (open) this.onModal?.(true); };
+  }
 
   /** seletor de câmeras do espectador (agente D), acima da ação contextual */
   mountSpectator(panel: HudPanel) { this.specSlot.replaceChildren(panel.el); }
@@ -321,7 +337,7 @@ export class HudShell {
     if (v === this.clean) return;
     this.clean = v;
     setClass(this.root, 'photo', v);
-    if (v) { this.toggleMenu(false); this.settings.toggle(false); this.toggleHelp(false); this.minimap.toggleExpanded(false); }
+    if (v) { this.toggleMenu(false); this.settings.toggle(false); this.toggleHelp(false); this.minimap.toggleExpanded(false); this.bar?.close(); }
     this.chat?.setCollapsed?.(v || this.prefs.value.chatCollapsed);
     this.poke();
   }
@@ -343,11 +359,15 @@ export class HudShell {
     this.onModal?.(v || this.settings.open);
   }
 
-  get anyModal() { return !this.menu.hidden || this.settings.open; }
+  get anyModal() { return !this.menu.hidden || this.settings.open || !!this.bar?.open; }
+
+  /** ação contextual atual (o texto já mostrado; a barra de ações reaproveita) */
+  get prompt() { return this.promptText.value; }
 
   // ------------------------------------------------------------------ por quadro (só portões)
   frame(now: number, f: HudFocus) {
     this.lastFocus = f;
+    if (this.bar?.open) this.autoHide.poke(now); // popover aberto não esmaece
     if (this.autoHide.update(now, f.moving)) setClass(this.root, 'dim', this.autoHide.faded);
     if (this.zoneGate.due(now)) {
       const p = this.focusProvider?.() ?? f;
@@ -355,6 +375,7 @@ export class HudShell {
       if (ch) this.onZone(ch);
     }
     if (this.clean) return;
+    this.bar?.update(now, f.moving); // portão próprio (4 Hz)
     if (this.density && this.densityGate.due(now)) this.density.requestSample((list) => { this.minimap.sampleDensity(list); this.dirtyMap = true; });
     // expandido e parado: 4 Hz basta (só o calor e o trio mudam)
     this.mapGate.hz = this.minimap.expanded && !f.moving ? 4 : 10;
@@ -381,7 +402,8 @@ export class HudShell {
   }
 
   // ------------------------------------------------------------------ ações do menu
-  private openCharacterEditor() {
+  /** menu "Perfil / personagem" e botão Personagem da barra de ações */
+  openCharacterEditor() {
     this.toggleMenu(false);
     if (this.hooks.openCharacterEditor) { this.hooks.openCharacterEditor(); return; }
     window.dispatchEvent(new CustomEvent('pv:open-character-editor'));
@@ -419,7 +441,7 @@ export class HudShell {
   /** QA: estado e custo do HUD */
   info() {
     return {
-      clean: this.clean, dim: this.autoHide.faded, expanded: this.minimap.expanded, zone: this.zones.current?.id ?? null,
+      clean: this.clean, dim: this.autoHide.faded, expanded: this.minimap.expanded, target: this.minimap.target, zone: this.zones.current?.id ?? null,
       policy: this.zones.current ? this.zones.current.combatPolicy ?? 'PEACE' : null, banner: { name: this.bannerName.textContent, policy: this.bannerPolicy.textContent, shown: this.banner.classList.contains('show') },
       prefs: { ...this.prefs.value }, minimap: { ...this.minimap.stats, drawMs: +this.minimap.stats.drawMs.toFixed(3), densityMs: +this.minimap.stats.densityMs.toFixed(3) },
       writes: { event: this.eventText.writes, status: this.statusText.writes, prompt: this.promptText.writes },
