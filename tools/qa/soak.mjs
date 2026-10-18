@@ -66,6 +66,12 @@ if (R9) await page.evaluateOnNewDocument(() => {
 });
 const errors = [];
 page.on('pageerror', (e) => errors.push(e.message));
+// rodada 9.1: causa de aba fechada — travamento do processo da página (OOM/GPU) vs. fechamento; último passo e console
+let lastStep = -1; const consoleTail = [];
+page.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') { consoleTail.push(`${m.type()}: ${m.text()}`.slice(0, 300)); if (consoleTail.length > 30) consoleTail.shift(); } });
+page.on('error', (e) => { console.log(`[soak] CRASH da página no passo ${lastStep}: ${e.message}`); console.log(consoleTail.slice(-15).join('\n')); });
+page.on('close', () => console.log(`[soak] página FECHADA no passo ${lastStep}`));
+b.on('disconnected', () => console.log(`[soak] navegador DESCONECTADO no passo ${lastStep}`));
 await page.goto(`${BASE}/?autostart=1&welcome=0&welcome=0&quality=high&time=12:00&mem=1&mp=ws://127.0.0.1:${PORT}&name=Soak&spawn=${trio.x - 30},${trio.z}`);
 await page.waitForFunction('window.__pvReady === true && window.__pv.mp()?.session', { timeout: 240000 });
 const cdp = await page.createCDPSession();
@@ -80,6 +86,7 @@ if (process.env.SOAK_SPECTATOR !== '0') {
   process.on('exit', () => { void b2.close(); });
 }
 
+let reloads = 0;
 const heap = async () => {
   const raw = await cdp.send('Runtime.getHeapUsage'); // heap BRUTO (antes do GC forçado)
   let srvMem = {};
@@ -87,7 +94,9 @@ const heap = async () => {
   for (let i = 0; i < 2; i++) { await cdp.send('HeapProfiler.collectGarbage'); await w(300); }
   const u = await cdp.send('Runtime.getHeapUsage');
   const gpu = await page.evaluate(() => window.__pv.memoryReport(false)?.ledger?.totalMB ?? null).catch(() => null);
-  const mt = await page.evaluate(() => { const x = window.__pv.metrics(); return { fps: Math.round(x.fps), calls: x.calls, humans: x.crowd?.submitted ?? 0 }; });
+  // página recarregada (ex.: servidor de desenvolvimento) → espera o jogo de novo em vez de abortar o soak
+  if (!(await page.evaluate(() => !!window.__pv?.metrics).catch(() => false))) { reloads++; await page.waitForFunction('window.__pvReady === true && window.__pv?.metrics', { timeout: 240000 }).catch(() => {}); }
+  const mt = await page.evaluate(() => { const x = window.__pv.metrics(); return { fps: Math.round(x.fps), calls: x.calls, humans: x.crowd?.submitted ?? 0 }; }).catch(() => ({ fps: null, calls: null, humans: null }));
   let r9 = {};
   if (R9) {
     const pm = Object.fromEntries((await cdp.send('Performance.getMetrics')).metrics.map((m) => [m.name, m.value]));
@@ -193,7 +202,7 @@ const samples = [{ t: 0, ...(await heap()) }];
 console.log(`[soak] início: heap ${samples[0].usedMB} MB, GPU ${samples[0].gpuMB} MB`);
 let k = 0, nextSample = SAMPLE_S * 1000;
 while (Date.now() - t0 < MIN * 60_000) {
-  await steps[k++ % steps.length]();
+  lastStep = k % steps.length; await steps[k++ % steps.length]();
   await w(6000);
   if (Date.now() - t0 >= nextSample) {
     const s = { t: Math.round((Date.now() - t0) / 1000), ...(await heap()) };
@@ -213,7 +222,7 @@ const slope = (from, to) => {
 };
 const gpuVals = samples.map((s) => s.gpuMB).filter((x) => x !== null);
 const summary = {
-  minutes: MIN, bots: BOTS, samples: samples.length, errors: errors.slice(0, 10),
+  minutes: MIN, bots: BOTS, samples: samples.length, errors: errors.slice(0, 10), reloads,
   heap: { first: samples[0].usedMB, last: samples.at(-1).usedMB, min: Math.min(...samples.map((s) => s.usedMB)), max: Math.max(...samples.map((s) => s.usedMB)) },
   slopeMBperMin: { total: slope(0, MIN), first20: slope(0, 20), last30: slope(Math.max(0, MIN - 30), MIN) },
   gpu: { first: gpuVals[0] ?? null, last: gpuVals.at(-1) ?? null, max: gpuVals.length ? Math.max(...gpuVals) : null },
