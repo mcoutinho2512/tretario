@@ -12,13 +12,22 @@
  *
  * Rodada 9 (SOAK_R9=1): também confronto no boneco de treino, itens (pegar/guardar/largar), queda e levantar, entrar/
  * sair de evento da agenda, debate (assistir/reagir), com bots em confronto (8%); amostra também listeners/nós do DOM
- * (CDP Performance), intervals ativos, ragdolls vivos (Rapier), remotos e itens no chão.
+ * (CDP Performance), intervals ativos, ragdolls vivos (Rapier), remotos e itens no chão; `hud`: elementos por filho
+ * do HUD (dois níveis abaixo de .hud, com descendentes) — rodada 9.1.
+ *
+ * Rodada 9.1 (SOAK_SNAP=10,16): nesses minutos (após a amostra) grava um heap snapshot do CDP e o livro-razão da GPU
+ * agrupado (tipo, tamanho, formato) + categorias do relatório em screenshots/soak/<tag>_<min>.{heapsnapshot,gpu.json};
+ * comparar com tools/qa/heap_diff.mjs. SOAK_HEAPSNAP=0: só o livro-razão (sem heap snapshot). SOAK_TRACK=1: pilhas de
+ * criação de geometrias/texturas enviadas à GPU (tools/qa/leak_track.mjs) no mesmo .gpu.json. Amostras ganham
+ * `postMB`/`gpuNoPostMB` (alvos do pós-processamento seguem a resolução dinâmica) e o resumo `slopesPerMin`.
+ * Medir com build de produção (`npx vite build && npx vite preview`): o HMR do dev recarrega a página.
  *
  * uso (com o dev server): node tools/qa/soak.mjs [minutos=60] [tag=soak] [bots=60]
  */
 import puppeteer from 'puppeteer-core';
 import { spawn } from 'node:child_process';
 import { mkdirSync, writeFileSync, readFileSync } from 'node:fs';
+import { installLeakTrack } from './leak_track.mjs';
 
 const MIN = Number(process.argv[2] ?? 60);
 const TAG = process.argv[3] ?? 'soak';
@@ -74,6 +83,8 @@ page.on('close', () => console.log(`[soak] página FECHADA no passo ${lastStep}`
 b.on('disconnected', () => console.log(`[soak] navegador DESCONECTADO no passo ${lastStep}`));
 await page.goto(`${BASE}/?autostart=1&welcome=0&welcome=0&quality=high&time=12:00&mem=1&mp=ws://127.0.0.1:${PORT}&name=Soak&spawn=${trio.x - 30},${trio.z}`);
 await page.waitForFunction('window.__pvReady === true && window.__pv.mp()?.session', { timeout: 240000 });
+// rodada 9.1 (SOAK_TRACK=1): pilhas de criação de geometrias/texturas enviadas à GPU (tools/qa/leak_track.mjs)
+if (process.env.SOAK_TRACK === '1') await page.evaluate(installLeakTrack);
 const cdp = await page.createCDPSession();
 if (R9) await cdp.send('Performance.enable');
 // espectador simultâneo no MESMO mundo (rodada 8) — só a página do jogador é medida
@@ -94,16 +105,25 @@ const heap = async () => {
   for (let i = 0; i < 2; i++) { await cdp.send('HeapProfiler.collectGarbage'); await w(300); }
   const u = await cdp.send('Runtime.getHeapUsage');
   const gpu = await page.evaluate(() => window.__pv.memoryReport(false)?.ledger?.totalMB ?? null).catch(() => null);
+  // rodada 9.1: alvos do pós-processamento acompanham a resolução dinâmica (0,55–1 × tela) — ±50 MB sem vazar nada;
+  // `gpuNoPostMB` tira do total os alvos do tamanho do buffer de desenho
+  const post = await page.evaluate(() => {
+    const L = window.__pvGpuLedger, c = document.querySelector('canvas.game-canvas');
+    if (!L || !c) return {};
+    let b = 0;
+    for (const m of [L.textures, L.renderbuffers]) for (const o of m.values()) if (Math.round(o.w) === c.width && Math.round(o.h) === c.height) b += o.bytes;
+    return { postMB: +(b / 1048576).toFixed(1), drawW: c.width };
+  }).catch(() => ({}));
   // página recarregada (ex.: servidor de desenvolvimento) → espera o jogo de novo em vez de abortar o soak
   if (!(await page.evaluate(() => !!window.__pv?.metrics).catch(() => false))) { reloads++; await page.waitForFunction('window.__pvReady === true && window.__pv?.metrics', { timeout: 240000 }).catch(() => {}); }
   const mt = await page.evaluate(() => { const x = window.__pv.metrics(); return { fps: Math.round(x.fps), calls: x.calls, humans: x.crowd?.submitted ?? 0 }; }).catch(() => ({ fps: null, calls: null, humans: null }));
   let r9 = {};
   if (R9) {
     const pm = Object.fromEntries((await cdp.send('Performance.getMetrics')).metrics.map((m) => [m.name, m.value]));
-    const x = await page.evaluate(() => ({ dom: (() => { const m = {}; for (const e of document.querySelectorAll('body *')) { const ch = []; for (let n = e; n && n !== document.body; n = n.parentElement) ch.unshift(n); const k = ch.slice(0, 2).map((n) => (n.classList?.[0] ?? n.tagName.toLowerCase())).join('>'); m[k] = (m[k] ?? 0) + 1; } return m; })(), intervals: window.__pvIntervals?.() ?? null, ragdolls: window.__pv.r9b?.().ragdollsLive ?? null, remotes: window.__pv.mp()?.remotes?.length ?? null, items: window.__pv.r9b?.().items?.items?.length ?? null })).catch(() => ({}));
+    const x = await page.evaluate(() => ({ hud: (() => { const m = {}; for (const e of document.querySelectorAll('.hud > * > *')) { const k = `${e.parentElement.classList[0] ?? e.parentElement.tagName.toLowerCase()}>${e.classList[0] ?? e.tagName.toLowerCase()}`; m[k] = (m[k] ?? 0) + 1 + e.querySelectorAll('*').length; } return m; })(), dom: (() => { const m = {}; for (const e of document.querySelectorAll('body *')) { const ch = []; for (let n = e; n && n !== document.body; n = n.parentElement) ch.unshift(n); const k = ch.slice(0, 2).map((n) => (n.classList?.[0] ?? n.tagName.toLowerCase())).join('>'); m[k] = (m[k] ?? 0) + 1; } return m; })(), intervals: window.__pvIntervals?.() ?? null, ragdolls: window.__pv.r9b?.().ragdollsLive ?? null, remotes: window.__pv.mp()?.remotes?.length ?? null, items: window.__pv.r9b?.().items?.items?.length ?? null })).catch(() => ({}));
     r9 = { listeners: pm.JSEventListeners, nodes: pm.Nodes, ...x };
   }
-  return { usedMB: +(u.usedSize / 1048576).toFixed(2), rawMB: +(raw.usedSize / 1048576).toFixed(2), gpuMB: gpu, ...mt, ...r9, ...srvMem };
+  return { usedMB: +(u.usedSize / 1048576).toFixed(2), rawMB: +(raw.usedSize / 1048576).toFixed(2), gpuMB: gpu, ...post, gpuNoPostMB: gpu !== null && post.postMB !== undefined ? +(gpu - post.postMB).toFixed(1) : null, ...mt, ...r9, ...srvMem };
 };
 
 // ponto ao longo do eixo (fração t, deslocamento lateral)
@@ -197,6 +217,33 @@ const steps = [
   async () => { const [x, z, h] = along(0.05, 0); await ev((x, z, h) => window.__pv.teleport(x, z, h), x, z, h); },
 ];
 
+// rodada 9.1: heap snapshot + livro-razão agrupado nos minutos de SOAK_SNAP
+const SNAPS = (process.env.SOAK_SNAP ?? '').split(',').filter(Boolean).map(Number);
+const snapshot = async (min) => {
+  const gpu = await page.evaluate(() => {
+    const L = window.__pvGpuLedger; const hist = {};
+    if (L) for (const [kind, m] of [['tex', L.textures], ['buf', L.buffers], ['rb', L.renderbuffers]]) for (const o of m.values()) {
+      const k = kind === 'buf' ? `buf:${o.fmt}:${o.bytes < 4096 ? '<4K' : o.bytes < 65536 ? '<64K' : o.bytes < 1048576 ? '<1M' : '>=1M'}` : `${kind}:${o.w}x${o.h}x${o.d}:${o.fmt}${o.mip ? ':mip' : ''}`;
+      const h = (hist[k] ??= { n: 0, bytes: 0 }); h.n++; h.bytes += o.bytes;
+    }
+    const r = window.__pv.memoryReport(false);
+    // personagens remotos (vivos e no pool): malhas, esqueletos distintos e peças por LOD
+    const human = (v) => { const h = v?.human; if (!h) return null; return { lods: h.lods.map((i) => (i ? { meshes: i.meshes.length, skels: new Set(i.meshes.map((m) => m.skeleton)).size, parts: i.parts.length, children: i.group.children.length, loads: i.pieceLoads.size } : null)) }; };
+    const net = window.__pvEvents?.net;
+    const avatars = net ? { pool: [...net.pool].map(([b, l]) => [b, l.map(human)]), remotes: [...net.remotes.values()].filter((x) => x.visual).slice(0, 12).map((x) => human(x.visual)), self: null } : null;
+    return { hist, ledger: r.ledger, categories: r.categories, renderer: r.renderer, totals: r.totals, leaks: window.__pvLeakTrack?.() ?? null, avatars };
+  }).catch((e) => ({ err: e.message }));
+  writeFileSync(`screenshots/soak/${TAG}_${min}.gpu.json`, JSON.stringify(gpu, null, 1));
+  if (process.env.SOAK_HEAPSNAP === '0') return;
+  const chunks = [];
+  const onChunk = (e) => chunks.push(e.chunk);
+  cdp.on('HeapProfiler.addHeapSnapshotChunk', onChunk);
+  await cdp.send('HeapProfiler.takeHeapSnapshot', { reportProgress: false });
+  cdp.off('HeapProfiler.addHeapSnapshotChunk', onChunk);
+  writeFileSync(`screenshots/soak/${TAG}_${min}.heapsnapshot`, chunks.join(''));
+  console.log(`[soak] snapshot ${min} min gravado`);
+};
+
 const t0 = Date.now();
 const samples = [{ t: 0, ...(await heap()) }];
 console.log(`[soak] início: heap ${samples[0].usedMB} MB, GPU ${samples[0].gpuMB} MB`);
@@ -208,14 +255,15 @@ while (Date.now() - t0 < MIN * 60_000) {
     const s = { t: Math.round((Date.now() - t0) / 1000), ...(await heap()) };
     samples.push(s);
     nextSample += SAMPLE_S * 1000;
+    if (SNAPS.includes(Math.round(s.t / 60))) await snapshot(Math.round(s.t / 60));
     console.log(`[soak] ${(s.t / 60).toFixed(1)} min: heap ${s.usedMB} MB · GPU ${s.gpuMB} MB · ${s.fps} FPS · ${s.humans} humanos`);
   }
 }
 // inclinação por mínimos quadrados (MB/min) num intervalo de minutos
-const slope = (from, to) => {
-  const pts = samples.filter((s) => s.t / 60 >= from && s.t / 60 <= to);
+const slope = (from, to, key = 'usedMB') => {
+  const pts = samples.filter((s) => s.t / 60 >= from && s.t / 60 <= to && typeof s[key] === 'number');
   if (pts.length < 3) return null;
-  const xs = pts.map((p) => p.t / 60), ys = pts.map((p) => p.usedMB);
+  const xs = pts.map((p) => p.t / 60), ys = pts.map((p) => p[key]);
   const mx = xs.reduce((a, b) => a + b, 0) / xs.length, my = ys.reduce((a, b) => a + b, 0) / ys.length;
   const num = xs.reduce((a, x, i) => a + (x - mx) * (ys[i] - my), 0), den = xs.reduce((a, x) => a + (x - mx) ** 2, 0);
   return +(num / den).toFixed(3);
@@ -225,6 +273,8 @@ const summary = {
   minutes: MIN, bots: BOTS, samples: samples.length, errors: errors.slice(0, 10), reloads,
   heap: { first: samples[0].usedMB, last: samples.at(-1).usedMB, min: Math.min(...samples.map((s) => s.usedMB)), max: Math.max(...samples.map((s) => s.usedMB)) },
   slopeMBperMin: { total: slope(0, MIN), first20: slope(0, 20), last30: slope(Math.max(0, MIN - 30), MIN) },
+  // rodada 9.1: inclinações por minuto nos últimos 15 e 20 min (heap, GPU, GPU sem os alvos da resolução dinâmica, nós)
+  slopesPerMin: Object.fromEntries([15, 20].map((n) => [`last${n}`, Object.fromEntries(['usedMB', 'gpuMB', 'gpuNoPostMB', 'nodes'].map((k) => [k, slope(Math.max(0, MIN - n), MIN, k)]))])),
   gpu: { first: gpuVals[0] ?? null, last: gpuVals.at(-1) ?? null, max: gpuVals.length ? Math.max(...gpuVals) : null },
   ...(R9 ? { r9: Object.fromEntries(['rawMB', 'listeners', 'nodes', 'intervals', 'ragdolls', 'remotes', 'items', 'srvHeapMB', 'srvRssMB', 'srvWs', 'srvPlayers', 'srvTickMs'].map((k) => { const v = samples.map((s) => s[k]).filter((x) => typeof x === 'number'); return [k, v.length ? { first: v[0], last: v.at(-1), min: Math.min(...v), max: Math.max(...v) } : null]; })) } : {}),
 };

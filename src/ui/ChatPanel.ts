@@ -45,6 +45,7 @@ const MUTE_RES: Record<ChatMuteRejection, string> = {
 };
 const STATE_KEY = 'pv.chat.state';
 const MAX_LINES = 200;
+const MAX_EVENTS = 40;
 const STALE_MS = 14_000;
 
 const store = {
@@ -166,26 +167,32 @@ export class ChatPanel {
     this.applyHello();
   }
 
+  /** registro de QA (respostas do servidor): limitado — chat_hello chega a cada reconexão com o histórico inteiro */
+  private logEvent(e: { type: string; msg: unknown }) {
+    this.events.push(e);
+    if (this.events.length > MAX_EVENTS) this.events.shift();
+  }
+
   /** liga à rede (NetworkClient.on/send) */
   attach(net: ChatTransport) {
     this.net = net;
-    net.on('chat_hello', (h: Hello) => { this.events.push({ type: 'chat_hello', msg: h }); this.hello = h; this.applyHello(); for (const m of h.history ?? []) this.add(m, true); });
+    net.on('chat_hello', (h: Hello) => { this.logEvent({ type: 'chat_hello', msg: h }); this.hello = h; this.applyHello(); for (const m of h.history ?? []) this.add(m, true); });
     net.on('chat_mutes', (l: ChatMuteList) => {
-      this.events.push({ type: 'chat_mutes', msg: l });
+      this.logEvent({ type: 'chat_mutes', msg: l });
       this.muted = Array.isArray(l?.list) ? l.list : [];
       for (const id of l?.hide ?? []) for (const [k, v] of this.lines) if (v.m.id === id) { v.li.remove(); this.lines.delete(k); }
       this.mutesBtn.textContent = this.muted.length ? `Mutados (${this.muted.length})` : 'Mutados';
       if (this.menuFor === null && !this.menu.classList.contains('hidden') && this.menu.dataset.kind === 'mutes') this.showMutes();
     });
-    net.on('chat_mute_denied', (d: { reason: ChatMuteRejection }) => { this.events.push({ type: 'chat_mute_denied', msg: d }); this.flash(MUTE_RES[d.reason] ?? 'Não deu para mutar', true); });
+    net.on('chat_mute_denied', (d: { reason: ChatMuteRejection }) => { this.logEvent({ type: 'chat_mute_denied', msg: d }); this.flash(MUTE_RES[d.reason] ?? 'Não deu para mutar', true); });
     net.on('chat', (m: ChatMessage) => this.add(m));
     net.on('chat_denied', (d: { reason: ChatRejection; retryMs: number }) => {
-      this.events.push({ type: 'chat_denied', msg: d });
+      this.logEvent({ type: 'chat_denied', msg: d });
       if (d.retryMs > 0) this.cooldownUntil = Date.now() + d.retryMs;
       this.flash(d.reason === 'cooldown' || d.retryMs > 1500 ? `${DENY[d.reason] ?? d.reason} (${Math.ceil(d.retryMs / 1000)} s)` : DENY[d.reason] ?? d.reason, true);
     });
     net.on('chat_report_res', (r: { ok: boolean; id: string; r?: string }) => {
-      this.events.push({ type: 'chat_report_res', msg: r });
+      this.logEvent({ type: 'chat_report_res', msg: r });
       this.flash(r.ok ? 'Denúncia registrada. Obrigado.' : REPORT_RES[r.r ?? ''] ?? 'Denúncia não registrada', !r.ok);
     });
   }

@@ -9,6 +9,9 @@ import type { BillboardContent, BillboardPlan } from './types';
 
 interface Panel { slot: BillboardSlot; screen: THREE.Mesh; group: THREE.Group; contentKey: string }
 
+/** texturas sem painel guardadas para voltar logo (rodízio do plano); acima disso a mais antiga sai da GPU */
+export const BILLBOARD_KEEP_UNUSED = 6;
+
 export class BillboardSystem {
   readonly group = new THREE.Group();
   private panels: Panel[] = [];
@@ -75,11 +78,34 @@ export class BillboardSystem {
       (p.screen.material as THREE.MeshBasicMaterial).map = this.textureFor(c, key, p.slot.w / p.slot.h);
       (p.screen.material as THREE.MeshBasicMaterial).needsUpdate = true;
     });
+    this.prune();
   }
+
+  /**
+   * rodada 9.1: cada conteúdo novo (AdSlot de evento: nome + horário) criava uma CanvasTexture 1024×N que nunca saía
+   * do cache — ~3 MB de GPU por instância de evento. Agora só ficam as em uso + as `BILLBOARD_KEEP_UNUSED` mais recentes.
+   */
+  private prune() {
+    const used = new Set(this.panels.map((p) => p.contentKey));
+    let unused = 0;
+    for (const k of this.textures.keys()) if (!used.has(k)) unused++;
+    for (const [k, t] of this.textures) {
+      if (unused <= BILLBOARD_KEEP_UNUSED) break;
+      if (used.has(k)) continue;
+      const v = t.image as HTMLVideoElement | undefined;
+      if (typeof HTMLVideoElement !== 'undefined' && v instanceof HTMLVideoElement) { v.pause(); v.removeAttribute('src'); v.load(); }
+      t.dispose();
+      this.textures.delete(k);
+      unused--;
+    }
+  }
+
+  /** QA/testes: texturas no cache */
+  get cachedTextures() { return this.textures.size; }
 
   private textureFor(c: BillboardContent, key: string, aspect: number): THREE.Texture {
     const cached = this.textures.get(key);
-    if (cached) return cached;
+    if (cached) { this.textures.delete(key); this.textures.set(key, cached); return cached; } // mais recente no fim (LRU)
     let tex: THREE.Texture;
     if (c.type === 'image' && c.url) {
       tex = new THREE.TextureLoader().setCrossOrigin('anonymous').load(c.url);

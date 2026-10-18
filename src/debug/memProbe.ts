@@ -65,6 +65,7 @@ function installLedger() {
   if (gpuLedger) return;
   const L: GpuLedger = { textures: new Map(), buffers: new Map(), renderbuffers: new Map() };
   gpuLedger = L;
+  (globalThis as unknown as { __pvGpuLedger?: GpuLedger }).__pvGpuLedger = L; // QA: histograma por tamanho/formato (soak)
   const P = GL.prototype as unknown as Record<string, (...a: unknown[]) => unknown>;
   const ctxState = new WeakMap<object, { unit: number; tex: Map<string, WebGLTexture | null>; buf: Map<number, WebGLBuffer | null>; rb: WebGLRenderbuffer | null }>();
   const st = (gl: object) => {
