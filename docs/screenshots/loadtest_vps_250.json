@@ -1,0 +1,42 @@
+[
+  {
+    "bots": 250,
+    "cenario": "denso",
+    "entrada_s": 10.1,
+    "srv_tick_ms": 4.864,
+    "srv_tick_max_ms": 10.375,
+    "srv_aoi_ms": 1.71,
+    "srv_aoi_max_ms": 3.568,
+    "srv_crowd_ms": 2.031,
+    "srv_patch_ms": 4.224,
+    "srv_patch_max_ms": 8.322,
+    "srv_cpu_pct": 26.5,
+    "srv_elu": 0.258,
+    "srv_heap_MB": 57.7,
+    "srv_rss_pico_MB": 198.4,
+    "srv_out_KBps": 3201.2,
+    "srv_in_KBps": 161.7,
+    "srv_msgs_out_s": 5885,
+    "srv_msgs_in_s": 3758,
+    "cli_in_KBps": 12.82,
+    "cli_out_KBps": 0.64,
+    "cli_msgs_in_s": 23.6,
+    "visiveis_medio": 250,
+    "detalhados_medio": 49,
+    "visiveis_max": 250,
+    "correcoes": 3,
+    "srv_combat_ms": 0.0178,
+    "srv_combat_max_ms": 0.115,
+    "hit_val_ms": 0,
+    "hit_val_max_ms": 0,
+    "hit_vals_s": 0,
+    "cbt_req_s": 7,
+    "cbt_ok_s": 0,
+    "lutadores": 20,
+    "golpes_acertados": 0,
+    "esquivas": 0,
+    "negados": {
+      "zona_paz": 165
+    }
+  }
+]

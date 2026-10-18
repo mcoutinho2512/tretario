@@ -58,7 +58,7 @@ de `src/` (cliente) por caminho relativo; compilar exigiria outro tsconfig/bundl
 mesmo processo (o SIGTERM do systemd chega direto ao Colyseus) e a partida medida no container foi registrada em
 [DEPLOYMENT.md](DEPLOYMENT.md#validação-local).
 
-## Memória (VPS de 8 GB)
+## Memória (dimensionada para 8 GB; a VPS real tem 11 GB, compartilhados)
 
 | Peça | Reserva |
 |---|---|
@@ -67,17 +67,29 @@ mesmo processo (o SIGTERM do systemd chega direto ao Colyseus) e a partida medid
 | Nginx, SO, cache de página | o resto (~3 GB) |
 | Swap | 2 GB em arquivo (só rede de segurança para o build do deploy) |
 
-## Capacidade (PREENCHER com o benchmark na VPS real)
+## Capacidade (medida na VPS de produção, 18/10/2026)
 
-Os números abaixo são **lacunas**: só valem medidos na VPS de produção (CPU, rede e disco reais). O container
-local não serve de referência (outra CPU/arquitetura, sem rede real).
+VPS: Ubuntu 22.04.5, **4 vCPU AMD EPYC 9J45, 11 GB RAM, 295 GB** (compartilhada com outros sistemas — GymTeam em
+produção). Método: instância de TESTE isolada do servidor (mesmo release, `PV_TEST=1`, banco em memória, só
+127.0.0.1:2667) + bots no Mac por túnel SSH (`PV_LOADTEST_EXTERNAL=1 server/tools/loadtest.ts`), cenário realista
+da rodada 9 em área DENSA (pior caso de AOI): 20 % ações sociais, grupos, 30 msgs/min de chat, 8 % em confronto.
+Saúde do GymTeam conferida a cada 5 s durante o teste (sempre 200, 0,10–0,17 s). Dados: `docs/screenshots/loadtest_vps_*.json`.
 
-| Medida | Valor | Como medir |
-|---|---|---|
-| CPU / vCPUs / modelo | _a medir_ | `lscpu` |
-| Jogadores simultâneos com tick < 40 ms | _a medir_ | `tools/qa/load_bench.mjs` apontando para `wss://<domínio>/game` |
-| Espectadores simultâneos | _a medir_ | idem, `role: 'spectator'` |
-| RSS do processo com N jogadores | _a medir_ | `scripts/server-status.sh` (`MemoryCurrent`) |
-| Banda de saída por jogador | _a medir_ | `nload`/`vnstat` durante o benchmark |
-| `MAX_PLAYERS_PER_ROOM` / `MAX_SPECTATORS_PER_ROOM` | 150 / 300 (provisório) | ajustar no `server.env` após o benchmark |
-| Indisponibilidade de um deploy (restart → ready) | _a medir_ (container: ver DEPLOYMENT.md) | linha `downtime_ms` do `releases.log` |
+| Bots | Tick médio / máx | CPU do processo (1 núcleo) | Event loop (ELU) | Banda por jogador | Saída total | Load da VPS |
+|---|---|---|---|---|---|---|
+| 50 | 1,0 / 2,7 ms | 7,5 % | 0,09 | 5,7 KB/s | 0,29 MB/s | 0,1 |
+| 100 | 1,8 / 5,5 ms | 12,5 % | 0,13 | 7,8 KB/s | 0,78 MB/s | 0,1 |
+| 250 | 4,9 / 10,4 ms | 26,5 % | 0,26 | 12,8 KB/s | 3,2 MB/s | 0,3 |
+| 500 | 13,5 / 33,7 ms | 56 % | 0,52 | 20,9 KB/s | 10,5 MB/s (~84 Mbit/s) | 0,8 |
+
+**Limite beta: `MAX_PLAYERS_PER_ROOM=250`, `MAX_SPECTATORS_PER_ROOM=300`** (configurado em `server.env`). Margem de 2×
+até o ponto medido de 500 (ELU 0,26 vs 0,52; tick 4,9 ms vs 13,5 ms), máquina dividida com outros sistemas e banda
+real da VPS desconhecida (a 500 o servidor envia ~84 Mbit/s). Subir o limite só depois de medir a banda disponível
+(`vnstat`/`nload`) e com o tick máximo < 40 ms. Lotado → recusa clara "Sala cheia" e oferta de entrar como espectador.
+
+| Outras medidas | Valor |
+|---|---|
+| RSS do processo ocioso / com 500 bots | ~260 MB / 381 MB |
+| Indisponibilidade de um deploy (restart → ready) | 0,8–1,5 s (`releases.log`); rollback 1,5 s |
+| Deploy completo (npm ci + verify 619 testes + build) | 111–123 s |
+| Primeira visita: home / espectador no mundo / jogador no mundo | 0,2 s / 3,2 s / 6,9 s (Chrome desktop, rede doméstica) |

@@ -28,14 +28,17 @@ const PORT = Number(process.env.PV_LOADTEST_PORT ?? 2620);
 const BOTS_PER_PROC = Number(process.env.BOTS_PER_PROC ?? 100);
 const w = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-try { await fetch(`http://127.0.0.1:${PORT + 1}/metrics`); console.error(`porta ${PORT} ocupada — abortando`); process.exit(2); } catch { /* livre */ }
-const srv = spawn('npx', ['tsx', 'src/index.ts'], { env: { ...process.env, PORT: String(PORT), PV_METRICS: '0', PV_TEST: '1', ...(COMBAT_ON ? { PV_COMBAT_ZONES: process.env.PV_COMBAT_ZONES ?? '*', PV_EVENT: process.env.PV_EVENT ?? 'cotidiano' } : {}) }, stdio: ['ignore', 'pipe', 'pipe'], detached: true });
-let ready = false;
-srv.stdout!.on('data', (d) => { if (d.toString().includes('[pv3d-server]')) ready = true; });
-srv.stderr!.on('data', (d) => process.stderr.write(`[srv] ${d}`));
+// rodada 9.1: PV_LOADTEST_EXTERNAL=1 → usa um servidor JÁ rodando em 127.0.0.1:PORT (ex.: instância de teste na VPS
+// via túnel SSH) em vez de subir um próprio; as métricas vêm do /metrics dele (PORT+1)
+const EXTERNAL = process.env.PV_LOADTEST_EXTERNAL === '1';
+if (!EXTERNAL) { try { await fetch(`http://127.0.0.1:${PORT + 1}/metrics`); console.error(`porta ${PORT} ocupada — abortando`); process.exit(2); } catch { /* livre */ } }
+const srv = EXTERNAL ? null : spawn('npx', ['tsx', 'src/index.ts'], { env: { ...process.env, PORT: String(PORT), PV_METRICS: '0', PV_TEST: '1', ...(COMBAT_ON ? { PV_COMBAT_ZONES: process.env.PV_COMBAT_ZONES ?? '*', PV_EVENT: process.env.PV_EVENT ?? 'cotidiano' } : {}) }, stdio: ['ignore', 'pipe', 'pipe'], detached: true });
+let ready = EXTERNAL;
+srv?.stdout!.on('data', (d) => { if (d.toString().includes('[pv3d-server]')) ready = true; });
+srv?.stderr!.on('data', (d) => process.stderr.write(`[srv] ${d}`));
 const killAll = (procs: ChildProcess[] = []) => {
   for (const p of procs) { try { process.kill(-(p.pid as number), 'SIGTERM'); } catch { /* */ } }
-  try { process.kill(-(srv.pid as number), 'SIGTERM'); } catch { /* */ }
+  if (srv) try { process.kill(-(srv.pid as number), 'SIGTERM'); } catch { /* */ }
 };
 let live: ChildProcess[] = [];
 process.on('exit', () => killAll(live));
