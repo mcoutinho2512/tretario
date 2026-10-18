@@ -7,11 +7,12 @@ const text = (m: Parameters<typeof metricsLine>[0]) => (metricsLine(m) ?? '').re
 
 describe('métricas públicas na tela inicial', () => {
   it('jogadores = pessoas com conta; NPCs rotulados como simulados; bots e conexões fora', () => {
-    expect(text(base)).toBe('38 jogadores na avenida'); // NPCs não são citados nem contados (rodada 9.1)
+    expect(text(base)).toBe('Alguns jogadores na avenida'); // sem número; NPCs não são citados nem contados (rodada 9.1)
     expect(text(base)).not.toContain('538');
     expect(text(base)).not.toContain('500');
-    expect(text({ ...base, playersOnline: 1, environmentCrowd: 0 })).toBe('1 jogador na avenida');
-    expect(text({ ...base, playersOnline: 0, spectatorsOnline: 3 })).toBe('Nenhum jogador na avenida agora · 3 assistindo');
+    expect(text({ ...base, playersOnline: 1, environmentCrowd: 0 })).toBe('Alguns jogadores na avenida');
+    expect(text({ ...base, playersOnline: 0, spectatorsOnline: 3 })).toBe('Avenida movimentada agora · entre e junte-se · 3 assistindo');
+    expect(text({ ...base, playersOnline: 0 })).not.toMatch(/Nenhum|jogador/);
   });
   it('sem métricas → null (a tela mostra texto neutro)', () => {
     expect(metricsLine(null)).toBeNull();
