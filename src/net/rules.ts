@@ -65,11 +65,14 @@ export type Denial =
   | 'pacifico_atacante' | 'pacifico_alvo' | 'estado' | 'veiculo' | 'distancia' | 'angulo'
   | 'cooldown' | 'spam' | 'imune' | 'obstaculo' | 'alvo_invalido';
 
-/** O empurrão é válido? (servidor) */
-export function canPush(a: Actor, t: Actor | undefined, now: number, walls?: WallGrid): { ok: true } | { ok: false; reason: Denial } {
+/**
+ * O empurrão é válido? (servidor) — `consent` (zones.json `combatConsent`): 'both' exige os dois em modo interação;
+ * 'none' deixa o modo de fora e a política única (src/combat/policy.ts, CombatSystem.pushPolicy) decide.
+ */
+export function canPush(a: Actor, t: Actor | undefined, now: number, walls?: WallGrid, consent: 'none' | 'both' = 'both'): { ok: true } | { ok: false; reason: Denial } {
   if (!t || t.id === a.id) return { ok: false, reason: 'alvo_invalido' };
-  if (a.mode !== 'interacao') return { ok: false, reason: 'pacifico_atacante' };
-  if (t.mode !== 'interacao') return { ok: false, reason: 'pacifico_alvo' };
+  if (consent === 'both' && a.mode !== 'interacao') return { ok: false, reason: 'pacifico_atacante' };
+  if (consent === 'both' && t.mode !== 'interacao') return { ok: false, reason: 'pacifico_alvo' };
   if (a.status !== STATUS.OK || t.status !== STATUS.OK) return { ok: false, reason: 'estado' };
   if (a.vehicle || t.vehicle) return { ok: false, reason: 'veiculo' };
   // em cima do trio ninguém empurra nem é empurrado (queda de 3 m não existe neste jogo)
@@ -131,9 +134,12 @@ export function distToVehicle(px: number, pz: number, v: { x: number; z: number;
   return Math.hypot(along, lat);
 }
 
-/** atropelamento só é possível quando motorista E alvo estão em modo interação (o padrão é pacífico) */
-export function impactAllowed(driverMode: Mode, targetMode: Mode) {
-  return driverMode === 'interacao' && targetMode === 'interacao';
+/**
+ * atropelamento: com consentimento 'both' só quando motorista E alvo estão em modo interação (o padrão é pacífico);
+ * com 'none' (zones.json `combatConsent`) o modo não conta — zona/proteção/evento vêm da política única
+ */
+export function impactAllowed(driverMode: Mode, targetMode: Mode, consent: 'none' | 'both' = 'both') {
+  return consent === 'none' || (driverMode === 'interacao' && targetMode === 'interacao');
 }
 
 /**

@@ -12,7 +12,8 @@
  *  - MÓVEIS: anéis das concentrações dos veículos de evento (trio, carro de som — RALLY_SHAPE[kind].peaceR), lidos a
  *    cada consulta de um provedor (a sala passa as posições dos veículos de evento: a mesma lista que monta a
  *    concentração das células do espectador aéreo).
- * Puro o bastante para teste: tudo entra pelo construtor.
+ * `derived: false` (DADO: zones.json `derivedPeaceAreas`) desliga spawn, palco, anéis móveis e retornos de evento —
+ * os caminhos continuam aqui; só as `peaceAreas` dos dados valem. Puro o bastante para teste: tudo entra pelo construtor.
  */
 import { inPeaceArea, type PeaceArea, type ZoneCombatPolicy } from '../../../src/combat/policy';
 import { pointOnAxis, type ZoneDefinition } from '../../../src/world/zones';
@@ -38,6 +39,8 @@ export interface ZonePolicyInit {
   spots?: readonly { id: string; kind: string; x: number; z: number; heading: number }[];
   /** veículos de evento agora (chamado a cada consulta; poucos itens) */
   rallies?: () => Iterable<MovingRally>;
+  /** áreas de paz derivadas (spawn, palco, trio/carro de som, retornos de evento) ligadas? padrão: sim */
+  derived?: boolean;
 }
 
 export class ZonePolicy {
@@ -47,13 +50,16 @@ export class ZonePolicy {
   private eventAreas = new Map<string, PeaceArea[]>();
   private rallies: () => Iterable<MovingRally>;
   private axis: XZ[];
+  readonly derived: boolean;
 
   constructor(o: ZonePolicyInit) {
     this.axis = o.axis;
+    this.derived = o.derived !== false;
     for (const z of o.zones) {
       this.byId.set(z.id, z);
       for (const a of z.peaceAreas ?? []) this.fixed.push({ ...a });
     }
+    if (!this.derived) { this.rallies = () => []; return; }
     if (o.spawn) this.fixed.push({ id: 'spawn', x: o.spawn.p[0], z: o.spawn.p[1], r: SPAWN_PEACE_R });
     for (const s of o.spots ?? []) {
       if (s.kind !== 'stage') continue;
@@ -81,7 +87,7 @@ export class ZonePolicy {
 
   /** áreas de um evento (pontos de retorno do confronto etc.); `[]` ou clearEventAreas remove */
   setEventAreas(key: string, areas: readonly PeaceArea[]) {
-    if (areas.length) this.eventAreas.set(key, areas.map((a) => ({ ...a })));
+    if (areas.length && this.derived) this.eventAreas.set(key, areas.map((a) => ({ ...a })));
     else this.eventAreas.delete(key);
   }
   clearEventAreas(key: string) { this.eventAreas.delete(key); }

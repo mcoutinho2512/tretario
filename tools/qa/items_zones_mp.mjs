@@ -3,13 +3,13 @@
  * com 2 clientes reais (um navegador cada) num servidor de TESTE próprio (PV_TEST=1, porta PV_ITEMS_PORT ou 2971).
  *
  *  · apoio do Campo de Santana: A pega o TACO → B vê na mão de A · A larga (Z) → item no chão para os dois → B pega
- *  · B troca para BARRA e SPRAY no apoio (o anterior cai no lugar) · item de confronto não sai da roda (negado)
- *  · proteção de retorno visível (fx + brilho) ao entrar e some sozinha · aviso de zona com a política
- *    (DISPUTA no apoio → ZONA DE PAZ ao andar para a Central; ZONA DE CONFRONTO ao andar para a Cidade Nova)
+ *  · B troca para BARRA e SPRAY no apoio (o anterior cai no lugar) · taco direto da roda (combat_props.json
+ *    freeCombatProps — decisão do dono 2026-10-18) · proteção de retorno visível (fx + brilho) ao entrar e some sozinha
+ *  · aviso de zona com a política: a avenida toda é ZONA DE CONFRONTO (Campo de Santana, Central, Cidade Nova)
  *  · queda SEM `knock` (status) → o outro entra na queda; empurrão (knock + status) → uma queda só; mundos do Rapier
  *    liberados depois de levantar · cambaleio e desorientação (normal e reduzida) — efeitos forçados pelo QA do
  *    servidor de teste (qa_status / qa_fx): o sistema de confronto é quem aplica de verdade
- *  · capturas em docs/screenshots/round9/ (E_taco, F_barra, G_spray*, H_queda_ragdoll, J_zona_de_paz, K_zona_de_confronto)
+ *  · capturas em docs/screenshots/round9/ (E_taco, F_barra, G_spray*, H_queda_ragdoll, J_zona_central, K_zona_de_confronto)
  * uso: node tools/qa/items_zones_mp.mjs [baseUrl]   (requer o Vite rodando)
  */
 import puppeteer from 'puppeteer-core';
@@ -103,9 +103,9 @@ try {
   check('a proteção some sozinha (≈ 4 s)', !!expired);
   await hideHelp(A);
 
-  // zona no apoio: Campo de Santana = DISPUTA
+  // zona no apoio: Campo de Santana = CONFRONTO (avenida toda, sem área de paz)
   const h0 = await ev(A, () => window.__pv.hudInfo());
-  check('zona do apoio: Campo de Santana com política DISPUTA no aviso/minimapa', h0.zone === 'CAMPO_DE_SANTANA' && h0.policy === 'CONTESTED' && h0.banner.policy === 'Disputa', `${h0.zone} · ${h0.policy} · "${h0.banner.policy}"`);
+  check('zona do apoio: Campo de Santana com política CONFRONTO no aviso/minimapa', h0.zone === 'CAMPO_DE_SANTANA' && h0.policy === 'COMBAT' && h0.banner.policy === 'Zona de confronto', `${h0.zone} · ${h0.policy} · "${h0.banner.policy}"`);
 
   // itens do apoio na lista dos dois
   const listA = await until(async () => { const r = await r9b(A); return r.items.items.length >= 3 ? r.items.items : null; });
@@ -114,11 +114,13 @@ try {
   const PROP = { bat: 11, bar: 12, spray: 13 };
   const itemOf = (list, prop) => list.find((i) => i.prop === prop && i.state === 0);
 
-  // roda de ações não dá item de confronto
+  // roda de ações dá item de confronto direto (freeCombatProps): sem posse, sem item no chão
   await ev(A, () => window.__pv.prop('bat'));
   await w(800);
-  const den = await ev(A, () => ({ d: window.__pv.lastDenial(), prop: window.__pv.r9b().self.prop }));
-  check('item de confronto não sai da roda: `prop` sem possuir é negado (sem_item)', den.d === 'prop:sem_item' && den.prop === 0, JSON.stringify(den));
+  const den = await ev(A, () => ({ d: window.__pv.lastDenial(), prop: window.__pv.r9b().self.prop, carried: window.__pv.r9b().items.carried.c }));
+  check('taco direto da roda: servidor aceita sem posse (freeCombatProps); nada sai do apoio', den.prop === 11 && den.carried === 0 && den.d !== 'prop:sem_item', JSON.stringify(den));
+  await ev(A, () => window.__pv.prop(null));
+  await w(600);
 
   // A pega o taco
   const bat = itemOf(listA, PROP.bat);
@@ -279,14 +281,14 @@ try {
   const reProt = back && await until(async () => { const a = await remote(B, 'A'); return a && (a.fx & 2) ? a : null; }, 4000);
   check('reconectou (mesma entidade) → proteção de retorno de novo (B vê)', !!reProt, `reconexões ${back?.reconnects}`);
 
-  // zonas: andar do apoio (DISPUTA) para a Central (PAZ)
+  // zonas: andar do apoio para a Central (antes PAZ; agora CONFRONTO, como toda a avenida)
   await ev(A, () => window.__pv.netSend('mode', 'pacifico'));
   const toPeace = pointOnAxis(0.31, 0);
   await ev(A, (x, z) => window.__pv.walkTo(x, z, true), toPeace.x, toPeace.z);
   // o aviso aparece ao trocar de zona (≈ 3,4 s): observa durante a caminhada
-  const hp = await until(async () => { const h = await ev(A, () => window.__pv.hudInfo()); return h.policy === 'PEACE' && h.banner.shown ? h : null; }, 70000);
-  check('andando para a Central: aviso "ZONA DE PAZ"', !!hp && hp.banner.policy === 'Zona de paz', `${hp?.zone} · "${hp?.banner.policy}"`);
-  if (hp) { await ev(A, () => window.__pv.camera(Math.PI, 0.18, 7)); await w(300); await shot(A, 'J_zona_de_paz'); }
+  const hp = await until(async () => { const h = await ev(A, () => window.__pv.hudInfo()); return h.zone === 'CENTRAL' && h.banner.shown ? h : null; }, 70000);
+  check('andando para a Central: aviso "Zona de confronto" (sem zona de paz na avenida)', !!hp && hp.policy === 'COMBAT' && hp.banner.policy === 'Zona de confronto', `${hp?.zone} · "${hp?.banner.policy}"`);
+  if (hp) { await ev(A, () => window.__pv.camera(Math.PI, 0.18, 7)); await w(300); await shot(A, 'J_zona_central'); }
 
   // zonas: da Central para a Cidade Nova (CONFRONTO)
   await goto(A, 'A', pointOnAxis(0.187, 0));
@@ -294,7 +296,7 @@ try {
   await w(2500);
   const toCombat = pointOnAxis(0.16, 0);
   await ev(A, (x, z) => window.__pv.walkTo(x, z, true), toCombat.x, toCombat.z);
-  const hc = await until(async () => { const h = await ev(A, () => window.__pv.hudInfo()); return h.policy === 'COMBAT' && h.banner.shown ? h : null; }, 60000);
+  const hc = await until(async () => { const h = await ev(A, () => window.__pv.hudInfo()); return h.zone === 'CIDADE_NOVA' && h.banner.shown ? h : null; }, 60000);
   check('andando para a Cidade Nova: aviso "ZONA DE CONFRONTO" e minimapa com a política', !!hc && hc.banner.policy === 'Zona de confronto', `${hc?.zone} · "${hc?.banner.policy}"`);
   if (hc) { await ev(A, () => window.__pv.camera(0, 0.18, 7)); await w(300); await shot(A, 'K_zona_de_confronto'); }
 } catch (e) {

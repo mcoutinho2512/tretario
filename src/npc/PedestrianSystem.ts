@@ -26,6 +26,7 @@ import { rallyPoints, RallyRegistry, type RallyPoint } from '../social/rally';
 import { ACTIONS } from '../social/actions';
 import { PROPS } from '../social/props';
 import type { SocialState } from '../social/types';
+import { startNpcReaction, stepNpcReaction, type NpcHittable, type NpcReaction, type NpcReactionKind, type NpcTarget } from '../combat/npcHits';
 
 /** clipes que os NPCs carregam: locomoção + todos os de ações/itens (camada social) */
 const NPC_CLIPS = [...new Set(['idle', 'walk', 'jog', ...ACTIONS.map((a) => a.clip), ...PROPS.map((p) => p.carryClip)])];
@@ -45,6 +46,8 @@ interface PedVisual {
   setSocial(s: SocialState): void;
   /** LOD decidido pelo orçamento da multidão */
   setLodDirect(l: Lod): void;
+  /** clipe avulso (stagger/disoriented — golpe recebido); no-op no procedural antigo */
+  playClip(name: string): void;
   /** já há malha visível */
   ready(): boolean;
 }
@@ -53,7 +56,7 @@ interface PedAnim { update(speed: number, grounded: boolean, dt: number): void }
 function legacyVisual(app: CharacterAppearance): { rig: PedVisual; anim: PedAnim } {
   const r = createCharacter(app);
   const anim = new CharacterAnimator(r);
-  return { rig: { mesh: r.mesh, body: r.body, setAppearance: (a) => r.setAppearance(a), setShadow: (on) => { r.mesh.castShadow = on; }, setLod() {}, setLodDirect() {}, setSocial() {}, ready: () => true }, anim };
+  return { rig: { mesh: r.mesh, body: r.body, setAppearance: (a) => r.setAppearance(a), setShadow: (on) => { r.mesh.castShadow = on; }, setLod() {}, setLodDirect() {}, setSocial() {}, playClip() {}, ready: () => true }, anim };
 }
 import type { PedCrossing } from '../world/types';
 import type { SignalController } from '../traffic/SignalController';
@@ -70,8 +73,10 @@ interface Ped {
   animAcc: number;
   frame: number;
   active: boolean;
-  /** walk/wait/cross: calçada e faixas · rally: indo para a concentração · gather: na concentração */
-  mode: 'walk' | 'wait' | 'cross' | 'rally' | 'gather';
+  /** walk/wait/cross: calçada e faixas · rally: indo para a concentração · gather: na concentração · react: atingido */
+  mode: 'walk' | 'wait' | 'cross' | 'rally' | 'gather' | 'react';
+  /** golpe recebido (src/combat/npcHits.ts): cambaleio/queda/mãos nos olhos em curso */
+  react: NpcReaction | null;
   target: [number, number] | null;
   crossing: PedCrossing | null;
   waitTime: number;
@@ -92,7 +97,7 @@ interface Ped {
 
 const BODY_MIX: BodyType[] = ['homem', 'mulher', 'homem', 'mulher', 'idoso', 'idosa', 'homem', 'mulher'];
 
-export class PedestrianSystem {
+export class PedestrianSystem implements NpcHittable {
   readonly group = new THREE.Group();
   private peds: Ped[] = [];
   private seed = 1;
@@ -105,7 +110,7 @@ export class PedestrianSystem {
   maxDetail: Lod = 1;
   /** orçamento único de humanos (opcional: sem ele, todos os pedestres têm esqueleto, como antes) */
   crowd: CrowdDirector | null = null;
-  stats = { active: 0, visible: 0, crossing: 0, waiting: 0, skinned: 0, limit: 0 };
+  stats = { active: 0, visible: 0, crossing: 0, waiting: 0, skinned: 0, limit: 0, hits: 0, reacting: 0, down: 0 };
   private crossings: PedCrossing[] = [];
   private crossGrid = new Map<string, number[]>();
   private signals: SignalController | null = null;
@@ -135,25 +140,60 @@ export class PedestrianSystem {
     });
   }
 
-  /** efeito local leve de empurrão (somente NPCs de ambiente; no multiplayer quem decide é o servidor) */
+  /** empurrão local (F sem jogador ao alcance; offline): o NPC à frente cai e levanta (mesma reação do golpe) */
   pushNear(x: number, z: number, dir: number, range = 1.8): boolean {
     for (const p of this.peds) {
-      if (!p.active) continue;
+      if (!p.active || p.react) continue;
       const dx = p.x - x, dz = p.z - z;
       const d = Math.hypot(dx, dz);
       if (d > range || d < 1e-3) continue;
       if ((dx * Math.sin(dir) + dz * Math.cos(dir)) / d < 0.3) continue; // precisa estar à frente
-      // tropeça para trás e se afasta (sem dano)
-      const nx = p.x + Math.sin(dir) * 0.9, nz = p.z + Math.cos(dir) * 0.9;
-      if (this.world.isPedestrianWalkable(nx, nz)) { p.x = nx; p.z = nz; }
-      p.mode = 'walk'; p.target = null; p.approach = null;
-      p.heading = dir;
-      p.idleTimer = 0;
-      p.speed = p.cruise * 2.2; // sai apressado
-      p.walkTimer = 4;
+      this.react(p, 'down', Math.sin(dir), Math.cos(dir), 0.9);
       return true;
     }
     return false;
+  }
+
+  /** NPCs atingíveis perto de (x, z) — só os ativos, caixa de `r` m (src/combat/npcHits.ts) */
+  npcTargetsNear(x: number, z: number, r: number, out: NpcTarget[]) {
+    for (const p of this.peds) {
+      if (!p.active || p.react?.kind === 'down' || Math.abs(p.x - x) > r || Math.abs(p.z - z) > r) continue;
+      out.push({ x: p.x, z: p.z, react: (k, dx, dz, kb) => this.react(p, k, dx, dz, kb) });
+    }
+  }
+
+  /** QA: NPCs reagindo agora (posição, tipo, tempo) */
+  reacting() { return this.peds.filter((p) => p.active && p.react).map((p) => ({ x: +p.x.toFixed(2), z: +p.z.toFixed(2), kind: p.react!.kind, t: +p.react!.t.toFixed(2), skinned: p.rig.mesh.visible })); }
+
+  /** golpe recebido: sai da calçada/faixa/concentração e reage; depois volta a passear */
+  private react(p: Ped, kind: NpcReactionKind, dx: number, dz: number, knockM: number) {
+    p.react = startNpcReaction(kind, dx, dz, knockM);
+    p.mode = 'react'; p.target = null; p.approach = null; p.crossing = null; p.rally = null;
+    p.speed = 0; p.idleTimer = 0;
+    if (kind === 'down') p.heading = Math.atan2(-dx, -dz); // cai de costas, de frente para quem bateu
+    p.rig.setSocial({ act: 0, phase: 0, variation: 0, prop: p.schedule.profile.prop, design: p.schedule.profile.design });
+    p.agent.act = 0; p.agent.prop = 0; // instanciado inclinado: sem item solto no ar
+    p.agent.priority = 0.5; // como jogador caído: disputa o esqueleto com vantagem
+    if (kind !== 'down') p.rig.playClip(kind === 'flinch' ? 'disoriented' : 'stagger');
+    this.stats.hits++;
+  }
+
+  /** um quadro da reação: recuo (calçada/parede), inclinação; no fim volta a andar */
+  private stepReact(p: Ped, dt: number): number {
+    const r = p.react!;
+    const st = stepNpcReaction(r, dt);
+    if (st.step > 0) {
+      const pos = { x: p.x + r.dx * st.step, y: p.y, z: p.z + r.dz * st.step };
+      this.world.resolveCircle(pos, 0.3, 1.7);
+      if (this.world.isPedestrianWalkable(pos.x, pos.z)) { p.x = pos.x; p.z = pos.z; }
+    }
+    if (st.done) {
+      p.react = null; p.mode = 'walk'; p.agent.priority = 1;
+      p.speed = p.cruise; p.walkTimer = 4 + (p.tick % 5);
+      this.applySocial(p);
+      return 0;
+    }
+    return st.tilt;
   }
 
   /** posições de pedestres na pista (para os veículos frearem) */
@@ -221,7 +261,7 @@ export class PedestrianSystem {
       idleTimer: 0, walkTimer: 0, animAcc: 0, frame: i, active: false,
       mode: 'walk', target: null, crossing: null, waitTime: 0, crossCooldown: 0, approach: null, tick: i * 13,
       agent: createAgent({ body: BODY_INDEX[body], skin: app.skin, hair: app.hair, top: app.top, bottom: app.bottom, scale: app.scale, look: packLook(app), shirt: app.shirtDesign ?? 0 }),
-      schedule: new SocialSchedule(i * 7919 + 17, this.social), socialSeed: i * 7919 + 17, rally: null,
+      schedule: new SocialSchedule(i * 7919 + 17, this.social), socialSeed: i * 7919 + 17, rally: null, react: null,
     } as Omit<Ped, 'rig' | 'anim'> as Ped;
     const human = new HumanCharacter(app, { lod: 3, castShadow: false, clips: NPC_CLIPS });
     let lastLod = -1;
@@ -235,15 +275,18 @@ export class PedestrianSystem {
       },
       setLodDirect: (l) => { if (l !== lastLod) { human.setLod(l); lastLod = l; } },
       setSocial: (s) => human.setSocial(s),
+      playClip: (n) => { human.animator?.playClip(n); },
       ready: () => human.showing,
     };
     ped.anim = { update: (sp, g, dt) => { human.animator?.update(sp, g, dt); human.updateProps(dt); } };
+    human.root.rotation.order = 'YXZ'; // rumo, depois a inclinação da queda (golpe recebido)
     this.group.add(human.root);
     human.ready.catch(() => {
       human.dispose();
       const lv = legacyVisual(app);
       this.group.add(lv.rig.mesh);
       lv.rig.mesh.visible = ped.active;
+      lv.rig.mesh.rotation.order = 'YXZ';
       ped.rig = lv.rig;
       ped.anim = lv.anim;
     });
@@ -289,6 +332,7 @@ export class PedestrianSystem {
       p.socialSeed = Math.floor(this.rnd() * 2 ** 31);
       p.schedule = new SocialSchedule(p.socialSeed, this.social, pickProfile(p.socialSeed, this.social));
       p.rally = null;
+      if (p.react) { p.react = null; p.agent.priority = 1; p.agent.tilt = 0; p.rig.mesh.rotation.x = 0; }
       this.applySocial(p);
       return true;
     }
@@ -358,7 +402,7 @@ export class PedestrianSystem {
     this.projScreen.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
     this.frustum.setFromProjectionMatrix(this.projScreen);
     const cx = player.x, cz = player.z;
-    let active = 0, visible = 0, crossing = 0, waiting = 0, skinned = 0;
+    let active = 0, visible = 0, crossing = 0, waiting = 0, skinned = 0, reacting = 0, down = 0;
     const crowd = this.crowd;
     // total de humanos limitado pelo preset: com muita gente da rede, os NPCs cedem lugar
     const limit = crowd ? Math.min(this.max, Math.max(MIN_PEDS, crowd.budget.total - crowd.othersCount)) : this.max;
@@ -378,10 +422,13 @@ export class PedestrianSystem {
       active++;
 
       p.tick++;
+      // golpe recebido (mode 'react': nenhum dos comportamentos abaixo anda com ele)
+      const tilt = p.react ? this.stepReact(p, dt) : 0;
+      if (p.react) { reacting++; if (p.react.kind === 'down') down++; }
       // concentração (trio/carro de som) e vida social
-      const rally = rallyPoints.nearestActive(p.x, p.z);
+      const rally = p.react ? null : rallyPoints.nearestActive(p.x, p.z);
       this.updateRally(p, dt, rally);
-      if (p.schedule.update(this.time, p.speed > 0.3, p.rally ? rallyPoints.get(p.rally.id) ?? null : null)) this.applySocial(p);
+      if (!p.react && p.schedule.update(this.time, p.speed > 0.3, p.rally ? rallyPoints.get(p.rally.id) ?? null : null)) this.applySocial(p);
 
       // travessia de rua (faixas de pedestres reais do OSM)
       p.crossCooldown -= dt;
@@ -506,12 +553,13 @@ export class PedestrianSystem {
 
       // visual + LOD
       const mesh = p.rig.mesh;
-      mesh.position.set(p.x, p.y, p.z);
+      mesh.position.set(p.x, p.y + (tilt > 0 ? 0.12 * Math.sin(tilt) : 0), p.z);
       mesh.rotation.y = p.heading;
+      mesh.rotation.x = -tilt;
       if (crowd) {
         // orçamento único: esqueleto só se o diretor concedeu (quadro anterior); senão a multidão instanciada desenha
         const ag = p.agent;
-        ag.x = p.x; ag.y = p.y; ag.z = p.z; ag.heading = p.heading; ag.speed = p.speed;
+        ag.x = p.x; ag.y = p.y; ag.z = p.z; ag.heading = p.heading; ag.speed = p.speed; ag.tilt = tilt;
         crowd.submit(ag, 'ped');
         const sk = ag.tier === 2 && (ag.inView || d < 3);
         mesh.visible = sk;
@@ -545,6 +593,8 @@ export class PedestrianSystem {
     this.stats.waiting = waiting;
     this.stats.skinned = crowd ? skinned : visible;
     this.stats.limit = limit;
+    this.stats.reacting = reacting;
+    this.stats.down = down;
   }
 
   private time = 0;

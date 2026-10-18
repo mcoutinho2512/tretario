@@ -125,10 +125,11 @@ sistema em [COMBAT.md](COMBAT.md)):
   `· PROTEGIDO` com a proteção de retorno), barras de **CONDIÇÃO** e **FÔLEGO** (stamina) e o item de confronto na mão.
   Só aparece quando importa: golpe/acerto/esquiva nos últimos 8 s, fx ENGAGED do servidor, valores abaixo do máximo
   num contexto de confronto, ou item de confronto na mão numa zona de confronto. Fora disso, opacidade 0;
-- **aviso "ZONA DE PAZ"**: pílula verde curta (1,6 s) quando o servidor nega um golpe com `zona_paz`;
-- **toque**: SOCO / CHUTE / ESQUIVA (`TouchControls.setCombatVisible`) aparecem só com contexto de confronto (zona
-  COMBAT/CONTESTED, área de treino, evento de confronto ou modo interação) e somem fora dele — os quatro fixos
-  (PULAR, AÇÕES, CHAT, CORRER) não mudam;
+- **aviso "ZONA DE PAZ"**: pílula verde curta (1,6 s) quando o servidor nega um golpe com `zona_paz` — desde
+  2026-10-18 (avenida toda COMBAT, sem áreas de paz) não aparece na avenida; fica para quando os dados religarem;
+- **toque**: SOCO / CHUTE / ESQUIVA (`TouchControls.setCombatVisible`) aparecem com contexto de confronto — com
+  `combatConsent: "none"` (dados atuais) **sempre** para jogador; na regra antiga só em zona COMBAT/CONTESTED, área de
+  treino, evento de confronto ou modo interação — os quatro fixos (PULAR, AÇÕES, CHAT, CORRER) não mudam;
 - HUD limpo (H/P) esconde tudo.
 
 Custo: `set()` roda a ≤ 10 Hz (RateGate) e só escreve o que mudou (TextSlot/setClass; barras por `transform` só quando

@@ -39,8 +39,9 @@ import { openCharacterEditor } from '../ui/editorBridge';
 import { ChatPanel } from '../ui/ChatPanel';
 import { DebugPanel } from '../debug/DebugPanel';
 import { HudShell } from '../ui/hud/HudShell';
-import { loadZones } from '../world/zoneTracker';
+import { loadZoneFile } from '../world/zoneTracker';
 import type { ZoneDefinition } from '../world/zones';
+import { DEFAULT_COMBAT_RULES, type CombatRules } from '../combat/policy';
 import { createLandmarkMaterials, loadLandmarkTextures } from '../world/landmarks/arch';
 import { buildCentral, type LandmarkInstance } from '../world/landmarks/central';
 import { buildCandelaria } from '../world/landmarks/candelaria';
@@ -74,6 +75,7 @@ import { ItemsClient } from '../items/ItemsClient';
 import { HandIndicator } from '../ui/hud/HandIndicator';
 import { DisorientOverlay } from '../combat/fxVisuals';
 import { FX } from '../combat/types';
+import { hitNpcs } from '../combat/npcHits';
 import { RULES } from '../net/rules';
 import { Ragdoll } from '../physics/Ragdoll';
 
@@ -150,6 +152,8 @@ export class Game {
   /** casca do HUD (rodada 8): minimapa, zonas, ajustes, encaixes de chat/espectador/perfil — src/ui/hud */
   hudShell!: HudShell;
   private zones: ZoneDefinition[] = [];
+  /** regras gerais de confronto da raiz de zones.json (consentimento, áreas derivadas) — as mesmas do servidor */
+  private combatRules: CombatRules = DEFAULT_COMBAT_RULES;
   private input: InputManager;
   private player!: PlayerState;
   private avatar: AvatarVisual;
@@ -412,7 +416,8 @@ export class Game {
         for (const t of texs) { uploaded.add(t); this.gr.renderer.initTexture(t); await nextFrame(); }
       };
     } catch { /* compileAsync opcional */ }
-    this.zones = await loadZones(base).catch((e) => { console.warn('zonas não carregadas', e); return []; });
+    const zf = await loadZoneFile(base).catch((e) => { console.warn('zonas não carregadas', e); return { zones: [], rules: DEFAULT_COMBAT_RULES }; });
+    this.zones = zf.zones; this.combatRules = zf.rules;
     progress(1, 'Pronto');
     this.mountHud();
     await this.connectMultiplayer();
@@ -869,11 +874,11 @@ export class Game {
     }
     if (this.mpOnline) this.interaction.mode = this.net!.self.interaction === 'interacao' ? 'interacao' : 'pacifico';
     if (this.input.consumeToggle('action') && !this.avatar.isDown && !this.riding) {
-      if (this.interaction.mode !== 'interacao') { this.flash('Modo pacífico: aperte K para alternar (se o evento permitir)'); return; }
+      if (this.combatRules.combatConsent === 'both' && this.interaction.mode !== 'interacao') { this.flash('Modo pacífico: aperte K para alternar (se o evento permitir)'); return; }
       const target = this.net?.pickTarget(this.player.x, this.player.z, this.player.heading) ?? null;
       this.avatar.playPush(); // só a animação é local; o resultado vem do servidor
       if (target && this.mpOnline) this.net!.requestPush(target);
-      else if (!this.peds.pushNear(this.player.x, this.player.z, this.player.heading)) this.flash('Ninguém ao alcance');
+      else if (!(this.combat ? this.combat.npcPush(this.player) > 0 : this.peds.pushNear(this.player.x, this.player.z, this.player.heading))) this.flash('Ninguém ao alcance');
     }
   }
 
@@ -1040,7 +1045,7 @@ export class Game {
         // (vehicleBlock). Atropelamento só existe entre jogadores em modo interação, com carro/moto (servidor decide).
         const kind = v.def.kind as VehicleKind;
         const blockers = [
-          ...(this.net?.remotesForObstacles() ?? []).filter((r) => !r.vehicle && !r.platform && !((kind === 'car' || kind === 'moto') && impactAllowed(this.interaction.mode, r.interaction as Mode) && r.status === 0)),
+          ...(this.net?.remotesForObstacles() ?? []).filter((r) => !r.vehicle && !r.platform && !((kind === 'car' || kind === 'moto') && impactAllowed(this.interaction.mode, r.interaction as Mode, this.combatRules.combatConsent) && r.status === 0)),
           // NPCs de ambiente travariam o trio no meio da própria concentração: para veículos de evento eles abrem caminho
           ...(EVENT_VEHICLE_KINDS.has(kind) ? [] : this.peds.nearby(v.state.x, v.state.z, 8)),
         ];
@@ -1103,6 +1108,9 @@ export class Game {
       this.combat = new CombatClient({
         net: this.net!, table: await loadCombatTable(import.meta.env.BASE_URL), avatar: this.avatar, input: this.input, collision: this.collision, scene: this.scene,
         zone: () => this.hudShell.zones.current, flash: (m) => this.flash(m), touch: this.touchCtl, hud,
+        consent: this.combatRules.combatConsent,
+        // NPCs de ambiente são locais: o golpe neles não vai ao servidor (src/combat/npcHits.ts)
+        npcHit: (x, z, h, def) => hitNpcs([this.peds, this.rallyCrowd], { x, z, h }, def, this.combat!.tuning),
       });
     } catch (e) { console.warn('[confronto] indisponível', e); }
   }
@@ -1234,6 +1242,15 @@ export class Game {
       // rodada 9 — confronto (QA: tools/qa/combat_mp.mjs)
       combat: () => (this.combat ? { ...this.combat.qa(), context: this.combat.context(this.player), policy: this.combat.policyAt(this.player.x, this.player.z), touch: this.touchCtl?.combatVisible ?? null } : null),
       cbt: (k: 'cbt_punch' | 'cbt_kick' | 'cbt_dodge') => this.combat?.press(k),
+      /** NPCs de ambiente perto (QA do golpe em NPC): posição, distância e reação em curso */
+      npcs: (r = 12) => {
+        const out: { x: number; z: number; d: number; src: string }[] = [];
+        const add = (src: string) => (t: { x: number; z: number }[]) => { for (const c of t) out.push({ x: +c.x.toFixed(2), z: +c.z.toFixed(2), d: +Math.hypot(c.x - this.player.x, c.z - this.player.z).toFixed(2), src }); };
+        const a: import('../combat/npcHits').NpcTarget[] = [], b: import('../combat/npcHits').NpcTarget[] = [];
+        this.peds.npcTargetsNear(this.player.x, this.player.z, r, a); this.rallyCrowd?.npcTargetsNear(this.player.x, this.player.z, r, b);
+        add('ped')(a); add('rally')(b);
+        return { list: out.sort((p, q) => p.d - q.d), reacting: this.peds.reacting(), peds: { hits: this.peds.stats.hits, reacting: this.peds.stats.reacting, down: this.peds.stats.down }, rally: { hits: this.rallyCrowd?.stats.hits ?? 0, reacting: this.rallyCrowd?.stats.reacting ?? 0 } };
+      },
       jump: () => this.input.queueJump(),
       face: (yaw: number) => { this.player.heading = yaw; },
       // rodada 8: espectador e reconexão (QA)

@@ -2,7 +2,30 @@
 
 Estilo **arcade**: condição abstrata (0–100), fôlego (stamina), empurrão, cambaleio e queda que levanta sozinha.
 Sem sangue, sem lesão, sem morte, sem armas de fogo/explosivos. Grupos não têm nenhuma diferença mecânica.
-Quem fica em modo pacífico e fora de eventos de confronto **nunca** sofre impacto, em nenhuma zona.
+
+## Decisão do dono — 2026-10-18: "Avenida toda, sem nenhuma área de paz" + "bater em todos"
+
+O dono jogou o beta e não conseguiu acertar ninguém (zonas de paz no eixo, NPCs da multidão fora de alcance, taco e
+barra só nos apoios). Desde então, por **dados**:
+
+| dado | valor | efeito |
+|---|---|---|
+| `public/world/zones.json` `zones[].combatPolicy` | todas `COMBAT`, sem `peaceAreas` | a avenida toda é zona de confronto |
+| `zones.json` `derivedPeaceAreas` | `false` | spawn (40 m), palco, anéis do trio/carro de som e retornos de evento **desligados** (o código fica em `server/src/combat/zonePolicy.ts`; `true` religa) |
+| `zones.json` `combatConsent` | `"none"` | **jogador pacífico também sofre impacto, em qualquer lugar**, sem K: golpes, empurrão F e carro/moto (`"both"` volta à regra antiga: os dois em modo interação) |
+| `public/gameplay/combat_props.json` `freeCombatProps` | `true` | taco, barra e spray direto da roda de ações (ITENS), em qualquer lugar; apoios e chão continuam |
+
+- O que ainda bloqueia impacto: **só a proteção de retorno de 5 s** (entrar, reconectar, levantar, retorno de evento) e
+  as regras de evento (`friendlyFire`). Espectador continua sem golpe e sem item (capacidades).
+- **Golpe sempre anima**: com `combatConsent: "none"` o servidor aceita todo pedido válido (não existe mais negativa
+  `zona_paz` antes de aceitar) — `cbt_act` vai à AOI mesmo quando o impacto é bloqueado na janela ativa (proteção →
+  `cbt_hit r:'blocked'`). O cliente sempre prevê a animação; SOCO/CHUTE/ESQUIVA de toque ficam sempre visíveis para
+  jogador.
+- **NPCs de ambiente** (pedestres e multidão de concentração) apanham no cliente — ver "Golpe em NPC" abaixo.
+- **Neutralidade**: nada disso depende de grupo; todos têm a mesma mecânica (`tests/groupNeutrality.test.ts`).
+
+As seções abaixo descrevem o mecanismo; onde falam de PEACE/CONTESTED/áreas de paz/consentimento, vale para quando os
+dados religarem essas opções (os testes mantêm a regra antiga por parâmetro).
 
 ## Peças
 
@@ -50,8 +73,9 @@ Quem fica em modo pacífico e fora de eventos de confronto **nunca** sofre impac
 2. **capacidade** `combat.act` (src/access/policy.ts; espectador → `denied {cap}`);
 3. ação válida e combo resolvido (`acao_invalida`); **veículo/trio** (`em_veiculo`);
 4. **estado** físico permitido (padrão só NORMAL; esquiva também de CAMBALEANDO) e **não estar no ar** (`estado`);
-5. **zona do atacante**: área de paz ou zona PEACE → `zona_paz` (o cliente mostra "ZONA DE PAZ"); CONTESTED passa
-   (só acerta com evento);
+5. **zona do atacante** (só com `combatConsent: "both"`): área de paz ou zona PEACE → `zona_paz` (o cliente mostra
+   "ZONA DE PAZ"); CONTESTED passa (só acerta com evento). Com `"none"` (dados atuais) não há negativa aqui: o golpe
+   sai e anima, e o impacto é decidido na janela ativa;
 6. **item** na mão (`sem_item`), **fôlego** (`stamina`), **recuperação/cooldown** (`cooldown`);
 7. aceito: gasta fôlego, `cbt_act {by, a, h, t}` para a **AOI** (quem tem o atacante no StateView), evento de
    gameplay `combat_action`; agenda a janela ativa no **relógio do servidor** (setTimeout no instante exato; o tick
@@ -60,9 +84,10 @@ Quem fica em modo pacífico e fora de eventos de confronto **nunca** sofre impac
    cliente), candidatos SÓ da grade espacial (`grid.forEachInRadius`), alcance + folga, arco + folga, parede
    (`checkPath` de src/net/authority.ts), alvo caído/levantando/em veículo fica de fora; cada alvo decidido uma vez;
 9. alvo **esquivando** (iFrames) → `dodged` (vale até alcance + deslocamento da esquiva) e `combat_dodge` para ele;
-10. `combatAllowed(zona, atacante, alvo, evento, agora)` (src/combat/policy.ts): área de paz, PEACE, proteção,
-    evento (provedor injetado `combat.combatEventFor(sid)` — agente D; padrão nenhum), consentimento (os dois em modo
-    interação) → senão `cbt_hit r:'blocked'` só para os dois (e `zona_paz` para quem golpeou, se for o caso);
+10. `combatAllowed(zona, atacante, alvo, evento, agora, consentimento)` (src/combat/policy.ts): área de paz, PEACE,
+    proteção, evento (provedor injetado `combat.combatEventFor(sid)` — agente D; padrão nenhum), consentimento
+    (`"both"`: os dois em modo interação; `"none"`: ninguém) → senão `cbt_hit r:'blocked'` só para os dois (e
+    `zona_paz` para quem golpeou, se for o caso);
 11. **impacto**: condição, empurrão (contra paredes), CAMBALEANDO (status 3; o servidor ignora movimentos e volta a
     NORMAL sozinho) ou **CAÍDO** (condição 0 sempre derruba) pelo caminho de queda existente (`knock` + ragdoll no
     cliente; levantar no tick da sala; rede de segurança no CombatSystem) → proteção de retorno (`immuneUntil`,
@@ -71,7 +96,9 @@ Quem fica em modo pacífico e fora de eventos de confronto **nunca** sofre impac
     {st, cd, fx}` só para o dono, só quando muda, ≤ 5 Hz.
 
 O `push` antigo (F, alvo escolhido pelo cliente, regras `canPush` da rodada 5) continua aceito por compatibilidade
-(walkthrough), mas o impacto vem da definição EMPURRÃO desta tabela. A queda por veículo não mudou. A queda de golpe ou
+(walkthrough), mas o impacto vem da definição EMPURRÃO desta tabela. Com `combatConsent: "none"` o `canPush` não olha
+o modo (`pacifico_alvo`/`pacifico_atacante` só na regra antiga) e a política única decide; idem `impactAllowed` do
+carro/moto (`checkImpacts`/`vehicleBlockers`: quem está protegido continua bloqueando o carro, que para antes). A queda por veículo não mudou. A queda de golpe ou
 empurrão agora vai só para a AOI do alvo (antes `knock` ia para todos).
 
 **Zonas**: a política é `zoneDef(zoneOf(sid)).combatPolicy ?? 'PEACE'` (dados de zonas/áreas de paz = agente B).
@@ -108,18 +135,36 @@ clipes `jump_start`/`jump_land` da biblioteca nas transições (HumanAnimator); 
   o mouse capturado — o 1º clique só captura) ou **R** = soco (ou golpe do item na mão); **clique direito** ou **Q** =
   chute; **C** = esquiva (na direção do movimento; parado: para trás); **F** continua empurrão. Ajuda: F1.
 - **Buffer** de 180 ms: o golpe apertado durante a recuperação sai quando ela termina (previsão local da tabela).
-- **Previsão**: só a animação (e o deslocamento da esquiva), e só com contexto de confronto; em zona de paz nada é
-  previsto e o servidor responde `zona_paz`. O resultado SEMPRE vem do servidor: `cbt_hit` (cambaleio + empurrão no
+- **Previsão**: só a animação (e o deslocamento da esquiva), com contexto de confronto (com `combatConsent: "none"`,
+  sempre); na regra antiga, em zona de paz nada é previsto e o servidor responde `zona_paz`. O resultado SEMPRE vem do servidor: `cbt_hit` (cambaleio + empurrão no
   próprio com o mesmo deslocamento do servidor, bloqueio do movimento durante o cambaleio; clipe `stagger` pela mudança
   de status), `cbt_act` (remotos tocam o mesmo clipe; quem está perto ganha esqueleto na hora, como na queda).
-- **Toque**: SOCO / CHUTE / ESQUIVA aparecem só com contexto de confronto (zona COMBAT/CONTESTED, área de treino,
-  evento ou modo interação) e somem fora dele; os 4 fixos não mudam.
+- **Toque**: SOCO / CHUTE / ESQUIVA aparecem com contexto de confronto — com os dados atuais, **sempre** para
+  jogador (espectador não tem confronto); na regra antiga só em zona COMBAT/CONTESTED, área de treino, evento ou modo
+  interação. Os 4 fixos não mudam.
+
+## Golpe em NPC de ambiente (cliente, 2026-10-18)
+
+Pedestres (`src/npc/PedestrianSystem.ts`) e a multidão de concentração (`src/social/RallyCrowd.ts`, desenhada pelo
+`CrowdDirector`) são **locais de cada cliente**: o servidor não os conhece e não valida o golpe neles — aceitável,
+porque não afetam ninguém mais. `src/combat/npcHits.ts`:
+
+- quando o golpe LOCAL chega à janela ativa (previsto ou confirmado por `cbt_act`; negado → cancelado), os sistemas
+  entregam só os NPCs numa caixa de alcance + folga em volta do jogador e a escolha usa a MESMA definição de
+  `combat.json` (alcance + `rangeSlackM`, arco + `arcSlackDeg`, `maxTargets`), mais perto primeiro, teto 3 por golpe;
+- reação (`npcReaction` da ação ou derivada do impacto): **cambaleio** (soco, chute: recua o empurrão do golpe, clipe
+  `stagger`), **queda** (chute final, empurrão, taco, barra: cai de costas, ~3,4 s deitado, levanta em 0,8 s e volta a
+  andar) e **mãos nos olhos** (spray: clipe `disoriented`, curva-se). Sem ragdoll (um mundo Rapier por NPC não é
+  barato): pose deitada pela inclinação do corpo — `rotation.x` no esqueleto e `CrowdAgent.tilt` na matriz do
+  instanciado (o item some do instanciado enquanto reage). Prioridade 0,5 na disputa de esqueleto (como jogador caído);
+- F sem jogador ao alcance: a definição EMPURRÃO nos NPCs à frente (offline, `pushNear` derruba igual).
+- QA: `window.__pv.npcs()`; teste puro `tests/npcHits.test.ts`.
 - **HUD**: docs/HUD.md ("HUD de confronto").
 
 ## Anticheat (o que o servidor ignora/nega)
 
 Alvo, dano, posição e "acertei" vindos do cliente não existem no protocolo (campos extras ignorados; `cbt_hit` do
-cliente não tem handler). Golpe a 100 m, atravessando zona de paz, item que não está na mão, sem fôlego, em
+cliente não tem handler). Golpe a 100 m, item que não está na mão (sem `freeCombatProps`), sem fôlego, em
 cooldown, 30 pedidos/s, teleporte e golpe (o movimento é preso pela velocidade e o golpe sai da posição do
 servidor), espectador golpeando, pulo no ar / em cooldown / `y` forjado — todos cobertos por
 `tests/combatServer.test.ts` (servidor real, cliente forjado). Unidade: `tests/combat.test.ts`.
@@ -133,9 +178,11 @@ preparação. Folgas de alcance (0,45 m) e arco (15°) cobrem o atraso de posiç
 
 ## QA e medições
 
-- `node tools/qa/combat_mp.mjs [base]` (2 navegadores + 1 iPhone emulado; servidor próprio na porta 2960):
-  paz → soco negado / sem impacto; área de treino → soco, cambaleio, chute, esquiva (`dodged`), taco, queda,
-  levantar, proteção (`blocked`), HUD, boneco, pulo visto pelo outro, botões de toque. Capturas reais em
+- `node tools/qa/combat_mp.mjs [base]` (2 navegadores + 1 iPhone emulado + 1 no CENTRO; servidor próprio na porta
+  `PV_COMBAT_PORT`, padrão 2960): pacíficos ao lado do spawn se acertam (sem K) → área de treino → soco, cambaleio,
+  chute, esquiva (`dodged`), taco do apoio, queda, levantar, proteção (`blocked`, mas o golpe anima para o outro), HUD,
+  boneco, pulo visto pelo outro, botões de toque sempre visíveis, NPCs do CENTRO reagem a soco/chute e caem com o taco
+  tirado da RODA (`L_npc_queda.jpg`). Capturas reais em
   `docs/screenshots/round9/` (A_pulo, B_soco, C_chute, D_esquiva, I_hud_confronto, J_toque_confronto) e folhas de
   contato dos clipes (`clips_golpes.jpg`, `clips_itens.jpg`; `tools/qa/combat_sheet.mjs` + `/dev/human.html?cbt=<clipe>&t=<s>`).
 - Carga: `server/tools/bots.ts --combat=F` (pares parados frente a frente, um pedido a cada 1,5–4 s) e
@@ -186,13 +233,17 @@ aplicam o empurrão/esquiva recebidos. A validação mais cara na multidão dens
 
 ### 2. Equipar, guardar, pegar, largar, trocar
 
-Item de confronto **não sai do nada**: só de um ponto de apoio ou do chão. Cada jogador POSSUI no máximo um.
+Com `freeCombatProps: true` (dados atuais, 2026-10-18) a roda de ações (ITENS) oferece taco, barra e spray a qualquer
+jogador, em qualquer lugar, como os itens sociais: `validateProp` aceita sem posse (`ActionActor.freeCombat`). O item da
+roda não é item do mundo (não cai no chão, não conta no estoque; Z não o larga — X/roda guarda). Apoios e chão
+funcionam como antes. Com `false`, vale a regra abaixo: item de confronto **não sai do nada**, só de um ponto de apoio
+ou do chão. Cada jogador POSSUI no máximo um item do mundo.
 
 | intenção | tecla | toque | mensagem | servidor |
 |---|---|---|---|---|
 | pegar (perto) / trocar | R | tocar em MÃOS | `item_pick {i}` | alcance 2,2 m da posição aceita; já possuindo, o atual cai aos pés; vai para a mão |
 | largar | Z (R sem nada perto) | tocar em MÃOS | `item_drop {}` | 0,7 m à frente (sem atravessar parede); mão esvazia se era ele |
-| guardar / sacar | X | roda (ITENS) | `prop {p: 0}` / `prop {p: c}` | `validateProp`: item de confronto só se `carried === p` |
+| guardar / sacar | X | roda (ITENS) | `prop {p: 0}` / `prop {p: c}` | `validateProp`: item de confronto se `carried === p` ou `freeCombatProps` |
 
 - Negativas `item_denied`: `inexistente`, `longe`, `ocupado`, `sem_item`, `caido`, `em_veiculo`, `rapido` (200 ms),
   `invalido` — texto em `ITEM_DENIAL_TEXT`.
@@ -228,7 +279,10 @@ Item de confronto **não sai do nada**: só de um ponto de apoio ou do chão. Ca
 
 ### 4. Zonas: política de confronto (dados)
 
-| zona | política | por quê |
+**Desde 2026-10-18 todas as zonas são COMBAT** (decisão do dono, no topo). A tabela abaixo é a regra ANTERIOR (rodada 9),
+mantida como referência para religar pelos dados:
+
+| zona | política (até 2026-10-18) | por quê |
 |---|---|---|
 | Cidade Nova | **COMBAT** | ponta oeste, longe do evento — quem quer confronto vai até lá |
 | Central do Brasil | **PEACE** | entrada/spawn |
@@ -237,9 +291,9 @@ Item de confronto **não sai do nada**: só de um ponto de apoio ou do chão. Ca
 | Av. Rio Branco | **CONTESTED** | idem (o palco tem área de paz) |
 | Candelária | **PEACE** | chegada do ato |
 
-~60 % do eixo é PAZ, mais as áreas de paz. Fora de qualquer zona = PEACE.
+Até 2026-10-18 ~60 % do eixo era PAZ, mais as áreas de paz. Fora de qualquer zona = PEACE (continua).
 
-**Áreas de paz** (`PeaceArea`):
+**Áreas de paz** (`PeaceArea`) — hoje desligadas (`peaceAreas` removidas dos dados, `derivedPeaceAreas: false`):
 - fixas, em dados: `peaceAreas` dos telões (Campo de Santana, Centro);
 - fixas, derivadas: spawn (`manifest.spawn`, 40 m), palco (`eventSpots` stage, `RALLY_SHAPE.stage.peaceR` 38 m à
   frente do palco);
@@ -257,8 +311,10 @@ combatAllowed((z) => room.zonePolicy.policyFor(z), party(a), party(b), eventRule
 ```
 
 **Cliente**: o aviso de zona mostra a política discreta ("ZONA DE PAZ" verde, "DISPUTA" âmbar, "ZONA DE CONFRONTO"
-salmão); a legenda do minimapa diz "· paz / disputa / confronto"; o minimapa tinge fraco a faixa das zonas de
-confronto (vermelho) e disputa (âmbar) — camada estática, custo zero por quadro.
+salmão — hoje sempre "Zona de confronto"); a legenda do minimapa diz "· paz / disputa / confronto" (hoje "· confronto");
+o minimapa tinge fraco a faixa das zonas de confronto (vermelho) e disputa (âmbar) — camada estática, custo zero por
+quadro. O cliente lê as mesmas regras da raiz de `zones.json` (`loadZoneFile` → `CombatRules`): `combatConsent` decide
+previsão, botões de toque, F e o bloqueio previsto do carro; as áreas derivadas só existem no servidor.
 
 ### 5. Proteção de retorno
 - Fonte ÚNICA: `Actor.immuneUntil` no servidor (o empurrão antigo, o atropelamento e o CombatSystem leem daqui); o
@@ -286,11 +342,12 @@ confronto (vermelho) e disputa (âmbar) — camada estática, custo zero por qua
   proteção, FallSync, preferência).
 - `tools/qa/items_zones_mp.mjs` — 2 navegadores, servidor PV_TEST próprio (porta 2971, evento `cotidiano` para o
   empurrão): proteção, apoio, pegar/largar/pegar do chão, troca barra/spray, guardar/sacar, desorientação normal e
-  reduzida, cambaleio, queda só por status, empurrão (uma queda só), larga ao cair, Rapier liberado, aviso de zona
-  paz/disputa/confronto. Efeitos que o CombatSystem aplicará de verdade são forçados pelas mensagens `qa_fx` /
+  reduzida, cambaleio, queda só por status, empurrão (uma queda só), larga ao cair, Rapier liberado, taco direto da
+  roda (`freeCombatProps`), aviso de zona (hoje "Zona de confronto" em toda a avenida; porta `PV_ITEMS_PORT`). Efeitos que o CombatSystem aplicará de verdade são forçados pelas mensagens `qa_fx` /
   `qa_status`, que **só existem com PV_TEST=1**.
 - Capturas: `docs/screenshots/round9/` E_taco, F_barra, G_spray (+ desorientado normal/reduzido), H_queda_ragdoll,
-  J_zona_de_paz, K_zona_de_confronto.
+  J_zona_de_paz (regra antiga), J_zona_central (2026-10-18: a Central já é confronto), K_zona_de_confronto,
+  L_npc_queda (NPC deitado depois do taco).
 
 ## Integração (rodada 9)
 
@@ -301,7 +358,8 @@ confronto (vermelho) e disputa (âmbar) — camada estática, custo zero por qua
 - **Área de treino** (boneco): vale como COMBAT dentro de zona PEACE ou CONTESTED.
 - **Eventos**: `room.combat.combatEventFor = evt.combatEventFor` (confronto de grupos: inscritos, zonas do evento,
   `friendlyFire` dos dados); derrubadas no evento pontuam pelo runner (`evt.onKnockdown`), nunca dão XP por golpe.
-- **Consentimento**: o evento padrão (`manifestacao`) é `opcional` — K liga o modo interação; quem fica pacífico e
-  fora de eventos de confronto nunca sofre impacto, em zona nenhuma.
+- **Consentimento**: dado `combatConsent` de `zones.json`. Hoje `"none"` (2026-10-18): pacífico também sofre impacto
+  em qualquer lugar; K continua existindo, mas não decide confronto. Regra antiga (`"both"`): quem fica pacífico e fora
+  de eventos de confronto nunca sofre impacto.
 - **Teclas**: R soco · Q chute · C esquiva · F empurrão · T pegar/trocar item · Z largar · X guardar/sacar.
 

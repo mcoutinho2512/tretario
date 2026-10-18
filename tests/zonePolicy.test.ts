@@ -1,47 +1,59 @@
 /**
  * Rodada 9 — política de zona do servidor (server/src/combat/zonePolicy.ts) sobre os DADOS reais (zones.json,
- * manifest): spawn e boa parte do eixo são PAZ, áreas de paz fixas (spawn/palco/telões), de evento (retorno) e o
- * anel MÓVEL do trio (acompanha o veículo).
+ * manifest). Decisão do dono (2026-10-18): avenida toda COMBAT, sem áreas de paz, sem consentimento. Os caminhos das
+ * áreas derivadas (spawn/palco/retorno de evento/anel MÓVEL do trio) continuam testados com `derived: true`.
  */
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { ZonePolicy, rallyPeaceR, type MovingRally } from '../server/src/combat/zonePolicy';
 import { zoneAt, pointOnAxis, type ZoneDefinition } from '../src/world/zones';
 import { RALLY_SHAPE } from '../src/social/rally';
-import { combatAllowed, type CombatParty } from '../src/combat/policy';
+import { combatAllowed, parseCombatRules, type CombatParty } from '../src/combat/policy';
 
-const zones = (JSON.parse(readFileSync('public/world/zones.json', 'utf8')) as { zones: ZoneDefinition[] }).zones;
+const zfile = JSON.parse(readFileSync('public/world/zones.json', 'utf8')) as { zones: ZoneDefinition[] };
+const zones = zfile.zones;
+const rules = parseCombatRules(zfile);
 const manifest = JSON.parse(readFileSync('public/world/manifest.json', 'utf8'));
 const axis = manifest.pvAxis as [number, number][];
 
-function make(rallies: MovingRally[] = []) {
-  return new ZonePolicy({ zones, axis, spawn: manifest.spawn, spots: manifest.eventSpots, rallies: () => rallies });
+/** `derived: true` = áreas de paz derivadas ligadas (regra antiga, parâmetro); os dados reais desligam */
+function make(rallies: MovingRally[] = [], derived = true) {
+  return new ZonePolicy({ zones, axis, spawn: manifest.spawn, spots: manifest.eventSpots, rallies: () => rallies, derived });
 }
 
 describe('política de zona (dados reais)', () => {
-  it('toda zona tem política; spawn numa zona de PAZ e numa área de paz', () => {
-    const zp = make();
-    for (const z of zones) expect(['PEACE', 'CONTESTED', 'COMBAT']).toContain(z.combatPolicy);
+  it('decisão do dono: toda zona é COMBAT, sem peaceAreas; consentimento "none" e áreas derivadas desligadas', () => {
+    for (const z of zones) { expect(z.combatPolicy).toBe('COMBAT'); expect(z.peaceAreas ?? []).toEqual([]); }
+    expect(rules).toEqual({ combatConsent: 'none', derivedPeaceAreas: false });
+    // ausente = regra antiga
+    expect(parseCombatRules({})).toEqual({ combatConsent: 'both', derivedPeaceAreas: true });
+  });
+
+  it('com os dados reais nada é paz: spawn, palco, anel do trio e retorno de evento', () => {
+    const zp = make([{ id: 'trio0', kind: 'trio', x: -950, z: 400 }], rules.derivedPeaceAreas);
     const [sx, sz] = manifest.spawn.p;
-    const z = zoneAt(zones, axis, sx, sz);
-    expect(zp.policyFor(z?.id)).toBe('PEACE');
+    expect(zp.policyFor(zoneAt(zones, axis, sx, sz)?.id)).toBe('COMBAT');
+    expect(zp.peaceAt(sx, sz)).toBe(false);
+    const st = manifest.eventSpots.find((s: { kind: string }) => s.kind === 'stage');
+    expect(zp.peaceAt(st.x + Math.sin(st.heading) * RALLY_SHAPE.stage.front, st.z + Math.cos(st.heading) * RALLY_SHAPE.stage.front)).toBe(false);
+    expect(zp.peaceAt(-945, 400)).toBe(false);
+    zp.setEventAreas('evento:clash', zp.respawnAreas('clash', [{ x: -1000, z: 430 }]));
+    expect(zp.peaceAt(-1000, 430)).toBe(false);
+    expect(zp.areas()).toEqual([]);
+  });
+
+  it('regra antiga (derived: true): spawn é área de paz', () => {
+    const zp = make();
+    const [sx, sz] = manifest.spawn.p;
     expect(zp.peaceAt(sx, sz)).toBe(true);
     expect(zp.peaceAt(sx + 25, sz)).toBe(true);
   });
 
-  it('fora de zona / zona desconhecida = PEACE; há COMBAT e CONTESTED nos dados', () => {
+  it('fora de zona / zona desconhecida = PEACE', () => {
     const zp = make();
     expect(zp.policyFor(null)).toBe('PEACE');
     expect(zp.policyFor('NAO_EXISTE')).toBe('PEACE');
-    expect(zp.policyFor('CIDADE_NOVA')).toBe('COMBAT');
-    expect(zp.policyFor('CAMPO_DE_SANTANA')).toBe('CONTESTED');
-    expect(zp.policyFor('CENTRO')).toBe('PEACE');
-  });
-
-  it('quem é pacífico tem espaço de sobra: ≥ 50% do eixo é PAZ', () => {
-    let peace = 0;
-    for (const z of zones) if ((z.combatPolicy ?? 'PEACE') === 'PEACE') peace += z.to - z.from;
-    expect(peace).toBeGreaterThanOrEqual(0.5);
+    for (const z of zones) expect(zp.policyFor(z.id)).toBe('COMBAT');
   });
 
   it('palco (eventSpots stage) é área de paz à frente do palco', () => {
@@ -78,7 +90,16 @@ describe('política de zona (dados reais)', () => {
     expect(zp.peaceAt(p.x, p.z)).toBe(false);
   });
 
-  it('integra com combatAllowed: área de paz bloqueia mesmo em COMBAT com consentimento', () => {
+  it('dados reais + combatAllowed: pacíficos se acertam em qualquer zona; só a proteção bloqueia', () => {
+    const zp = make([{ id: 'trio0', kind: 'trio', x: -950, z: 400 }], rules.derivedPeaceAreas);
+    const pol = (z: string | null) => zp.policyFor(z);
+    const party = (x: number, z: number, o: Partial<CombatParty> = {}): CombatParty => ({ zone: zoneAt(zones, axis, x, z)?.id ?? null, inPeaceArea: zp.peaceAt(x, z), mode: 'pacifico', groupKey: null, combatEventId: '', protectedUntil: 0, ...o });
+    const [sx, sz] = manifest.spawn.p;
+    for (const [x, z] of [[sx, sz], [-955, 400], [-1050, 450]]) expect(combatAllowed(pol, party(x, z), party(x + 1, z), null, 0, rules.combatConsent)).toEqual({ ok: true });
+    expect(combatAllowed(pol, party(sx, sz), party(sx + 1, sz, { protectedUntil: 10 }), null, 0, rules.combatConsent)).toEqual({ ok: false, reason: 'protegido' });
+  });
+
+  it('regra antiga (derived: true): área de paz bloqueia mesmo em COMBAT com consentimento', () => {
     const zp = make([{ id: 'trio0', kind: 'trio', x: -950, z: 400 }]);
     const party = (x: number, z: number): CombatParty => ({ zone: zoneAt(zones, axis, x, z)?.id ?? null, inPeaceArea: zp.peaceAt(x, z), mode: 'interacao', groupKey: null, combatEventId: '', protectedUntil: 0 });
     const pol = (z: string | null) => zp.policyFor(z);

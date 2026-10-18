@@ -1,6 +1,8 @@
 {
  "version": 1,
  "note": "Faixas ao longo do eixo pvAxis calibradas pelas ruas transversais do OSM (Central t=0,28 · Campo de Santana 0,36 · Av. Rio Branco 0,885 · Candelária 0,954)",
+ "combatConsent": "none",
+ "derivedPeaceAreas": false,
  "zones": [
   {
    "id": "CENTRAL",
@@ -12,7 +14,7 @@
     "t": 0.28,
     "side": 0
    },
-   "combatPolicy": "PEACE"
+   "combatPolicy": "COMBAT"
   },
   {
    "id": "CAMPO_DE_SANTANA",
@@ -24,15 +26,7 @@
     "t": 0.38,
     "side": 0
    },
-   "combatPolicy": "CONTESTED",
-   "peaceAreas": [
-    {
-     "id": "telao_campo_de_santana",
-     "x": -262,
-     "z": 179,
-     "r": 22
-    }
-   ]
+   "combatPolicy": "COMBAT"
   },
   {
    "id": "CENTRO",
@@ -44,15 +38,7 @@
     "t": 0.64,
     "side": 0
    },
-   "combatPolicy": "PEACE",
-   "peaceAreas": [
-    {
-     "id": "telao_centro",
-     "x": 29,
-     "z": 57,
-     "r": 22
-    }
-   ]
+   "combatPolicy": "COMBAT"
   },
   {
    "id": "RIO_BRANCO",
@@ -64,7 +50,7 @@
     "t": 0.885,
     "side": 0
    },
-   "combatPolicy": "CONTESTED"
+   "combatPolicy": "COMBAT"
   },
   {
    "id": "CANDELARIA",
@@ -76,7 +62,7 @@
     "t": 0.954,
     "side": 0
    },
-   "combatPolicy": "PEACE"
+   "combatPolicy": "COMBAT"
   },
   {
    "id": "CIDADE_NOVA",
@@ -91,5 +77,5 @@
    "combatPolicy": "COMBAT"
   }
  ],
- "combatNote": "Rodada 9 — combatPolicy (src/combat/policy.ts): PEACE nunca há impacto; CONTESTED só durante evento de confronto ativo; COMBAT entre quem aceitou (modo interação) ou inscritos. Entrada/spawn (Central), a passeata/trio (Centro) e o palco/Candelária são PAZ (~60% do eixo + áreas de paz). peaceAreas: pontos sociais fixos (telões); spawn, palco (eventSpots) e anéis do trio/carro de som são DERIVADOS no servidor (server/src/combat/zonePolicy.ts)."
+ "combatNote": "Decisão do dono (2026-10-18): \"Avenida toda, sem nenhuma área de paz\" + \"bater em todos\" — toda zona é COMBAT, sem peaceAreas; combatConsent \"none\" (impacto em qualquer modo, sem K; src/combat/policy.ts) e derivedPeaceAreas false (spawn, palco, anéis do trio/carro de som e retornos de evento desligados em server/src/combat/zonePolicy.ts). Só a proteção de retorno (5 s) e as regras de evento (friendlyFire) bloqueiam. Para voltar à regra antiga: combatConsent \"both\", derivedPeaceAreas true e as políticas por zona."
 }

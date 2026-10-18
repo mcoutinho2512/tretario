@@ -16,6 +16,10 @@ describe('empurrão (validação do servidor)', () => {
   it('atacante pacífico não empurra', () => {
     expect(canPush(actor('a', 0, 0, { mode: 'pacifico' }), actor('b', 1.2, 0), 10_000)).toMatchObject({ reason: 'pacifico_atacante' });
   });
+  it('sem consentimento (combatConsent "none"): o modo não conta — a política única decide; imunidade continua', () => {
+    expect(canPush(actor('a', 0, 0, { mode: 'pacifico' }), actor('b', 1.2, 0, { mode: 'pacifico' }), 10_000, undefined, 'none')).toEqual({ ok: true });
+    expect(canPush(actor('a', 0, 0), actor('b', 1.2, 0, { mode: 'pacifico', immuneUntil: 20_000 }), 10_000, undefined, 'none')).toMatchObject({ reason: 'imune' });
+  });
   it('distância, ângulo, estado, veículo e imunidade', () => {
     expect(canPush(actor('a', 0, 0), actor('b', 3, 0), 10_000)).toMatchObject({ reason: 'distancia' });
     expect(canPush(actor('a', 0, 0), actor('b', -1.2, 0), 10_000)).toMatchObject({ reason: 'angulo' });

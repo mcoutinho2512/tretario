@@ -63,9 +63,10 @@ let W: World, C: CombatSystem;
 const step = (ms: number) => { for (let k = 0; k < ms; k += 20) { W.t += 20; C.update(20); } };
 const hits = () => W.aoi.filter((m) => m.type === 'cbt_hit').map((m) => m.msg);
 const denials = (sid: string) => W.sent.filter((m) => m.sid === sid && m.type === 'cbt_denied').map((m) => m.msg.reason);
-function setup(bOpts: Partial<P> = {}) {
+/** `consent` = zones.json `combatConsent` ('both' = regra antiga, padrão do host; 'none' = dados atuais) */
+function setup(bOpts: Partial<P> = {}, consent: 'none' | 'both' = 'both') {
   W = new World();
-  C = new CombatSystem(TABLE, W.host());
+  C = new CombatSystem(TABLE, { ...W.host(), consent });
   W.add('A', { x: 0, z: 0, heading: 0 });
   W.add('B', { x: 0, z: 1.1, heading: Math.PI, ...bOpts });
   C.join('A'); C.join('B');
@@ -377,6 +378,43 @@ describe('pulo (JumpValidator)', () => {
     expect(J.request('A', 1, 0, { ...ctx, platform: 'trio0' })).toEqual({ ok: false, reason: 'veiculo' });
     expect(J.request('A', 1, 1000, ctx).ok).toBe(true);
     expect(J.airborne('A', 1000 + JUMP_FLIGHT_MS + JUMP.lateMs + 1)).toBe(false);
+  });
+});
+
+describe('sem consentimento (zones.json combatConsent "none" — decisão do dono 2026-10-18)', () => {
+  beforeEach(() => setup({ mode: 'pacifico' }, 'none'));
+
+  it('pacífico ataca pacífico em zona COMBAT: impacto, sem K', () => {
+    W.players.get('A')!.mode = 'pacifico';
+    expect(C.request('A', { a: ID('soco'), h: 0, seq: 1 }).ok).toBe(true);
+    step(300);
+    expect(hits()[0]).toMatchObject({ r: 'hit', tgt: 2 });
+    expect(C.fighter('B')!.condition).toBe(88);
+  });
+
+  it('impacto bloqueado (proteção) ainda anima: cbt_act para a AOI e cbt_hit blocked', () => {
+    W.players.get('B')!.immuneUntil = W.t + 5000;
+    expect(C.request('A', { a: ID('chute'), h: 0, seq: 1 }).ok).toBe(true);
+    expect(W.aoi.some((m) => m.type === 'cbt_act' && m.msg.a === ID('chute'))).toBe(true);
+    step(400);
+    expect(C.fighter('B')!.condition).toBe(100);
+    expect(W.sent.find((m) => m.type === 'cbt_hit')?.msg.r).toBe('blocked');
+  });
+
+  it('atacante fora de zona de combate: o golpe sai e anima (sem "nada acontece"); o impacto é que é bloqueado', () => {
+    W.players.get('A')!.zone = 'PRACA';
+    expect(C.request('A', { a: ID('soco'), h: 0, seq: 1 }).ok).toBe(true);
+    expect(W.aoi.some((m) => m.type === 'cbt_act')).toBe(true);
+    step(300);
+    expect(C.fighter('B')!.condition).toBe(100);
+    expect(denials('A')).toEqual(['zona_paz']); // aviso discreto da janela ativa
+  });
+
+  it('empurrão antigo (F): pacíficos passam pela política única', () => {
+    W.players.get('A')!.mode = 'pacifico';
+    expect(C.pushPolicy('A', 'B')).toEqual({ ok: true });
+    W.players.get('B')!.immuneUntil = W.t + 1;
+    expect(C.pushPolicy('A', 'B')).toEqual({ ok: false, reason: 'protegido' });
   });
 });
 

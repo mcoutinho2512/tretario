@@ -13,6 +13,7 @@ import type { ZoneDefinition } from '../../src/world/zones.ts';
 import { parseSurfaceFile, solidRing, type GraffitiSurface } from '../../src/graffiti/surfaces.ts';
 import { parseCombatData } from '../../src/combat/data.ts';
 import type { CombatData } from '../../src/combat/types.ts';
+import { parseCombatRules, type CombatRules } from '../../src/combat/policy.ts';
 import { log } from './log';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -27,6 +28,8 @@ export interface ServerWorld {
   graffitiSurfaces: GraffitiSurface[];
   /** zonas da avenida (public/world/zones.json) — estimativa de ambiente das células do espectador aéreo */
   zones: ZoneDefinition[];
+  /** regras gerais de confronto da raiz de zones.json (consentimento, áreas de paz derivadas) */
+  combatRules: CombatRules;
   /** rodada 9 — tabela de confronto (public/gameplay/combat.json, validada) */
   combat: CombatData;
 }
@@ -55,7 +58,9 @@ export function loadWorld(): ServerWorld {
   log.info('world', `${gf.surfaces.length} superfícies de grafite, ${gf.solids.length} tapumes`);
   log.info('world', `${walls.segmentCount} paredes, ${manifest.vehicleSpawns?.length ?? 0} veículos, ${events.size} eventos (${Date.now() - t0} ms)`);
   const zf = `${PUBLIC}/world/zones.json`;
-  const zones = existsSync(zf) ? ((JSON.parse(readFileSync(zf, 'utf8')) as { zones?: ZoneDefinition[] }).zones ?? []) : [];
+  const zfile = existsSync(zf) ? (JSON.parse(readFileSync(zf, 'utf8')) as { zones?: ZoneDefinition[] }) : {};
+  const zones = zfile.zones ?? [];
+  const combatRules = parseCombatRules(zfile);
   const combat = parseCombatData(JSON.parse(readFileSync(`${PUBLIC}/gameplay/combat.json`, 'utf8')));
-  return { manifest, walls, events, defaultEvent: idx.default, graffitiSurfaces: gf.surfaces, zones, combat };
+  return { manifest, walls, events, defaultEvent: idx.default, graffitiSurfaces: gf.surfaces, zones, combatRules, combat };
 }

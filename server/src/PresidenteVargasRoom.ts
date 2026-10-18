@@ -536,7 +536,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
       for (const id of this.eventVehIds) { const v = this.state.vehicles.get(id); if (v) out.push({ id, kind: v.kind, x: v.x, z: v.z }); }
       return out;
     };
-    this.zonePolicy = new ZonePolicy({ zones: this.zoneDefs, axis: this.zoneAxis, spawn: W.manifest.spawn, spots: W.manifest.eventSpots, rallies });
+    this.zonePolicy = new ZonePolicy({ zones: this.zoneDefs, axis: this.zoneAxis, spawn: W.manifest.spawn, spots: W.manifest.eventSpots, rallies, derived: W.combatRules.derivedPeaceAreas });
     for (const a of W.events.get(ev)?.agenda ?? []) if (a.clash?.respawn?.length) this.zonePolicy.setEventAreas(`evento:${a.id}`, this.zonePolicy.respawnAreas(a.id, a.clash.respawn));
     this.items = new RoomItems({
       player: (sid) => { const p = this.state.players.get(sid), r = this.rt.get(sid); return p && r ? { p, x: r.last.x, z: r.last.z } : undefined; },
@@ -570,7 +570,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
 
   private r9bJoin(sid: string, p: NetPlayer, now: number) {
     // sessão assumida: item de confronto não "vem junto" (ficou no chão onde a antiga estava)
-    if (isCombatProp(p.prop) && this.items.carriedProp(sid) !== p.prop) { const r = this.rt.get(sid); p.prop = 0; p.design = 0; if (r) { r.social.prop = 0; r.social.design = 0; } }
+    if (!this.items.free && isCombatProp(p.prop) && this.items.carriedProp(sid) !== p.prop) { const r = this.rt.get(sid); p.prop = 0; p.design = 0; if (r) { r.social.prop = 0; r.social.design = 0; } }
     this.applyProtection(sid, now);
   }
 
@@ -1453,6 +1453,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     const s = r.social;
     s.status = p.status; s.vehicle = p.vehicle; s.act = p.act; s.onPlatform = !!p.platform;
     s.carried = this.items.carriedProp(client.sessionId); // rodada 9 — item de confronto: só o que possui
+    s.freeCombat = this.items.free; // … ou qualquer um, direto da roda (combat_props.json freeCombatProps)
     const v = validateProp(s, m.p, m.d ?? 0, now);
     if (!v.ok) { client.send('prop_denied', v.reason); return; }
     applyProp(s, m.p as number, typeof m.d === 'number' ? m.d : 0, now);
@@ -1484,7 +1485,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     const t = typeof targetId === 'string' ? this.rt.get(targetId) : undefined;
     if (!r) return;
     const now = Date.now();
-    const v = canPush(r.actor, t?.actor, now, world().walls);
+    const v = canPush(r.actor, t?.actor, now, world().walls, world().combatRules.combatConsent);
     if (!v.ok) { client.send('push_denied', v.reason); metrics.denied(); log.debug(`[room] empurrão negado ${client.sessionId} → ${targetId}: ${v.reason}`); return; }
     const pol = this.combat.pushPolicy(client.sessionId, targetId); // rodada 9 — confronto: zona de paz/evento valem para o empurrão
     if (!pol.ok) { client.send('push_denied', pol.reason); metrics.denied(); return; }
@@ -1508,7 +1509,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
       if (id === driverId) return;
       const a = this.rt.get(id)?.actor;
       if (!a || a.vehicle || a.platform) return; // em veículo ou em cima do trio: não está no chão
-      const canHit = (kind === 'car' || kind === 'moto') && !!d && impactAllowed(d.actor.mode, a.mode) && a.status === STATUS.OK && now >= a.immuneUntil
+      const canHit = (kind === 'car' || kind === 'moto') && !!d && impactAllowed(d.actor.mode, a.mode, world().combatRules.combatConsent) && a.status === STATUS.OK && now >= a.immuneUntil
         && this.combat.pushPolicy(driverId, id).ok; // rodada 9: em zona de paz o carro PARA (bloqueia), como para pacífico
       if (!canHit) out.push({ x: a.x, z: a.z });
     });
@@ -1517,7 +1518,8 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
 
   private checkImpacts(driverId: string, car: { x: number; z: number; px: number; pz: number; heading: number; speed: number; len?: number; width?: number }) {
     const d = this.rt.get(driverId);
-    if (!d || d.actor.mode !== 'interacao') return; // motorista também precisa estar em modo interação
+    const consent = world().combatRules.combatConsent;
+    if (!d || (consent === 'both' && d.actor.mode !== 'interacao')) return; // regra antiga: motorista também em modo interação
     const now = Date.now();
     // candidatos pela grade: círculo que cobre o trajeto do tick (anti-tunelamento) + caixa do carro + folga
     const mx = (car.x + car.px) / 2, mz = (car.z + car.pz) / 2;
@@ -1528,7 +1530,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
       const r = this.rt.get(id);
       if (!r || id === driverId) continue;
       const a = r.actor;
-      if (a.mode !== 'interacao' || a.status !== STATUS.OK || a.vehicle || a.platform || now < a.immuneUntil) continue;
+      if (!impactAllowed(d.actor.mode, a.mode, consent) || a.status !== STATUS.OK || a.vehicle || a.platform || now < a.immuneUntil) continue;
       if (!this.combat.pushPolicy(driverId, id).ok) continue; // rodada 9: zona de paz/evento valem também para veículo
       const hit = vehicleImpact(car, { x: a.x, z: a.z });
       if (hit.hit) this.knockdown(id, car.x - Math.sin(car.heading) * 3, car.z - Math.cos(car.heading) * 3, hit.strength, 'impact', driverId, hit.strength);
@@ -1579,6 +1581,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
       zoneOf: (sid) => this.zoneOf(sid),
       // áreas de paz MÓVEIS/derivadas (trio, carros de som, spawn, palco, retornos de evento) — server/src/combat/zonePolicy.ts
       peaceAt: (x, z) => this.zonePolicy.peaceAt(x, z),
+      consent: W.combatRules.combatConsent,
       // servidor de TESTE (carga/QA): PV_COMBAT_ZONES=*|ID,ID força política COMBAT (as zonas reais são dados do agente B)
       zoneDef: (id) => { const z = this.zoneDef(id); return forced && z && (forced === '*' || forced.split(',').includes(z.id)) ? { ...z, combatPolicy: 'COMBAT' as const } : z; },
       groupKey: (sid) => this.identities.get(sid)?.groupKey ?? null,

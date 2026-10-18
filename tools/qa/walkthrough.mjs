@@ -10,9 +10,10 @@
  * Roteiro: A (homem), B (mulher), C (idoso) entram · todos se veem · A e B andam juntos · mesmo semáforo ·
  * SEM trânsito NPC (avenida fechada) · A tenta atravessar o prédio (servidor impede) · carro parado e disponível ·
  * A entra no carro · B tenta o mesmo carro (servidor impede) · A dirige, freia, dá ré · A sai (carro fica parado e
- * disponível) · A ativa interação · B pacífico (A não empurra) · B ativa interação · A empurra B · B cai (ragdoll) ·
- * B levanta · proteção anti-griefing · impacto de veículo (ambos em interação) · carro NÃO derruba C pacífico (para
- * antes) · moto, bicicleta e patinete (entrar, andar, os outros veem, sair, disponível) · área de interesse.
+ * disponível) · sem consentimento (zones.json combatConsent "none", decisão do dono 2026-10-18): A empurra B
+ * PACÍFICO, sem K · B cai (ragdoll) · B levanta · proteção anti-griefing (empurrão e carro param na proteção) ·
+ * impacto de veículo em B · carro derruba C pacífico · moto, bicicleta e patinete (entrar, andar, os outros veem,
+ * sair, disponível) · área de interesse.
  */
 import puppeteer from 'puppeteer-core';
 import { spawn } from 'node:child_process';
@@ -33,7 +34,7 @@ const check = (name, ok, detail = '') => { results.push({ name, ok, detail }); c
 // proteção: nunca falar com um servidor antigo esquecido na porta
 try { await fetch(`http://127.0.0.1:${PORT + 1}/metrics`); console.error(`porta ${PORT} ocupada por outro servidor — abortando`); process.exit(2); } catch { /* livre */ }
 const server = spawn('npx', ['tsx', 'src/index.ts'], {
-  cwd: 'server', env: { ...process.env, PORT: String(PORT), PV_TEST: '1', PV_METRICS: '0', PV_EVENT: process.env.PV_EVENT ?? 'cotidiano' /* modo interação (empurrão) só em evento 'opcional'; o ato é pacífico */, PV_COMBAT_ZONES: '*' /* rodada 9: o empurrão obedece à política de zona — aqui se testa a MECÂNICA (zonas de paz: combat_mp/items_zones_mp) */, ...(lag ? { COLYSEUS_LATENCY: String(lag), PV_JITTER: String(jitter) } : {}) },
+  cwd: 'server', env: { ...process.env, PORT: String(PORT), PV_TEST: '1', PV_METRICS: '0', PV_EVENT: process.env.PV_EVENT ?? 'cotidiano' /* modo interação (empurrão) só em evento 'opcional'; o ato é pacífico */, PV_COMBAT_ZONES: '*' /* rodada 9: o empurrão obedece à política de zona — aqui se testa a MECÂNICA */, ...(lag ? { COLYSEUS_LATENCY: String(lag), PV_JITTER: String(jitter) } : {}) },
   stdio: ['ignore', 'pipe', 'pipe'], detached: true,
 });
 const serverLog = [];
@@ -225,9 +226,8 @@ check('A saiu do carro', await until(A, () => window.__pv.riding() === null, 500
   check('carro fica parado e volta a ficar disponível (visto por B)', !after.occupant && after.state === 0 && Math.hypot(after.x - before.x, after.z - before.z) < 0.05, `estado ${after.state}`);
 }
 
-// ------------------------------------------------------------------ 8. modos: B pacífico
-await ev(A, () => window.__pv.key('KeyK'));
-check('A ativou modo interação (servidor)', await until(A, () => window.__pv.mp().self.interaction === 'interacao', 4000));
+// ------------------------------------------------------------------ 8. sem consentimento: B PACÍFICO é empurrado (sem K)
+check('A e B continuam pacíficos (ninguém apertou K)', (await mp(A)).self.interaction === 'pacifico' && (await mp(B)).self.interaction === 'pacifico');
 const meet = at(-9, 0.4);
 await walk(C, at(-22, 0.6));
 await walk(B, meet);
@@ -241,25 +241,12 @@ const facing = async () => {
   await ev(A, () => window.__pv.stopWalk());
 };
 await facing();
-await ev(A, () => window.__pv.key('KeyF'));
-await w(1200);
-{
-  const d = await ev(A, () => window.__pv.lastDenial()), pa = await me(A), pb = await me(B);
-  check('servidor nega o empurrão em alvo pacífico', d === 'push:pacifico_alvo', `negativa=${d} · distância ${dist(pa, pb).toFixed(2)} m`);
-  check('B pacífico NÃO é empurrado', (await ev(B, () => window.__pv.isDown())) === false);
-}
-
-// ------------------------------------------------------------------ 9. B ativa interação; A empurra B
-await ev(B, () => window.__pv.key('KeyK'));
-check('B ativou modo interação', await until(B, () => window.__pv.mp().self.interaction === 'interacao', 4000));
-await w(1100); // cooldown do atacante
-await facing();
 { const pb = await me(B); await look(A, [pb.x, pb.z], 0.2, 6); }
 const recPush = record(A, 'empurrao', 6500, 8);
 await w(200);
 await ev(A, () => window.__pv.key('KeyF'));
 const fell = await until(B, () => window.__pv.isDown(), 4000, 80);
-{ const d = await ev(A, () => window.__pv.lastDenial()); check('servidor validou o empurrão e B caiu (ragdoll)', fell, fell ? '' : `negativa=${d}`); }
+{ const d = await ev(A, () => window.__pv.lastDenial()); check('servidor validou o empurrão em B PACÍFICO e B caiu (ragdoll)', fell, fell ? '' : `negativa=${d}`); }
 await w(700);
 await A.p.screenshot({ path: `${OUT}/03_B_caida_ragdoll.png` });
 check('A vê B caída (estado do servidor)', ((await mp(A)).remotes.find((r) => r.name === 'Jogadora_B')?.status ?? 0) >= 1);
@@ -274,7 +261,7 @@ await ev(A, (t) => window.__pv.rawPush(t), (await mp(C)).session);
 await w(800);
 { const d = await ev(A, () => window.__pv.lastDenial()); check('empurrão forçado em C (pacífico/longe) é negado', d.startsWith('push:') && d !== 'push:imune', d); }
 
-// ------------------------------------------------------------------ 10. impacto de veículo (ambos em modo interação)
+// ------------------------------------------------------------------ 10. impacto de veículo (sem consentimento: ninguém em K)
 {
   await w(5200); // fim da imunidade
   const v = (await ev(A, () => window.__pv.vehicles())).find((x) => x.id === car.id);
@@ -304,20 +291,44 @@ await w(800);
   check('impacto de veículo: servidor valida e B cai (sem dano)', hit, `tentativas: ${attempt}`);
   check('B levanta após o impacto', await until(B, () => !window.__pv.isDown() && window.__pv.mp().self.status === 0, 9000));
 
-  // ---------------------------------------------------------------- 11. modo pacífico: carro NÃO derruba C (para antes)
-  await w(5500); // imunidade de B termina (irrelevante: o alvo agora é C, pacífico)
-  const cv = (await ev(A, () => window.__pv.vehicles())).find((x) => x.id === car.id);
-  const h = await ev(A, () => window.__pv.carHeading());
-  const tgt = [cv.x + Math.sin(h) * 8, cv.z + Math.cos(h) * 8];
-  await walk(B, [tgt[0] - Math.cos(h) * 10, tgt[1] + Math.sin(h) * 10], true); // B sai do caminho
-  await walk(C, tgt, true);
-  check('C continua pacífico', (await mp(C)).self.interaction === 'pacifico');
-  await ev(A, () => window.__pv.press('KeyW', 3500));
-  const cDown = await until(C, () => window.__pv.isDown(), 4500, 80);
-  const pc = await me(C);
-  const carNow = (await ev(C, () => window.__pv.vehicles())).find((x) => x.id === car.id);
-  const along = (pc.x - carNow.x) * Math.sin(h) + (pc.z - carNow.z) * Math.cos(h);
-  check('carro não derruba jogador em modo pacífico (para antes de encostar)', !cDown && along > 2.2, `C ${cDown ? 'caiu' : 'de pé'} · ${along.toFixed(2)} m à frente do centro do carro`);
+  // ---------------------------------------------------------------- 10b. anti-griefing: B PROTEGIDO → o carro para antes
+  {
+    await ev(A, () => window.__pv.press('KeyS', 1500)); await w(1700);
+    const cv = (await ev(A, () => window.__pv.vehicles())).find((x) => x.id === car.id);
+    const h = await ev(A, () => window.__pv.carHeading());
+    const tgt = [cv.x + Math.sin(h) * 8, cv.z + Math.cos(h) * 8];
+    await walk(B, tgt, true);
+    // a proteção de retorno do levantar (5 s) acabou na caminhada: a MESMA proteção (applyProtection) pelo QA do servidor de teste
+    await ev(B, () => window.__pv.netSend('qa_fx', { fx: 2, ms: 8000 }));
+    check('B protegido (fx PROTECTED) na frente do carro', await until(B, () => (window.__pv.mp().self.fx & 2) !== 0, 2000));
+    await ev(A, () => window.__pv.press('KeyW', 3000));
+    const bDown = await until(B, () => window.__pv.isDown(), 3800, 80);
+    const pb = await me(B);
+    const carNow = (await ev(B, () => window.__pv.vehicles())).find((x) => x.id === car.id);
+    const along = (pb.x - carNow.x) * Math.sin(h) + (pb.z - carNow.z) * Math.cos(h);
+    check('carro não derruba quem está na proteção de retorno (para antes de encostar)', !bDown && along > 2.2, `B ${bDown ? 'caiu' : 'de pé'} · ${along.toFixed(2)} m à frente do centro do carro`);
+    await ev(A, () => window.__pv.press('KeyS', 2400)); await w(2600);
+  }
+
+  // ---------------------------------------------------------------- 10c. sem consentimento: carro derruba C PACÍFICO
+  {
+    await w(4000); // proteção de B termina (B sai do caminho)
+    const cv = (await ev(A, () => window.__pv.vehicles())).find((x) => x.id === car.id);
+    const h = await ev(A, () => window.__pv.carHeading());
+    const tgt = [cv.x + Math.sin(h) * 9, cv.z + Math.cos(h) * 9];
+    await walk(B, [tgt[0] - Math.cos(h) * 10, tgt[1] + Math.sin(h) * 10], true); // B sai do caminho
+    await walk(C, tgt, true);
+    check('C continua pacífico', (await mp(C)).self.interaction === 'pacifico');
+    let cDown = false;
+    for (let k = 0; k < 3 && !cDown; k++) {
+      if (k) { await ev(A, () => window.__pv.press('KeyS', 2400)); await w(2600); const v2 = (await ev(A, () => window.__pv.vehicles())).find((x) => x.id === car.id); await walk(C, [v2.x + Math.sin(h) * 9, v2.z + Math.cos(h) * 9], true); }
+      await ev(A, () => window.__pv.press('KeyW', 2600));
+      cDown = await until(C, () => window.__pv.isDown(), 4000, 80);
+    }
+    check('carro derruba C PACÍFICO (sem consentimento; sem dano)', cDown);
+    check('C levanta após o impacto', await until(C, () => !window.__pv.isDown() && window.__pv.mp().self.status === 0, 9000));
+    await ev(A, () => window.__pv.press('KeyS', 900)); await w(900);
+  }
   await ev(A, () => window.__pv.key('KeyE'));
   await until(A, () => window.__pv.riding() === null, 5000);
 }

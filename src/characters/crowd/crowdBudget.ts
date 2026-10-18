@@ -43,6 +43,8 @@ export interface CrowdAgent {
   x: number; y: number; z: number;
   heading: number;
   speed: number;
+  /** inclinação (rad) para trás em torno do pé (+π/2 = deitado de costas; − = curvado) — NPC atingido (npcHits.ts) */
+  tilt: number;
   /** índice do corpo (BODIES: homem, mulher, idoso, idosa) */
   body: number;
   scale: number;
@@ -75,7 +77,7 @@ export interface CrowdAgent {
 let nextId = 1;
 export function createAgent(init: Partial<CrowdAgent> = {}): CrowdAgent {
   return {
-    id: nextId++, x: 0, y: 0, z: 0, heading: 0, speed: 0, body: 0, scale: 1,
+    id: nextId++, x: 0, y: 0, z: 0, heading: 0, speed: 0, tilt: 0, body: 0, scale: 1,
     skin: 0xc68b62, hair: 0x222222, top: 0x2f6f8f, bottom: 0x2c3a52, look: 0, shirt: 0,
     maxTier: 2, priority: 1, skinReady: false,
     tier: 1, lod: 3, animEvery: 1, inView: true, dist: 0, phase: Math.random(),

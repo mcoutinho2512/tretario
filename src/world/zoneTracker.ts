@@ -8,6 +8,7 @@
  * Puro (sem DOM/three.js). Custo: uma projeção no eixo por `update` — chame a 2–5 Hz, não por quadro.
  */
 import { projectOnAxis, type ZoneDefinition } from './zones';
+import { parseCombatRules, type CombatRules } from '../combat/policy';
 
 type XZ = [number, number];
 
@@ -74,10 +75,10 @@ export class ZoneTracker {
   reset() { this.started = false; this.candidate = null; }
 }
 
-/** carrega `public/world/zones.json` */
-export async function loadZones(base: string): Promise<ZoneDefinition[]> {
+/** carrega `public/world/zones.json`: zonas + regras gerais de confronto da raiz (combatConsent, derivedPeaceAreas) */
+export async function loadZoneFile(base: string): Promise<{ zones: ZoneDefinition[]; rules: CombatRules }> {
   const r = await fetch(`${base}zones.json`);
   if (!r.ok) throw new Error(`zones.json: ${r.status}`);
   const d = (await r.json()) as { zones?: ZoneDefinition[] };
-  return Array.isArray(d.zones) ? d.zones : [];
+  return { zones: Array.isArray(d.zones) ? d.zones : [], rules: parseCombatRules(d) };
 }

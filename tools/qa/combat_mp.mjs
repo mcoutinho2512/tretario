@@ -2,12 +2,14 @@
  * Rodada 9 — CONFRONTO no multiplayer: 2 jogadores reais (um Chrome cada) + servidor de teste próprio (PV_TEST=1,
  * PV_STORE=memory, evento 'cotidiano' = interação opcional, porta PV_COMBAT_PORT ou 2960). Requer o dev server.
  *
- * Roteiro: A e B entram numa área de PAZ (fora de zona de combate) → K nos dois → A soca → negado 'zona_paz' (aviso
- * discreto) e B sem impacto · os dois andam até a ÁREA DE TREINO do boneco (política COMBAT) → A soca B → B cambaleia
- * (servidor) e reage · B esquiva enquanto A golpeia → 'dodged' · A pega o taco (prop 11) → golpe de taco · golpes até
- * B cair (condição 0 → queda/ragdoll) → B levanta → proteção (fx PROTECTED; golpe 'blocked') · boneco reage ·
- * A pula e B vê A no ar · HUD de confronto.
- * Capturas reais: docs/screenshots/round9/A_pulo.jpg, B_soco.jpg, C_chute.jpg, D_esquiva.jpg, I_hud_confronto.jpg
+ * Decisão do dono (2026-10-18): avenida toda COMBAT, sem área de paz, sem consentimento (zones.json).
+ * Roteiro: A e B entram ao lado do spawn, PACÍFICOS (sem K) → A soca → B sofre impacto e vê o golpe · os dois vão até
+ * a área de treino do boneco → A soca B → B cambaleia (servidor) e reage · B esquiva enquanto A golpeia → 'dodged' ·
+ * A pega o taco no apoio (prop 11) → golpe de taco · golpes até B cair (condição 0 → queda/ragdoll) → B levanta →
+ * proteção (fx PROTECTED; golpe 'blocked', mas o golpe ANIMA para B) · boneco reage · A pula e B vê A no ar · HUD ·
+ * toque: SOCO/CHUTE/ESQUIVA sempre visíveis · NPCs de ambiente no CENTRO reagem a soco/chute e ao taco tirado da RODA.
+ * Capturas reais: docs/screenshots/round9/A_pulo.jpg, B_soco.jpg, C_chute.jpg, D_esquiva.jpg, I_hud_confronto.jpg,
+ * L_npc_queda.jpg
  * uso: node tools/qa/combat_mp.mjs [baseUrl]   (imprime N/N)
  */
 import puppeteer, { KnownDevices } from 'puppeteer-core';
@@ -35,7 +37,7 @@ process.on('SIGINT', async () => { await cleanup(); process.exit(130); });
 
 const combat = JSON.parse(readFileSync('public/gameplay/combat.json', 'utf8'));
 const D = combat.dummies[0];
-// paz: ao lado do spawn (zona CENTRAL PEACE + área de paz do spawn — dados do agente B); combate: 3 m a leste do boneco
+// ao lado do spawn (antes zona de paz; agora COMBAT como toda a avenida); treino: 3 m a leste do boneco
 const MANIFEST = JSON.parse(readFileSync('public/world/manifest.json', 'utf8'));
 const SPN = MANIFEST.spawn.p;
 const PEACE = { A: [SPN[0] + 6, SPN[1]], B: [SPN[0] + 6, SPN[1] + 1.1] };
@@ -58,6 +60,9 @@ function pointOnAxis(t, side = 0) {
 const rackDef = JSON.parse(readFileSync('public/gameplay/combat_props.json', 'utf8')).supply.racks.find((r) => r.id === 'apoio_campo_de_santana');
 const RACK = pointOnAxis(rackDef.at.t, rackDef.at.side);
 const FIGHT = { A: [D.x + 3.2, D.z], B: [D.x + 3.2, D.z + 1.1] };
+const ZONES = JSON.parse(readFileSync('public/world/zones.json', 'utf8'));
+const CENTRO = ZONES.zones.find((z) => z.id === 'CENTRO').anchor;
+const CENTRO_P = pointOnAxis(CENTRO.t, CENTRO.side);
 
 async function open(name, sp, phone = false) {
   const browser = await puppeteer.launch({ executablePath: chrome, headless: 'new', args: ['--use-angle=metal', '--enable-gpu'], defaultViewport: { width: 1100, height: 640 }, protocolTimeout: 240000 });
@@ -86,27 +91,56 @@ const look = async (p, to, pitch = 0.12, dist = 4.2) => { const m = await me(p);
 /** teleporte do servidor de TESTE (PV_TEST=1; o servidor põe o jogador no ponto) — trechos longos do roteiro */
 const tp = async (p, to) => { await ev(p, (x, z) => window.__pvProg.tp(x, z), to[0], to[1]); await w(700); };
 const shot = (p, name) => p.screenshot({ path: `${OUT}/${name}.jpg`, type: 'jpeg', quality: 82 });
+/** roda de ações de verdade (G → ITENS → rótulo), como o jogador: o pedido `prop` sai do mesmo clique */
+async function wheelPick(p, label) {
+  await ev(p, () => window.__pv.key('KeyG'));
+  await until(p, () => !!document.querySelector('.action-wheel.open'), 2000);
+  await ev(p, () => [...document.querySelectorAll('.aw-cat')].find((b) => b.textContent === 'ITENS')?.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })));
+  await w(150);
+  const found = await ev(p, (l) => { const b = [...document.querySelectorAll('.aw-act')].find((x) => x.textContent === l); b?.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); return !!b; }, label);
+  await ev(p, () => window.__pv.key('Escape'));
+  return found;
+}
+const npcHits = (p) => ev(p, () => { const n = window.__pv.npcs(); return n.peds.hits + n.rally.hits; });
+/** persegue o NPC de ambiente mais perto e golpeia (`key`) até um reagir (NPCs andam; o golpe local decide na janela) */
+async function hitNpc(p, key, ms = 45000) {
+  const t0 = Date.now();
+  while (Date.now() - t0 < ms) {
+    const n = await ev(p, () => window.__pv.npcs(60));
+    const t = n.list[0];
+    if (!t) { await w(500); continue; }
+    if (t.d > 1.25) { await ev(p, (x, z) => window.__pv.walkTo(x, z, true), t.x, t.z); await w(200); continue; }
+    await ev(p, () => window.__pv.stopWalk());
+    const before = await npcHits(p);
+    const m = await me(p);
+    await ev(p, (y) => window.__pv.face(y), Math.atan2(t.x - m.x, t.z - m.z));
+    await w(60);
+    await ev(p, (k) => window.__pv.cbt(k), key);
+    if (await until(p, (b) => { const q = window.__pv.npcs(); return q.peds.hits + q.rally.hits > b; }, 1000, 50, before)) return true;
+    await w(700); // recuperação/cooldown
+  }
+  return false;
+}
 
 const A = await open('Ana', PEACE.A);
 const B = await open('Beto', PEACE.B);
 try {
   check('A e B se veem', await until(A, () => window.__pv.mp().remotes.length >= 1, 8000) && await until(B, () => window.__pv.mp().remotes.length >= 1, 8000));
-  for (const p of [A, B]) await ev(p, () => window.__pv.key('KeyK'));
-  check('modo interação nos dois (servidor)', await until(A, () => window.__pv.mp().self.interaction === 'interacao', 4000) && await until(B, () => window.__pv.mp().self.interaction === 'interacao', 4000));
+  check('os dois continuam PACÍFICOS (sem K)', (await mp(A)).self.interaction === 'pacifico' && (await mp(B)).self.interaction === 'pacifico');
   await w(5200); // proteção de entrada (5 s) termina
 
-  // ---------------------------------------------------------------- 1. PAZ
+  // ---------------------------------------------------------------- 1. spawn, sem consentimento: pacíficos se acertam
   {
     const c = await cb(A);
-    check('área de paz: política PEACE no cliente', c.policy === 'PEACE', `política ${c.policy}`);
+    check('ao lado do spawn: política COMBAT e contexto de confronto (sem área de paz)', c.policy === 'COMBAT' && c.context, `política ${c.policy}`);
     await face(A, PEACE.B); await face(B, PEACE.A);
+    const acts0 = (await cb(B)).stats.acts;
     await ev(A, () => window.__pv.cbt('cbt_punch'));
-    const denied = await until(A, () => window.__pv.combat().stats.denied.includes('zona_paz'), 3000);
-    const peace = (await cb(A)).hud.peace;
-    check('PAZ: soco negado pelo servidor (zona_paz) com aviso discreto ZONA DE PAZ', denied && peace, `aviso ${peace}`);
-    await w(600);
-    const b = await cb(B), st = (await mp(B)).self.status;
-    check('PAZ: B sem impacto (condição 100, de pé)', b.condition === 100 && st === 0 && b.stats.hitsIn === 0, `condição ${b.condition} · status ${st}`);
+    const hit = await until(B, () => window.__pv.combat().stats.hitsIn >= 1, 3000);
+    const b = await cb(B), a = await cb(A);
+    check('spawn: A pacífico soca B pacífico → impacto decidido pelo servidor', hit && b.condition < 100, `condição ${b.condition}`);
+    check('spawn: B vê o golpe de A (cbt_act) e nada é negado por zona', b.stats.acts > acts0 && !a.stats.denied.includes('zona_paz') && !a.hud.peace, JSON.stringify(a.stats.denied));
+    await until(B, () => window.__pv.mp().self.status === 0 && !window.__pv.combat().locked, 3000);
   }
 
   // ---------------------------------------------------------------- 2. área de treino (COMBAT)
@@ -132,12 +166,15 @@ try {
   // chute
   {
     await w(900);
+    await walk(B, FIGHT.B, 5000); // o soco empurrou B 0,35 m: volta para o alcance do chute
     await face(A, FIGHT.B);
     const before = (await cb(B)).stats.hitsIn;
     await ev(A, () => window.__pv.cbt('cbt_kick'));
     await w(300);
     await shot(A, 'C_chute');
-    check('chute acerta (servidor)', await until(B, (n) => window.__pv.combat().stats.hitsIn > n, 3000, 100, before));
+    const kicked = await until(B, (n) => window.__pv.combat().stats.hitsIn > n, 3000, 100, before);
+    const ka = await cb(A);
+    check('chute acerta (servidor)', kicked, JSON.stringify({ denied: ka.stats.denied, last: ka.stats.lastHit, a: await me(A), b: await me(B) }));
   }
   // esquiva: B esquiva e A golpeia na janela → 'dodged'
   {
@@ -196,10 +233,11 @@ try {
     check('B levanta (servidor)', await until(B, () => !window.__pv.isDown() && window.__pv.mp().self.status === 0, 9000));
     check('B protegido ao levantar (fx PROTECTED)', await until(B, () => (window.__pv.mp().self.fx & 2) !== 0, 2000));
     await walk(B, FIGHT.B, 4000); await face(A, FIGHT.B); await face(B, FIGHT.A);
-    const before = (await cb(A)).stats.blocked;
+    const before = (await cb(A)).stats.blocked, actsB0 = (await cb(B)).stats.acts;
     await ev(A, () => window.__pv.cbt('cbt_punch'));
     const blocked = await until(A, (n) => window.__pv.combat().stats.blocked > n, 3000, 100, before);
     check('golpe durante a proteção → "blocked", B intacto', blocked && (await cb(B)).condition === 100, `condição ${(await cb(B)).condition}`);
+    check('golpe bloqueado ainda ANIMA para B (cbt_act)', (await cb(B)).stats.acts > actsB0, `acts ${(await cb(B)).stats.acts} > ${actsB0}`);
     await w(500);
     await look(B, FIGHT.A, 0.1, 3.4);
     await shot(B, 'I_hud_confronto');
@@ -236,19 +274,45 @@ try {
     const st = (await cb(A)).stats;
     check('servidor aceitou o pulo (sem jump_denied)', st.jumps >= 1 && st.jumpDenied.length === 0, JSON.stringify(st.jumpDenied));
   }
-  // toque (iPhone emulado): SOCO/CHUTE/ESQUIVA só com contexto de confronto
+  // toque (iPhone emulado): SOCO/CHUTE/ESQUIVA sempre visíveis para jogador (a avenida toda é de confronto)
   {
     const M = await open('Toque', [PEACE.A[0] + 3, PEACE.A[1] - 2], true);
     const c0 = await cb(M);
-    check('toque: botões de confronto escondidos em zona de paz (modo pacífico)', c0.touch === false && !c0.context, JSON.stringify({ touch: c0.touch, ctx: c0.context }));
+    check('toque: botões de confronto visíveis no spawn, em modo pacífico', c0.touch === true && c0.context, JSON.stringify({ touch: c0.touch, ctx: c0.context }));
     await tp(M, [FIGHT.A[0] + 2, FIGHT.A[1] - 3]);
-    const shown = await until(M, () => window.__pv.combat().touch === true, 4000);
-    check('toque: botões aparecem na área de treino', shown);
+    check('toque: continuam visíveis na área de treino', await until(M, () => window.__pv.combat().touch === true, 4000));
     await ev(M, () => window.__pv.cbt('cbt_punch'));
     await w(250);
     await shot(M, 'J_toque_confronto');
-    await tp(M, [PEACE.A[0] + 3, PEACE.A[1] - 2]);
-    check('toque: somem ao sair', await until(M, () => window.__pv.combat().touch === false, 5000));
+    await tp(M, [CENTRO_P.x, CENTRO_P.z]);
+    await w(1500);
+    check('toque: continuam visíveis no CENTRO', (await cb(M)).touch === true);
+  }
+  // NPCs de ambiente (locais do cliente) no CENTRO: soco, chute e taco tirado da RODA
+  {
+    const N = await open('Npc', [CENTRO_P.x, CENTRO_P.z]);
+    await w(5200); // proteção de entrada: não muda nada para NPC, mas o HUD estabiliza
+    check('CENTRO: política COMBAT', (await cb(N)).policy === 'COMBAT', (await cb(N)).policy);
+    check('CENTRO: há NPCs de ambiente perto', await until(N, () => window.__pv.npcs(60).list.length > 0, 15000, 300));
+    const p0 = await ev(N, () => window.__pv.npcs());
+    check('soco em NPC: ele reage (cambaleia)', await hitNpc(N, 'cbt_punch'), JSON.stringify((await ev(N, () => window.__pv.npcs())).peds));
+    await w(900);
+    check('chute em NPC: ele reage', await hitNpc(N, 'cbt_kick'));
+    const it = (await ev(N, () => window.__pv.r9b().items));
+    check('roda oferece taco/barra/spray sem apoio (freeCombatProps)', it?.free === true && [11, 12, 13].every((id) => it.wheel.includes(id)), JSON.stringify(it?.wheel));
+    check('taco tirado da RODA (ITENS) vai para a mão (servidor aceita)', await wheelPick(N, 'Taco') && await until(N, () => window.__pv.social().server?.prop === 11, 4000));
+    await w(400);
+    const down0 = (await ev(N, () => window.__pv.npcs())).peds.down;
+    const bat = await hitNpc(N, 'cbt_punch');
+    const n1 = await ev(N, () => window.__pv.npcs());
+    check('taco em NPC: ele cai (deitado)', bat && (n1.peds.down > down0 || n1.rally.reacting > 0), JSON.stringify({ peds: n1.peds, rally: n1.rally }));
+    const lying = (await ev(N, () => window.__pv.npcs())).reacting.find((r) => r.kind === 'down');
+    if (lying) { const m = await me(N); await ev(N, (y) => window.__pv.camera(y, 0.5, 4.5), Math.atan2(lying.x - m.x, lying.z - m.z) + 0.7); } // de lado: o próprio não tapa
+    await w(900);
+    await shot(N, 'L_npc_queda');
+    check('NPC levanta sozinho (~4 s) e volta a andar', await until(N, () => window.__pv.npcs().peds.down === 0, 7000, 200));
+    const st = (await cb(N)).stats;
+    check('golpe em NPC fica no cliente (nenhum cbt_hit de NPC do servidor)', st.npcHits >= 3 && st.hitsOut === 0, `npcHits ${st.npcHits} (antes ${p0.peds.hits + p0.rally.hits})`);
   }
 } catch (e) { console.error(e); check('roteiro sem exceção', false, String(e)); }
 const ok = results.filter((r) => r.ok).length;
