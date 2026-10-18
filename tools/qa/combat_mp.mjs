@@ -298,6 +298,7 @@ try {
     check('soco em NPC: ele reage (cambaleia)', await hitNpc(N, 'cbt_punch'), JSON.stringify((await ev(N, () => window.__pv.npcs())).peds));
     await w(900);
     check('chute em NPC: ele reage', await hitNpc(N, 'cbt_kick'));
+    await w(4800); // rodada 9.1: o chute DERRUBA — espera o NPC levantar antes do teste do taco
     const it = (await ev(N, () => window.__pv.r9b().items));
     check('roda oferece taco/barra/spray sem apoio (freeCombatProps)', it?.free === true && [11, 12, 13].every((id) => it.wheel.includes(id)), JSON.stringify(it?.wheel));
     check('taco tirado da RODA (ITENS) vai para a mão (servidor aceita)', await wheelPick(N, 'Taco') && await until(N, () => window.__pv.social().server?.prop === 11, 4000));

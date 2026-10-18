@@ -26,8 +26,8 @@
       "windupMs": 120,
       "activeMs": 100,
       "recoveryMs": 230,
-      "range": 1.35,
-      "arcDeg": 70,
+      "range": 1.8,
+      "arcDeg": 100,
       "staminaCost": 8,
       "cooldownMs": 380,
       "bareHanded": true,
@@ -47,8 +47,8 @@
       "windupMs": 100,
       "activeMs": 100,
       "recoveryMs": 260,
-      "range": 1.35,
-      "arcDeg": 70,
+      "range": 1.8,
+      "arcDeg": 100,
       "staminaCost": 8,
       "cooldownMs": 350,
       "bareHanded": true,
@@ -71,15 +71,14 @@
       "windupMs": 220,
       "activeMs": 120,
       "recoveryMs": 380,
-      "range": 1.6,
-      "arcDeg": 60,
+      "range": 2.0,
+      "arcDeg": 90,
       "staminaCost": 16,
       "cooldownMs": 800,
       "impact": {
         "condition": 20,
-        "knockback": 0.9,
-        "state": "STAGGERED",
-        "staggerMs": 600
+        "knockback": 1.2,
+        "state": "KNOCKED_DOWN"
       }
     },
     {
@@ -91,8 +90,8 @@
       "windupMs": 200,
       "activeMs": 140,
       "recoveryMs": 450,
-      "range": 1.65,
-      "arcDeg": 64,
+      "range": 2.0,
+      "arcDeg": 90,
       "staminaCost": 18,
       "cooldownMs": 900,
       "comboFrom": 2,
@@ -165,8 +164,7 @@
       "impact": {
         "condition": 26,
         "knockback": 1.1,
-        "state": "STAGGERED",
-        "staggerMs": 650
+        "state": "KNOCKED_DOWN"
       },
       "npcReaction": "down"
     },
@@ -187,8 +185,7 @@
       "impact": {
         "condition": 32,
         "knockback": 1.3,
-        "state": "STAGGERED",
-        "staggerMs": 700
+        "state": "KNOCKED_DOWN"
       },
       "npcReaction": "down"
     },

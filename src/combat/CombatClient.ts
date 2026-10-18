@@ -48,6 +48,24 @@ export interface CombatClientDeps {
   consent: CombatConsent;
   /** golpe local chegou à janela ativa: NPCs de ambiente à frente reagem (devolve quantos) */
   npcHit?: (x: number, z: number, h: number, def: CombatActionDefinition) => number;
+  /** rodada 9.1 — mira assistida: alvos (jogadores e NPCs) a até r m de (x, z) */
+  aimTargets?: (x: number, z: number, r: number, out: { x: number; z: number }[]) => void;
+}
+
+/** mira assistida: o golpe vira para o alvo mais perto à frente (o servidor valida alcance/arco pelo `h` enviado) */
+export const AIM_ASSIST = { extraM: 1.2, halfArcDeg: 80 } as const;
+export function aimHeading(x: number, z: number, heading: number, range: number, targets: readonly { x: number; z: number }[]): number {
+  let best = Infinity, bh = heading;
+  const max = range + AIM_ASSIST.extraM, half = (AIM_ASSIST.halfArcDeg * Math.PI) / 180;
+  for (const t of targets) {
+    const dx = t.x - x, dz = t.z - z, d = Math.hypot(dx, dz);
+    if (d < 0.2 || d > max) continue;
+    const h = Math.atan2(dx, dz);
+    let dh = h - heading; while (dh > Math.PI) dh -= 2 * Math.PI; while (dh < -Math.PI) dh += 2 * Math.PI;
+    if (Math.abs(dh) > half) continue;
+    if (d < best) { best = d; bh = h; }
+  }
+  return bh;
 }
 
 export class CombatClient {
@@ -173,6 +191,8 @@ export class CombatClient {
     return T.itemAction(this.heldKind()) ?? T.byKey.get('soco');
   }
 
+  private aimBuf: { x: number; z: number }[] = [];
+
   private tryFire(p: PlayerState, now: number) {
     const k = this.buf!.k;
     const base = this.baseFor(k);
@@ -190,6 +210,12 @@ export class CombatClient {
     // orientação: golpes na frente do corpo; esquiva na direção do movimento (parado: para trás)
     let h = p.heading;
     if (def.kind === 'dodge') h = Math.hypot(p.vx, p.vz) > 0.6 ? Math.atan2(p.vx, p.vz) : p.heading + Math.PI;
+    else if (this.d.aimTargets) { // mira assistida: vira o corpo para o alvo mais perto à frente
+      this.aimBuf.length = 0;
+      this.d.aimTargets(p.x, p.z, def.range + AIM_ASSIST.extraM, this.aimBuf);
+      h = aimHeading(p.x, p.z, p.heading, def.range, this.aimBuf);
+      p.heading = h;
+    }
     this.d.net.send('cbt', { a: base.id, h: Math.round(h * 1000) / 1000, seq: this.d.net.moveSeq });
     this.stats.sent++;
     this.recentAt = now;

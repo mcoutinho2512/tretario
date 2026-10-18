@@ -35,15 +35,14 @@ describe('NPC: escolha dos alvos (pura)', () => {
     const sys = (pts: { x: number; z: number }[]) => ({ npcTargetsNear: (_x: number, _z: number, _r: number, out: NpcTarget[]) => { for (const p of pts) out.push({ ...p, react: (k, dx, dz, kb) => got.push({ k, dx, dz, kb }) }); } });
     expect(hitNpcs([sys([{ x: 0, z: 5 }]), null], O, def('soco'), slack)).toBe(0);
     expect(hitNpcs([sys([{ x: 0, z: 1.4 }]), sys([{ x: 0, z: 1 }])], O, def('chute'), slack)).toBe(1);
-    expect(got).toEqual([{ k: 'stagger', dx: 0, dz: 1, kb: def('chute').impact.knockback }]);
+    expect(got).toEqual([{ k: 'down', dx: 0, dz: 1, kb: def('chute').impact.knockback }]); // rodada 9.1: chute derruba
   });
 });
 
 describe('NPC: reação', () => {
-  it('por ação: soco/chute cambaleiam; chute final, empurrão, taco, barra derrubam; spray = mãos nos olhos', () => {
+  it('por ação: soco cambaleia; chute, chute final, empurrão, taco, barra derrubam; spray = mãos nos olhos', () => {
     expect(npcReactionFor(def('soco'))).toBe('stagger');
-    expect(npcReactionFor(def('chute'))).toBe('stagger');
-    for (const k of ['chute_final', 'empurrao', 'golpe_taco', 'golpe_barra']) expect(npcReactionFor(def(k))).toBe('down');
+    for (const k of ['chute', 'chute_final', 'empurrao', 'golpe_taco', 'golpe_barra']) expect(npcReactionFor(def(k))).toBe('down');
     expect(npcReactionFor(def('spray'))).toBe('flinch');
   });
   it('queda: deita (π/2) por ~3,4 s, levanta e acaba; recuo total = empurrão', () => {
@@ -62,5 +61,16 @@ describe('NPC: reação', () => {
     expect(mid.tilt).toBeGreaterThan(0); expect(mid.tilt).toBeLessThan(0.5);
     expect(stepNpcReaction(s, 0.5).done).toBe(true);
     expect(stepNpcReaction(startNpcReaction('flinch', 0, 1, 0), 0.5).tilt).toBeLessThan(0);
+  });
+});
+
+import { aimHeading } from '../src/combat/CombatClient';
+describe('mira assistida (rodada 9.1)', () => {
+  it('vira para o alvo mais perto à frente; ignora atrás e longe', () => {
+    // olhando para +z (heading 0); alvo à direita-frente a 1,5 m e outro atrás
+    const h = aimHeading(0, 0, 0, 1.8, [{ x: 1, z: 1.1 }, { x: 0, z: -1 }, { x: 0, z: 9 }]);
+    expect(h).toBeCloseTo(Math.atan2(1, 1.1), 3);
+    expect(aimHeading(0, 0, 0, 1.8, [{ x: 0, z: -1 }])).toBe(0); // só atrás: mantém
+    expect(aimHeading(0, 0, 0, 1.8, [{ x: 0, z: 5 }])).toBe(0); // longe demais: mantém
   });
 });

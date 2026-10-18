@@ -75,7 +75,7 @@ import { ItemsClient } from '../items/ItemsClient';
 import { HandIndicator } from '../ui/hud/HandIndicator';
 import { DisorientOverlay } from '../combat/fxVisuals';
 import { FX } from '../combat/types';
-import { hitNpcs } from '../combat/npcHits';
+import { hitNpcs, type NpcTarget } from '../combat/npcHits';
 import { RULES } from '../net/rules';
 import { Ragdoll } from '../physics/Ragdoll';
 
@@ -928,8 +928,8 @@ export class Game {
     const net = this.net;
     if (this.items && net) {
       this.items.update(this.player.x, this.player.z, this.social.prop);
-      if (this.input.consumeToggle('item') && !this.avatar.isDown) { if (this.mpOnline) this.items.pickOrDrop(); }
-      if (this.input.consumeToggle('drop') && !this.avatar.isDown && this.mpOnline) this.items.drop();
+      if (this.input.consumeToggle('item') && !this.avatar.isDown) { if (this.mpOnline) this.items.pickOrDrop(this.social.prop, (id) => this.social.requestProp(id)); }
+      if (this.input.consumeToggle('drop') && !this.avatar.isDown && this.mpOnline) this.items.drop(this.social.prop, (id) => this.social.requestProp(id));
       if (this.input.consumeToggle('stow') && !this.avatar.isDown) this.items.stowToggle(this.social.prop, (id) => this.social.requestProp(id));
     } else { this.input.consumeToggle('item'); this.input.consumeToggle('drop'); this.input.consumeToggle('stow'); }
     const fx = net?.self.fx ?? 0;
@@ -1096,7 +1096,9 @@ export class Game {
       this.hudShell.setPrompt(this.pendingEnter || this.pendingBoard ? 'Aguardando o servidor…' : ladder ? 'E — SUBIR NO TRIO' : near ? (near.def.kind === 'trio' ? 'E — DIRIGIR O TRIO ELÉTRICO' : `E — USAR ${near.def.label.toUpperCase()}`) : this.graffiti.promptText());
     }
     this.rideables.sync(this.camera.position);
-    this.hudShell.setMode(this.interaction.mode === 'pacifico' ? 'Modo pacífico' : 'Modo interação', this.interaction.mode === 'interacao');
+    // sem consentimento (decisão do dono 2026-10-18): o modo K não protege ninguém — o rótulo diz a regra real
+    if (this.combatRules.combatConsent === 'none') this.hudShell.setMode('Confronto liberado', true);
+    else this.hudShell.setMode(this.interaction.mode === 'pacifico' ? 'Modo pacífico' : 'Modo interação', this.interaction.mode === 'interacao');
   }
 
   // ------------------------------------------------------------------ rodada 9 — confronto (src/combat, docs/COMBAT.md)
@@ -1111,6 +1113,12 @@ export class Game {
         consent: this.combatRules.combatConsent,
         // NPCs de ambiente são locais: o golpe neles não vai ao servidor (src/combat/npcHits.ts)
         npcHit: (x, z, h, def) => hitNpcs([this.peds, this.rallyCrowd], { x, z, h }, def, this.combat!.tuning),
+        aimTargets: (x, z, r, out) => {
+          this.net?.forEachRemotePos((rx, rz) => { if ((rx - x) ** 2 + (rz - z) ** 2 <= r * r) out.push({ x: rx, z: rz }); });
+          const npcs: NpcTarget[] = [];
+          this.peds.npcTargetsNear(x, z, r, npcs); this.rallyCrowd?.npcTargetsNear(x, z, r, npcs);
+          for (const n of npcs) out.push({ x: n.x, z: n.z });
+        },
       });
     } catch (e) { console.warn('[confronto] indisponível', e); }
   }

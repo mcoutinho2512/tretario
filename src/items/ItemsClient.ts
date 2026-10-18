@@ -67,28 +67,31 @@ export class ItemsClient {
       held: held ? held.label : null,
       stowed: own && heldProp !== own.id ? own.label : null,
       near: this.near ? PROP_BY_ID.get(this.near.prop)?.label ?? 'item' : null,
-      canDrop: !!own,
+      canDrop: !!own || !!held, // item da roda também se larga (Z / toque)
     });
   }
 
   /** R / toque: pega o que está perto; senão larga o possuído */
-  pickOrDrop() {
+  pickOrDrop(heldProp = 0, requestProp?: (id: number) => void) {
     if (!this.net) return;
     if (this.near) this.net.send('item_pick', { i: this.near.id });
     else if (this.carried.c) this.net.send('item_drop', {});
+    else if (heldProp && requestProp) requestProp(0); // item da roda na mão: toque/T larga
     else this.notify(this.free ? 'Nenhum item por perto — taco, barra e spray também estão na roda (G → itens)' : 'Nenhum item por perto (pontos de apoio só nas áreas de confronto)');
   }
 
   /** Z: larga o possuído (à frente dos pés) */
-  drop() {
+  drop(heldProp = 0, requestProp?: (id: number) => void) {
     if (!this.net) return;
     if (this.carried.c) this.net.send('item_drop', {});
+    // item da roda de ações (não é do mundo): Z também larga — mão livre
+    else if (heldProp && requestProp) requestProp(0);
     else this.notify('Você não está com nenhum item');
   }
 
   /** X: guarda (mão livre) / saca o item possuído — pelo `prop` normal (o servidor confere a posse) */
   stowToggle(heldProp: number, requestProp: (id: number) => void) {
-    if (!this.carried.c) return;
+    if (!this.carried.c) { if (heldProp) requestProp(0); return; } // item da roda: X guarda (mão livre)
     requestProp(heldProp === this.carried.c ? 0 : this.carried.c);
   }
 

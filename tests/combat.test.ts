@@ -249,7 +249,7 @@ describe('golpes (servidor decide)', () => {
     W.t += 2000;
     expect(C.request('A', { a: ID('golpe_barra'), h: 0, seq: 5 }).ok).toBe(true);
     step(500);
-    expect(C.fighter('B')!.condition).toBe(100 - 26 - 32);
+    expect(C.fighter('B')!.condition).toBe(100 - 32); // rodada 9.1: o taco DERRUBA; ao levantar a condição volta (100)
     W.players.get('B')!.status = PHYS.NORMAL; W.players.get('B')!.z = 2.0;
     W.add('C', { x: 0.4, z: 2.4 }); C.join('C');
     W.players.get('A')!.prop = 51;
