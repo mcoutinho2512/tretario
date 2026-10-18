@@ -1,0 +1,13 @@
+# /etc/logrotate.d/tretario — logs em arquivo dos scripts de operação (deploy, backup, health).
+# O app loga no journald (limitado em journald-tretario.conf). telemetry.jsonl (só agregados) fica fora daqui.
+/opt/tretario/shared/logs/*.log /opt/tretario/shared/logs/*.jsonl {
+    su tretario tretario
+    weekly
+    rotate 8
+    maxsize 50M
+    compress
+    delaycompress
+    missingok
+    notifempty
+    copytruncate
+}

@@ -1,0 +1,11 @@
+[Unit]
+Description=Backup diario do banco do Presidente Vargas 3D
+
+[Timer]
+# 04:30 no fuso do servidor (madrugada = menos jogadores); Persistent: roda na volta se a VPS estava desligada
+OnCalendar=*-*-* 04:30:00
+RandomizedDelaySec=10m
+Persistent=true
+
+[Install]
+WantedBy=timers.target

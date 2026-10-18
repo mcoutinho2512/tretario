@@ -1,0 +1,45 @@
+# Presidente Vargas 3D — jogo (Colyseus 127.0.0.1:2567) + API/health (127.0.0.1:2568). deploy/CONTRACT.md
+# Instalado por scripts/provision-vps.sh em /etc/systemd/system/. Logs: journalctl -u tretario
+[Unit]
+Description=Presidente Vargas 3D (jogo + API)
+After=network-online.target postgresql.service
+Wants=network-online.target postgresql.service
+StartLimitIntervalSec=300
+StartLimitBurst=10
+
+[Service]
+Type=simple
+User=tretario
+Group=tretario
+WorkingDirectory=/opt/tretario/current/server
+EnvironmentFile=/opt/tretario/shared/env/server.env
+Environment=HOME=/opt/tretario/shared/home
+# tsx como loader dentro do PRÓPRIO processo node (sem processo filho: o SIGTERM chega direto ao Colyseus).
+# O servidor não compila com tsc (tsconfig noEmit + imports .ts); tempo de partida medido: docs/DEPLOYMENT.md
+ExecStart=/usr/local/bin/node --max-old-space-size=2048 --import tsx src/index.ts
+Restart=always
+RestartSec=2
+KillSignal=SIGTERM
+TimeoutStopSec=20
+# 8 GB na VPS: PostgreSQL (~1 GB shared_buffers + cache do SO) + Nginx + este processo
+MemoryHigh=2560M
+MemoryMax=3G
+LimitNOFILE=65536
+TasksMax=512
+# isolamento: código só leitura; escrita só em shared/data e shared/home
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/opt/tretario/shared/data /opt/tretario/shared/home
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictSUIDSGID=yes
+LockPersonality=yes
+SyslogIdentifier=tretario
+
+[Install]
+WantedBy=multi-user.target

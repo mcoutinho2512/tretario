@@ -1,0 +1,21 @@
+# Backup diário do PostgreSQL (scripts/backup-db.sh): backups/daily (7) + cópia weekly aos domingos (4)
+[Unit]
+Description=Presidente Vargas 3D - backup do banco
+After=postgresql.service
+ConditionPathExists=/opt/tretario/current/scripts/backup-db.sh
+
+[Service]
+Type=oneshot
+User=tretario
+Group=tretario
+EnvironmentFile=/opt/tretario/shared/env/server.env
+Environment=HOME=/opt/tretario/shared/home
+ExecStart=/opt/tretario/current/scripts/backup-db.sh --kind daily
+Nice=10
+IOSchedulingClass=idle
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/opt/tretario/shared/backups /opt/tretario/shared/logs /opt/tretario/shared/home
+SyslogIdentifier=tretario-backup

@@ -1,0 +1,9 @@
+[Unit]
+Description=Checagem de saude do Presidente Vargas 3D (1 min)
+
+[Timer]
+OnCalendar=*-*-* *:*:00
+AccuracySec=5s
+
+[Install]
+WantedBy=timers.target
