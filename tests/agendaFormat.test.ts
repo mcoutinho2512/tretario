@@ -3,7 +3,7 @@
  * escolha dos 3 itens relevantes, seções agora/a seguir/encerrados, botão entrar/sair.
  */
 import { describe, expect, it } from 'vitest';
-import { agendaSections, entryLine, entryStatus, entryTitle, headcount, joinAction, pickNow } from '../src/events/agendaFormat';
+import { AGENDA_SOON_MS, agendaSections, entryLine, entryStatus, entryTitle, headcount, joinAction, pickNow } from '../src/events/agendaFormat';
 import type { AgendaEntry } from '../src/events/schedule';
 
 const T = 1_800_000_000_000;
@@ -42,14 +42,18 @@ describe('agenda — formatação', () => {
     expect(pickNow(list, T, 5).map((x) => x.inst)).toEqual(['live2', 'live', 'reg', 'soon']);
   });
 
-  it('tela AGENDA: agora / a seguir / encerrados há pouco; botão entrar/sair', () => {
+  it('tela AGENDA: AGORA / EM BREVE (≤ 15 min) / MAIS TARDE / ENCERRADOS RECENTEMENTE (janela do servidor); botão entrar/sair', () => {
     const s = agendaSections([
-      e({ inst: 'a', state: 'ACTIVE' }), e({ inst: 'b', state: 'REGISTRATION', startsAt: T + 5 }), e({ inst: 'c', state: 'SCHEDULED', startsAt: T + 1 }),
-      e({ inst: 'd', state: 'FINISHED', endsAt: T - 60_000 }), e({ inst: 'old', state: 'FINISHED', endsAt: T - 3 * 3600_000 }),
+      e({ inst: 'a', state: 'ACTIVE' }), e({ inst: 'b', state: 'REGISTRATION', startsAt: T + 5 }), e({ inst: 'st', state: 'STARTING', startsAt: T + 3 }),
+      e({ inst: 'c', state: 'SCHEDULED', startsAt: T + 1 }), e({ inst: 'c15', state: 'SCHEDULED', startsAt: T + AGENDA_SOON_MS }), e({ inst: 'late', state: 'SCHEDULED', startsAt: T + AGENDA_SOON_MS + 1 }),
+      e({ inst: 'd', state: 'FINISHED', endsAt: T - 60_000 }), e({ inst: 'x', state: 'CANCELLED', endsAt: T - 30_000 }), e({ inst: 'old', state: 'FINISHED', endsAt: T - 3 * 3600_000 }),
     ], T);
-    expect(s.now.map((x) => x.inst)).toEqual(['a']);
-    expect(s.next.map((x) => x.inst)).toEqual(['c', 'b']);
-    expect(s.recent.map((x) => x.inst)).toEqual(['d']);
+    expect(AGENDA_SOON_MS).toBe(15 * 60_000);
+    expect(s.now.map((x) => x.inst)).toEqual(['st', 'b', 'a']);
+    expect(s.soon.map((x) => x.inst)).toEqual(['c', 'c15']);
+    expect(s.later.map((x) => x.inst)).toEqual(['late']);
+    // o cliente não corta por tempo: o servidor só manda o que ainda está na janela recente
+    expect(s.recent.map((x) => x.inst)).toEqual(['x', 'd', 'old']);
     expect(joinAction(e({ state: 'REGISTRATION', count: 2, capacity: 20 }))).toBe('join');
     expect(joinAction(e({ state: 'REGISTRATION', count: 20, capacity: 20 }))).toBeNull();
     expect(joinAction(e({ state: 'ACTIVE', joined: true }))).toBe('leave');

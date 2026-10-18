@@ -94,6 +94,9 @@ export class WalkRunner implements EventRunner {
 
   onLeave(_ctx: RunnerContext, sid: string) { this.f.delete(sid); }
 
+  /** mesma conta, sessão nova: o quanto acompanhou segue o participante */
+  rebind(_ctx: RunnerContext, from: string, to: string) { const fo = this.f.get(from); if (fo) { this.f.delete(from); this.f.set(to, fo); } }
+
   state(ctx: RunnerContext) {
     const L = this.leaderAt(ctx, ctx.now());
     return { leader: { x: +L.x.toFixed(1), z: +L.z.toFixed(1) }, d: +L.d.toFixed(1), total: +this.total.toFixed(1), need: +this.need.toFixed(1), following: Object.fromEntries([...this.f].map(([s, f]) => [s, +f.mine.toFixed(1)])) };

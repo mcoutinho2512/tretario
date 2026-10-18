@@ -1,14 +1,17 @@
 /**
  * Agenda no CLIENTE (rodada 9): fonte `agenda` do servidor (src/events/schedule.ts), "Acontecendo agora" (HUD, até 3
- * itens, discreto, esmaece com o HUD) e a tela AGENDA DA AVENIDA (menu ☰: agora / a seguir / encerrados, entrar/sair
- * com `evt_join`/`evt_leave`). O cliente só EXIBE: estado, horário e contagem vêm do servidor.
+ * itens, discreto, esmaece com o HUD) e a tela AGENDA DA AVENIDA (menu ☰: AGORA / EM BREVE / MAIS TARDE / ENCERRADOS
+ * RECENTEMENTE, entrar/sair com `evt_join`/`evt_leave`). O cliente só EXIBE: estado, início/fim, contagem, capacidade e
+ * `joined` vêm SÓ da mensagem `agenda` do servidor (rodada 9.1: não há alimentador local); contagens regressivas no
+ * relógio comum do servidor (src/net/clock.ts worldClock), nunca no Date local.
  *
  * Custo: nada por quadro. Os relógios ("começa em 03:42") andam por um intervalo de 1 s que só existe enquanto há
  * algo para mostrar; cada linha escreve no DOM só quando o texto muda (TextSlot). Formatação: src/events/agendaFormat.ts.
  */
 import './agenda.css';
 import type { AgendaEntry, AgendaMessage } from '../events/schedule';
-import { JOIN_DENIAL_TEXT, STATE_LABEL, agendaSections, entryLine, joinAction, pickNow } from '../events/agendaFormat';
+import { JOIN_DENIAL_TEXT, STATE_LABEL, agendaSections, entryLine, joinAction, pickNow, type AgendaSectionKey } from '../events/agendaFormat';
+import { worldClock } from '../net/clock';
 import { TextSlot } from './hud/throttle';
 
 export interface AgendaTransport { send(type: string, payload?: unknown): void; on(type: string, fn: (msg: any) => void): void }
@@ -20,7 +23,7 @@ const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, text?: 
   return e;
 };
 
-/** lista atual + ouvintes; `apply` aceita a mensagem do servidor (ou de um alimentador local de QA) */
+/** lista atual + ouvintes; a única fonte é a mensagem `agenda` do servidor (attach) */
 export class AgendaFeed {
   list: AgendaEntry[] = [];
   version = 0;
@@ -29,11 +32,11 @@ export class AgendaFeed {
   /** resposta de evt_join/evt_leave (o jogo mostra o aviso) */
   onResult?: (r: { inst: string; ok: boolean; r?: string }) => void;
 
-  constructor(public now: () => number = () => Date.now()) {}
+  constructor(public now: () => number = () => worldClock.now()) {}
 
   /**
-   * a agenda veio do SERVIDOR (o agendador existe nesta sala): só então `evt_join`/`evt_leave` são enviados — mensagem
-   * sem handler no servidor derruba a conexão (Colyseus). Alimentador local (QA) não liga isto.
+   * a agenda já veio do SERVIDOR nesta conexão: só então `evt_join`/`evt_leave` são enviados (mensagem sem handler no
+   * servidor derruba a conexão — Colyseus)
    */
   serverDriven = false;
 
@@ -43,7 +46,7 @@ export class AgendaFeed {
     net.on('evt_res', (r: { inst: string; ok: boolean; r?: string }) => this.onResult?.(r));
   }
 
-  apply(m: AgendaMessage | null | undefined) {
+  private apply(m: AgendaMessage | null | undefined) {
     if (!m || !Array.isArray(m.list)) return;
     this.list = m.list.slice(0, 64);
     this.version++;
@@ -121,7 +124,7 @@ export class AgendaPanel {
   readonly el: HTMLElement;
   private body: HTMLElement;
   private timer = 0;
-  private sections: { key: 'now' | 'next' | 'recent'; label: string; list: HTMLElement; empty: HTMLElement; rows: { row: Row; btn: HTMLButtonElement; li: HTMLElement }[] }[] = [];
+  private sections: { key: AgendaSectionKey; label: string; list: HTMLElement; empty: HTMLElement; rows: { row: Row; btn: HTMLButtonElement; li: HTMLElement }[] }[] = [];
   onToggle?: (open: boolean) => void;
 
   constructor(private feed: AgendaFeed, private onPick: (e: AgendaEntry) => void, private zoneName?: (id: string) => string | undefined) {
@@ -137,10 +140,12 @@ export class AgendaPanel {
     head.appendChild(x);
     this.body = el('div', 'ap-body');
     this.el.append(head, this.body);
-    for (const [key, label] of [['now', 'Agora'], ['next', 'A seguir'], ['recent', 'Encerrados há pouco']] as const) {
+    const EMPTY: Record<AgendaSectionKey, string> = { now: 'Nada acontecendo agora', soon: 'Nada nos próximos minutos', later: 'Nada agendado', recent: '—' };
+    for (const [key, label] of [['now', 'Agora'], ['soon', 'Em breve'], ['later', 'Mais tarde'], ['recent', 'Encerrados recentemente']] as const) {
       const sec = el('div', 'ap-sec');
+      sec.dataset.sec = key;
       sec.append(el('h3', '', label));
-      const list = el('ul', 'ap-list'), empty = el('p', 'ap-empty', key === 'now' ? 'Nada acontecendo agora' : key === 'next' ? 'Nada agendado' : '—');
+      const list = el('ul', 'ap-list'), empty = el('p', 'ap-empty', EMPTY[key]);
       sec.append(list, empty);
       this.body.appendChild(sec);
       this.sections.push({ key, label, list, empty, rows: [] });
@@ -185,7 +190,7 @@ export class AgendaPanel {
         const a = joinAction(e);
         const label = a === 'join' ? 'Participar' : a === 'leave' ? 'Sair' : STATE_LABEL[e.state];
         if (r.btn.textContent !== label) r.btn.textContent = label;
-        r.btn.hidden = !a && sec.key !== 'next';
+        r.btn.hidden = !a && sec.key !== 'soon' && sec.key !== 'later';
         r.btn.classList.toggle('leave', a === 'leave');
         const dis = !a || !this.feed.online;
         if (r.btn.disabled !== dis) r.btn.disabled = dis;

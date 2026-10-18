@@ -19,7 +19,7 @@
  * Novo formato: implemente `EventRunner` e registre em server/src/events/runners.ts (`RUNNERS.set(format, () => …)`).
  */
 import type { AgendaEntry } from '../../../src/events/schedule';
-import type { EventJoinDenial, EventState, ScheduledEventDef, WorldPoint } from '../../../src/events/schedule';
+import type { EventJoinDenial, EventResultRow, EventState, ScheduledEventDef, WorldPoint } from '../../../src/events/schedule';
 import type { GameplayEvent } from '../../../src/gameplay/events';
 import type { CombatEventRules } from '../../../src/combat/policy';
 
@@ -61,6 +61,8 @@ export interface EventHost {
   log?(msg: string): void;
   /** entradas de agenda de OUTROS sistemas da sala (ex.: palco de debate, server/src/debate) — mesma mensagem `agenda` */
   extraAgenda?(now: number): AgendaEntry[];
+  /** chave estável do participante: `u:<conta>`; sem conta `s:<sessão>` (ausente = `s:<sessão>`) — dona da inscrição */
+  participantKey?(sid: string): string;
 }
 
 /** instância de um ScheduledEventDef (uma ocorrência da recorrência) */
@@ -74,7 +76,7 @@ export interface EventInstance {
   countdownAt: number;
   startsAt: number;
   endsAt: number;
-  /** inscritos (sessionIds de humanos) */
+  /** inscritos (sessionId ATUAL de cada participante; o runtime troca na substituição de sessão) */
   members: Set<string>;
   /** quem concluiu (event_complete já emitido) */
   completed: Set<string>;
@@ -136,8 +138,12 @@ export interface EventRunner {
   onKnockdown?(ctx: RunnerContext, attacker: string, target: string): void;
   /** mensagens próprias do formato (ex.: debate `dbt_queue`/`dbt_say`/`dbt_react`) roteadas pela sala */
   onMessage?(ctx: RunnerContext, sid: string, type: string, msg: unknown): void;
-  /** retrato para quem acaba de pedir para acompanhar (evt_watch) */
+  /** retrato para quem acaba de pedir para acompanhar (evt_watch) — também na volta de um inscrito (reconexão/troca) */
   watch?(ctx: RunnerContext, sid: string): void;
+  /** o MESMO participante trocou de sessão (login duplicado): mover o estado de `from` para `to` */
+  rebind?(ctx: RunnerContext, from: string, to: string): void;
+  /** resumo para guardar depois do fim (posição/tempo/status, placar) — o runner é descartado em seguida */
+  results?(ctx: RunnerContext): { rows: EventResultRow[]; score?: Record<string, number> } | null;
 }
 
 export type RunnerFactory = (def: ScheduledEventDef) => EventRunner | null;

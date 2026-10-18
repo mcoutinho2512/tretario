@@ -199,7 +199,7 @@ describe('caminhada', () => {
     expect(pts).toHaveLength(1);
     expect(pts[0]).toMatchObject({ crowd: 100, strength: 1 });
     expect(Math.hypot(pts[0].x - s1.leader.x, pts[0].z - s1.leader.z)).toBeLessThan(0.1);
-    R.run((s1.total / 5) * 1000 + 25_000, () => { const s = R.rt.runnerState(inst.inst) as any; near.x = s.leader.x + 5; near.z = s.leader.z; bike.x = s.leader.x; bike.z = s.leader.z; });
+    R.run((s1.total / 5) * 1000 + 25_000, () => { const s = R.rt.runnerState(inst.inst) as any; if (!s) return; near.x = s.leader.x + 5; near.z = s.leader.z; bike.x = s.leader.x; bike.z = s.leader.z; });
     const done = R.emitted.filter((e) => e.ev.type === 'event_complete').map((e) => e.sid);
     expect(done).toEqual(['near']); // de bicicleta não é caminhada; longe não acompanhou
     expect(inst.state).toBe('FINISHED'); // chegou + dispersão
@@ -417,4 +417,120 @@ describe('confronto de grupos', () => {
       expect(R.emitted.every((e) => !JSON.stringify(e.ev).includes('xp'))).toBe(true);
     });
   }
+});
+
+// ------------------------------------------------------------------------------------------------ rodada 9.1: identidade
+describe('inscrição é da identidade (chave de participante), não da conexão', () => {
+  /** sala com contas: sessão → `u:<conta>` (como a sala real: authorKeyOf) */
+  const withKeys = (R: ReturnType<typeof rig>, keys: Record<string, string>) => { R.host.participantKey = (sid) => keys[sid] ?? `s:${sid}`; };
+  const racer = (R: ReturnType<typeof rig>, inst: string, sid: string) => (R.rt.runnerState(inst) as any).racers.find((r: any) => r.sid === sid);
+
+  it('queda em graça e volta (mesmo sessionId): continua inscrito com o mesmo progresso de checkpoint', () => {
+    const R = rig([raceDef('bicycle')], 8.5 * MIN);
+    withKeys(R, { a: 'u:ana' });
+    const a = R.add('a', { vehicleKind: 'bicycle' });
+    R.at(8.5 * MIN);
+    const inst = R.rt.instances()[0];
+    expect(R.rt.join('a', inst.inst).ok).toBe(true);
+    a.x = -3; R.at(inst.startsAt);
+    const da = driver(R, 'a', () => 'bicycle');
+    da(100, 0, 6); da(100, 100, 6);
+    expect(racer(R, inst.inst, 'a').step).toBe(2);
+    a.dropped = true; R.run(5000); // em graça: entidade congelada, nada de onLeave
+    a.dropped = false; R.rt.reconnected('a');
+    expect(R.rt.instanceOf('a')).toBe(inst);
+    expect(racer(R, inst.inst, 'a')).toMatchObject({ step: 2, status: 'ok' });
+    expect(R.of('race_def', 'a').length).toBeGreaterThanOrEqual(2); // estado do formato de novo na volta
+    da(0, 100, 6);
+    expect(racer(R, inst.inst, 'a').step).toBe(3);
+  });
+
+  it('login duplicado (sessão nova da MESMA conta): inscrição e progresso passam para a nova; contagem não muda; sem duplicar', () => {
+    const R = rig([raceDef('bicycle')], 8.5 * MIN);
+    withKeys(R, { a1: 'u:ana', a2: 'u:ana', b: 'u:beto' });
+    const a1 = R.add('a1', { vehicleKind: 'bicycle' }); R.add('b', { vehicleKind: 'bicycle' });
+    R.at(8.5 * MIN);
+    const inst = R.rt.instances()[0];
+    R.rt.join('a1', inst.inst); R.rt.join('b', inst.inst);
+    a1.x = -3; R.at(inst.startsAt);
+    driver(R, 'a1', () => 'bicycle')(100, 0, 6);
+    expect(racer(R, inst.inst, 'a1').step).toBe(1);
+    // a sala: onJoin da nova → attach ANTES do takeOver; depois a antiga sai (onLeave → gone)
+    R.add('a2', { vehicleKind: 'bicycle', x: a1.x, z: a1.z });
+    R.rt.attach('a2');
+    R.ps.delete('a1'); R.rt.gone('a1');
+    expect(R.rt.instanceOf('a1')).toBeNull();
+    expect(R.rt.instanceOf('a2')).toBe(inst);
+    expect([...inst.members].sort()).toEqual(['a2', 'b']);
+    expect(racer(R, inst.inst, 'a2')).toMatchObject({ step: 1, status: 'ok' });
+    expect(racer(R, inst.inst, 'a1')).toBeUndefined();
+    expect(R.rt.join('a2', inst.inst)).toEqual({ ok: false, r: 'ja_inscrito' }); // a conta já está inscrita
+    R.run(1500);
+    const ag = R.of('agenda', 'a2').at(-1)!.msg.list.find((e: any) => e.inst === inst.inst);
+    expect(ag).toMatchObject({ joined: true, count: 2 });
+    expect(R.of('race_def', 'a2').length).toBeGreaterThanOrEqual(1);
+    // continua de onde estava: o próximo checkpoint é o c2
+    driver(R, 'a2', () => 'bicycle')(100, 100, 6);
+    expect(racer(R, inst.inst, 'a2').step).toBe(2);
+    expect(R.rt.sizes()).toMatchObject({ members: 2, sessions: 2, keys: 2 });
+  });
+
+  it('sair depois da graça (gone da sessão atual) desiste: DNF; o resumo fica só pela janela recente', () => {
+    const R = rig([raceDef('bicycle')], 8.5 * MIN);
+    withKeys(R, { a: 'u:ana', b: 'u:beto' });
+    const a = R.add('a', { vehicleKind: 'bicycle' }); R.add('b', { vehicleKind: 'bicycle' });
+    R.at(8.5 * MIN);
+    const inst = R.rt.instances()[0];
+    R.rt.join('a', inst.inst); R.rt.join('b', inst.inst);
+    a.x = -3; R.at(inst.startsAt);
+    driver(R, 'a', () => 'bicycle')(100, 0, 6);
+    R.rt.gone('b'); // graça vencida
+    expect(R.rt.instanceOf('b')).toBeNull();
+    expect(racer(R, inst.inst, 'b')).toMatchObject({ status: 'dnf', reason: 'saiu' });
+    R.run(300_000);
+    expect(inst.state).toBe('FINISHED');
+    // retenção: runner, inscritos e chaves soltos; só o resumo (linhas/contagens)
+    expect(R.rt.runnerState(inst.inst)).toBeNull();
+    expect(inst.members.size).toBe(0);
+    expect(R.rt.sizes()).toMatchObject({ members: 0, sessions: 0, keys: 0 });
+    const res = R.rt.results(inst.inst)!;
+    expect(res.rows.map((r) => [r.name, r.status])).toEqual([['A', 'dnf'], ['B', 'dnf']]);
+    expect(res).toMatchObject({ completed: 0, count: 1 });
+    R.run(1500);
+    expect(R.of('agenda', 'a').at(-1)!.msg.list.find((e: any) => e.inst === inst.inst)).toMatchObject({ state: 'FINISHED', count: 1 });
+    R.run(10 * MIN + 2000); // janela recente (10 min) vencida: some
+    expect(R.rt.results(inst.inst)).toBeNull();
+    expect(R.rt.get(inst.inst)).toBeUndefined();
+  });
+
+  it('confronto: lado (grupo), presença e derrubadas seguem o participante na troca de sessão', () => {
+    const R = rig([clashDef(false)], 8.5 * MIN);
+    withKeys(R, { a1: 'u:ana', a2: 'u:ana', b: 'u:beto' });
+    R.add('a1', { groupKey: 'g1' }); R.add('b', { groupKey: 'g2' });
+    for (const s of ['a1', 'a2', 'b']) R.zone.set(s, 'CAMPO_DE_SANTANA');
+    R.at(8.5 * MIN);
+    const inst = R.rt.instances()[0];
+    R.rt.join('a1', inst.inst); R.rt.join('b', inst.inst);
+    R.at(inst.startsAt);
+    R.rt.onKnockdown('a1', 'b');
+    R.add('a2', { groupKey: 'g1' });
+    R.rt.attach('a2'); R.ps.delete('a1'); R.rt.gone('a1');
+    R.rt.onKnockdown('a2', 'b');
+    const s = R.rt.runnerState(inst.inst) as any;
+    expect(s.knockdowns).toEqual({ a2: 2 });
+    expect(s.score.g1).toBe(6);
+    expect(R.rt.combatEventFor('a2')?.eventId).toBe(inst.inst);
+    expect(R.rt.combatEventFor('a1')).toBeNull();
+  });
+
+  it('anônimo (sem conta): chave da sessão — outra conexão não herda nada', () => {
+    const R = rig([raceDef('bicycle')], 8.5 * MIN);
+    R.add('x', { vehicleKind: 'bicycle' }); R.add('y', { vehicleKind: 'bicycle' });
+    R.at(8.5 * MIN);
+    const inst = R.rt.instances()[0];
+    R.rt.join('x', inst.inst);
+    R.rt.attach('y');
+    expect(R.rt.instanceOf('x')).toBe(inst);
+    expect(R.rt.instanceOf('y')).toBeNull();
+  });
 });

@@ -61,15 +61,41 @@ FINISHED`; `CANCELLED` quando, no início, há menos inscritos (humanos) que `mi
 
 **Inscrição** (`evt_join {inst}` / `evt_leave {inst}` → `evt_res {inst, ok, r?}`): aberta em REGISTRATION/STARTING
 (e em ACTIVE se o formato aceita entrada tardia: caminhada, confronto); capacidade (`lotado`), regras de grupo
-(`groupRules.allowed`, só por chave e igualdade → `grupo`), uma inscrição viva por jogador (`ja_inscrito`),
+(`groupRules.allowed`, só por chave e igualdade → `grupo`), uma inscrição viva por participante — conta, não conexão (`ja_inscrito`),
 capacidade `event.join` da política de acesso (`sem_permissao`) e a regra do formato (corrida: `veiculo`).
 `evt_watch {inst, on}` acompanha sem se inscrever (marcadores, placar, resultado) — espectadores também.
 
-**Graça de reconexão**: caiu e está em graça (entidade congelada) → a inscrição continua; só a saída de vez (graça
-vencida, saída, sessão substituída — `onLeave` da sala) desiste (`forfeit`: corrida vira DNF).
+**Inscrição é da identidade, não da conexão (rodada 9.1).** O dono da inscrição é a **chave de participante**
+(`EventHost.participantKey`): `u:<userId>` para contas; sem conta, `s:<sessionId>` — a mesma chave de autor do chat
+(`authorKeyOf`). O runtime guarda chave → instância e chave → sessão ATUAL; os runners continuam vendo sessionIds e o
+runtime os troca.
+- **Queda + reconexão** (token do Colyseus, mesmo sessionId): caiu e está em graça (entidade congelada) → a inscrição
+  continua e o runner nem percebe; na volta (`onReconnect` → `evt.reconnected`) o servidor reenvia a agenda (`joined`)
+  e o estado do formato (`race_def`).
+- **Login duplicado** (mesma conta, ticket novo → `takeOver` da sala): no `onJoin` da sessão nova, ANTES do takeOver,
+  `evt.attach(nova)` move a inscrição e o estado do runner (`EventRunner.rebind`: checkpoints/tempo/correções da
+  corrida, quanto acompanhou na caminhada, lado/presença/derrubadas no confronto) para a sessão nova. O participante é o
+  mesmo: contagem igual, nunca duplicado; `evt_join` da sessão nova responde `ja_inscrito`. ~1,5 s depois (ouvintes do
+  cliente prontos) a nova recebe a agenda e o estado do formato. O `onLeave` da sessão antiga não desiste de nada.
+- **Saída de vez** (graça vencida ou saída — `onLeave` da sala, `evt.gone` da sessão ATUAL da chave) desiste
+  (`forfeit`: corrida vira DNF `saiu`). `evt_leave` é desistência pedida (`desistiu`).
+- Testes: `tests/eventRuntime.test.ts` ("inscrição é da identidade") e, na sala real com contas e tickets,
+  `tests/eventsIdentityServer.test.ts` (queda → volta com o mesmo checkpoint; login duplicado sem duplicar; graça vencida
+  → DNF).
+
+**Retenção (rodada 9.1).** Quando uma instância termina (FINISHED/CANCELLED) o runtime solta na hora o runner, os
+inscritos, os acompanhantes e as chaves de participante; guarda só o **resumo** (`EventRuntime.results(inst)`: linhas
+posição/tempo/status — `EventRunner.results` —, placar do confronto, nº de conclusões e de inscritos) pela **janela
+recente da agenda** (`recentMs`, 10 min: é o que aparece em ENCERRADOS RECENTEMENTE) e depois apaga tudo. Nada disso é
+gravado: XP/progressão já foi persistido pelo `ProgressionService` a partir dos eventos de gameplay (`event_join`,
+`event_complete`, `race_finish`).
 
 **Mensagens** (servidor → cliente): `agenda {list: AgendaEntry[]}` ao entrar e quando muda (≤ 1 Hz; `count` = humanos
-inscritos; `joined` = o próprio); `evt_pts {list}` — concentrações dos eventos vivos (líder da caminhada, torcida da
+inscritos — numa encerrada, os inscritos no fim; `joined` = o próprio participante). Por atividade a lista traz o
+encerramento mais recente (dentro da janela recente), as vivas e a próxima ocorrência; o palco de debate entra na
+MESMA mensagem (`EventHost.extraAgenda`). É a ÚNICA fonte da agenda no cliente (rodada 9.1): o HUD separa AGORA
+(REGISTRATION/STARTING/ACTIVE), EM BREVE (SCHEDULED em ≤ 15 min), MAIS TARDE (demais SCHEDULED) e ENCERRADOS
+RECENTEMENTE (FINISHED/CANCELLED ainda enviados) — `docs/HUD.md`; `evt_pts {list}` — concentrações dos eventos vivos (líder da caminhada, torcida da
 corrida) ≤ 1 Hz e só quando muda; `race`, `race_def`, `race_board`, `walk`, `clash`, `evt_result`, `evt_done`.
 O cliente (`src/events/EventClient.ts`) só exibe e pede — nunca informa checkpoint, chegada ou participação.
 
