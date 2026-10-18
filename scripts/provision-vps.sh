@@ -5,6 +5,7 @@
 #
 #   sudo scripts/provision-vps.sh [--repo <url-git>] [--domain jogo.exemplo.com.br --email ops@exemplo.com.br]
 #                                 [--admin-ip <ip>]... [--with-www] [--ssh-port 22022] [--harden-ssh] [--node-version 20.20.2] [--skip-apt-upgrade]
+#                                 [--shared-host]   VPS que já roda outros sistemas (Ubuntu 22.04/24.04): só o que é do jogo
 #
 #   --repo        origem do espelho git usado pelo deploy (padrão: o `origin` deste clone). Repositório privado:
 #                 use a URL SSH e uma deploy key só-leitura na conta do administrador (docs/DEPLOYMENT.md)
@@ -21,7 +22,7 @@ REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 # shellcheck source=scripts/lib.sh
 . "$SCRIPT_DIR/lib.sh"
 
-DOMAIN="" EMAIL="" REPO_URL="" HARDEN_SSH=0 WITH_WWW=0 SSH_PORT="" SKIP_UPGRADE=0
+DOMAIN="" EMAIL="" REPO_URL="" HARDEN_SSH=0 WITH_WWW=0 SSH_PORT="" SKIP_UPGRADE=0 SHARED=0
 NODE_VERSION="${NODE_VERSION:-20.20.2}" # mesmo major da máquina de desenvolvimento (node -v = v20.20.2)
 ADMIN_IPS=()
 while (($#)); do
@@ -40,6 +41,7 @@ while (($#)); do
     --ssh-port) SSH_PORT="${2:?}"; shift 2 ;;
     --ssh-port=*) SSH_PORT="${1#*=}"; shift ;;
     --skip-apt-upgrade) SKIP_UPGRADE=1; shift ;;
+    --shared-host) SHARED=1; SKIP_UPGRADE=1; shift ;;
     -h|--help) sed -n '2,16p' "$0"; exit 0 ;;
     *) die "opção desconhecida: $1 (veja --help)" ;;
   esac
@@ -53,9 +55,15 @@ if [[ -n $DOMAIN && -z $EMAIL && ! -e /etc/letsencrypt/live/$DOMAIN/fullchain.pe
 fi
 # shellcheck source=/dev/null
 . /etc/os-release
-if [[ ${ID:-} != ubuntu || ${VERSION_ID:-} != 24.04 ]]; then
-  die "feito para Ubuntu 24.04 LTS (achei ${PRETTY_NAME:-?})"
+# 24.04 (VPS dedicada) ou 22.04 (VPS COMPARTILHADA com outros sistemas: só --shared-host)
+if [[ ${ID:-} != ubuntu ]] || { [[ ${VERSION_ID:-} != 24.04 ]] && ! { [[ ${VERSION_ID:-} == 22.04 ]] && ((SHARED)); }; }; then
+  die "feito para Ubuntu 24.04 LTS (ou 22.04 com --shared-host); achei ${PRETTY_NAME:-?}"
 fi
+# --shared-host: a VPS já roda OUTROS sistemas (sites no Nginx, containers, ufw/fail2ban próprios). Só o que é do
+# jogo é instalado/alterado: sem apt upgrade (poderia reiniciar Docker/Nginx dos outros), sem mexer em ufw/fail2ban/
+# journald/unattended/swap, sem default_server no Nginx, sem http2 (no Nginx 1.18 ligaria o HTTP/2 nos outros sites
+# da mesma porta), Postgres com memória modesta. Pacotes já instalados (nginx, certbot) não são reinstalados.
+((SHARED)) && log "MODO COMPARTILHADO: só o que é do jogo será instalado/alterado (veja docs/DEPLOYMENT.md)"
 HAS_SYSTEMD=0; [[ -d /run/systemd/system ]] && HAS_SYSTEMD=1
 IN_CONTAINER=0; if systemd-detect-virt --container -q 2>/dev/null || [[ -f /.dockerenv ]]; then IN_CONTAINER=1; fi
 MISSING=()
@@ -92,10 +100,27 @@ apt-get update -q
 if ((!SKIP_UPGRADE)); then
   apt-get -q -y -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold upgrade
 fi
+if ((SHARED)); then
+  # PostgreSQL 16 no 22.04 vem do repositório oficial do PostgreSQL (PGDG)
+  if [[ ${VERSION_CODENAME:-} == jammy && ! -f /etc/apt/sources.list.d/pgdg.list ]]; then
+    install -d -m 755 /usr/share/postgresql-common/pgdg
+    curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+    echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt jammy-pgdg main" >/etc/apt/sources.list.d/pgdg.list
+    apt-get update -q
+  fi
+  # só o que FALTA (instalar um pacote já presente poderia atualizá-lo e reiniciar o serviço dos outros sistemas)
+  missing=()
+  for pkg in ca-certificates curl git rsync iproute2 procps jq openssl xz-utils acl sudo cron logrotate nginx certbot postgresql-16 postgresql-client-16; do
+    dpkg -s "$pkg" &>/dev/null || missing+=("$pkg")
+  done
+  ((${#missing[@]})) && apt-get -q -y install --no-install-recommends "${missing[@]}"
+  ok "pacotes (instalados agora: ${missing[*]:-nenhum})"
+else
 apt-get -q -y install --no-install-recommends \
   ca-certificates curl git rsync iproute2 procps jq openssl xz-utils acl sudo cron logrotate \
   nginx postgresql-16 postgresql-client-16 certbot ufw fail2ban unattended-upgrades
 ok "pacotes"
+fi
 
 # ---------------------------------------------------------------- 2. usuário e diretórios
 if ! id "$TRETARIO_USER" &>/dev/null; then
@@ -162,8 +187,13 @@ grep -q '__DOMAIN__' "$ENV_FILE" && MISSING+=("PV_PUBLIC_ORIGIN sem domínio em 
 PG_CONF_DIR=/etc/postgresql/16/main
 [[ -d $PG_CONF_DIR ]] || die "PostgreSQL 16 não encontrado em $PG_CONF_DIR"
 grep -Eq "^include_dir = 'conf.d'" "$PG_CONF_DIR/postgresql.conf" || die "postgresql.conf sem include_dir conf.d"
-if install_file "$REPO_DIR/deploy/postgres/90-tretario.conf" "$PG_CONF_DIR/conf.d/90-tretario.conf" 644 postgres:postgres; then
-  svc restart postgresql
+PG_SRC="$REPO_DIR/deploy/postgres/90-tretario.conf"
+if ((SHARED)); then # máquina dividida com outros sistemas: memória do banco menor
+  PG_SRC="$(mktemp)"; sed -e 's/^shared_buffers = .*/shared_buffers = 512MB/' -e 's/^effective_cache_size = .*/effective_cache_size = 2GB/' \
+    -e 's/^maintenance_work_mem = .*/maintenance_work_mem = 128MB/' "$REPO_DIR/deploy/postgres/90-tretario.conf" >"$PG_SRC"
+fi
+if install_file "$PG_SRC" "$PG_CONF_DIR/conf.d/90-tretario.conf" 644 postgres:postgres; then
+  svc restart postgresql # só o cluster do jogo (o Postgres dos outros sistemas roda em container próprio)
 fi
 svc enable --now postgresql
 if ((!HAS_SYSTEMD)); then pg_ctlcluster 16 main start 2>/dev/null || true; fi
@@ -197,9 +227,12 @@ done
 # muitos WebSockets: cada jogador = 2 conexões no Nginx (cliente + upstream)
 sed -i -E 's/^(\s*)worker_connections\s+[0-9]+;/\1worker_connections 8192;/' "$NGX/nginx.conf"
 grep -q '^worker_rlimit_nofile' "$NGX/nginx.conf" || sed -i '1i worker_rlimit_nofile 32768;' "$NGX/nginx.conf"
-sed -i -E 's/^(\s*)# ?server_tokens off;/\1server_tokens off;/' "$NGX/nginx.conf"
-rm -f "$NGX/sites-enabled/default"
-r="$(render "$REPO_DIR/deploy/nginx/tretario-bootstrap.conf")"; install_file "$r" "$NGX/sites-available/tretario-bootstrap.conf" 644 || true; rm -f "$r"
+((SHARED)) || sed -i -E 's/^(\s*)# ?server_tokens off;/\1server_tokens off;/' "$NGX/nginx.conf" # compartilhada: cada site do jogo já diz server_tokens off
+((SHARED)) || rm -f "$NGX/sites-enabled/default"
+r="$(render "$REPO_DIR/deploy/nginx/tretario-bootstrap.conf")"
+# compartilhada: outro site já é o default_server da porta 80 → o provisório do jogo responde só aos nomes do jogo
+((SHARED)) && sed -i -E -e 's/ default_server;/;/' -e "s/server_name _;/server_name ${DOMAIN:-_} ${DOMAIN:+www.$DOMAIN};/" "$r"
+install_file "$r" "$NGX/sites-available/tretario-bootstrap.conf" 644 || true; rm -f "$r"
 use_site() { # ativa só um dos dois sites
   ln -sfn "$NGX/sites-available/$1" "$NGX/sites-enabled/$1"
   [[ $1 == tretario.conf ]] && rm -f "$NGX/sites-enabled/tretario-bootstrap.conf"
@@ -209,7 +242,9 @@ use_site() { # ativa só um dos dois sites
 }
 CERT="/etc/letsencrypt/live/$DOMAIN/fullchain.pem"
 if [[ -n $DOMAIN ]]; then
-  r="$(render "$REPO_DIR/deploy/nginx/tretario.conf")"; install_file "$r" "$NGX/sites-available/tretario.conf" 644 || true; rm -f "$r"
+  r="$(render "$REPO_DIR/deploy/nginx/tretario.conf")"
+  ((SHARED)) && sed -i -E 's/ ssl http2;/ ssl;/' "$r" # sem http2: não ligar HTTP/2 nos outros sites da porta 443
+  install_file "$r" "$NGX/sites-available/tretario.conf" 644 || true; rm -f "$r"
   CERT_ARGS=(-d "$DOMAIN"); ((WITH_WWW)) && CERT_ARGS+=(-d "www.$DOMAIN")
   need_cert=0
   if [[ ! -e $CERT ]]; then
@@ -239,7 +274,14 @@ else
 fi
 
 # ---------------------------------------------------------------- 7. firewall + fail2ban
-if ((IN_CONTAINER)); then
+if ((SHARED)); then
+  # firewall/fail2ban são dos OUTROS sistemas também: não alterar; só conferir que o necessário está liberado
+  st="$(ufw status 2>/dev/null || true)"
+  grep -Eq "^${SSH_PORT}(/tcp)? .*ALLOW" <<<"$st" || warn "ufw: porta SSH $SSH_PORT não aparece liberada — conferir manualmente"
+  grep -Eq "^(80|443)(/tcp)? .*ALLOW|Nginx Full" <<<"$st" || warn "ufw: 80/443 não aparecem liberadas — conferir manualmente"
+  grep -q 5432 <<<"$st" && die "ufw tem regra para 5432: o banco nunca é público"
+  ok "ufw/fail2ban existentes mantidos (modo compartilhado)"
+elif ((IN_CONTAINER)); then
   warn "container: ufw não ativado (rede do container); na VPS: 22/80/443 apenas"
 else
   ufw allow "$SSH_PORT/tcp" comment ssh >/dev/null # PRIMEIRO o SSH: nunca trancar o administrador
@@ -251,18 +293,20 @@ else
   ufw status | grep -q 5432 && die "ufw tem regra para 5432: o banco nunca é público"
   ok "ufw: $SSH_PORT/80/443"
 fi
+if ((!SHARED)); then
 r="$(render "$REPO_DIR/deploy/system/fail2ban-tretario.local")"
 if install_file "$r" /etc/fail2ban/jail.d/tretario.local 644; then svc restart fail2ban || true; fi; rm -f "$r"
 svc enable --now fail2ban || true
+fi
 
 # ---------------------------------------------------------------- 8. logs, atualizações, kernel, swap
-if install_file "$REPO_DIR/deploy/system/journald-tretario.conf" /etc/systemd/journald.conf.d/tretario.conf 644; then
+if ((!SHARED)) && install_file "$REPO_DIR/deploy/system/journald-tretario.conf" /etc/systemd/journald.conf.d/tretario.conf 644; then
   svc restart systemd-journald || true
 fi
 install_file "$REPO_DIR/deploy/system/logrotate-tretario" /etc/logrotate.d/tretario 644 || true
-install_file "$REPO_DIR/deploy/system/unattended-upgrades-tretario" /etc/apt/apt.conf.d/52tretario-unattended 644 || true
-printf 'net.core.somaxconn = 4096\nnet.ipv4.tcp_max_syn_backlog = 4096\nvm.swappiness = 10\n' >/tmp/90-tretario.conf
-if install_file /tmp/90-tretario.conf /etc/sysctl.d/90-tretario.conf 644 && ((!IN_CONTAINER)); then sysctl -q --system || true; fi
+((SHARED)) || install_file "$REPO_DIR/deploy/system/unattended-upgrades-tretario" /etc/apt/apt.conf.d/52tretario-unattended 644 || true
+((SHARED)) || printf 'net.core.somaxconn = 4096\nnet.ipv4.tcp_max_syn_backlog = 4096\nvm.swappiness = 10\n' >/tmp/90-tretario.conf
+if ((!SHARED)) && install_file /tmp/90-tretario.conf /etc/sysctl.d/90-tretario.conf 644 && ((!IN_CONTAINER)); then sysctl -q --system || true; fi
 rm -f /tmp/90-tretario.conf
 if ((!IN_CONTAINER)) && [[ -z $(swapon --show --noheadings) && ! -e /swapfile ]]; then
   # 2 GB de swap: rede de segurança para o `npm ci`/build do deploy, não para o jogo

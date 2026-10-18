@@ -204,3 +204,24 @@ antes do primeiro deploy real; enquanto isso as rotas reais do P2 não foram exe
   pelo `health-check.sh`/`server-status.sh`.
 - Benchmark de capacidade ([PRODUCTION.md](PRODUCTION.md#capacidade-preencher-com-o-benchmark-na-vps-real)) e
   `MemoryMax`.
+
+## VPS compartilhada (produção atual: Ubuntu 22.04, junto com outros sistemas)
+
+A VPS de produção já roda outros sistemas (sites no Nginx com certificados próprios, containers Docker com banco
+próprio, ufw e fail2ban configurados). O provisionamento usa `--shared-host`, que instala/altera **só o que é do jogo**:
+
+| Item | Dedicada | `--shared-host` |
+|---|---|---|
+| Ubuntu | 24.04 | 22.04 ou 24.04 (PostgreSQL 16 do repositório oficial PGDG no 22.04) |
+| `apt upgrade` | sim (se não `--skip-apt-upgrade`) | **não** (poderia reiniciar Docker/Nginx dos outros) |
+| pacotes | instala a lista | instala só os que **faltam** (não reinstala/atualiza nginx/certbot) |
+| Nginx | `default_server` provisório, `http2`, `server_tokens` global | sem `default_server` (outro site já é o padrão), **sem http2** (no Nginx 1.18 ligaria o HTTP/2 nos outros sites da porta 443), `server_tokens off` só nos sites do jogo |
+| `worker_connections` | 8192 | 8192 (única mudança global: cada jogador = 2 conexões no Nginx; o padrão 768 limitaria a ~380 jogadores; só aumenta um teto) |
+| ufw / fail2ban | configura 22/80/443 + jail | **mantém os existentes**; só confere que SSH/80/443 estão liberados e que 5432 não está |
+| journald / unattended-upgrades / sysctl / swap | configura | não altera |
+| PostgreSQL | `shared_buffers` 1 GB, cache 3 GB | 512 MB / 2 GB (cluster próprio do jogo em 127.0.0.1:5432; os outros sistemas usam banco em container) |
+| Certificado | `certbot certonly --webroot` | igual, só para `tretario.com.br` e `www` (não toca os certificados dos outros sites) |
+
+SSH: só o usuário administrativo `sanaris` entra (`AllowUsers sanaris`, `PermitRootLogin no`, porta 22022, fail2ban
+5 tentativas → 1 h). O jogo roda como `tretario` (sem login). Benchmarks na VPS acompanham a saúde dos outros sistemas
+e param se eles degradarem.
