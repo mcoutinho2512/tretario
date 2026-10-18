@@ -546,8 +546,11 @@ function showError(e: unknown) {
 }
 
 /** inicia o jogo; `role = 'spectator'` = ASSISTIR (src/spectator). `pv:click` → `pv:world-visible` = tempo até o 1º quadro */
+/** rodada 9.1: motivo de a conta ter entrado só assistindo (aviso no HUD) */
+let ticketNote: '' | 'aguardando_liberacao' | 'sem_acesso' = '';
 async function launch(choice: QualityChoice, role?: WorldRole) {
   performance.mark('pv:click');
+  ticketNote = '';
   saveQualityChoice(choice);
   saveLocalLook();
   preview?.dispose();
@@ -565,8 +568,10 @@ async function launch(choice: QualityChoice, role?: WorldRole) {
       // reiniciando, 429) LANÇA para a reentrada tentar de novo em vez de rebaixar a conta (src/net/NetworkClient.ts)
       getTicket: authed() ? async () => {
         const r = await accountApi.joinTicket(role);
-        if (r.ok) return r.data?.ticket;
+        // rodada 9.1: conta sem acesso de JOGADOR entra assistindo — avisar em vez de parecer um erro
+        if (r.ok) { if (role === 'player' && (r.data as { role?: string } | undefined)?.role === 'spectator') ticketNote = 'sem_acesso'; return r.data?.ticket; }
         if (r.status === 0 || r.status === 429 || r.status >= 500) throw new Error(r.error ?? 'sem_conexao');
+        if (r.error === 'aguardando_liberacao') ticketNote = 'aguardando_liberacao';
         return undefined;
       } : undefined,
     } : {};
@@ -579,6 +584,12 @@ async function launch(choice: QualityChoice, role?: WorldRole) {
     });
     loading.classList.add('hidden');
     game.start();
+    if (ticketNote) {
+      const g = game;
+      setTimeout(() => g.hudShell?.notice(ticketNote === 'aguardando_liberacao'
+        ? 'Cadastro recebido: a equipe libera o acesso beta. Enquanto isso você assiste como espectador.'
+        : 'Sua conta ainda não tem acesso de jogador (beta). Você está assistindo como espectador.', 'warn', 12000), 1500);
+    }
     performance.mark('pv:game-start');
     const click = performance.getEntriesByName('pv:watch-click')[0];
     if (click) (window as any).__pvSpectatorStartMs = Math.round(performance.now() - click.startTime);

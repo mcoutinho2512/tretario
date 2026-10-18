@@ -33,7 +33,7 @@ const DENY: Record<ChatRejection, string> = {
   caracteres: 'Caracteres não permitidos',
 };
 const WHY: Record<NonNullable<Hello['why']>, string> = {
-  visitante: 'Crie uma conta para conversar', suspenso: 'Conta suspensa: você pode ler, mas não escrever', sem_licenca: 'Leitura apenas: participe do evento para conversar',
+  visitante: 'Para conversar: entre com uma conta liberada (beta)', suspenso: 'Conta suspensa: você pode ler, mas não escrever', sem_licenca: 'Leitura apenas: participe do evento para conversar',
 };
 const REPORT_RES: Record<string, string> = {
   repetida: 'Você já denunciou esta mensagem', limite: 'Muitas denúncias seguidas; tente mais tarde', inexistente: 'Mensagem antiga demais para denunciar',
