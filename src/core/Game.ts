@@ -55,7 +55,7 @@ import { worldClock } from '../net/clock';
 import { MonumentSystem } from '../world/Monuments';
 import { BillboardSystem } from '../events/Billboards';
 import { EventManager } from '../events/EventManager';
-import { RideableSystem, seatWorld, stepRideable, type RideableInstance } from '../vehicles/Rideable';
+import { RIDEABLE_DEFS, RideableSystem, seatWorld, stepRideable, type RideableInstance, type RideableKind } from '../vehicles/Rideable';
 // ---- rodada 7: veículos de evento (trio elétrico, carro de som) e cenário (caminhões, telões, palco)
 import { EventScenery } from '../world/eventScenery';
 import { TrioRider } from '../vehicles/trioRider';
@@ -73,6 +73,8 @@ import type { IdentityJoinOptions } from '../identity/types';
 // rodada 9 — itens de confronto no mundo, MÃOS, efeitos (proteção/desorientação), queda por status (agente B)
 import { ItemsClient } from '../items/ItemsClient';
 import { HandIndicator } from '../ui/hud/HandIndicator';
+import { ActionBar } from '../ui/hud/ActionBar';
+import { nearbyVehicles } from '../ui/hud/actionBarState';
 import { DisorientOverlay } from '../combat/fxVisuals';
 import { FX } from '../combat/types';
 import { hitNpcs, type NpcTarget } from '../combat/npcHits';
@@ -465,6 +467,7 @@ export class Game {
     }
     this.hud.appendChild(this.linkBadge.el);
     this.r9bMount(); // rodada 9 — MÃOS / ITEM ATUAL, véu de desorientação
+    this.mountActionBar(shell); // rodada 9.1 — barra de ações (só jogador)
     if (this.spec) {
       // seletor de câmeras no encaixe do HUD (HudShell.mountSpectator); zona/minimapa seguem o foco da câmera
       const spec = this.spec;
@@ -476,6 +479,38 @@ export class Game {
     this.mountRound9(shell, relock); // rodada 9 — agenda/debate/telões
     this.container.appendChild(this.hud);
     window.addEventListener('resize', () => { this.onResize(); shell.minimap.resize(); });
+  }
+
+  // rodada 9.1 — barra de ações: cada botão chama o MESMO caminho da tecla/roda (src/ui/hud/ActionBar.ts) ------------
+  actionBar: ActionBar | null = null;
+  private mountActionBar(shell: HudShell) {
+    if (this.spectator) return; // espectador fica com a barra de câmeras
+    const near = () => !!(this.riding || this.trio.active || this.rideables.nearest(this.player.x, this.player.z) || this.rideables.nearestLadder(this.player.x, this.player.z));
+    this.actionBar = new ActionBar({
+      touch: this.input.isTouch,
+      social: this.social,
+      extraProps: () => this.items?.wheelExtra ?? [],
+      // o texto da ação contextual já calculado em updateMovement (E — USAR…, SUBIR NO TRIO, DESCER…)
+      vehiclePrompt: () => (near() && !this.pendingEnter && !this.pendingBoard ? shell.prompt : ''),
+      vehicles: () => nearbyVehicles(this.rideables.items.map((i) => ({ id: i.state.id, kind: i.def.kind, x: i.state.x, z: i.state.z, free: i.netState !== 2 && (i.def.kind === 'trio' || !i.state.occupant) })), this.player.x, this.player.z),
+      vehicleLabel: (k) => (k === 'trio' ? 'Trio elétrico (escada)' : RIDEABLE_DEFS[k as RideableKind]?.label ?? k),
+      use: () => this.input.queueToggle('use'),
+      showTarget: (x, z, label, d) => {
+        shell.minimap.setTarget({ x, z, label });
+        shell.toggleMap(true);
+        shell.flash(`${label}: ${d < 6 ? 'aqui do lado' : `${Math.round(d / 5) * 5} m daqui`} — siga o anel no mapa`, 4000);
+      },
+      pichar: () => {
+        if (this.riding || this.trio.active) { this.flash('Desça do veículo para pichar'); return true; }
+        return this.graffiti.tryOpen(this.player);
+      },
+      press: (k) => this.input.queueToggle(k),
+      combatState: () => this.combatHud?.state ?? null,
+      openCharacterEditor: () => shell.openCharacterEditor(),
+      toggleMap: () => shell.toggleMap(),
+      flash: (m) => this.flash(m),
+    });
+    shell.mountActionBar(this.actionBar);
   }
 
   // rodada 9 — agenda, "Acontecendo agora", palco de debate e telões (lógica em src/ui/agendaDebateMount.ts) ----------
@@ -1107,10 +1142,11 @@ export class Game {
   }
 
   // ------------------------------------------------------------------ rodada 9 — confronto (src/combat, docs/COMBAT.md)
+  private combatHud: import('../combat/CombatHud').CombatHud | null = null;
   private async setupCombat() {
     try {
       const [{ CombatClient }, { CombatHud }, { loadCombatTable }] = await Promise.all([import('../combat/CombatClient'), import('../combat/CombatHud'), import('../combat/data')]);
-      const hud = new CombatHud();
+      const hud = (this.combatHud = new CombatHud());
       this.hudShell.mountCombat(hud, hud.peaceEl);
       this.combat = new CombatClient({
         net: this.net!, table: await loadCombatTable(import.meta.env.BASE_URL), avatar: this.avatar, input: this.input, collision: this.collision, scene: this.scene,
@@ -1318,6 +1354,8 @@ export class Game {
       hud: (v: boolean) => { this.hud.style.display = v ? '' : 'none'; },
       /** QA do HUD (rodada 8): estado/custo e controle (limpo, mapa expandido, ajustes, menu, preferências) */
       hudInfo: () => ({ ...this.hudShell.info(), labels: this.net?.labelStats ?? null }),
+      /** QA (rodada 9.1): barra de ações — popover, botões (caixas), itens do popover, dica, contadores */
+      actionBar: () => this.actionBar?.qa() ?? null,
       hudSet: (o: { clean?: boolean; map?: boolean; settings?: boolean; menu?: boolean; help?: boolean; names?: 'TODOS' | 'PROXIMOS' | 'NENHUM'; autoHide?: boolean; poke?: boolean }) => {
         const h = this.hudShell;
         if (o.clean !== undefined) h.toggleClean(o.clean);

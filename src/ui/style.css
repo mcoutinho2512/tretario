@@ -250,3 +250,58 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); o
 .fx-disorient.reduced { -webkit-backdrop-filter: none; backdrop-filter: none; background: rgba(214, 178, 96, 0.07); }
 .fx-badge { position: absolute; left: 50%; top: calc(var(--sat) + 9vh + 70px); transform: translateX(-50%); display: none; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 12px; background: rgba(12, 15, 18, 0.6); color: #ffe2a0; font: 600 11.5px system-ui, sans-serif; }
 .fx-disorient.reduced .fx-badge { display: flex; }
+
+/* ---- rodada 9.1: barra de ações (centro inferior, só jogador) — docs/HUD.md "Barra de ações" */
+.action-bar { position: absolute; left: 50%; bottom: calc(var(--sab) + 12px); transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.ab-row { display: flex; gap: 4px; padding: 4px; border-radius: 12px; background: var(--hud-bg); border: 1px solid var(--hud-line); pointer-events: auto; box-shadow: 0 6px 22px rgba(0, 0, 0, 0.28); }
+.ab-btn { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-width: 66px; height: 48px; padding: 4px 8px 3px; border: 0; border-radius: 9px; background: none; cursor: pointer; color: var(--hud-text); }
+.ab-btn:hover, .ab-btn.open { background: rgba(255, 255, 255, 0.09); }
+.ab-btn:focus-visible, .ab-opt:focus-visible, .ab-dbtn:focus-visible { outline: 2px solid var(--gold); outline-offset: 1px; }
+.ab-ico { width: 20px; height: 20px; }
+.ab-lbl { font: 600 11px/1 system-ui, sans-serif; letter-spacing: 0.02em; white-space: nowrap; }
+.ab-up { position: absolute; top: 3px; right: 4px; width: 11px; height: 11px; opacity: 0.6; transition: transform 0.2s; }
+.ab-btn.open .ab-up { transform: rotate(180deg); opacity: 1; }
+.ab-btn.ready::after { content: ''; position: absolute; top: 5px; left: 7px; width: 7px; height: 7px; border-radius: 50%; background: #f2c230; box-shadow: 0 0 0 2px rgba(12, 15, 18, 0.6); }
+.ab-meter { position: absolute; left: 10px; right: 10px; bottom: 2px; display: none; flex-direction: column; gap: 1px; }
+.ab-meter.show { display: flex; }
+.ab-meter i { display: block; height: 2px; border-radius: 1px; transform-origin: left center; transition: transform 0.2s linear; }
+.ab-meter i:first-child { background: #f2c230; }
+.ab-meter i:last-child { background: #6fc3ff; }
+.ab-hint { font-size: 11.5px; color: var(--hud-dim); background: rgba(12, 15, 18, 0.4); padding: 3px 10px; border-radius: 4px; white-space: nowrap; }
+.ab-hint.gone { display: none; }
+.ab-pop {
+  position: absolute; bottom: calc(100% + 8px); left: 0; width: max-content; min-width: 200px; max-width: min(460px, calc(100vw - 16px)); max-height: min(46vh, 420px); overflow-y: auto;
+  pointer-events: auto; padding: 8px; border-radius: 10px; background: var(--hud-bg-solid); border: 1px solid var(--hud-line); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+}
+.ab-pop[hidden] { display: none; }
+.ab-pop-title { font: 700 10px/1 system-ui, sans-serif; letter-spacing: 0.22em; text-transform: uppercase; color: var(--hud-dim); padding: 4px 4px 8px; }
+.ab-sec { font: 600 10.5px/1 system-ui, sans-serif; letter-spacing: 0.08em; color: var(--hud-dim); padding: 8px 4px 5px; }
+.ab-grid { display: grid; grid-template-columns: repeat(3, minmax(128px, 1fr)); gap: 4px; }
+.ab-opt { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 34px; padding: 7px 10px; border: 1px solid transparent; border-radius: 6px; background: rgba(255, 255, 255, 0.04); text-align: left; font-size: 12.5px; cursor: pointer; }
+.ab-opt:hover { background: rgba(255, 255, 255, 0.1); }
+.ab-opt.active { background: rgba(242, 194, 48, 0.18); border-color: rgba(242, 194, 48, 0.65); color: #ffe7a6; }
+.ab-opt.disabled { opacity: 0.45; }
+.ab-opt kbd { flex: none; opacity: 0.8; }
+.ab-pop .ab-opt[data-id="use"] { grid-column: 1 / -1; background: rgba(242, 194, 48, 0.14); border-color: rgba(242, 194, 48, 0.5); font-weight: 600; }
+.ab-design { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 8px; font-size: 12px; }
+.ab-dbtn { width: 34px; height: 30px; border-radius: 6px; border: 1px solid var(--hud-line); background: rgba(255, 255, 255, 0.06); cursor: pointer; }
+.hud.dim .action-bar .hud-fadeable { pointer-events: none; }
+/* com a barra: ação contextual, HUD de confronto e "clique para controlar" sobem */
+.hud.has-bar .hud-bc { bottom: calc(var(--sab) + 132px); }
+.hud.has-bar .lock-hint { bottom: calc(var(--sab) + 98px); }
+@media (max-width: 1180px) { .hud.has-bar:not(.touch) .hud-slot-chat { bottom: calc(var(--sab) + 100px); } }
+/* toque: fileira compacta de ícones (alvos de 44 px) acima dos controles; substitui o botão AÇÕES */
+.hud.touch .action-bar { left: 0; right: 0; transform: none; bottom: calc(var(--sab) + 342px); }
+.hud.touch .ab-row { gap: 2px; padding: 3px; }
+.hud.touch .ab-btn { min-width: 44px; width: 44px; height: 44px; padding: 0; }
+.hud.touch .ab-lbl { display: none; }
+.hud.touch .ab-ico { width: 21px; height: 21px; }
+.hud.touch .ab-up { top: 2px; right: 2px; width: 9px; height: 9px; }
+/* toque: as opções abrem numa folha embaixo, até a barra (alcance do polegar; cobre os botões só enquanto aberta — toque fora fecha) */
+.hud.touch .ab-pop { position: fixed; left: calc(var(--sal) + 8px); right: calc(var(--sar) + 8px); bottom: calc(var(--sab) + 8px); width: auto; max-width: none; max-height: min(56vh, 326px); z-index: 46; }
+/* toque com a barra: "Acontecendo agora" mostra só o 1º item (o resto na agenda do ☰) — não desce até a barra */
+.hud.touch.has-bar .now-happening .nh-row ~ .nh-row { display: none; }
+.hud.touch .ab-grid { grid-template-columns: repeat(2, 1fr); }
+.hud.touch .ab-opt { min-height: 44px; font-size: 13.5px; }
+.hud.touch .ab-dbtn { width: 48px; height: 44px; }
+.hud.has-bar .touch-btn.actions { display: none; }

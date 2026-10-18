@@ -2,10 +2,11 @@
  * Roda de ações (radial): G no desktop, botão "AÇÕES" no toque. Não ocupa a tela: só aparece aberta.
  * Categorias no anel interno (GESTOS, MANIFESTAÇÃO, DANÇA, ITENS); as opções da categoria no anel externo.
  * ITENS: pegar/largar item e trocar o design do item na mão (◀ ▶ no centro).
- * Tudo vem dos registros (actions.ts / props.ts / designs.ts) — ação nova aparece aqui sem mexer na UI.
+ * Tudo vem dos registros (actions.ts / props.ts / designs.ts) via actionOptions.ts — a barra de ações usa as mesmas opções.
  */
-import { ACTIONS, ACTION_CATEGORIES, type ActionCategory } from '../social/actions';
-import { PROP_BY_ID, SOCIAL_PROPS } from '../social/props';
+import { ACTION_CATEGORIES, type ActionCategory } from '../social/actions';
+import { PROP_BY_ID } from '../social/props';
+import { actionOptions, itemOptions } from './actionOptions';
 import { DESIGN_BY_ID } from '../social/designs';
 import type { SocialController } from '../social/SocialController';
 
@@ -73,16 +74,9 @@ export class ActionWheel {
     });
     // anel externo: opções
     const held = PROP_BY_ID.get(s.prop);
-    const items = this.cat === 'itens'
-      ? [{ label: 'Mãos vazias', active: s.prop === 0, disabled: false, pick: () => { if (s.prop) s.requestProp(0); } },
-        ...[...SOCIAL_PROPS, ...this.extraProps().map((id) => PROP_BY_ID.get(id)!).filter(Boolean)].map((p) => ({ label: p.label, active: p.id === s.prop, disabled: false, pick: () => s.requestProp(p.id) }))]
-      : ACTIONS.filter((a) => a.category === this.cat).map((a) => ({
-        label: a.label,
-        active: a.id === s.act,
-        // pede item que não está na mão: aparece apagada (o toque explica o que falta)
-        disabled: !!a.needs && !(held && a.needs.includes(held.kind)),
-        pick: () => { s.requestAction(a.id); if (a.mode === 'once' || !a.needs) this.close(); },
-      }));
+    // opções vêm de actionOptions.ts (a barra de ações usa as mesmas)
+    const items = (this.cat === 'itens' ? itemOptions(s, this.extraProps()) : actionOptions(s, this.cat))
+      .map((o) => ({ ...o, pick: () => { o.pick(); if (this.cat !== 'itens' && o.closes) this.close(); } }));
     const n = items.length;
     const r = n > 12 ? 222 : 196;
     items.forEach((it, i) => this.option(it.label, (i / n) * Math.PI * 2, r, 'aw-act', it.pick, it.active, it.disabled));

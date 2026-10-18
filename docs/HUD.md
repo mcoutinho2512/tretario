@@ -1,7 +1,8 @@
 # HUD, minimapa, zonas e nomes (rodada 8)
 
 Identidade própria: **o cenário é o protagonista**. Pouca coisa fixa na tela, tudo discreto e translúcido, e o HUD
-some sozinho quando o jogador anda (ou fica parado sem mexer no HUD). Não há barra inferior de botões.
+some sozinho quando o jogador anda (ou fica parado sem mexer no HUD). Rodada 9.1: uma **barra de ações** discreta no
+centro inferior (só jogador) — ver [Barra de ações](#barra-de-ações-rodada-91).
 
 | Módulo | O quê |
 |---|---|
@@ -14,8 +15,13 @@ some sozinho quando o jogador anda (ou fica parado sem mexer no HUD). Não há b
 | `src/world/zoneTracker.ts` | rastreador de zona com histerese + `loadZones` (dados: `public/world/zones.json`) |
 | `src/net/nameLod.ts` | LOD dos apelidos (puro); aplicado em `NetworkClient.updateLabels` |
 | `src/ui/TouchControls.ts` | controles de toque (poucos botões, ao alcance do polegar) |
+| `src/ui/hud/ActionBar.ts` | rodada 9.1: barra de ações (centro inferior) e popovers |
+| `src/ui/hud/actionBarState.ts` | rodada 9.1: estado do popover, teclado, veículos perto, dica de controles (puro) |
+| `src/ui/actionOptions.ts` | rodada 9.1: opções de itens/gestos dos registros — fonte única da roda G e da barra |
+| `tools/qa/action_bar.mjs` | rodada 9.1: QA da barra (desktop + iPhone 14), capturas `docs/screenshots/round9_1/menu_barra_*` |
 | `tools/qa/hud_shots.mjs` | capturas N–U + custo medido do HUD (`docs/screenshots/round8/hud_metrics.json`) |
 | `tests/hud.test.ts` | LOD dos nomes, zonas com histerese, grade de densidade, portões/AutoHide, preferências |
+| `tests/actionBar.test.ts` | popover (alternar, clique fora, teclado), veículos perto, dica, opções compartilhadas |
 
 ## Layout
 
@@ -23,6 +29,7 @@ some sozinho quando o jogador anda (ou fica parado sem mexer no HUD). Não há b
 ┌ evento · estado ─────────── [aviso de zona] ─────────── minimapa ┐
 │                                                          ⚙  ☰     │
 │ [chat]           [espectador] / [ação contextual]        Ações G │
+│              [Veículos^ Itens^ Pichar Confronto^ Gestos^ …]      │
 └───────────────────────────────────────────── © OpenStreetMap ────┘
 ```
 
@@ -39,7 +46,8 @@ some sozinho quando o jogador anda (ou fica parado sem mexer no HUD). Não há b
   roda/menu/ajustes. Ação contextual e avisos nunca somem.
 - **Celular** (390×844): joystick à esquerda; à direita PULAR (grande), AÇÕES, CORRER (pequenos) e USAR só quando há
   algo para usar (amarelo); CHAT no canto esquerdo. No máximo 4 botões fixos + USAR contextual; o resto no ☰ (alvos
-  de 44 px). A ação contextual perde o "E —" no toque. Respeita `safe-area-inset-*`.
+  de 44 px). A ação contextual perde o "E —" no toque. Respeita `safe-area-inset-*`. Rodada 9.1: a barra de ações
+  (ícones) substitui o botão AÇÕES.
 
 ## Minimapa
 
@@ -111,10 +119,55 @@ game.hudShell.mountNow(panel)           // rodada 9: "Acontecendo agora" (abaixo
 game.hudShell.mountOverlay(panel)       // rodada 9: painéis sobrepostos (agenda, debate); HUD limpo os esconde
 game.hudShell.addMenuItem('Agenda da avenida', fn) // rodada 9: item no ☰ (antes de "Sair da conta")
 game.hudShell.minimap.setTarget({ x, z, label })  // rodada 9: destino (anel dourado; seta na borda se fora da vista)
+game.hudShell.mountActionBar(bar)       // rodada 9.1: barra de ações (Game.mountActionBar; não monta no espectador)
+game.hudShell.prompt                    // rodada 9.1: texto atual da ação contextual (a barra reaproveita)
 net.markSpeaking(entityId)              // o chat avisa quem falou: o rótulo dele ganha prioridade por 6 s
 ```
 
 Sem gancho do editor, o menu dispara `window` `pv:open-character-editor` e mostra "Editor de personagem: em breve".
+
+## Barra de ações (rodada 9.1)
+
+Segunda porta de entrada, fácil de achar, para o que já existia (a roda **G** continua). Centro inferior, **só jogador**
+(o espectador fica com a barra de câmeras). Identidade nossa: mesma pílula translúcida do HUD (`--hud-bg`,
+`--hud-line`, system-ui), rótulos próprios em português e ícones SVG desenhados à mão no próprio `ActionBar.ts` (sem
+pacote de ícones). Botões com `^` abrem um popover para cima; Esc, clique/toque fora ou o mesmo botão fecham.
+
+| Botão | O que faz (sempre pelo caminho de sempre) |
+|---|---|
+| **Veículos ^** | "USAR BICICLETA / SUBIR NO TRIO / descer…" quando há algo ao alcance (o texto da ação contextual do HUD; clique = tecla **E**) + o veículo livre mais perto de cada tipo com a distância (bicicleta, patinete, carro, moto, carro de som, trio pela escada). Clique na lista = alvo no minimapa + mapa expandido + aviso de distância; **sem teleporte**. Ponto amarelo no botão quando há veículo usável perto |
+| **Itens ^** | as mesmas opções da categoria ITENS da roda (`itemOptions`): Mãos vazias, bandeiras/cartazes/faixa/…, e os itens de confronto oferecidos (`ItemsClient.wheelExtra`); ◀ design ▶ para o item na mão; tocar no item na mão de novo o larga |
+| **Pichar** | abre o editor de grafite se houver tapume/parede liberada perto (`graffiti.tryOpen`, o mesmo do **E**); senão aviso "Aproxime-se de um tapume ou parede liberada para pichar" |
+| **Confronto ^** | Soco (R/clique), Chute (Q), Esquiva (C), Empurrão (F) — entram como as teclas (`input.queueToggle`); "Pegar rápido" Taco/Barra/Spray (`requestProp`, apagado se o servidor não oferece). No botão, duas linhas finas de condição/fôlego enquanto o HUD de confronto está à vista (lidas de `CombatHud.state`, nada recalculado) |
+| **Gestos ^** | gestos, manifestação e dança da roda (`actionOptions`), por seção; os que pedem item aparecem apagados |
+| **Personagem** | `hudShell.openCharacterEditor()` — o mesmo do ☰ (sem conta: login) |
+| **Mapa** | `hudShell.toggleMap()` |
+
+- **Dica acima da barra** (`hud-fadeable`): desktop "W A S D mover · mouse olhar · Shift correr · G roda · Esc solta o
+  mouse" (o olhar no desktop é com o mouse capturado, não arrastando); toque "joystick mover · arraste para olhar".
+  Fica até 6 s depois do 1º movimento ou no máximo 3 min (`hintVisible`).
+- **Auto-ocultar / HUD limpo**: a fileira esmaece com o HUD (e deixa de receber cliques enquanto invisível); volta com
+  o mouse/toque como o resto. Popover aberto não deixa esmaecer. **H/P** esconde tudo.
+- **Mouse**: abrir um popover solta o mouse; fechar **não** recaptura (clicar no cenário recaptura, como sempre). Depois
+  de um clique o botão perde o foco (Espaço volta a ser pulo).
+- **Teclado / leitor de tela**: `role=toolbar` com `aria-label` em cada botão, `aria-haspopup`/`aria-expanded`; popover
+  `role=menu` com `menuitem`s. ←/→ trocam de botão, ↑/Enter/Espaço abrem e focam a 1ª opção, ↑/↓/Home/End andam
+  (com volta), Esc fecha e devolve o foco ao botão. As teclas de navegação dentro da barra não andam/pulam o personagem.
+- **Celular**: fileira só de ícones (44 × 44 px) logo acima do grupo de botões de toque (acima da ESQUIVA), sem cobrir
+  joystick, PULAR, CORRER, CHAT nem os botões de confronto; o botão **AÇÕES** some (a barra assume o papel — fixos:
+  PULAR, CHAT, CORRER). As opções abrem numa folha embaixo, até a barra (alvos de 44 px; cobre os botões só enquanto
+  aberta; toque fora fecha). Com a barra, "Acontecendo agora" mostra só o 1º item (o resto na agenda do ☰).
+- **Custo**: nada por quadro. `ActionBar.update` passa por um `RateGate` de 4 Hz (chamado em `HudShell.frame`) e só
+  escreve quando muda (ponto do veículo, linhas do confronto em 20 passos, dica); o popover aberto só é refeito quando
+  a assinatura do conteúdo muda (distâncias arredondadas por `distLabel`). QA: `__pv.actionBar()`.
+
+QA `tools/qa/action_bar.mjs` (servidor de teste próprio; desktop 1280×720 + iPhone 14): 38 verificações — barra
+visível/ausente no espectador, cada popover abre e fecha (clique, Esc, fora, teclado), item → `prop` confirmado pelo
+servidor e largado pela barra, design pela barra, gesto confirmado, Soco/Chute sobem `combat().stats.acts`, Taco
+rápido, Mapa, Pichar (dica e editor), Veículos (E — USAR monta/desce, lista → alvo no mapa), Personagem, HUD limpo,
+esmaecer/voltar, roda G, e no celular ícones ≥ 44 px, AÇÕES oculto e nenhuma sobreposição (caixas) com joystick e
+botões. Capturas: `docs/screenshots/round9_1/menu_barra_desktop.jpg`, `menu_barra_popover.jpg`,
+`menu_barra_celular.jpg`, `menu_barra_celular_popover.jpg`.
 
 ## HUD de confronto (rodada 9)
 
@@ -129,7 +182,7 @@ sistema em [COMBAT.md](COMBAT.md)):
   2026-10-18 (avenida toda COMBAT, sem áreas de paz) não aparece na avenida; fica para quando os dados religarem;
 - **toque**: SOCO / CHUTE / ESQUIVA (`TouchControls.setCombatVisible`) aparecem com contexto de confronto — com
   `combatConsent: "none"` (dados atuais) **sempre** para jogador; na regra antiga só em zona COMBAT/CONTESTED, área de
-  treino, evento de confronto ou modo interação — os quatro fixos (PULAR, AÇÕES, CHAT, CORRER) não mudam;
+  treino, evento de confronto ou modo interação — os fixos (PULAR, CHAT, CORRER; AÇÕES virou a barra na 9.1) não mudam;
 - HUD limpo (H/P) esconde tudo.
 
 Custo: `set()` roda a ≤ 10 Hz (RateGate) e só escreve o que mudou (TextSlot/setClass; barras por `transform` só quando
