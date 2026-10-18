@@ -1265,6 +1265,8 @@ export class Game {
         return { list: out.sort((p, q) => p.d - q.d), reacting: this.peds.reacting(), peds: { hits: this.peds.stats.hits, reacting: this.peds.stats.reacting, down: this.peds.stats.down }, rally: { hits: this.rallyCrowd?.stats.hits ?? 0, reacting: this.rallyCrowd?.stats.reacting ?? 0 } };
       },
       jump: () => this.input.queueJump(),
+      /** QA (rodada 9.1): queda local do próprio avatar (para trás, tempos das regras) — folhas de movimento */
+      fall: () => { const h = this.player.heading; void this.avatar.knockdown({ dirX: -Math.sin(h), dirZ: -Math.cos(h), strength: 0.8, groundY: this.player.y, walls: this.collision.walls.near(this.player.x, this.player.z, 6), downMs: RULES.downMs, getupMs: RULES.getupMs }); },
       face: (yaw: number) => { this.player.heading = yaw; },
       // rodada 8: espectador e reconexão (QA)
       // espectador aéreo (rodada 8.1): camada, células recebidas (resumo + assinatura) e impostores desenhados

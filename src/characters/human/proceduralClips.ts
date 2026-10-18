@@ -351,31 +351,70 @@ function guard(c: Poser, w: number) {
   c.fingers('l', 1.0, { thumb: 0.3 }, w);
 }
 
-/** soco reto: prepara (ombro recua), estende em `hit` s, volta à guarda */
-function punchPose(c: Poser, side: 'r' | 'l', hit: number) {
-  const t = c.t;
-  const g = env(t, 0.0, 0.06, c.dur - 0.1, c.dur);
-  const ext = env(t, hit - 0.03, hit + 0.05, hit + 0.12, hit + 0.26);
-  const wind = env(t, 0.0, hit - 0.03, hit - 0.03, hit + 0.04);
-  const sgn = side === 'r' ? 1 : -1;
-  c.bone('spine_03', 0, 1, 0, sgn * (0.28 * ext - 0.1 * wind));
-  c.bone('spine_01', 1, 0, 0, 0.06 * ext);
-  guard(c, g);
-  c.reach(side, 'shoulder', [-0.06, -0.03, 0.52], [0.6, -0.6, -0.2], ext);
+/**
+ * chaves interpoladas (rodada 9.1): [tempo, valor] com transição suave entre chaves vizinhas — golpes escritos como
+ * poses-chave (preparação → impacto → acompanhamento → recuperação), não como uma senoide só
+ */
+function keyed(t: number, keys: [number, number][]): number {
+  if (t <= keys[0][0]) return keys[0][1];
+  for (let i = 1; i < keys.length; i++) {
+    const [t1, v1] = keys[i], [t0, v0] = keys[i - 1];
+    if (t <= t1) return v0 + (v1 - v0) * ease((t - t0) / Math.max(1e-4, t1 - t0));
+  }
+  return keys[keys.length - 1][1];
+}
+function keyed3(t: number, keys: [number, V3][]): V3 {
+  return [0, 1, 2].map((k) => keyed(t, keys.map(([tt, v]) => [tt, v[k]] as [number, number]))) as V3;
+}
+/** torção do tronco distribuída na coluna (a pelve fica com as pernas): + = ombro direito para a frente */
+function twistTorso(c: Poser, ang: number, lean = 0, head = 0.6) {
+  c.bone('spine_01', 0, 1, 0, 0.3 * ang);
+  c.bone('spine_02', 0, 1, 0, 0.35 * ang);
+  c.bone('spine_03', 0, 1, 0, 0.35 * ang);
+  c.bone('spine_01', 1, 0, 0, lean);
+  // a cabeça compensa parte da torção: os olhos ficam no alvo
+  c.bone('neck_01', 0, 1, 0, -head * ang);
 }
 
-/** chute frontal: recolhe o joelho, estende a perna à frente, volta; `k` = amplitude */
-function kickPose(c: Poser, hit: number, k: number) {
-  const t = c.t;
-  const chamber = env(t, 0.04, hit - 0.02, hit + 0.14, hit + 0.36);
-  const ext = env(t, hit - 0.02, hit + 0.06, hit + 0.12, hit + 0.3);
-  const g = env(t, 0.0, 0.08, c.dur - 0.12, c.dur);
-  c.hips(0, -0.03 * chamber, -0.05 * chamber * k);
-  c.bone('spine_01', 1, 0, 0, -0.2 * chamber * k);
-  c.bone('head', 1, 0, 0, 0.14 * chamber);
-  c.plant('r', [0.02, (0.3 * chamber + 0.12 * ext) * k, (0.12 * chamber + 0.6 * ext) * k], -0.5 * ext, [0.1, 0.6, 1]);
-  c.plant('l', [0, 0, -0.04 * chamber], 0, [0.12, 0, 1]);
+/**
+ * soco reto (rodada 9.1): preparação (tronco gira para trás, punho recua ao queixo, leve agachada) → disparo em ~60 ms
+ * com o ombro e o tronco girando para a frente e inclinando → extensão segura um instante → recolhe para a guarda
+ */
+function punchPose(c: Poser, side: 'r' | 'l', hit: number) {
+  const t = c.t, d = c.dur;
+  const sgn = side === 'r' ? 1 : -1;
+  const g = env(t, 0.0, 0.06, d - 0.1, d);
+  const ext = keyed(t, [[0, 0], [hit - 0.05, 0], [hit + 0.02, 1], [hit + 0.1, 1], [hit + 0.28, 0]]);
+  const tw = keyed(t, [[0, 0], [hit - 0.05, -0.22], [hit + 0.02, 0.5], [hit + 0.12, 0.44], [d, 0]]);
+  const lean = keyed(t, [[0, 0], [hit - 0.05, 0.04], [hit + 0.03, 0.14], [hit + 0.14, 0.1], [d, 0]]);
+  twistTorso(c, sgn * tw * g, lean * g);
+  c.limb(side, 'clavicle', 0, 1, 0, 0.18 * ext); // ombro acompanha o braço
   guard(c, g);
+  c.reach(side, 'shoulder', [-0.06, -0.03, 0.56], [0.6, -0.6, -0.2], ext);
+  // o braço de trás recolhe junto ao rosto (proteção) e o cotovelo fecha
+  c.reach(side === 'r' ? 'l' : 'r', 'chest', [0.08, 0.1, 0.26], ELBOW_DOWN, 0.6 * ext);
+}
+
+/**
+ * chute frontal (rodada 9.1): recolhe o joelho alto → estende a canela num estalo (sola à frente) → recolhe → apoia.
+ * Tronco inclina para trás no impacto (contrapeso), braços abrem para equilibrar, calcanhar de apoio gira.
+ */
+function kickPose(c: Poser, hit: number, k: number) {
+  const t = c.t, d = c.dur;
+  const g = env(t, 0.0, 0.08, d - 0.12, d);
+  const foot = keyed3(t, [[0, [0, 0, 0]], [hit - 0.06, [0.02, 0.42, 0.22]], [hit + 0.03, [0.02, 0.72, 0.86]], [hit + 0.12, [0.02, 0.68, 0.8]], [hit + 0.3, [0.02, 0.36, 0.2]], [d - 0.1, [0, 0, 0.02]], [d, [0, 0, 0]]]);
+  const pitch = keyed(t, [[0, 0], [hit - 0.06, 0.3], [hit + 0.03, -0.55], [hit + 0.14, -0.45], [hit + 0.32, 0.2], [d, 0]]);
+  const back = keyed(t, [[0, 0], [hit - 0.06, 0.06], [hit + 0.03, -0.28], [hit + 0.14, -0.22], [hit + 0.34, 0], [d, 0]]);
+  const sink = keyed(t, [[0, 0], [hit - 0.08, -0.04], [hit + 0.03, 0.01], [hit + 0.3, -0.02], [d, 0]]);
+  c.hips(0.02 * g, sink * k, -0.06 * Math.max(0, -back) * k);
+  c.bone('spine_01', 1, 0, 0, back * k);
+  c.bone('head', 1, 0, 0, -0.6 * back * k); // a cabeça fica de olho no alvo
+  c.plant('r', [foot[0], foot[1] * k, foot[2] * k], pitch, [0.1, 0.7, 1]);
+  c.plant('l', [0, 0, -0.04 * g], 0.12 * Math.max(0, -back) / 0.28, [0.12, 0, 1]);
+  guard(c, g);
+  // braço do lado do chute desce para trás (contrapeso) no impacto
+  const bal = Math.max(0, -back) / 0.28;
+  c.reach('r', 'shoulder', [0.12, -0.42, -0.12], ELBOW_OUT, 0.7 * bal * g);
 }
 
 /** duração das ações `once` (registro de ações = fonte única) */
@@ -930,6 +969,40 @@ export const SPECS: Record<string, ClipSpec> = {
   // ------------------------------------------------------------------ confronto (rodada 9; public/gameplay/combat.json)
   // Estilo arcade: golpes legíveis, sem impacto realista. Durações = preparação + janela ativa + recuperação da
   // definição (o servidor decide o acerto; isto é só a animação prevista/remota). Tempos em segundos do clipe.
+  /**
+   * levantar do chão (rodada 9.1; AvatarVisual depois da queda): senta (pelve no chão, joelhos dobrados, mãos atrás)
+   * → apoia as mãos e passa o peso para os pés (agachado, tronco à frente) → empurra e endireita. A pose do chão
+   * (ragdoll) mistura com o começo do clipe; antes os ossos iam direto do chão ao idle (pernas para o ar no meio)
+   */
+  getup: {
+    dur: 1.4, layer: 'full', fade: 0.05,
+    pose: (c) => {
+      const t = c.t;
+      const pel = c.pos('pelvis', new THREE.Vector3());
+      const seat = (c.floorY + 0.13 * c.kLeg - pel.y) / c.kLeg; // pelve no chão (negativo)
+      const up = keyed(t, [[0, 1], [0.38, 1], [0.78, 0.45], [1.18, 0.05], [1.4, 0]]);
+      const back = keyed(t, [[0, -0.32], [0.3, -0.26], [0.6, -0.1], [0.9, -0.04], [1.4, 0]]);
+      c.hips(0, seat * up, back);
+      c.bone('pelvis', 1, 0, 0, keyed(t, [[0, -0.45], [0.38, -0.2], [0.8, 0.15], [1.4, 0]]));
+      const fwd = keyed(t, [[0, 0.42], [0.38, 0.3], [0.62, 0.05], [1.4, 0]]);
+      c.plant('r', [0.06, 0, fwd], 0, [0.25, 0.5, 1]);
+      c.plant('l', [0.04, 0, fwd * 0.8], keyed(t, [[0, 0], [0.5, 0.25], [0.9, 0], [1.4, 0]]), [0.25, 0.5, 1]);
+      // tronco: reclinado → à frente (peso sobre os pés) → ereto
+      c.bone('spine_01', 1, 0, 0, keyed(t, [[0, -0.15], [0.35, 0.3], [0.75, 0.55], [1.15, 0.12], [1.4, 0]]));
+      c.bone('spine_02', 1, 0, 0, keyed(t, [[0, 0], [0.5, 0.2], [1.15, 0.05], [1.4, 0]]));
+      c.bone('neck_01', 1, 0, 0, keyed(t, [[0, 0.2], [0.75, -0.35], [1.4, 0]]));
+      // mãos: apoiadas no chão atrás/ao lado → nos joelhos (empurrando) → soltas
+      const hw = keyed(t, [[0, 1], [1.05, 1], [1.4, 0]]);
+      const hand = keyed3(t, [[0, [0.14, -0.05, -0.3]], [0.35, [0.18, -0.1, -0.12]], [0.7, [0.02, 0.0, 0.0]], [1.05, [-0.02, 0.04, 0.02]]]);
+      const onKnee = keyed(t, [[0, 0], [0.42, 0], [0.72, 1]]);
+      c.reach('r', 'pelvis', hand, [1, 0.3, -0.6], hw);
+      c.reach('l', 'pelvis', [hand[0] - 0.02, hand[1], hand[2]], [1, 0.3, -0.6], hw);
+      c.reach('r', 'knee', [-0.04, 0.06, 0.1], [0.7, 0.1, -0.7], hw * onKnee);
+      c.reach('l', 'knee', [-0.02, 0.06, 0.1], [0.7, 0.1, -0.7], hw * onKnee);
+      c.fingers('r', 0.35, {}, hw);
+      c.fingers('l', 0.35, {}, hw);
+    },
+  },
   cbt_punch: { dur: 0.45, layer: 'upper', pose: (c) => punchPose(c, 'r', 0.12) },
   cbt_punch2: { dur: 0.46, layer: 'upper', pose: (c) => punchPose(c, 'l', 0.1) },
   cbt_kick: { dur: 0.72, layer: 'full', pose: (c) => kickPose(c, 0.22, 1) },
@@ -949,31 +1022,38 @@ export const SPECS: Record<string, ClipSpec> = {
     },
   },
   cbt_bat: {
+    // rodada 9.1: taco com as DUAS mãos — carrega atrás do ombro direito (tronco enrolado), varre na frente na altura
+    // do peito com o tronco desenrolando, acompanha até o lado esquerdo e volta
     dur: 0.8, layer: 'upper',
     pose: (c) => {
-      const t = c.t, wind = env(t, 0.0, 0.22, 0.26, 0.34), swing = env(t, 0.24, 0.36, 0.5, 0.8);
-      // levanta atrás do ombro direito e varre na frente do corpo (o taco segue a mão direita)
-      c.bone('spine_03', 0, 1, 0, -0.38 * wind + 0.5 * swing);
-      c.bone('spine_01', 1, 0, 0, 0.08 * swing);
-      c.reach('r', 'shoulder', [0.16, 0.22, -0.06], ELBOW_OUT, wind * (1 - swing));
-      c.reach('r', 'chest', [-0.22, 0.02, 0.46], [0.6, -0.5, 0], swing);
-      c.limb('r', 'hand', 0, 0, 1, -0.5 * wind + 0.4 * swing);
-      c.reach('l', 'chest', [0.02, 0.08, 0.28], ELBOW_DOWN, 0.7 * Math.max(wind, swing * 0.6));
-      c.fingers('r', 0.95, { thumb: 0.5 });
-      c.fingers('l', 0.9, { thumb: 0.4 }, wind);
+      const t = c.t, g = env(t, 0.0, 0.1, 0.62, 0.8);
+      const r = keyed3(t, [[0, [0.18, -0.2, 0.15]], [0.24, [0.26, 0.22, -0.04]], [0.36, [0.02, 0.0, 0.46]], [0.5, [-0.3, 0.06, 0.26]], [0.62, [-0.3, 0.02, 0.2]], [0.8, [0.18, -0.2, 0.15]]]);
+      const l = keyed3(t, [[0, [0.12, -0.2, 0.15]], [0.24, [-0.16, 0.16, 0.0]], [0.36, [0.08, -0.04, 0.42]], [0.5, [0.36, 0.02, 0.22]], [0.62, [0.36, 0.0, 0.18]], [0.8, [0.12, -0.2, 0.15]]]);
+      const tw = keyed(t, [[0, 0], [0.24, -0.6], [0.36, 0.25], [0.5, 0.75], [0.62, 0.7], [0.8, 0]]);
+      twistTorso(c, tw * g, keyed(t, [[0, 0], [0.24, -0.04], [0.36, 0.12], [0.5, 0.08], [0.8, 0]]) * g, 0.5);
+      c.reach('r', 'chest', r, [0.8, -0.5, -0.2], g);
+      c.reach('l', 'chest', l, [0.8, -0.5, -0.2], g);
+      c.limb('r', 'hand', 0, 0, 1, keyed(t, [[0, 0], [0.24, -0.6], [0.36, 0.2], [0.5, 0.5], [0.8, 0]]) * g);
+      c.fingers('r', 0.95, { thumb: 0.5 }, g);
+      c.fingers('l', 0.95, { thumb: 0.5 }, g);
     },
   },
   cbt_bar: {
+    // rodada 9.1: de cima para baixo — barra sobe atrás da cabeça (tronco arqueia), desce num estalo à frente com o
+    // tronco dobrando e o peso indo à frente, acompanha até a cintura e volta
     dur: 0.9, layer: 'upper',
     pose: (c) => {
-      const t = c.t, wind = env(t, 0.0, 0.26, 0.3, 0.38), down = env(t, 0.28, 0.42, 0.56, 0.9);
-      // de cima para baixo, à frente (barra na mão direita, a esquerda acompanha)
-      c.bone('spine_01', 1, 0, 0, -0.1 * wind + 0.22 * down);
-      c.bone('spine_03', 0, 1, 0, 0.15 * down);
-      c.reach('r', 'shoulder', [0.04, 0.42, 0.04], [1, -0.3, -0.3], wind * (1 - down));
-      c.reach('r', 'chest', [-0.05, -0.12, 0.48], [0.5, -0.7, 0], down);
-      c.limb('r', 'hand', 1, 0, 0, -0.6 * wind + 0.5 * down);
-      c.reach('l', 'chest', [0.0, 0.1 + 0.2 * wind, 0.3], ELBOW_DOWN, 0.6 * Math.max(wind, down));
+      const t = c.t, g = env(t, 0.0, 0.1, 0.7, 0.9);
+      const r = keyed3(t, [[0, [0.12, -0.2, 0.15]], [0.28, [0.06, 0.5, -0.06]], [0.4, [-0.04, -0.06, 0.5]], [0.54, [-0.08, -0.32, 0.36]], [0.68, [-0.06, -0.3, 0.32]], [0.9, [0.12, -0.2, 0.15]]]);
+      const pitch = keyed(t, [[0, 0], [0.28, -0.14], [0.4, 0.26], [0.54, 0.32], [0.68, 0.28], [0.9, 0]]);
+      c.bone('spine_01', 1, 0, 0, 0.5 * pitch * g);
+      c.bone('spine_02', 1, 0, 0, 0.3 * pitch * g);
+      c.bone('spine_03', 0, 1, 0, keyed(t, [[0, 0], [0.28, -0.12], [0.4, 0.2], [0.9, 0]]) * g);
+      c.bone('neck_01', 1, 0, 0, -0.4 * pitch * g);
+      c.reach('r', 'chest', r, [1, -0.3, -0.3], g);
+      c.limb('r', 'hand', 1, 0, 0, keyed(t, [[0, 0], [0.28, -0.7], [0.4, 0.5], [0.9, 0]]) * g);
+      // braço livre: sobe para trás na carga, desce à frente no golpe (equilíbrio)
+      c.reach('l', 'chest', keyed3(t, [[0, [0.1, -0.2, 0.15]], [0.28, [0.2, 0.05, 0.3]], [0.4, [0.24, -0.25, -0.05]], [0.9, [0.1, -0.2, 0.15]]]), ELBOW_DOWN, 0.8 * g);
       c.fingers('r', 0.95, { thumb: 0.5 });
     },
   },
