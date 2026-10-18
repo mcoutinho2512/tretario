@@ -83,6 +83,8 @@ export function agendaSections(list: readonly AgendaEntry[], now: number, soonMs
 /** botão da agenda: entrar/sair só onde faz sentido (inscrição aberta, começando ou acontecendo com vaga) */
 export function joinAction(e: AgendaEntry): 'join' | 'leave' | null {
   if (e.state === 'FINISHED' || e.state === 'CANCELLED') return null;
+  // debate: participação é pela FILA do palco (painel do debate), não por inscrição no agendador
+  if (e.format === 'debate') return null;
   if (e.joined) return 'leave';
   if (e.state === 'SCHEDULED') return null;
   if (e.capacity > 0 && e.count >= e.capacity) return null;

@@ -56,6 +56,7 @@ describe('agenda — formatação', () => {
     expect(s.recent.map((x) => x.inst)).toEqual(['x', 'd', 'old']);
     expect(joinAction(e({ state: 'REGISTRATION', count: 2, capacity: 20 }))).toBe('join');
     expect(joinAction(e({ state: 'REGISTRATION', count: 20, capacity: 20 }))).toBeNull();
+    expect(joinAction(e({ state: 'ACTIVE', format: 'debate', count: 2, capacity: 20 }))).toBeNull(); // debate: fila do palco, não inscrição
     expect(joinAction(e({ state: 'ACTIVE', joined: true }))).toBe('leave');
     expect(joinAction(e({ state: 'FINISHED', joined: true }))).toBeNull();
     expect(joinAction(e({ state: 'SCHEDULED' }))).toBeNull();
