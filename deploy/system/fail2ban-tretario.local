@@ -1,0 +1,17 @@
+# /etc/fail2ban/jail.d/tretario.local — só o sshd (moderado). Desbanir: sudo fail2ban-client set sshd unbanip <IP>
+# (docs/OPERATIONS.md). __IGNOREIP__ = IPs do administrador passados com --admin-ip no provision (opcional).
+[DEFAULT]
+backend = systemd
+banaction = ufw
+
+[sshd]
+enabled = true
+port = __SSH_PORT__
+# Ubuntu 24.04: a unidade é ssh.service (o filtro padrão procura sshd.service) → casa pelo processo
+journalmatch = _COMM=sshd
+maxretry = 5
+findtime = 10m
+bantime = 1h
+bantime.increment = true
+bantime.maxtime = 1d
+ignoreip = 127.0.0.1/8 ::1 __IGNOREIP__

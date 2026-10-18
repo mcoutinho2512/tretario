@@ -63,7 +63,7 @@ const codeOf = async (p: Promise<unknown>) => { try { await p; return 0; } catch
 
 describe.skipIf(skip)('produção (rodada 9.1) — prefixo /game, protocolo, lotação, saúde', () => {
   beforeAll(async () => {
-    srv = spawn('npx', ['tsx', 'src/index.ts'], {
+    srv = spawn(process.execPath, ['--import', 'tsx', 'src/index.ts'], { // como em produção (systemd): um processo só, o sinal chega direto ao node
       cwd: 'server', detached: true, stdio: ['ignore', 'pipe', 'pipe'],
       env: { ...process.env, PORT: String(PORT), PV_TEST: '1', PV_STORE: 'memory', PV_GRAFFITI_STORE: 'memory', DATABASE_URL: '', PV_ADMIN_TOKEN: TOKEN, MAX_PLAYERS_PER_ROOM: '2', MAX_SPECTATORS_PER_ROOM: '1', PV_GRACE_S: '8' },
     });
@@ -143,7 +143,7 @@ describe.skipIf(skip)('processo real — desligamento gracioso (SIGTERM) e trava
   const P2 = PORT + 3 + 1000;
   it('SIGTERM: avisa os clientes, fecha com 4001, grava e sai com 0 em < 15 s; logs JSON', async () => {
     const lines: string[] = [];
-    const p = spawn('npx', ['tsx', 'src/index.ts'], {
+    const p = spawn(process.execPath, ['--import', 'tsx', 'src/index.ts'], { // como em produção (systemd): um processo só, o sinal chega direto ao node
       cwd: 'server', stdio: ['ignore', 'pipe', 'pipe'],
       env: { ...process.env, PORT: String(P2), PV_TEST: '1', PV_STORE: 'memory', PV_GRAFFITI_STORE: 'memory', DATABASE_URL: '', PV_LOG_FORMAT: 'json' },
     });
@@ -160,7 +160,7 @@ describe.skipIf(skip)('processo real — desligamento gracioso (SIGTERM) e trava
     const left = new Promise<number>((res) => r.onLeave((c) => res(c)));
     await w(500);
     const t0 = Date.now();
-    p.kill('SIGTERM'); // npx repassa o sinal ao tsx/node
+    p.kill('SIGTERM'); // direto ao node (sem o wrapper npx, que no Linux morre pelo sinal e devolve código null)
     const code = await Promise.race([exited, w(16_000).then(() => 'timeout' as const)]);
     expect(code).toBe(0);
     expect(Date.now() - t0).toBeLessThan(15_000);
@@ -176,7 +176,7 @@ describe.skipIf(skip)('processo real — desligamento gracioso (SIGTERM) e trava
   }, 30_000);
 
   it('NODE_ENV=production com PV_TEST/segredo fraco → recusa subir (sai com 1, sem abrir porta)', async () => {
-    const p = spawn('npx', ['tsx', 'src/index.ts'], {
+    const p = spawn(process.execPath, ['--import', 'tsx', 'src/index.ts'], { // como em produção (systemd): um processo só, o sinal chega direto ao node
       cwd: 'server', stdio: ['ignore', 'pipe', 'pipe'],
       env: { ...process.env, PORT: String(P2 + 4), NODE_ENV: 'production', PV_TEST: '1', PV_STORE: 'memory', PV_SESSION_SECRET: 'dev-only-change-me', DATABASE_URL: '' },
     });

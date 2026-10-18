@@ -41,7 +41,9 @@ const cleanup = () => { for (const p of procs) { try { process.kill(-p.pid, 'SIG
 process.on('exit', cleanup);
 process.on('SIGINT', () => { cleanup(); process.exit(130); });
 
-const srv = start('npx', ['tsx', 'src/index.ts'], { PORT: String(PORT), PV_TEST: '1', PV_STORE: 'memory', PV_METRICS: '0' });
+// rodada 9.1: token de admin só do servidor de TESTE do soak — amostra a memória do SERVIDOR por /internal/health
+const QA_ADMIN = 'soak-admin-token-0123456789abcdef0123456789';
+const srv = start('npx', ['tsx', 'src/index.ts'], { PORT: String(PORT), PV_TEST: '1', PV_STORE: 'memory', PV_METRICS: '0', PV_ADMIN_TOKEN: QA_ADMIN });
 const log = [];
 srv.stdout.on('data', (d) => log.push(d.toString()));
 for (let i = 0; i < 150 && !log.join('').includes('[pv3d-server]'); i++) await w(200);
@@ -79,6 +81,9 @@ if (process.env.SOAK_SPECTATOR !== '0') {
 }
 
 const heap = async () => {
+  const raw = await cdp.send('Runtime.getHeapUsage'); // heap BRUTO (antes do GC forçado)
+  let srvMem = {};
+  if (R9) { try { const r = await fetch(`http://127.0.0.1:${PORT + 1}/internal/health`, { headers: { 'x-admin-token': QA_ADMIN } }); if (r.ok) { const j = await r.json(); srvMem = { srvHeapMB: j.memory?.heapUsedMB ?? null, srvRssMB: j.memory?.rssMB ?? null, srvWs: j.websockets ?? null, srvPlayers: j.players ?? null, srvTickMs: j.tick?.avgMs ?? j.tick?.avg ?? null }; } } catch { /* sem health */ } }
   for (let i = 0; i < 2; i++) { await cdp.send('HeapProfiler.collectGarbage'); await w(300); }
   const u = await cdp.send('Runtime.getHeapUsage');
   const gpu = await page.evaluate(() => window.__pv.memoryReport(false)?.ledger?.totalMB ?? null).catch(() => null);
@@ -89,7 +94,7 @@ const heap = async () => {
     const x = await page.evaluate(() => ({ dom: (() => { const m = {}; for (const e of document.querySelectorAll('body *')) { const ch = []; for (let n = e; n && n !== document.body; n = n.parentElement) ch.unshift(n); const k = ch.slice(0, 2).map((n) => (n.classList?.[0] ?? n.tagName.toLowerCase())).join('>'); m[k] = (m[k] ?? 0) + 1; } return m; })(), intervals: window.__pvIntervals?.() ?? null, ragdolls: window.__pv.r9b?.().ragdollsLive ?? null, remotes: window.__pv.mp()?.remotes?.length ?? null, items: window.__pv.r9b?.().items?.items?.length ?? null })).catch(() => ({}));
     r9 = { listeners: pm.JSEventListeners, nodes: pm.Nodes, ...x };
   }
-  return { usedMB: +(u.usedSize / 1048576).toFixed(2), gpuMB: gpu, ...mt, ...r9 };
+  return { usedMB: +(u.usedSize / 1048576).toFixed(2), rawMB: +(raw.usedSize / 1048576).toFixed(2), gpuMB: gpu, ...mt, ...r9, ...srvMem };
 };
 
 // ponto ao longo do eixo (fração t, deslocamento lateral)
@@ -133,6 +138,8 @@ function r9Steps() {
     async () => { await ev(() => window.__pv.netSend('qa_status', { st: 1 })); await w(5500); },
     // evento da agenda: entra e sai
     async () => { const e = await entry(null); if (e && !e.err) { await ev((i) => window.__pv.netSend('evt_join', { inst: i }), e.inst); await w(4000); await ev((i) => window.__pv.netSend('evt_leave', { inst: i }), e.inst); } },
+    // rodada 9.1: a conexão cai e volta (graça de reconexão: mesma entidade, inscrição e progresso mantidos)
+    async () => { await ev(() => window.__pv.netDrop()); await w(8000); },
     // debate: assistir e reagir
     async () => {
       const e = await entry('debate');
@@ -210,7 +217,7 @@ const summary = {
   heap: { first: samples[0].usedMB, last: samples.at(-1).usedMB, min: Math.min(...samples.map((s) => s.usedMB)), max: Math.max(...samples.map((s) => s.usedMB)) },
   slopeMBperMin: { total: slope(0, MIN), first20: slope(0, 20), last30: slope(Math.max(0, MIN - 30), MIN) },
   gpu: { first: gpuVals[0] ?? null, last: gpuVals.at(-1) ?? null, max: gpuVals.length ? Math.max(...gpuVals) : null },
-  ...(R9 ? { r9: Object.fromEntries(['listeners', 'nodes', 'intervals', 'ragdolls', 'remotes', 'items'].map((k) => { const v = samples.map((s) => s[k]).filter((x) => typeof x === 'number'); return [k, v.length ? { first: v[0], last: v.at(-1), min: Math.min(...v), max: Math.max(...v) } : null]; })) } : {}),
+  ...(R9 ? { r9: Object.fromEntries(['rawMB', 'listeners', 'nodes', 'intervals', 'ragdolls', 'remotes', 'items', 'srvHeapMB', 'srvRssMB', 'srvWs', 'srvPlayers', 'srvTickMs'].map((k) => { const v = samples.map((s) => s[k]).filter((x) => typeof x === 'number'); return [k, v.length ? { first: v[0], last: v.at(-1), min: Math.min(...v), max: Math.max(...v) } : null]; })) } : {}),
 };
 summary.verdict = summary.slopeMBperMin.last30 !== null && Math.abs(summary.slopeMBperMin.last30) < 0.1 ? 'ESTABILIZOU (aquecimento de cache)' : 'CONTINUA CRESCENDO — investigar';
 writeFileSync(`screenshots/soak/${TAG}.json`, JSON.stringify({ summary, samples }, null, 1));

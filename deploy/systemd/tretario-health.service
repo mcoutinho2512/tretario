@@ -1,0 +1,17 @@
+# Checagem de saúde a cada minuto (scripts/health-check.sh): grava shared/monitor/status e, se ruim, alert
+[Unit]
+Description=Presidente Vargas 3D - checagem de saude
+ConditionPathExists=/opt/tretario/current/scripts/health-check.sh
+
+[Service]
+Type=oneshot
+User=tretario
+Group=tretario
+EnvironmentFile=/opt/tretario/shared/env/server.env
+ExecStart=/opt/tretario/current/scripts/health-check.sh
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/opt/tretario/shared/monitor /opt/tretario/shared/logs
+SyslogIdentifier=tretario-health
