@@ -66,6 +66,13 @@ export const NetPlayer = schema({
    */
   lvl: t.uint8(),
   title: t.string(),
+  /**
+   * rodada 12 — tipo de entidade (src/world/entityKind.ts): 0 HUMANO · 1 AUTÔNOMO (personagem do mundo, servidor) ·
+   * 2 BOT DE CARGA. Só HUMANO conta como jogador online. NÃO renomear.
+   */
+  kind: t.uint8(),
+  /** rodada 12 — para onde a cabeça/tronco olha (nid do alvo; 0 = nada) — o cliente calcula os ossos localmente */
+  look: t.uint16(),
 }, 'NetPlayer');
 export type NetPlayer = SchemaType<typeof NetPlayer>;
 
@@ -82,6 +89,8 @@ export const NetVehicle = schema({
   state: t.uint8(),
   /** design dos painéis (carro de som/trio; src/social/designs.ts; 0 = arte neutra padrão) */
   design: t.uint16(),
+  /** rodada 12 — veículo PESSOAL (src/vehicles/personal.ts): sessionId do dono ('' = veículo do mundo/vaga) */
+  owner: t.string(),
 }, 'NetVehicle');
 export type NetVehicle = SchemaType<typeof NetVehicle>;
 
