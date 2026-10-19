@@ -34,7 +34,7 @@ export interface AgendaDebateCtx {
   scenery: { setScreenAd(target: string, s: ScreenSlide | null): boolean; adTargets(): { id: string; slide: string | null; ad: string; draws: number }[] };
   playerPos: () => { x: number; z: number };
   flash: (m: string, ms?: number) => void;
-  /** o painel abriu/fechou (soltar/recapturar o mouse) */
+  /** o painel abriu/fechou (avisa a casca do HUD) */
   onModal: (open: boolean) => void;
   base: string;
 }

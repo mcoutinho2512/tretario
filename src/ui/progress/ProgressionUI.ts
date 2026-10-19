@@ -10,6 +10,7 @@
  *  boas-vindas  1ª entrada: "BEM-VINDO À PRESIDENTE VARGAS — Explore a avenida" com UM objetivo; as outras missões
  *               aparecem aos poucos (requisitos no servidor). "Visto": conta no servidor; visitante também no aparelho
  */
+import { EscSlot } from '../escStack'; // rodada 11 — entrada
 import './progress.css';
 import type { HudShell } from '../hud/HudShell';
 import type { PlayerProgression, ProgressionMessage, ProgressionNotice } from '../../progression/types';
@@ -47,6 +48,7 @@ export class ProgressionUI {
   cat: ProgressionCatalog | null = null;
   private tracker = el('div', 'prog-tracker hud-fadeable');
   private screen: HTMLDivElement | null = null;
+  private esc = new EscSlot('progresso', 100, () => this.close());
   private welcome: HTMLDivElement | null = null;
   private collapseTimer = 0;
   private knownActive = new Set<string>();
@@ -63,7 +65,6 @@ export class ProgressionUI {
     net.on('prog', (m: ProgressionMessage) => this.onProg(m));
     net.on('prog_ev', (n: ProgressionNotice) => this.onNotice(n));
     void loadProgressionCatalog(base).then((c) => { this.cat = c; if (this.p) this.render(); });
-    window.addEventListener('keydown', (e) => { if (e.code === 'Escape') { this.close(); } });
   }
 
   // ------------------------------------------------------------------ mensagens
@@ -180,6 +181,7 @@ export class ProgressionUI {
     s.setAttribute('aria-label', 'Progresso');
     s.addEventListener('click', (e) => { if (e.target === s) this.close(); });
     document.querySelector('.hud')?.appendChild(s);
+    this.esc.set(true); // rodada 11 — entrada (Esc pela pilha única)
     this.fillScreen();
     this.shell.onModal?.(true);
   }
@@ -188,6 +190,7 @@ export class ProgressionUI {
     if (!this.screen) return;
     this.screen.remove();
     this.screen = null;
+    this.esc.set(false);
     this.shell.onModal?.(false);
   }
 

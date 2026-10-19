@@ -4,6 +4,8 @@
  * ITENS: pegar/largar item e trocar o design do item na mão (◀ ▶ no centro).
  * Tudo vem dos registros (actions.ts / props.ts / designs.ts) via actionOptions.ts — a barra de ações usa as mesmas opções.
  */
+import { EscSlot } from './escStack'; // rodada 11 — entrada
+import { isTypingTarget } from '../input/keymap'; // rodada 11 — entrada
 import { ACTION_CATEGORIES, type ActionCategory } from '../social/actions';
 import { PROP_BY_ID } from '../social/props';
 import { actionOptions, itemOptions } from './actionOptions';
@@ -16,7 +18,8 @@ export class ActionWheel {
   private center: HTMLDivElement;
   private cat: ActionCategory = 'gestos';
   open = false;
-  /** chamado ao abrir/fechar (o jogo solta/recaptura o mouse) */
+  private esc = new EscSlot('roda', 50, () => this.close());
+  /** chamado ao abrir/fechar (avisa o HUD) */
   onToggle?: (open: boolean) => void;
   /** rodada 9: itens além dos sociais — o item de confronto que o jogador POSSUI (pego no chão/apoio) */
   extraProps: () => number[] = () => [];
@@ -31,9 +34,8 @@ export class ActionWheel {
     this.center.className = 'aw-center';
     this.el.append(this.ring, this.center);
     window.addEventListener('keydown', (e) => {
-      if (!this.open) return;
-      if (e.code === 'Escape') { this.close(); e.preventDefault(); }
-      // 1–4 trocam de categoria
+      if (!this.open || isTypingTarget(e.target)) return;
+      // Esc: pilha única (rodada 11). 1–4 trocam de categoria (prioridade sobre o acesso rápido: InputManager.quickBlocked)
       const n = Number(e.key);
       if (n >= 1 && n <= ACTION_CATEGORIES.length) { this.cat = ACTION_CATEGORIES[n - 1].key; this.render(); }
     });
@@ -43,6 +45,7 @@ export class ActionWheel {
 
   show() {
     this.open = true;
+    this.esc.set(true);
     this.el.classList.add('open');
     this.render();
     this.onToggle?.(true);
@@ -51,6 +54,7 @@ export class ActionWheel {
   close() {
     if (!this.open) return;
     this.open = false;
+    this.esc.set(false);
     this.el.classList.remove('open');
     this.onToggle?.(false);
   }

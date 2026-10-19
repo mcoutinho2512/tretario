@@ -12,6 +12,8 @@
 import './chat.css';
 import { CHAT_RULES, REPORT_CATEGORIES, REPORT_LABELS, type ChatChannel, type ChatMessage, type ChatMuteEntry, type ChatMuteList, type ChatMuteRejection, type ChatRejection, type ReportCategory } from '../chat/protocol';
 import { textModeration } from '../moderation/text';
+import { isTypingTarget } from '../input/keymap'; // rodada 11 — entrada
+import { EscSlot } from './escStack'; // rodada 11 — entrada
 
 export interface ChatTransport { send(type: string, payload?: unknown): void; on(type: string, fn: (msg: any) => void): void }
 export interface ChatPanelOptions {
@@ -66,6 +68,7 @@ export class ChatPanel {
   /** botão CHAT para toque (quem monta o HUD posiciona) */
   readonly button: HTMLButtonElement;
   private log: HTMLOListElement;
+  private esc = new EscSlot('chat', 10, () => this.close());
   private form: HTMLFormElement;
   private field: HTMLInputElement;
   private chLabel: HTMLSpanElement;
@@ -141,8 +144,8 @@ export class ChatPanel {
     // digitando: nenhuma tecla chega ao jogo (o InputManager escuta em window)
     this.field.addEventListener('keydown', (e) => {
       e.stopPropagation();
-      if (e.key === 'Escape') { e.preventDefault(); this.close(); }
-      else if (e.key === 'Tab') { e.preventDefault(); this.cycle(e.shiftKey ? -1 : 1); }
+      // Esc: pilha única (src/ui/escStack.ts — fase de captura, antes deste campo) fecha o chat
+      if (e.key === 'Tab') { e.preventDefault(); this.cycle(e.shiftKey ? -1 : 1); }
     });
     this.field.addEventListener('keyup', (e) => e.stopPropagation());
 
@@ -161,6 +164,8 @@ export class ChatPanel {
     this.button.addEventListener('click', (e) => { e.stopPropagation(); this.toggle(); });
 
     window.addEventListener('keydown', this.onGlobalKey);
+    // rodada 11 — desktop: clicar fora do chat (no cenário ou no HUD) devolve o teclado ao jogo
+    if (!o.isTouch) document.addEventListener('pointerdown', (e) => { if (this.state === 'open' && !this.el.contains(e.target as Node)) this.close(); }, true);
     const saved = store.get(STATE_KEY);
     this.setState(o.isTouch ? 'min' : saved === 'min' ? 'min' : 'idle');
     this.setChannel('geral');
@@ -218,6 +223,7 @@ export class ChatPanel {
   private setState(s: State) {
     const was = this.state;
     this.state = s;
+    this.esc.set(s === 'open'); // rodada 11 — entrada
     this.el.dataset.state = s;
     this.hideMenu();
     if (s !== 'open' && document.activeElement === this.field) this.field.blur();
@@ -266,10 +272,9 @@ export class ChatPanel {
 
   private onGlobalKey = (e: KeyboardEvent) => {
     if (e.defaultPrevented || e.repeat) return;
-    const t = e.target as HTMLElement | null;
-    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+    if (isTypingTarget(e.target)) return;
+    // Enter foca o chat (Esc sai pela pilha única)
     if (e.key === 'Enter' && this.state !== 'open') { e.preventDefault(); this.open(); }
-    else if (e.key === 'Escape' && this.state === 'open') this.close();
   };
 
   // ------------------------------------------------------------------ mensagens

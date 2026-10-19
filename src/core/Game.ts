@@ -83,6 +83,8 @@ import { RULES } from '../net/rules';
 import { Ragdoll } from '../physics/Ragdoll';
 // rodada 10 — interação: clicou/tocou → interagiu (src/interaction/InteractionSystem.ts, docs/INTERACTION_SYSTEM.md)
 import { InteractionSystem } from '../interaction/InteractionSystem';
+import { VehicleCamFollow } from '../camera/vehicleCam'; // rodada 11 — entrada
+import { escLayers, escLog } from '../ui/escStack'; // rodada 11 — entrada
 import { GraffitiProvider, ItemProvider, PersonProvider, VehicleProvider, PERSON_RANGE_M } from '../interaction/providers';
 import { promptText as ixPromptText } from '../interaction/select';
 import type { InteractionPlayerState } from '../interaction/types';
@@ -466,13 +468,12 @@ export class Game {
     attr.className = 'attribution';
     attr.innerHTML = '<span class="beta-tag" title="Versão beta pública">BETA</span>Dados do mapa © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a> (ODbL)';
     this.hud.appendChild(attr);
-    const lock = document.createElement('div');
-    lock.className = 'lock-hint';
-    lock.textContent = 'Clique para controlar a câmera';
-    this.hud.appendChild(lock);
-    // roda/menu/ajustes abertos: solta o mouse para clicar; fechados: volta a controlar a câmera
-    const relock = (open: boolean) => { if (open) document.exitPointerLock?.(); else if (!this.input.isTouch && !this.wheel?.open && !shell.anyModal) this.input.requestLock(); };
+    // rodada 11 — entrada: sem pointer lock (cursor sempre visível; docs/DESKTOP_CONTROLS.md) — abrir/fechar painel
+    // não captura nem solta nada; o gancho fica para quem precisa reagir. F1/tela de controles relê remapeamentos.
+    const relock = (_open: boolean) => { /* nada a capturar */ };
     shell.onModal = relock;
+    shell.controls.onRemap = () => this.input.reloadKeymap();
+    this.input.quickBlocked = () => !!this.wheel?.open; // roda aberta: 1–4 são categorias, não acesso rápido
     if (!this.spectator) { // espectador não tem ações sociais
       this.wheel = new ActionWheel(this.social);
       this.wheel.onToggle = (open) => { shell.poke(); relock(open); };
@@ -671,6 +672,7 @@ export class Game {
   }
 
   private cpuMs = 0;
+  private vehCam = new VehicleCamFollow(); // rodada 11 — entrada
   /** ações sociais / item na mão do jogador local (previsão + servidor) */
   private wheel: ActionWheel | null = null;
   private chat: ChatPanel | null = null;
@@ -692,7 +694,6 @@ export class Game {
     if (this.input.consumeToggle('wheel')) this.wheel?.toggle();
     // H ou P: HUD limpo (só o cenário)
     if (this.input.consumeToggle('help') || this.input.consumeToggle('photo')) this.hudShell.toggleClean();
-    this.hud.classList.toggle('locked', this.input.pointerLocked || this.input.isTouch);
 
     const T: [string, number][] = [['início', performance.now()]];
     const mark = (n: string) => T.push([n, performance.now()]);
@@ -1044,6 +1045,7 @@ export class Game {
       aim: () => { const [fx, fz] = this.cam.forward(); const l = Math.hypot(fx, fz) || 1; return { x: fx / l, z: fz / l }; },
       ground: (x, z) => this.collision.groundHeight(x, z),
       notify: (m) => this.flash(m),
+      looking: () => this.input.looking, // rodada 11 — entrada: girando a câmera = sem hover
     }, this.scene, this.hud));
     ix.register(new VehicleProvider({
       items: () => this.rideables.items, riding: () => this.riding, platform: () => this.trio.state?.id ?? null,
@@ -1061,13 +1063,14 @@ export class Game {
       open: (id, nid) => this.personPanel?.show(id, nid),
     }));
     ix.register(new GraffitiProvider({ near: () => this.graffiti.nearSurface, prompt: () => this.graffiti.promptText(), open: () => { this.graffiti.tryOpen(this.player); } }));
-    // clique (mouse solto; capturado = centro da tela) e toque (separado do arrasto em TouchControls)
-    this.input.pointFilter = (x, y, locked) => !this.wheel?.open && !shell.anyModal && !this.personPanel?.open && ix.pointAt(x, y, locked ? 'aim' : 'click');
+    // rodada 11 — entrada: clique esquerdo (sem arrasto) no ponto do cursor; toque separado do arrasto em TouchControls
+    this.input.pointFilter = (x, y) => !this.wheel?.open && !shell.anyModal && !this.personPanel?.open && ix.pointAt(x, y, 'click');
     if (this.touchCtl) this.touchCtl.onTap = (x, y) => { if (!this.wheel?.open && !shell.anyModal && !this.personPanel?.open) ix.pointAt(x, y, 'tap'); };
     // onboarding: uma dica curta, uma vez por aparelho
     ix.onFirstTarget = () => {
       try { if (localStorage.getItem('pv.ix.hint') === '1') return; localStorage.setItem('pv.ix.hint', '1'); } catch { /* sem armazenamento: mostra mesmo assim */ }
-      shell.flash('Toque ou clique nos objetos para interagir.', 5000);
+      // rodada 11 — entrada: no desktop, também a câmera (cursor sempre visível)
+      shell.flash(this.input.isTouch ? 'Toque ou clique nos objetos para interagir.' : 'Toque ou clique nos objetos para interagir. Botão direito + arrastar gira a câmera.', 6000);
     };
     // painel da pessoa (só dados públicos) e HUD do veículo
     const acts = ['wave', 'thumbs_up', 'point', 'cheer', 'clap'].map((k) => ACTION_BY_KEY.get(k)).filter((a): a is NonNullable<typeof a> => !!a);
@@ -1153,6 +1156,10 @@ export class Game {
   private r10Qa() {
     return {
       ix: () => this.ix?.info() ?? null,
+      // rodada 11 — entrada (QA: tools/qa/desktop_input.mjs)
+      ixPerfReset: () => this.ix?.perfReset(),
+      ixPick: (x: number, y: number) => this.ix?.pick(x, y)?.key ?? null,
+      input: () => ({ ...this.input.info(), esc: escLayers(), escLog: escLog.slice(-8), camYaw: this.cam.yaw, vehReturning: this.vehCam.returning, menu: this.hudShell.gameMenu.open, controls: this.hudShell.controls.open, settings: this.hudShell.settings.open }),
       ixPoint: (x: number, y: number, via: 'click' | 'tap' | 'aim' = 'click') => this.ix?.pointAt(x, y, via) ?? false,
       ixUse: () => this.ix?.useKey() ?? false,
       person: () => this.personPanel?.info() ?? null,
@@ -1281,10 +1288,8 @@ export class Game {
       this.player.locomotion = 'walk';
       const seat = seatWorld(v.def, v.state.x, v.state.z, v.state.heading);
       this.avatar.updateRiding(seat.x, v.state.y, seat.z, v.state.heading, v.def.pose, v.state.speed, v.def.seatHeight, dt, v); // rodada 10 — montagem
-      let dyaw = v.state.heading - this.cam.yaw;
-      while (dyaw > Math.PI) dyaw -= Math.PI * 2;
-      while (dyaw < -Math.PI) dyaw += Math.PI * 2;
-      if (Math.abs(v.state.speed) > 1) this.cam.yaw += dyaw * Math.min(1, dt * (v.def.kind === 'car' ? 2.2 : 1.5));
+      // rodada 11 — entrada: segue o rumo; botão direito arrastando olha em volta e, ~1 s depois de soltar, volta atrás
+      this.cam.yaw = this.vehCam.step(this.cam.yaw, v.state.heading, v.state.speed, dt, performance.now(), this.input.looking, this.input.lastLookEnd, v.def.kind === 'car' ? 2.2 : 1.5);
       this.hudShell.setPrompt(this.input.isTouch ? '' : RIDE_HELP[v.def.kind]); // rodada 10: no toque, o HUD do veículo (SAIR + dica do joystick)
     } else {
       const held = this.combat?.locked ? 0 : 1; // rodada 9: cambaleando (golpe sofrido) não anda

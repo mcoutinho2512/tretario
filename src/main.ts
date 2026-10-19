@@ -5,6 +5,7 @@
  * (src/ui/AvatarPreview) só carrega quando o editor abre. A identidade vem do servidor (cookie HttpOnly + GET /api/me);
  * o localStorage guarda só o visual de VISITANTE (sem conta/sem servidor) e a qualidade gráfica.
  */
+import { EscSlot, installEscKey } from './ui/escStack'; // rodada 11 — entrada
 import './debug/memProbe'; // sondas de memória (WASM; GPU com ?mem=1) — antes de qualquer módulo WASM/WebGL
 performance.mark('pv:script');
 import './ui/style.css';
@@ -128,9 +129,12 @@ for (const [b, pop] of pops) {
   });
   pop.addEventListener('click', (e) => e.stopPropagation());
 }
-const closePops = () => pops.forEach(([b, p]) => { p.classList.add('hidden'); b.setAttribute('aria-expanded', 'false'); });
+const closePops = () => { popEsc.set(false); pops.forEach(([b, p]) => { p.classList.add('hidden'); b.setAttribute('aria-expanded', 'false'); }); };
 document.addEventListener('click', closePops);
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closePops(); });
+// rodada 11 — entrada: Esc pela pilha única (popover aberto = camada; fecha só ele)
+const popEsc = new EscSlot('home-popover', 50, () => closePops());
+installEscKey();
+for (const [b, pop] of pops) b.addEventListener('click', () => popEsc.set(!pop.classList.contains('hidden')));
 
 // ------------------------------------------------------------------ rodada 11 — editor (src/ui/editor/CharacterEditor.ts)
 const nameInput = $<HTMLInputElement>('player-name');

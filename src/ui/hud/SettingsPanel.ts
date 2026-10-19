@@ -8,6 +8,7 @@ import { loadQualityChoice, saveQualityChoice, type QualityChoice, type QualityL
 import type { HudPrefsStore } from './hudPrefs';
 import { audioSettings, type VolumeKey } from '../../audio/settings'; // rodada 10 — áudio
 import { audioActive, sfx } from '../../audio/bus'; // rodada 10 — áudio
+import { EscSlot } from '../escStack'; // rodada 11 — entrada (Esc pela pilha única)
 
 const QUALITY: [QualityChoice, string][] = [['auto', 'Automática'], ['low', 'Baixa'], ['medium', 'Média'], ['high', 'Alta'], ['ultra', 'Ultra']];
 const NAMES: [string, string][] = [['TODOS', 'Todos'], ['PROXIMOS', 'Próximos'], ['NENHUM', 'Nenhum']];
@@ -17,6 +18,7 @@ export class SettingsPanel {
   open = false;
   onToggle?: (open: boolean) => void;
   private reloadRow: HTMLDivElement;
+  private esc = new EscSlot('ajustes', 100, () => this.toggle(false));
 
   constructor(prefs: HudPrefsStore, currentLevel: QualityLevel) {
     const el = (this.el = document.createElement('div'));
@@ -61,15 +63,15 @@ export class SettingsPanel {
     el.appendChild(this.check('Reduzir efeitos visuais', 'Desorientação vira só um ícone e um tom leve (sem desfoque nem vinheta)', prefs.value.reduceEffects, (v) => prefs.set({ reduceEffects: v })));
     const keys = document.createElement('p');
     keys.className = 'sheet-foot';
-    keys.textContent = 'H ou P: HUD limpo · M: mapa · G: ações · F1: controles';
+    keys.textContent = 'O cursor fica sempre visível · botão direito + arrastar: câmera · F1: controles · Esc: fecha / menu';
     el.appendChild(keys);
-    el.addEventListener('keydown', (e) => { if (e.key === 'Escape') { this.toggle(false); e.stopPropagation(); } });
   }
 
   toggle(v = !this.open) {
     if (v === this.open) return;
     this.open = v;
     this.el.hidden = !v;
+    this.esc.set(v); // rodada 11 — entrada
     sfx(v ? 'ui_open' : 'ui_close'); // rodada 10 — áudio
     if (v) this.refreshAudio?.();
     if (v) (this.el.querySelector<HTMLElement>('input:checked') ?? this.el.querySelector<HTMLElement>('input'))?.focus({ preventScroll: true });

@@ -8,6 +8,7 @@
  * servidor resolve a conta); denunciar = `user_report {nid, category}` (o servidor valida, limita e guarda a
  * evidência; a resposta não traz ids).
  */
+import { EscSlot } from './escStack'; // rodada 11 — entrada
 import { REPORT_CATEGORIES, REPORT_LABELS, type ReportCategory } from '../chat/protocol';
 
 export interface PersonPanelDeps {
@@ -41,6 +42,7 @@ export class PersonPanel {
   private target: { id: string; nid: number; name: string; sup: number } | null = null;
   private view: View = 'main';
   private acc = 0;
+  private esc = new EscSlot('pessoa', 100, () => this.close());
   /** QA */
   readonly log: string[] = [];
 
@@ -62,9 +64,8 @@ export class PersonPanel {
     el.append(head, this.body);
     // não deixa o toque/clique atravessar para o mundo (câmera, interação)
     for (const ev of ['pointerdown', 'touchstart', 'mousedown'] as const) el.addEventListener(ev, (e) => e.stopPropagation(), { passive: true });
-    el.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.stopPropagation(); this.close(); } });
-    document.addEventListener('pointerdown', (e) => { if (!el.hidden && !el.contains(e.target as Node)) this.close(); }, true);
-    window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !el.hidden) this.close(); });
+    // clique esquerdo fora fecha (o direito é a câmera: girar não fecha o painel); Esc pela pilha única (rodada 11)
+    document.addEventListener('pointerdown', (e) => { if (!el.hidden && e.button === 0 && !el.contains(e.target as Node)) this.close(); }, true);
   }
 
   get open() { return !this.el.hidden; }
@@ -78,13 +79,14 @@ export class PersonPanel {
     const was = this.open;
     this.el.hidden = false;
     this.log.push(`open:${p.name}`);
-    if (!was) this.d.onModal(true);
+    if (!was) { this.esc.set(true); this.d.onModal(true); }
     (this.body.querySelector('button') as HTMLButtonElement | null)?.focus({ preventScroll: true });
   }
 
   close() {
     if (!this.open) return;
     this.el.hidden = true;
+    this.esc.set(false);
     this.target = null;
     this.log.push('close');
     this.d.onModal(false);
