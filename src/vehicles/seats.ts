@@ -88,7 +88,7 @@ export type MountProfileFull = MountProfile & { rig: MountRig };
 export const MOUNT_PROFILES: Record<MountKind, MountProfileFull> = {
   car: {
     kind: 'car', enterMs: 900, exitMs: 750, camera: { distance: 7.4, height: 1.85 },
-    seats: [{ role: 'DRIVER', pose: 'car_seat', hip: [0.37, 0.58, -0.2], handL: [0.53, 0.97, 0.31], handR: [0.21, 0.97, 0.31], footL: [0.45, 0.27, 0.86], footR: [0.29, 0.27, 0.88], entry: [1.35, 0, -0.1] }],
+    seats: [{ role: 'DRIVER', pose: 'car_seat', hip: [0.37, 0.58, -0.2], handL: [0.53, 0.97, 0.31], handR: [0.21, 0.97, 0.31], footL: [0.45, 0.3, 0.72], footR: [0.29, 0.3, 0.74], entry: [1.35, 0, -0.1] }],
     rig: { baseClip: 'drive', steerPivot: [0.37, 0.93, 0.36], steerAxis: [0, 0.42, -0.907], steerMax: 1.6, handFollow: 0.9, leanMax: 0, torso: [-0.12, 0.15], kneePole: [0.15, 1, 0.6], elbowPole: [0.7, -0.7, -0.2] },
   },
   moto: {

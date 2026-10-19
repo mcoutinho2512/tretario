@@ -171,7 +171,7 @@ export class MountRigSolver {
     if (F) {
       // ponto do meio: soleira da porta (carro) ou de pé sobre o banco (duas rodas)
       let mx: number, my: number, mz: number;
-      if (car) { mx = sx + (F.x - hipW.x) * 0.55; mz = sz + (F.z - hipW.z) * 0.55; my = sy; }
+      if (car) { mx = sx + (F.x - hipW.x) * 0.4; mz = sz + (F.z - hipW.z) * 0.4; my = sy; }
       else { mx = sx; mz = sz; my = F.y + (stand ? sy - F.y : 0); }
       const ax = F.x + (mx - F.x) * tw.a, ay = F.y + (my - F.y) * tw.a, az = F.z + (mz - F.z) * tw.a;
       root.position.set(ax + (sx - mx) * tw.b, ay + (sy - my) * tw.b, az + (sz - mz) * tw.b);
@@ -179,7 +179,7 @@ export class MountRigSolver {
     root.updateMatrixWorld(true);
     this.qa.ik = o.ik;
     if (!o.ik || w < 0.02) return;
-    const wH = F ? tw.hands : 1, wF = F ? tw.feet : 1, wT = F ? tw.b : 1;
+    const wH = F ? (car ? Math.max(tw.a, tw.b) : tw.hands) : 1, wF = F ? tw.feet : 1, wT = F ? tw.b : 1;
     const save = o.save;
     // eixos do veículo no mundo
     const left = _ax.set(1, 0, 0).applyQuaternion(_vq).clone();
@@ -223,7 +223,12 @@ export class MountRigSolver {
     for (const s of ['l', 'r'] as const) {
       const A = this.bone(`upperarm_${s}`), B = this.bone(`lowerarm_${s}`), C = this.bone(`hand_${s}`);
       if (!A || !B || !C) continue;
-      const tgt = s === 'l' ? hL : hR;
+      let tgt = s === 'l' ? hL : hR;
+      if (F && car) {
+        // sentado na soleira: mãos apoiadas nos joelhos; depois vão ao volante
+        const knee = this.bone(`calf_${s}`);
+        if (knee) tgt = knee.getWorldPosition(new THREE.Vector3()).addScaledVector(up, 0.1).lerp(tgt, tw.b);
+      }
       const pole = new THREE.Vector3(s === 'l' ? rig.elbowPole[0] : -rig.elbowPole[0], rig.elbowPole[1], rig.elbowPole[2]).applyQuaternion(_vq);
       if (wH > 0.01) ik2(A, B, C, tgt, pole, wH, save);
       // punho reto (continua o antebraço) — pegada firme no guidão/volante
