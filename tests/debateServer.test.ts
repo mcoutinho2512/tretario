@@ -9,9 +9,10 @@ import { createServer, type Server as HttpServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { fileURLToPath } from 'node:url';
 import { Client, type Room } from '@colyseus/sdk';
+import { freePortBlock } from './fixtures/freePort';
 
 const skip = process.env.PV_SKIP_NET_TESTS === '1';
-const PORT = 29300 + (process.pid % 300) * 2;
+const PORT = await freePortBlock(2);
 const w = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const APP = { body: 'homem', skin: 1, hair: 1, top: 1, bottom: 1, shoes: 1 };
 const QUIET = ['crowd', 'gf', 'gf_del', 'gf_res', 'pong', 'spawn', 'correct', 'resume', 'denied', 'chat_hello', 'chat_mutes', 'chat', 'ads'];

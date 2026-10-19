@@ -24,11 +24,15 @@ describe('perfil do aparelho', () => {
   it('iPadOS que se apresenta como Mac é reconhecido pelo toque', () => {
     expect(profileDevice({ ua: UA.ipad, maxTouchPoints: 5, gpu: 'Apple GPU' }).platform).toBe('ipad');
   });
-  it('Mac Apple Silicon Pro no Chrome → ULTRA a 60; Safari ("Apple GPU") → ALTO', () => {
-    expect(profileDevice({ ua: UA.macChrome, maxTouchPoints: 0, gpu: 'ANGLE (Apple, ANGLE Metal Renderer: Apple M5 Pro, Unspecified Version)', deviceMemory: 8 }).recommended).toBe('ultra');
-    const s = profileDevice({ ua: UA.macSafari, maxTouchPoints: 0, gpu: 'Apple GPU' });
+  it('Mac Apple Silicon: Chrome (nome da GPU) e Safari ("Apple GPU") → o MESMO preset ALTO a 60 (rodada 11: sem penalizar o Safari)', () => {
+    const c = profileDevice({ ua: UA.macChrome, maxTouchPoints: 0, gpu: 'ANGLE (Apple, ANGLE Metal Renderer: Apple M5 Pro, Unspecified Version)', deviceMemory: 8, caps: { maxTextureSize: 16384, floatColorBuffer: true } });
+    const s = profileDevice({ ua: UA.macSafari, maxTouchPoints: 0, gpu: 'Apple GPU', caps: { maxTextureSize: 16384, floatColorBuffer: true } });
     expect(s.browser).toBe('safari');
+    expect(s.gpuClass).toBe('masked');
+    expect(s.recommended).toBe(c.recommended);
     expect(s.recommended).toBe('high');
+    expect(s.targetFps).toBe(c.targetFps);
+    expect(s.dynamicResolution).toBe(c.dynamicResolution);
   });
   it('Windows com Intel UHD → BAIXO com resolução dinâmica; Iris Xe → MÉDIO', () => {
     const uhd = profileDevice({ ua: UA.win, maxTouchPoints: 0, gpu: 'ANGLE (Intel, Intel(R) UHD Graphics 620 Direct3D11 vs_5_0 ps_5_0, D3D11)', deviceMemory: 8 });

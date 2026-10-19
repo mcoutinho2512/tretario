@@ -13,9 +13,10 @@ import { readFileSync } from 'node:fs';
 import { Client, type Room } from '@colyseus/sdk';
 import { pointOnAxis } from '../src/world/zones';
 import { decodeItemList, type ItemView } from '../src/items/protocol';
+import { freePortBlock } from './fixtures/freePort';
 
 const skip = process.env.PV_SKIP_NET_TESTS === '1';
-const BASE_PORT = 29100 + (process.pid % 200) * 8;
+const BASE_PORT = await freePortBlock(8);
 const w = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const APP = { body: 'homem', skin: 1, hair: 1, top: 1, bottom: 1, shoes: 1 };
 const QUIET = ['crowd', 'gf', 'gf_del', 'gf_res', 'pong', 'correct', 'chat_hello', 'chat', 'chat_mutes', 'mode_ok', 'mode_denied', 'knock', 'action', 'push_denied', 'act_denied', 'prop_denied'];

@@ -8,8 +8,9 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { Client, type Room } from '@colyseus/sdk';
+import { freePortBlock } from './fixtures/freePort';
 
-const PORT = 27100 + (process.pid % 400) * 2;
+const PORT = await freePortBlock(2);
 const EP = `ws://127.0.0.1:${PORT}`;
 const API = `http://127.0.0.1:${PORT + 1}`;
 const w = (ms: number) => new Promise((r) => setTimeout(r, ms));

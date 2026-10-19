@@ -15,6 +15,7 @@ import type { WorldManifest } from '../../world/types';
 import { pointOnAxis, type ZoneDefinition } from '../../world/zones';
 import { rallyPoints } from '../../social/rally';
 import { DensityGrid, heatLevel } from './densityGrid';
+import { uiZoom } from '../uiPrefs'; // rodada 11 — escala da interface
 
 type XZ = [number, number];
 interface Label { text: string; x: number; z: number; kind: 'landmark' | 'zone'; /** largura aproximada (px a u = 1) */ w: number }
@@ -171,11 +172,13 @@ export class Minimap {
   }
 
   resize() {
-    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    // rodada 11 — escala da interface (CSS zoom no HUD): o canvas fica nítido e o mapa expandido cabe na tela
+    const z = uiZoom();
+    const dpr = Math.min(2, window.devicePixelRatio || 1) * z;
     if (this.expanded) {
       const [cx0, cz0, cx1, cz1] = this.corridor;
       const aspect = (cx1 - cx0) / (cz1 - cz0);
-      const maxW = Math.min(window.innerWidth - 32, 1100), maxH = Math.min(window.innerHeight - 120, 640);
+      const maxW = Math.min((window.innerWidth - 32) / z, 1100), maxH = Math.min((window.innerHeight - 120) / z, 640);
       let w = maxW, h = w / aspect;
       if (h > maxH) { h = maxH; w = h * aspect; }
       this.cssW = Math.round(w); this.cssH = Math.round(h);

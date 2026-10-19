@@ -14,9 +14,10 @@ import { readFileSync } from 'node:fs';
 import { Client, type Room } from '@colyseus/sdk';
 import { pointOnAxis } from '../src/world/zones';
 import { decodeItemList, type ItemView } from '../src/items/protocol';
+import { freePortBlock } from './fixtures/freePort';
 
 const skip = process.env.PV_SKIP_NET_TESTS === '1';
-const PORT = 3200 + (process.pid % 40) * 2;
+const PORT = await freePortBlock(2);
 const w = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const APP = { body: 'homem', skin: 1, hair: 1, top: 1, bottom: 1, shoes: 1 };
 const MANIFEST = JSON.parse(readFileSync('public/world/manifest.json', 'utf8')) as { pvAxis: [number, number][]; vehicleSpawns: { id: string; kind: string; x: number; z: number; heading: number }[] };

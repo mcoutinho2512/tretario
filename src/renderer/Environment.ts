@@ -96,6 +96,7 @@ export class Environment {
   private skyUniforms: Record<string, THREE.IUniform>;
   private cloudUniforms: Record<string, THREE.IUniform>;
   private shadowDistance = 0;
+  private cloudsRadius0 = 1;
   /** cena usada para gerar o IBL (céu + skyline + chão), reaproveitada a cada atualização */
   private envScene: THREE.Scene;
   private envCityMat: THREE.MeshBasicMaterial;
@@ -134,7 +135,8 @@ export class Environment {
       uHorizon: timeUniforms.skyHorizon,
       uLight: { value: 1 },
     };
-    this.clouds = this.makeClouds(preset.cameraFar * 0.82);
+    this.cloudsRadius0 = preset.cameraFar * 0.82;
+    this.clouds = this.makeClouds(this.cloudsRadius0);
     scene.add(this.clouds);
 
     this.pmrem = new THREE.PMREMGenerator(renderer);
@@ -167,7 +169,15 @@ export class Environment {
       (s as any).map = null;
     }
     // neblina começa mais longe: o ar do Centro é úmido, mas a avenida é larga e o contraste importa
-    this.scene.fog = new THREE.Fog(0xbfcfdf, 420, preset.fogFar);
+    // rodada 11 — gráficos: na troca ao vivo mantém a cor da hora do dia (só o alcance muda)
+    if (this.scene.fog instanceof THREE.Fog) this.scene.fog.far = preset.fogFar;
+    else this.scene.fog = new THREE.Fog(0xbfcfdf, 420, preset.fogFar);
+  }
+
+  /** rodada 11 — gráficos: céu e nuvens acompanham o `far` da câmera (troca de preset ao vivo, sem recortar o céu) */
+  setFar(cameraFar: number) {
+    this.sky.scale.setScalar(cameraFar * 0.9);
+    this.clouds.scale.setScalar((cameraFar * 0.82) / this.cloudsRadius0);
   }
 
   /** Define o horário do mundo e recalcula sol, céu, cores e IBL. */

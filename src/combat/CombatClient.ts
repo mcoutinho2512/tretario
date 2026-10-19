@@ -28,6 +28,7 @@ import { DummyVisual } from './DummyVisual';
 import { RateGate } from '../ui/hud/throttle';
 import { sfx } from '../audio/bus'; // rodada 10 — áudio
 import { combatSfx } from '../audio/catalog'; // rodada 10 — áudio
+import { notifyBlocked } from '../ui/notify'; // rodada 11
 
 export type CombatInput = 'cbt_punch' | 'cbt_kick' | 'cbt_dodge';
 const INPUTS: CombatInput[] = ['cbt_punch', 'cbt_kick', 'cbt_dodge'];
@@ -330,8 +331,8 @@ export class CombatClient {
     if (m.reason !== 'spam') sfx('ui_denied'); // rodada 10 — áudio
     if (this.stats.denied.length > 64) this.stats.denied.shift();
     if (m.reason === 'zona_paz') this.d.hud.peace();
-    else if (m.reason === 'stamina') this.d.flash('Sem fôlego');
-    else if (m.reason === 'sem_item') this.d.flash('Esse golpe precisa do item na mão');
+    else if (m.reason === 'stamina') notifyBlocked('Sem fôlego'); // rodada 11: canal de ação bloqueada
+    else if (m.reason === 'sem_item') notifyBlocked('Esse golpe precisa do item na mão');
     // previsão errada: libera a recuperação local (o servidor não começou nada) — e os NPCs não reagem
     if (m.reason !== 'spam') { this.busyUntil = 0; this.last = null; this.cd.delete(m.a); this.npcPending = null; }
   }

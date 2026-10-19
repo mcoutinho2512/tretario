@@ -17,6 +17,7 @@ import { actionOptions, itemOptions, type ActionOption, type SocialLike } from '
 import { BAR_CATS, PopoverState, distLabel, hintText, hintVisible, type BarCat, type NearVehicle } from './actionBarState';
 import { RateGate, TextSlot, setClass } from './throttle';
 import type { CombatHudState } from '../../combat/CombatHud';
+import { uiZoom } from '../uiPrefs'; // rodada 11 — escala da interface
 
 export interface ActionBarDeps {
   touch: boolean;
@@ -310,9 +311,11 @@ export class ActionBar {
   private place(cat: BarCat) {
     if (this.deps.touch) return;
     const b = this.btns.get(cat)!, bar = this.el.getBoundingClientRect(), br = b.getBoundingClientRect();
-    const w = this.pop.offsetWidth, vw = window.innerWidth;
+    // rodada 11 — escala da interface: medidas em pixels da tela; o `left` é escrito em pixels do HUD (÷ zoom)
+    const z = uiZoom();
+    const w = this.pop.offsetWidth * z, vw = window.innerWidth;
     const left = Math.max(8 - bar.left, Math.min(vw - 8 - w - bar.left, br.left + br.width / 2 - bar.left - w / 2));
-    this.pop.style.left = `${Math.round(left)}px`;
+    this.pop.style.left = `${Math.round(left / z)}px`;
   }
 
   // ------------------------------------------------------------------ portão (≤ 4 Hz)
