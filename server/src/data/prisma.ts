@@ -10,7 +10,7 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient, Prisma } from '../generated/prisma/client.ts';
 import type {
   AccessRecord, AuditRecord, CodeRecord, MuteRecord, DataStore, EventGroupRecord, MembershipRecord, ModerationActionRecord, PaymentRecord,
-  ProfileRecord, ProgressionRecord, ProgressionSave, ReportRecord, SessionRecord, UserRecord,
+  ProfileRecord, ProgressionRecord, ProgressionSave, ReportRecord, SessionRecord, SupporterRecord, UserRecord,
 } from './types.ts';
 import type { PlayerPreferences } from '../../../src/identity/types.ts';
 import { storeFactories } from '../services.ts';
@@ -68,6 +68,17 @@ export class PrismaDataStore implements DataStore {
     update: async (userId: string, patch: Partial<Pick<ProfileRecord, 'nickname' | 'nicknameKey' | 'displayName' | 'preferences'>>) => {
       const { preferences, ...rest } = patch;
       return this.profile(await q(this.db.profile.update({ where: { userId }, data: { ...rest, ...(preferences !== undefined ? { preferences: json(preferences) } : {}) } })))!;
+    },
+  };
+
+  /** rodada 10 — torcida: colunas novas (nullable) do Profile */
+  supporters = {
+    get: async (userId: string): Promise<SupporterRecord | null> => {
+      const r = await this.db.profile.findUnique({ where: { userId }, select: { supporterGroup: true, supporterPending: true, supporterChangedAt: true } });
+      return r ? { group: r.supporterGroup, pending: r.supporterPending, changedAt: r.supporterChangedAt } : null;
+    },
+    set: async (userId: string, rec: SupporterRecord) => {
+      await q(this.db.profile.update({ where: { userId }, data: { supporterGroup: rec.group, supporterPending: rec.pending, supporterChangedAt: rec.changedAt } }));
     },
   };
 

@@ -40,6 +40,8 @@ export interface PublicProfile {
   appearance: CharacterAppearance | null;
   /** mês de entrada (AAAA-MM), não a data exata */
   since: string;
+  /** rodada 10 — torcida escolhida (id dos dados public/gameplay/supporters.json; null/neutro = nenhuma). Dado público */
+  supporter?: string | null;
 }
 
 /** preferências do jogador (perfil; sem dado sensível) */

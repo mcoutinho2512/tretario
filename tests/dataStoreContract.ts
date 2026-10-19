@@ -44,6 +44,21 @@ export function dataStoreContract(name: string, make: () => Promise<DataStore>) 
       expect((await s.profiles.byNicknameKey(key))?.userId).toBe(a.id);
     });
 
+    it('torcida (rodada 10): colunas novas nulas por padrão, gravar/ler, troca pendente, perfil intacto', async () => {
+      const u = await newUser();
+      expect(await s.supporters.get(u.id)).toBeNull(); // sem perfil
+      await s.profiles.create({ userId: u.id, nickname: 'Torcedor', nicknameKey: `t${uniq()}` });
+      expect(await s.supporters.get(u.id)).toEqual({ group: null, pending: null, changedAt: null });
+      const at = new Date(Date.now() - 5000);
+      await s.supporters.set(u.id, { group: 'grupo_a', pending: null, changedAt: at });
+      await s.supporters.set(u.id, { group: 'grupo_a', pending: 'grupo_b', changedAt: at });
+      const r = (await s.supporters.get(u.id))!;
+      expect(r.group).toBe('grupo_a');
+      expect(r.pending).toBe('grupo_b');
+      expect(+r.changedAt!).toBe(+at);
+      expect((await s.profiles.byUserId(u.id))?.nickname).toBe('Torcedor'); // nada existente muda
+    });
+
     it('aparência: upsert com versão crescente', async () => {
       const u = await newUser();
       expect(await s.appearances.get(u.id)).toBeNull();

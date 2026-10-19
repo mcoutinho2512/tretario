@@ -55,6 +55,11 @@ export const NetPlayer = schema({
   link: t.uint8(),
   /** rodada 9 — efeitos temporários (bits src/combat/types.ts FX: desorientado, protegido, esquivando, em confronto) */
   fx: t.uint8(),
+  /**
+   * rodada 10 — torcida (public/gameplay/supporters.json): 0 = neutro/sem torcida, i+1 = índice em `groups`.
+   * Lido por outros sistemas (painel de pessoa, áudio, minimapa) — NÃO renomear nem mudar a semântica.
+   */
+  sup: t.uint8(),
 }, 'NetPlayer');
 export type NetPlayer = SchemaType<typeof NetPlayer>;
 

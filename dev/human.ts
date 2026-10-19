@@ -85,6 +85,10 @@ if (sheet) {
       const a = randomAppearance(seed * 97 + i * 13 + k, bodies[(i + k) % 2], { football: 0 });
       return { ...a, topStyle: 'camiseta' as const, shirtDesign: d.id, accessory: 'nenhum' as const };
     }));
+  } else if (sheet === 'kit') {
+    // rodada 10 — torcidas: &kit=<design> nos 4 corpos, frente e costas (folhas docs/screenshots/round10)
+    const kit = Number(q.get('kit') ?? 212);
+    for (const b of bodies) apps.push({ ...DEFAULT_PLAYER_APPEARANCE[b], accessory: 'nenhum', topStyle: 'camiseta', shirtDesign: kit });
   } else if (sheet === 'styles') {
     const b = body;
     apps.push({ ...app, accessory: 'nenhum' });
@@ -95,9 +99,26 @@ if (sheet) {
     const n = Number(q.get('n') ?? 24);
     apps = Array.from({ length: n }, (_, i) => randomAppearance(seed * 1000 + i * 7919, bodies[i % 4], { football: Number(q.get('football') ?? 0.2) }));
   }
+  if (sheet === 'kit') {
+    // colunas: corpo × (frente, costas); linhas: LOD0 (peças) e LOD2 (malha única) — &klods=0,2,3
+    const lods = [Number(q.get('klod') ?? 0)] as Lod[]; // &klod=0|1|2|3 (uma linha por imagem)
+    lods.forEach((l, r) => apps.forEach((a, i) => [0, 1].forEach((back) => {
+      const h = new HumanCharacter(a, { lod: l });
+      h.root.position.set((i * 2 + back - 3.5) * 0.56, 0, -r * 80);
+      h.root.rotation.y = back ? Math.PI : 0;
+      scene.add(h.root);
+      chars.push(h);
+    })));
+    apps = [];
+    const row = 0;
+    cam.fov = 17;
+    cam.position.set(0, 1.25, 11.4 - row * 80);
+    cam.lookAt(0, 1.0, -row * 80);
+    cam.updateProjectionMatrix();
+  }
   const cols = Math.ceil(Math.sqrt(apps.length * 2.2));
   const rows = Math.ceil(apps.length / cols);
-  apps.forEach((a, i) => {
+  if (apps.length) apps.forEach((a, i) => {
     const h = new HumanCharacter(a, { lod: Number(q.get('lod') ?? 0) as Lod });
     const r = Math.floor(i / cols), c = i % cols;
     h.root.position.set((c - (cols - 1) / 2) * 0.78 + (r % 2) * 0.2, 0, -r * 1.1);
@@ -105,11 +126,13 @@ if (sheet) {
     scene.add(h.root);
     chars.push(h);
   });
-  const w = cols * 0.78;
+  const w = Math.max(cols, 6) * 0.78;
+  if (sheet !== 'kit') {
   cam.fov = 30;
   cam.position.set(0, 1.3 + rows * 0.45, 0.8 + w * 0.95 + rows * 0.3);
   cam.lookAt(0, 0.55, -(rows - 1) * 0.55);
   cam.updateProjectionMatrix();
+  }
   sun.shadow.camera.left = sun.shadow.camera.bottom = -w;
   sun.shadow.camera.right = sun.shadow.camera.top = w;
   sun.shadow.camera.updateProjectionMatrix();
@@ -262,7 +285,7 @@ if (q.get('crowd')) {
   const only = q.get('cbody') !== null ? Number(q.get('cbody')) : -1;
   acts.forEach((act, col) => CROWD_BODIES.forEach((_, body) => { if (only < 0 || only === body) crowdAgents.push(createAgent({
     x: (col - (acts.length - 1) / 2) * 0.9, z: -2 - (only < 0 ? body : 0) * 1.2, body, lod, act, actAt: performance.now() / 1000, heading: Number(q.get('cyaw') ?? 0),
-    hair: app.hair, top: app.top, bottom: app.bottom, skin: app.skin,
+    hair: app.hair, top: app.top, bottom: app.bottom, skin: app.skin, shirt: Number(q.get('kit') ?? 0), // rodada 10: &kit= na multidão
   })); }));
   chars.forEach((c) => { c.root.visible = false; });
   cam.position.set(0, 3.2, 7.5); cam.lookAt(0, 0.6, -3.5);

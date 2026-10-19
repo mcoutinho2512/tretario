@@ -34,6 +34,9 @@ import { BODIES, JOIN_ERROR, MAX_SPEED, PROTOCOL_VERSION, sanitizeName, type Joi
 import { validateAppearance } from '../../src/characters/validateAppearance.ts';
 import { DEFAULT_PLAYER_APPEARANCE, type CharacterAppearance } from '../../src/characters/bodyTypes.ts';
 import { loadPlayerLook } from './identity/appearance.ts';
+import { RoomSupporters } from './supporters/RoomSupporters.ts'; // rodada 10 — torcidas
+import { loadSupporter, settleSupporter, supporters as supporterDefs } from './supporters/service.ts'; // rodada 10 — torcidas
+import { supAt } from '../../src/supporters/data.ts'; // rodada 10 — torcidas
 import { validateMoveInWorld } from '../../src/net/authority.ts';
 import { RULES, STATUS, VEHICLE_BOX, VEHICLE_STATE, EVENT_VEHICLE_KINDS, boxesOverlap, canPush, canEnter, impactAllowed, knockdownOutcome, pushOutOfBox, shouldResetVehicle, vehicleBlock, vehicleImpact, unpackMove, type Actor, type Mode, type VehicleKind } from '../../src/net/rules.ts';
 import { TRIO, canBoard, exitPoints, localToWorld, unpackPlatformMove, validatePlatformMove } from '../../src/vehicles/platform.ts';
@@ -256,6 +259,8 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
       if (id?.userId) { void this.reloadLook(client.sessionId, id.userId); return; }
       if (opts) { this.applyAppearance(p, opts, this.r9.ent(client.sessionId)); this.graffiti.rename(client.sessionId, p.name); } // rodada 9 — progressão
     },
+    // rodada 10 — torcidas: troca de quem NÃO tem conta (só na sessão); contas usam PUT /api/me/supporter
+    sup: (client: Client, m: { group?: unknown }) => { if (this.allowed(client, 'profile.edit')) client.send('sup_res', this.r10sup.requestAnon(client.sessionId, this.state.players.get(client.sessionId), m?.group)); },
     // pichação/grafite (server/src/graffiti): o desenho em andamento é local — só chega aqui o grafite pronto
     gf_new: (client: Client, m: unknown) => this.gate(client, 'graffiti.create', () => { const r = this.graffiti.create(client.sessionId, m, this.gfAuthor(client.sessionId)); client.send('gf_res', r); this.r9.e.graffiti(client.sessionId, r.ok); }), // rodada 9 — progressão (grafite aceito)
     gf_report: (client: Client, m: { i?: unknown; c?: unknown }) => this.gate(client, 'report.create', () => client.send('gf_res', this.graffiti.report(client.sessionId, m?.i, Date.now(), m?.c))),
@@ -382,6 +387,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     if (this.debate) liveMemorySweepers.delete(this.debate); // rodada 9 — debate
     await this.graffiti?.flushStore();
     await this.r9.dispose(); // rodada 9 — progressão: grava tudo no desligamento
+    this.r10sup.dispose(); // rodada 10 — torcidas
   }
 
   /** mede a codificação/envio dos patches (StateView por cliente): é o custo que cresce com a multidão */
@@ -445,6 +451,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     { const tc = performance.now(); this.combat.update(dtMs); metrics.combat(performance.now() - tc); }
     this.r9bTick(now, dtMs); // rodada 9 — itens no mundo, proteção (expiração), efeitos de QA
     this.evt.tick(now, dtMs); // rodada 9 — eventos (agenda, estados, runners)
+    this.r10sup.tick(dtMs); // rodada 10 — torcidas: pendências ao sair do evento, troca de grupo adiada
     // grafites: área de interesse por superfície (fatiada, 2 Hz por cliente) e expiração (1 Hz)
     this.graffiti.update(now, this.gfPos);
     this.r9.tick(dtMs, now); // rodada 9 — progressão (envio ≤ 2 Hz, gravação em lote, concentrações 1 Hz, telemetria)
@@ -630,7 +637,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
       participant: (sid) => {
         const p = this.state.players.get(sid), r = this.rt.get(sid);
         if (!p || !r) return null;
-        return { sid, name: p.name, x: r.last.x, z: r.last.z, vehicleKind: p.vehicle ? this.state.vehicles.get(p.vehicle)?.kind ?? null : null, groupKey: this.identities.get(sid)?.groupKey ?? null, status: p.status, dropped: p.link !== LINK_WIRE.CONNECTED, onPlatform: !!p.platform };
+        return { sid, name: p.name, x: r.last.x, z: r.last.z, vehicleKind: p.vehicle ? this.state.vehicles.get(p.vehicle)?.kind ?? null : null, groupKey: this.identities.get(sid)?.groupKey ?? null, status: p.status, dropped: p.link !== LINK_WIRE.CONNECTED, onPlatform: !!p.platform, supporter: supAt(supporterDefs(), p.sup)?.id ?? null }; // rodada 10 — torcida
       },
       players: () => this.rt.keys(),
       audience: () => [...this.rt.keys(), ...[...this.specs.values()].map((s) => s.sid)],
@@ -812,7 +819,16 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
   }
 
   /** aparência salva + grupo do evento das contas, carregados no onAuth (sessionId → dados do banco) */
-  private savedLooks = new Map<string, { appearance: CharacterAppearance; groupKey: string | null }>();
+  private savedLooks = new Map<string, { appearance: CharacterAppearance; groupKey: string | null; sup?: string | null }>();
+
+  // ---------------------------------------------------------------- rodada 10 — torcidas (server/src/supporters)
+  readonly r10sup = new RoomSupporters({
+    players: () => this.state.players.entries() as Iterable<[string, { sup: number }]>,
+    userOf: (sid) => { const id = this.identities.get(sid); return id?.userId && !id.test ? id.userId : null; },
+    instanceOf: (sid) => this.evt?.instanceOf(sid) ?? null,
+    setGroupKey: (sid, key) => { const id = this.identities.get(sid); if (id) id.groupKey = key; },
+    store: () => storeOrNull(),
+  });
 
   /** recarrega do banco aparência e grupo de uma conta já na sala (depois de salvar no editor) */
   private async reloadLook(sid: string, userId: string) {
@@ -820,7 +836,10 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     const p = this.state.players.get(sid), id = this.identities.get(sid);
     if (!look || !p || !id || id.userId !== userId) return;
     this.applyAppearance(p, look.appearance, this.r9.ent(sid)); // rodada 9 — progressão (itens liberados)
-    id.groupKey = look.groupKey;
+    // rodada 10 — inscrito em evento vivo com regras de grupo (confronto): a troca de grupo fica para o fim/saída
+    if (this.r10sup.groupChange(sid, look.groupKey, id.groupKey)) id.groupKey = look.groupKey;
+    const sup = await loadSupporter(services().store, userId).catch(() => null); // rodada 10 — torcida
+    if (sup && this.state.players.get(sid) === p) this.r10sup.join(sid, p, sup.current);
   }
 
   /** identidade resolvida pelo SERVIDOR (ticket → conta; sem ticket → espectador) — ver server/src/identity */
@@ -862,7 +881,10 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
       if (tf.testUser && !id.userId) { id.userId = `test:${tf.testUser}`; id.test = true; } // conta fictícia: fora da releitura do banco
       if (id.userId && !id.test) {
         const look = await loadPlayerLook(services().store, id.userId, this.state.eventId, await this.r9.preload(id)); // rodada 9 — progressão (direitos)
-        this.savedLooks.set(_client.sessionId, look);
+        // rodada 10 — torcida: troca pendente de um evento já encerrado é aplicada antes de entrar
+        await settleSupporter(services().store, id.userId).catch(() => null);
+        const sup = await loadSupporter(services().store, id.userId).catch(() => null);
+        this.savedLooks.set(_client.sessionId, { ...look, sup: sup?.current ?? null });
         id.groupKey = look.groupKey;
       }
       return id;
@@ -1026,6 +1048,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     this.savedLooks.delete(client.sessionId);
     const ent = this.r9.join(client.sessionId, id); // rodada 9 — progressão (direitos antes da aparência)
     this.applyAppearance(p, id.userId ? (saved?.appearance ?? DEFAULT_PLAYER_APPEARANCE.homem) : (options ?? {}), ent);
+    this.r10sup.join(client.sessionId, p, saved?.sup, options?.sup); // rodada 10 — torcida (conta: banco; sem conta: só a sessão)
     const a = Math.random() * Math.PI * 2, rr = 2 + Math.random() * 5;
     p.x = this.spawn.x + Math.cos(a) * rr;
     p.z = this.spawn.z + Math.sin(a) * rr;
@@ -1195,6 +1218,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     }
     this.graffiti.leave(sid);
     this.r9.leave(sid); // rodada 9 — progressão (saída, graça vencida, sessão substituída)
+    this.r10sup.leave(sid); // rodada 10 — torcidas
     this.combat?.leave(sid); this.jump.leave(sid); // rodada 9 — confronto
     const existed = this.state.players.delete(sid);
     this.rt.delete(sid);

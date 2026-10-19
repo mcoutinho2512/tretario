@@ -7,9 +7,11 @@ import type { RunnerFactory } from './runner';
 import { WalkRunner } from './WalkRunner';
 import { RaceRunner } from './RaceRunner';
 import { ClashRunner } from './ClashRunner';
+import { SupportersRunner } from './SupportersRunner'; // rodada 10 — encontro de torcidas
 
 export const RUNNERS = new Map<string, RunnerFactory>();
 
 RUNNERS.set('caminhada', (d) => (d.walk ? new WalkRunner(d.npcCrowd ?? 0, d.walk) : null));
 RUNNERS.set('corrida', (d) => (d.race ? new RaceRunner(d.npcCrowd ?? 0, d.race) : null));
+RUNNERS.set('torcida', (d) => (d.supporters?.points?.length ? new SupportersRunner(d.supporters) : null));
 RUNNERS.set('confronto_grupos', (d) => (d.clash ? new ClashRunner(d.clash, d.groupRules?.allowed ?? [], d.groupRules?.friendlyFire ?? false) : null));

@@ -96,7 +96,7 @@ describe('perfil público e preferências', () => {
     await api('PUT', '/api/me/appearance', a.cookie, { appearance: LOOK });
     const r = await api('GET', '/api/profile/perfilrio');
     expect(r.status).toBe(200);
-    expect(Object.keys(r.body).sort()).toEqual(['appearance', 'displayName', 'nickname', 'since']);
+    expect(Object.keys(r.body).sort()).toEqual(['appearance', 'displayName', 'nickname', 'since', 'supporter']);
     expect(r.body.since).toMatch(/^\d{4}-\d{2}$/);
     expect(JSON.stringify(r.body)).not.toContain('@');
     expect((await api('GET', '/api/profile/ninguem123')).status).toBe(404);

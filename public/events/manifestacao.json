@@ -467,6 +467,77 @@
      "side": 24
     }
    }
+  },
+  {
+   "id": "encontro-torcidas",
+   "format": "torcida",
+   "name": "Encontro das torcidas",
+   "description": "Concentração das torcidas no Centro: cada torcida tem seu ponto e quem não torce para ninguém fica no encontro comum, no meio da avenida. Sem confronto e sem placar: fique perto da sua concentração por boa parte do tempo para concluir.",
+   "zones": [
+    "CENTRO"
+   ],
+   "recurrence": {
+    "everyMin": 60,
+    "offsetMin": 35,
+    "registrationMin": 5,
+    "startingS": 30,
+    "durationMin": 15
+   },
+   "capacity": 300,
+   "minParticipants": 0,
+   "rewards": [
+    {
+     "kind": "xp",
+     "amount": 80
+    }
+   ],
+   "npcCrowd": 0,
+   "supporters": {
+    "presence": 0.5,
+    "npcPerPoint": 36,
+    "meet": {
+     "id": "encontro",
+     "at": {
+      "t": 0.655,
+      "side": 0
+     },
+     "radius": 14
+    },
+    "points": [
+     {
+      "group": "flamengo",
+      "at": {
+       "t": 0.62,
+       "side": -24
+      },
+      "radius": 13
+     },
+     {
+      "group": "vasco",
+      "at": {
+       "t": 0.62,
+       "side": 24
+      },
+      "radius": 13
+     },
+     {
+      "group": "fluminense",
+      "at": {
+       "t": 0.69,
+       "side": -24
+      },
+      "radius": 13
+     },
+     {
+      "group": "botafogo",
+      "at": {
+       "t": 0.69,
+       "side": 24
+      },
+      "radius": 13
+     }
+    ]
+   }
   }
  ]
 }

@@ -39,6 +39,8 @@ export interface ParticipantView {
   dropped: boolean;
   /** em cima de um trio */
   onPlatform: boolean;
+  /** rodada 10 — torcida (id dos dados; null = neutro/sem torcida) — só comparada por igualdade */
+  supporter?: string | null;
 }
 
 /** adaptador da sala (Colyseus fica do lado de lá) */
@@ -112,6 +114,9 @@ export interface EventRallyPoint {
   strength: number;
   /** NPCs de ambiente reservados para o ponto (ScheduledEventDef.npcCrowd) — sempre rotulados como simulados */
   crowd: number;
+  /** rodada 10 — concentração de torcida (NetPlayer.sup do grupo) e rótulo próprio (sigla); ausentes = do evento */
+  sup?: number;
+  label?: string;
 }
 
 export interface EventRunner {

@@ -20,7 +20,13 @@ import type { DesignSlot } from './props';
 export type DesignTarget = DesignSlot | 'truck' | 'screen' | 'stage' | 'shirt';
 export type DesignFamily = 'neutral' | 'brasil' | 'campaign' | 'group' | 'event' | 'football';
 export type DesignPattern =
-  | 'solid' | 'brazil' | 'h_stripes' | 'v_stripes' | 'hoops' | 'sash' | 'split_v' | 'split_h' | 'border' | 'tricolor_v';
+  | 'solid' | 'brazil' | 'h_stripes' | 'v_stripes' | 'hoops' | 'sash' | 'split_v' | 'split_h' | 'border' | 'tricolor_v'
+  // rodada 10 — torcidas (camisas/bandeiras de referência, sem escudo/marca; docs/SUPPORTER_GROUPS.md):
+  //  hoops_top    faixas horizontais largas começando em `bg` no topo (gola polo e frisos de ombro em `accent`)
+  //  sash_l       faixa diagonal `accent` do ombro ESQUERDO de quem veste ao quadril direito, contornos sutis `third`
+  //  stripes_pin  listras verticais `bg`/`accent` com filete fino `third` entre elas; gola V e punhos em `third`
+  //  stripes_eq   listras verticais `bg`/`accent` de largura igual; gola/punhos `accent` com frisos `bg`
+  | 'hoops_top' | 'sash_l' | 'stripes_pin' | 'stripes_eq';
 
 export interface DesignPalette {
   /** fundo */
@@ -125,6 +131,22 @@ const BUILTIN: Design[] = [
   { id: 209, key: 'rec_coral', label: 'Coral com gola creme', family: 'neutral', pattern: 'border', palette: { bg: '#ef6f6c', fg: '#fdf0d5', accent: '#fdf0d5' }, targets: ['shirt'], crowdWeight: 0 },
   { id: 210, key: 'rec_areia_verde', label: 'Listras areia e verde', family: 'neutral', pattern: 'v_stripes', palette: { bg: '#e9d8a6', fg: '#2d6a4f', accent: '#2d6a4f' }, targets: ['shirt'], crowdWeight: 0 },
   { id: 211, key: 'rec_calcadao', label: 'Ondas do calçadão', family: 'neutral', pattern: 'hoops', palette: { bg: '#ffffff', fg: '#222222', accent: '#222222' }, targets: ['shirt'], crowdWeight: 0 },
+  // rodada 10 — TORCIDAS (ids reservados em public/gameplay/supporters.json: camisas 212–215, bandeiras/faixas 216–223).
+  // Só cores e padrões das referências: sem escudo, cruz, monograma, estrela, fabricante, patrocinador, selo ou número.
+  // Rótulos descrevem as cores (o nome do clube só existe nos DADOS). Pesos iguais: nenhuma torcida aparece mais.
+  { id: 212, key: 'tor_faixas_vermelho_preto', label: 'Faixas horizontais vermelho e preto (gola polo)', family: 'football', pattern: 'hoops_top', palette: { bg: '#141414', fg: '#ffffff', accent: '#c8102e', third: '#c8102e' }, targets: ['shirt'], crowdWeight: 3 },
+  { id: 213, key: 'tor_preta_faixa_diagonal', label: 'Preta com faixa diagonal branca', family: 'football', pattern: 'sash_l', palette: { bg: '#141414', fg: '#ffffff', accent: '#f2f2ee', third: '#c9c9c4' }, targets: ['shirt'], crowdWeight: 3 },
+  { id: 214, key: 'tor_listras_grena_verde', label: 'Listras grená e verde com filete branco', family: 'football', pattern: 'stripes_pin', palette: { bg: '#7a1f3d', fg: '#ffffff', accent: '#00613c', third: '#f4f4f0' }, targets: ['shirt'], crowdWeight: 3 },
+  { id: 215, key: 'tor_listras_preto_branco', label: 'Listras pretas e brancas iguais', family: 'football', pattern: 'stripes_eq', palette: { bg: '#f4f4f0', fg: '#141414', accent: '#141414', third: '#f4f4f0' }, targets: ['shirt'], crowdWeight: 3 },
+  // bandeiras (alvo flag) e faixas (alvo banner) das torcidas: só padrões de cor, sem texto nem escudo
+  { id: 216, key: 'tor_bandeira_vermelho_preto', label: 'Bandeira faixas vermelho e preto', family: 'football', pattern: 'hoops_top', palette: { bg: '#141414', fg: '#ffffff', accent: '#c8102e' }, targets: ['flag'], crowdWeight: 3 },
+  { id: 217, key: 'tor_faixa_vermelho_preto', label: 'Faixa vermelha e preta', family: 'football', pattern: 'h_stripes', palette: { bg: '#c8102e', fg: '#ffffff', accent: '#141414' }, targets: ['banner'], crowdWeight: 3 },
+  { id: 218, key: 'tor_bandeira_preta_diagonal', label: 'Bandeira preta com faixa diagonal branca', family: 'football', pattern: 'sash_l', palette: { bg: '#141414', fg: '#ffffff', accent: '#f2f2ee' }, targets: ['flag'], crowdWeight: 3 },
+  { id: 219, key: 'tor_faixa_preta_diagonal', label: 'Faixa preta com diagonal branca', family: 'football', pattern: 'sash_l', palette: { bg: '#141414', fg: '#ffffff', accent: '#f2f2ee' }, targets: ['banner'], crowdWeight: 3 },
+  { id: 220, key: 'tor_bandeira_grena_verde', label: 'Bandeira grená, branco e verde', family: 'football', pattern: 'stripes_pin', palette: { bg: '#7a1f3d', fg: '#ffffff', accent: '#00613c', third: '#f4f4f0' }, targets: ['flag'], crowdWeight: 3 },
+  { id: 221, key: 'tor_faixa_grena_verde', label: 'Faixa grená, branca e verde', family: 'football', pattern: 'tricolor_v', palette: { bg: '#7a1f3d', fg: '#ffffff', accent: '#00613c', third: '#f4f4f0' }, targets: ['banner'], crowdWeight: 3 },
+  { id: 222, key: 'tor_bandeira_preto_branco', label: 'Bandeira listras preto e branco', family: 'football', pattern: 'stripes_eq', palette: { bg: '#f4f4f0', fg: '#141414', accent: '#141414' }, targets: ['flag'], crowdWeight: 3 },
+  { id: 223, key: 'tor_faixa_preto_branco', label: 'Faixa preta e branca', family: 'football', pattern: 'split_h', palette: { bg: '#141414', fg: '#f4f4f0', accent: '#f4f4f0' }, targets: ['banner'], crowdWeight: 3 },
 ];
 
 /**
