@@ -1,0 +1,43 @@
+{
+  "version": 1,
+  "neutralId": "neutro",
+  "changePolicy": { "cooldownS": 60, "deferDuringEventKinds": ["confronto_grupos", "torcida"] },
+  "groups": [
+    {
+      "id": "flamengo", "displayName": "Flamengo", "shortName": "FLA", "category": "SUPPORTERS",
+      "primaryColors": ["#c8102e", "#111111"], "secondaryColors": ["#ffffff"],
+      "clothingSet": { "shirtDesign": 212, "bottomColor": "#ffffff", "shoeColor": "#111111" },
+      "flagSet": [216], "bannerSet": [217],
+      "rallyPreferences": { "npcShare": 0.2 },
+      "audioProfile": "torcida_a", "allowedCosmetics": [212, 216, 217],
+      "metadata": { "referenceNotes": "ref. 4: faixas horizontais vermelho/preto começando em preto; gola polo preta; frisos vermelhos nos ombros", "omitted": ["monograma/escudo e estrela", "três listras do fabricante", "marca do fabricante"] }
+    },
+    {
+      "id": "vasco", "displayName": "Vasco", "shortName": "VAS", "category": "SUPPORTERS",
+      "primaryColors": ["#111111", "#ffffff"], "secondaryColors": ["#d11a2a"],
+      "clothingSet": { "shirtDesign": 213, "bottomColor": "#111111", "shoeColor": "#111111" },
+      "flagSet": [218], "bannerSet": [219],
+      "rallyPreferences": { "npcShare": 0.2 },
+      "audioProfile": "torcida_b", "allowedCosmetics": [213, 218, 219],
+      "metadata": { "referenceNotes": "ref. 3: camisa preta com faixa diagonal branca do ombro esquerdo ao quadril direito; gola redonda preta; textura topográfica sutil na faixa", "omitted": ["cruz/escudo", "marca do fabricante", "selo"] }
+    },
+    {
+      "id": "fluminense", "displayName": "Fluminense", "shortName": "FLU", "category": "SUPPORTERS",
+      "primaryColors": ["#7a1f3d", "#00613c"], "secondaryColors": ["#ffffff"],
+      "clothingSet": { "shirtDesign": 214, "bottomColor": "#ffffff", "shoeColor": "#ffffff" },
+      "flagSet": [220], "bannerSet": [221],
+      "rallyPreferences": { "npcShare": 0.2 },
+      "audioProfile": "torcida_c", "allowedCosmetics": [214, 220, 221],
+      "metadata": { "referenceNotes": "ref. 1: listras verticais grená e verde com filete branco entre elas; gola V branca; punhos brancos", "omitted": ["escudo", "patrocinador", "marca do fabricante"] }
+    },
+    {
+      "id": "botafogo", "displayName": "Botafogo", "shortName": "BOT", "category": "SUPPORTERS",
+      "primaryColors": ["#111111", "#ffffff"], "secondaryColors": ["#9a9a9a"],
+      "clothingSet": { "shirtDesign": 215, "bottomColor": "#111111", "shoeColor": "#111111" },
+      "flagSet": [222], "bannerSet": [223],
+      "rallyPreferences": { "npcShare": 0.2 },
+      "audioProfile": "torcida_d", "allowedCosmetics": [215, 222, 223],
+      "metadata": { "referenceNotes": "ref. 2: listras verticais pretas e brancas de largura igual; gola preta com friso branco; punho preto com frisos brancos", "omitted": ["escudo com estrela", "marca do fabricante", "selo comemorativo"] }
+    }
+  ]
+}
