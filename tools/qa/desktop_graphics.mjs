@@ -81,7 +81,7 @@ async function open(br, q = 'medium', extra = '') {
 const MEASURE = () => {
   const W = innerWidth, H = innerHeight;
   const center = { l: W * 0.3, r: W * 0.7, t: H * 0.28, b: H * 0.66 };
-  const skip = /^(name-labels|ix-label|fx-disorient|touch-layer|debug-panel|vp-toast|hud-help|hud-sheet|action-wheel|hud-restore|person-panel|agenda-panel|debate-panel|evt-panel|gf-report|cbt-peace|lock-hint)$/;
+  const skip = /^(name-labels|ix-label|fx-disorient|touch-layer|debug-panel|vp-toast|hud-help|hud-sheet|action-wheel|hud-restore|person-panel|agenda-panel|debate-panel|evt-panel|gf-report|lock-hint)$/;
   const effOpacity = (e) => { let o = 1; for (let x = e; x && x !== document.body; x = x.parentElement) { const cs = getComputedStyle(x); if (cs.display === 'none' || cs.visibility === 'hidden') return 0; o *= Number(cs.opacity); } return o; };
   const blocks = [];
   for (const top of document.querySelector('.hud').children) {

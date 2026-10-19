@@ -4,9 +4,9 @@
  *  entrada     teclas/mouse/toque → buffer curto (inputBufferMs): o golpe sai assim que a recuperação local termina
  *  pedido      `cbt {a, h, seq}`: a ação BASE (soco/chute/esquiva; com item de confronto na mão, o golpe do item) e a
  *              orientação — o combo é decidido no servidor (a previsão local usa a mesma tabela)
- *  previsão    animação local (e o deslocamento da esquiva) com contexto de confronto (zona COMBAT/CONTESTED,
- *              área de treino, evento; sem consentimento — zones.json `combatConsent: "none"` — SEMPRE): com a
- *              regra antiga, em zona de paz não se prevê nada e o servidor responde 'zona_paz'
+ *  previsão    animação local (e o deslocamento da esquiva) com contexto de confronto (rodada 12: não há zona de
+ *              paz — toda a avenida e fora dela é COMBAT; sem consentimento — zones.json `combatConsent: "none"` —
+ *              SEMPRE; com a regra antiga 'both', só em modo interação, evento ou zona COMBAT)
  *  NPCs        na janela ativa do golpe LOCAL, os NPCs de ambiente à frente reagem (src/combat/npcHits.ts; só local)
  *  rede        `cbt_act` (todos animam igual), `cbt_hit` (resultado: cambaleio + empurrão no próprio, reação dos
  *              remotos e bonecos), `cbt_self` (fôlego/condição/fx ≤ 5 Hz), `cbt_denied`, `cbt_dummy`, `jump_denied`
@@ -21,7 +21,7 @@ import type { CollisionWorld } from '../physics/CollisionWorld';
 import type { ZoneDefinition } from '../world/zones';
 import { PROP_BY_ID } from '../social/props';
 import { CombatTable, JUMP, inDummyArea } from './data';
-import { inPeaceArea, type CombatConsent, type ZoneCombatPolicy } from './policy';
+import { normalizeZonePolicy, type CombatConsent, type ZoneCombatPolicy } from './policy';
 import { FX, PHYS, type CombatActEvent, type CombatActionDefinition, type CombatDenied, type CombatDummyWire, type CombatHitEvent, type CombatSelf, type JumpDenied } from './types';
 import { CombatHud } from './CombatHud';
 import { DummyVisual } from './DummyVisual';
@@ -51,6 +51,8 @@ export interface CombatClientDeps {
   consent: CombatConsent;
   /** golpe local chegou à janela ativa: NPCs de ambiente à frente reagem (devolve quantos) */
   npcHit?: (x: number, z: number, h: number, def: CombatActionDefinition) => number;
+  /** rodada 12 — colisão: esquiva/avanço não atravessam corpos (para no contato, ainda no alcance) */
+  bodies?: (p: { x: number; z: number }, fromX: number, fromZ: number, dt: number) => void;
   /** rodada 9.1 — mira assistida: alvos (jogadores e NPCs) a até r m de (x, z) */
   aimTargets?: (x: number, z: number, r: number, out: { x: number; z: number }[]) => void;
 }
@@ -114,12 +116,10 @@ export class CombatClient {
   get tuning() { return this.d.table.tuning; }
 
   // ---------------------------------------------------------------- contexto
-  /** política onde o jogador está (zona do HUD + área de treino de boneco + área de paz) */
+  /** política onde o jogador está (zona do HUD; fora de zona = COMBAT; área de treino de boneco = TRAINING) */
   policyAt(x: number, z: number): ZoneCombatPolicy | 'TRAINING' {
-    const zn = this.d.zone();
-    if (zn && inPeaceArea(zn.peaceAreas ?? [], x, z)) return 'PEACE';
-    const pol = zn?.combatPolicy ?? 'PEACE';
-    if (pol === 'PEACE' && inDummyArea(this.d.table.dummies, x, z)) return 'TRAINING';
+    const pol = normalizeZonePolicy(this.d.zone()?.combatPolicy);
+    if (inDummyArea(this.d.table.dummies, x, z)) return 'TRAINING';
     return pol;
   }
 
@@ -127,7 +127,7 @@ export class CombatClient {
   context(p: PlayerState): boolean {
     if (this.d.consent === 'none') return true;
     const pol = this.policyAt(p.x, p.z);
-    return pol !== 'PEACE' || this.eventActive || this.d.net.self.interaction === 'interacao';
+    return pol !== 'CONTESTED' || this.eventActive || this.d.net.self.interaction === 'interacao';
   }
 
   /** o jogador não controla o movimento (cambaleando) */
@@ -146,6 +146,7 @@ export class CombatClient {
       const step = Math.min(this.dash.left, 11 * dt);
       const q = { x: p.x + this.dash.dx * step, y: p.y, z: p.z + this.dash.dz * step };
       this.d.collision.resolveCircle(q, 0.32, 1.78);
+      this.d.bodies?.(q, p.x, p.z, dt); // rodada 12 — colisão
       p.x = q.x; p.z = q.z;
       this.dash.left -= step;
       if (this.dash.left <= 1e-3) this.dash = null;
@@ -179,9 +180,9 @@ export class CombatClient {
     const item = held && this.d.table.itemAction(held) ? PROP_BY_ID.get(this.d.net.self.social.prop)?.label.replace(/\s*\(.*\)$/, '') ?? '' : '';
     this.d.hud.set({
       stamina: this.stamina, staminaMax: t.staminaMax, condition: this.condition, conditionMax: t.conditionMax, item,
-      zone: pol === 'TRAINING' ? 'ÁREA DE TREINO' : pol === 'COMBAT' ? 'ZONA DE COMBATE' : pol === 'CONTESTED' ? (this.eventActive ? 'DISPUTA · EVENTO' : 'ZONA DE DISPUTA') : 'ZONA DE PAZ',
-      combatZone: pol !== 'PEACE', protectedFx: (this.fx & FX.PROTECTED) !== 0,
-      visible: recent || (low && ctx) || (ctx && pol !== 'PEACE' && !!item),
+      zone: pol === 'TRAINING' ? 'ÁREA DE TREINO' : pol === 'CONTESTED' ? (this.eventActive ? 'DISPUTA · EVENTO' : 'ZONA DE DISPUTA') : 'ZONA DE CONFRONTO',
+      combatZone: ctx, protectedFx: (this.fx & FX.PROTECTED) !== 0,
+      visible: recent || (low && ctx) || (ctx && !!item),
     });
   }
 
@@ -232,8 +233,9 @@ export class CombatClient {
     this.d.net.send('cbt', { a: base.id, h: Math.round(h * 1000) / 1000, seq: this.d.net.moveSeq });
     this.stats.sent++;
     this.recentAt = now;
-    // regra antiga, em paz: sem previsão (o servidor nega). Sem consentimento o servidor sempre aceita o golpe válido
-    if (!this.context(p) || (this.d.consent === 'both' && this.policyAt(p.x, p.z) === 'PEACE')) return;
+    // sem contexto de confronto (regra antiga 'both' fora de evento/interação): sem previsão. Sem consentimento o
+    // servidor sempre aceita o golpe válido (rodada 12: não há zona de paz)
+    if (!this.context(p)) return;
     // previsão: recuperação, cooldown, combo, fôlego e animação (o servidor corrige pelo cbt_self/cbt_denied)
     this.stats.predicted++;
     const activeEnd = now + def.windupMs + def.activeMs;
@@ -330,8 +332,7 @@ export class CombatClient {
     this.stats.denied.push(m.reason);
     if (m.reason !== 'spam') sfx('ui_denied'); // rodada 10 — áudio
     if (this.stats.denied.length > 64) this.stats.denied.shift();
-    if (m.reason === 'zona_paz') this.d.hud.peace();
-    else if (m.reason === 'stamina') notifyBlocked('Sem fôlego'); // rodada 11: canal de ação bloqueada
+    if (m.reason === 'stamina') notifyBlocked('Sem fôlego'); // rodada 11: canal de ação bloqueada
     else if (m.reason === 'sem_item') notifyBlocked('Esse golpe precisa do item na mão');
     // previsão errada: libera a recuperação local (o servidor não começou nada) — e os NPCs não reagem
     if (m.reason !== 'spam') { this.busyUntil = 0; this.last = null; this.cd.delete(m.a); this.npcPending = null; }
@@ -352,7 +353,7 @@ export class CombatClient {
   qa() {
     return {
       stamina: Math.round(this.stamina), condition: Math.round(this.condition), fx: this.fx, locked: this.locked, busy: performance.now() < this.busyUntil,
-      hud: { shown: this.d.hud.shown, peace: this.d.hud.peaceShown, writes: this.d.hud.writes },
+      hud: { shown: this.d.hud.shown, writes: this.d.hud.writes },
       dummies: [...this.dummies.values()].map((d) => ({ id: d.id, st: d.st, cond: d.cond, x: +d.root.position.x.toFixed(1), z: +d.root.position.z.toFixed(1) })),
       stats: { ...this.stats, denied: [...this.stats.denied], jumpDenied: [...this.stats.jumpDenied] },
     };

@@ -111,12 +111,14 @@ Detalhes: `docs/COMBAT.md`.
   a sessão larga onde estava. Mensagens `item_pick {i}` / `item_drop` → `item_list` (só itens a ≤ 70 m, **só quando
   a lista muda** para aquele cliente, fatiado a 2 Hz) · `item_self {c,i}` · `item_denied`. A mão continua no `prop`
   (item de confronto só para quem o possui — `actionRules.validateProp`).
-- **Política de zona** (`zones.json` `combatPolicy` + `peaceAreas`): PAZ (Central/spawn, Centro, Candelária),
-  DISPUTA (Campo de Santana, Rio Branco), CONFRONTO (Cidade Nova). Áreas de paz fixas (spawn, palco, telões), de
-  evento (pontos de retorno) e MÓVEIS (anéis do trio e do carro de som, acompanham o veículo). Consulta do servidor:
-  `room.zonePolicy.policyFor(zoneOf(sid))`, `room.zonePolicy.peaceAt(x, z)`.
-- **Proteção de retorno** (`NetPlayer.fx` bit PROTECTED): entrar/reconectar (sala), levantar (sistema de confronto),
-  retorno de evento — `room.applyProtection(sid)`; expira sozinha (tick).
+- **Política de zona** (`zones.json` `combatPolicy`) — rodada 12: **NÃO EXISTEM ÁREAS DE PAZ**. Todas as zonas são
+  CONFRONTO e fora de qualquer zona também; nada de áreas de paz fixas, de evento ou móveis (trio/carro de som). Consulta
+  do servidor: `room.zonePolicy.policyFor(zoneOf(sid))` (CONTESTED só como mecânica de evento).
+- **Proteção temporária de retorno, 5 s** (`NetPlayer.fx` bit PROTECTED) — não é zona: entrar/reconectar (sala),
+  levantar (sistema de confronto), retorno de evento — `room.applyProtection(sid)`; expira sozinha (tick).
+- **Corpos sólidos** (rodada 12, docs/CROWD_COLLISION.md): humanos, autônomos e (no cliente) NPCs de ambiente não se
+  atravessam; o servidor valida o humano contra os corpos próximos (tolerância 0,18 m) e nunca nasce/reconecta/levanta
+  ninguém dentro de outra pessoa (ponto livre próximo).
 
 ## Grafites (rodada 7)
 Detalhes em `docs/GRAFFITI.md`. Todos que estão perto de uma superfície autorizada veem os mesmos grafites:

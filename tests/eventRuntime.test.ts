@@ -356,7 +356,7 @@ const clashDef = (friendlyFire: boolean): ScheduledEventDef => base({
   groupRules: { allowed: ['g1', 'g2'], friendlyFire },
   clash: { zones: ['CAMPO_DE_SANTANA'], respawn: [{ x: -50, z: 0 }, { x: 50, z: 0 }], protectMs: 4000, holdArea: { id: 'h', at: { x: 0, z: 0 }, radius: 10 }, pointsPerKnockdown: 3, pointsPerHoldSecond: 1 },
 });
-const party = (o: Partial<CombatParty>): CombatParty => ({ zone: 'CAMPO_DE_SANTANA', inPeaceArea: false, mode: 'pacifico', groupKey: null, combatEventId: '', protectedUntil: 0, ...o });
+const party = (o: Partial<CombatParty>): CombatParty => ({ zone: 'CAMPO_DE_SANTANA', mode: 'pacifico', groupKey: null, combatEventId: '', protectedUntil: 0, ...o });
 
 describe('confronto de grupos', () => {
   for (const ff of [false, true]) {
@@ -376,7 +376,7 @@ describe('confronto de grupos', () => {
       expect(ev).toEqual({ eventId: inst.inst, zones: ['CAMPO_DE_SANTANA'], friendlyFire: ff });
       expect(R.rt.combatEventFor('x')).toBeNull(); // não inscrito
       expect(R.rt.zonePolicy('CAMPO_DE_SANTANA')).toBe('CONTESTED');
-      const pol = (z: string | null): ZoneCombatPolicy => R.rt.zonePolicy(z) ?? 'PEACE';
+      const pol = (z: string | null): ZoneCombatPolicy => R.rt.zonePolicy(z) ?? 'COMBAT';
       const P = (sid: string) => party({ groupKey: R.ps.get(sid)!.groupKey, combatEventId: R.rt.combatEventFor(sid)?.eventId ?? '' });
       expect(combatAllowed(pol, P('a1'), P('b1'), ev, R.clock.t)).toEqual({ ok: true });
       expect(combatAllowed(pol, P('a1'), P('a2'), ev, R.clock.t).ok).toBe(ff);

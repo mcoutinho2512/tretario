@@ -29,7 +29,7 @@ const cleanup = async () => {
 process.on('SIGINT', () => { void cleanup().then(() => process.exit(130)); });
 mkdirSync(SHOTS, { recursive: true }); mkdirSync('docs/bench', { recursive: true });
 
-// ponto de partida: perto da Central (zona de paz), A e B lado a lado
+// ponto de partida: perto da Central, A e B lado a lado
 const manifest = JSON.parse(readFileSync('public/world/manifest.json', 'utf8'));
 const sp = manifest.spawn.p;
 const SA = [sp[0] + 2, sp[1] + 2], SB = [sp[0] + 5.5, sp[1] + 3.5];
@@ -210,7 +210,7 @@ try {
   const hs2 = await E(A, () => window.__pvInv.handSync());
   out.afterClick = await E(A, () => { const i = window.__pvInv.info(); return { stats: i.stats, log: i.log.slice(-6), layout: i.layout, status: document.querySelector('.hud-status')?.textContent }; });
   check('clique no slot 2: cartaz substitui a bandeira', hs2.social === 3 && hs2.server === 3 && hs2.visible === 3, JSON.stringify(hs2));
-  // fixa o taco no 4 e usa (zona de paz: aviso curto)
+  // fixa o taco no 4 e usa (rodada 12: não há zona de paz — o taco vale em qualquer lugar)
   await E(A, () => { window.__pvInv.inv.openPanel(); window.__pvInv.inv.pin('prop:11', 3); window.__pvInv.inv.close(); });
   await A.keyboard.press('Digit4');
   await w(1200);
@@ -218,7 +218,7 @@ try {
   const st4 = await statusText(A);
   const pol = await E(A, () => window.__pv.combat?.()?.policy ?? null);
   check('tecla 4: taco na mão (posse do servidor/livre pelos dados)', hs3.server === 11 && hs3.visible === 11, JSON.stringify(hs3));
-  if (pol === 'PEACE') check('zona de paz: "Taco não pode ser usado nesta zona."', /não pode ser usado nesta zona/.test(st4), st4);
+  check('sem zona de paz: nenhum aviso de "não pode ser usado nesta zona"', pol !== 'PEACE' && !/não pode ser usado nesta zona/.test(st4), `${pol} · ${st4}`);
   await A.keyboard.press('Digit4'); // de novo: guarda
   await w(1000);
   check('tecla 4 de novo: mão livre', (await E(A, () => window.__pvInv.handSync())).server === 0);

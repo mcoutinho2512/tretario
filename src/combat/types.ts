@@ -161,7 +161,7 @@ export interface CombatHitEvent {
 }
 /** servidor → só o próprio `cbt_self`: stamina/condição (mudou, ≤ 5 Hz) */
 export interface CombatSelf { st: number; cd: number; fx: number }
-export type CombatDenial = 'zona_paz' | 'politica' | 'estado' | 'stamina' | 'cooldown' | 'spam' | 'sem_item' | 'em_veiculo' | 'acao_invalida' | 'protegido';
+export type CombatDenial = 'politica' | 'estado' | 'stamina' | 'cooldown' | 'spam' | 'sem_item' | 'em_veiculo' | 'acao_invalida' | 'protegido';
 /** servidor → próprio `cbt_denied` */
 export interface CombatDenied { a: number; reason: CombatDenial }
 

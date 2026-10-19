@@ -6,14 +6,13 @@
  */
 import './combat.css';
 import { TextSlot, setClass } from '../ui/hud/throttle';
-import { notifyBlocked } from '../ui/notify';
 
 export interface CombatHudState {
   stamina: number; staminaMax: number;
   condition: number; conditionMax: number;
   /** rótulo do item de confronto na mão ('' = nenhum) */
   item: string;
-  /** texto da zona ('ZONA DE COMBATE', 'ZONA DE PAZ', 'TREINO', 'DISPUTA') e se é de confronto */
+  /** texto da região ('ZONA DE CONFRONTO', 'ÁREA DE TREINO', 'DISPUTA') e se o confronto vale aqui (rodada 12: não há zona de paz) */
   zone: string; combatZone: boolean;
   protectedFx: boolean;
   /** mostrar? (decidido pelo cliente de confronto) */
@@ -22,8 +21,6 @@ export interface CombatHudState {
 
 export class CombatHud {
   readonly el: HTMLDivElement;
-  /** aviso "ZONA DE PAZ" (fora do painel: aparece mesmo com o painel oculto) */
-  readonly peaceEl: HTMLDivElement;
   private zone: TextSlot;
   private item: TextSlot;
   private zoneEl: HTMLDivElement;
@@ -46,9 +43,6 @@ export class CombatHud {
     this.cond = row('CONDIÇÃO', 'cbt-cond');
     this.stam = row('FÔLEGO', 'cbt-stam');
     this.item = new TextSlot(div('cbt-item', this.el));
-    this.peaceEl = div('cbt-peace');
-    this.peaceEl.textContent = 'ZONA DE PAZ';
-    this.peaceEl.setAttribute('role', 'status');
   }
 
   set(s: CombatHudState) {
@@ -57,18 +51,11 @@ export class CombatHud {
     if (!s.visible) return;
     if (this.zone.set(s.zone)) this.writes++;
     setClass(this.zoneEl, 'combat', s.combatZone);
-    setClass(this.zoneEl, 'peace', !s.combatZone);
     setClass(this.el, 'prot', s.protectedFx);
     if (this.item.set(s.item ? `NA MÃO: ${s.item.toUpperCase()}` : '')) this.writes++;
     const c = Math.round((100 * s.condition) / Math.max(1, s.conditionMax)), st = Math.round((100 * s.stamina) / Math.max(1, s.staminaMax));
     if (c !== this.last.c) { this.last.c = c; this.cond.style.transform = `scaleX(${c / 100})`; this.writes++; }
     if (st !== this.last.s) { this.last.s = st; this.stam.style.transform = `scaleX(${st / 100})`; this.writes++; }
-  }
-
-  /** golpe negado por zona de paz: aviso curto e discreto */
-  peace() {
-    // rodada 11: canal único de ação bloqueada (toast no alto ao centro, src/ui/notify.ts); `peaceEl` fica só por compatibilidade
-    notifyBlocked('Zona de paz: confronto desligado aqui');
   }
 
   /** acertou alguém / foi atingido: contorno rápido */
@@ -78,6 +65,5 @@ export class CombatHud {
     this.pulseTimer = window.setTimeout(() => this.el.classList.remove('hitpulse'), 160);
   }
 
-  get peaceShown() { return this.peaceEl.classList.contains('show'); }
   get shown() { return this.el.classList.contains('show'); }
 }

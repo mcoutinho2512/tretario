@@ -1,5 +1,5 @@
 /**
- * Rodada 11 — CONTRATO: feedback curto de AÇÃO BLOQUEADA ("Aqui é zona de paz", "Mãos ocupadas", "Inventário cheio").
+ * Rodada 11 — CONTRATO: feedback curto de AÇÃO BLOQUEADA ("Sem fôlego", "Mãos ocupadas", "Inventário cheio").
  * Um toast de ~1,8 s no canal de avisos do HUD (alto ao centro, abaixo do indicador de zona), sem modal, sem roubar o
  * foco nem soltar o mouse. Qualquer sistema chama `notifyBlocked(texto)`; o HudShell é quem desenha (`setBlockedSink`).
  * A mesma frase repetida em menos de 1,5 s é ignorada (tecla segurada / clique repetido não empilha).

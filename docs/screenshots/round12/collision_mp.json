@@ -1,0 +1,258 @@
+{
+  "results": [
+    {
+      "name": "A contra B parado: não atravessa (distância mínima ≥ contato − 0,04 m)",
+      "ok": true,
+      "detail": "mín 0.640 m"
+    },
+    {
+      "name": "A nunca cruza B por dentro do corpo (no máximo contorna pelo lado)",
+      "ok": true,
+      "detail": "final A -575.11, 283.46 · B -575.70, 283.17"
+    },
+    {
+      "name": "B não foi empurrado (servidor: quem está parado nunca é corrigido)",
+      "ok": true,
+      "detail": "-575.70, 283.17"
+    },
+    {
+      "name": "predição respeita a colisão: nenhuma correção \"corpo\" do servidor",
+      "ok": true,
+      "detail": "{}"
+    },
+    {
+      "name": "diagonal: desliza pela tangente e passa por B (sem atravessar)",
+      "ok": true,
+      "detail": "C.z 285.52 (B em 283.17) · ao lado de B: {\"lateral\":0.538,\"d\":0.64}"
+    },
+    {
+      "name": "desvio local: os 16 atravessam contornando B (≥ 12 chegam)",
+      "ok": true,
+      "detail": "{\"mode\":\"flow\",\"n\":16,\"done\":16,\"corrections\":0,\"minD\":0.6166006680527921,\"stuck\":[]}"
+    },
+    {
+      "name": "desvio local: ninguém entra em B além da tolerância do servidor",
+      "ok": true,
+      "detail": "mín 0.617"
+    },
+    {
+      "name": "B não foi deslocado pelo fluxo (humano parado é duro para os outros)",
+      "ok": true,
+      "detail": "0.00 m"
+    },
+    {
+      "name": "30 corpos fechando a passagem: A não passa",
+      "ok": true,
+      "detail": "A.z 295.64 · fileira em 296.17"
+    },
+    {
+      "name": "sem teleporte falso: empurrar a multidão não pede \"unstuck\" (tem saída para trás)",
+      "ok": true,
+      "detail": "{\"frames\":588,\"avgMs\":0.0241,\"maxMs\":0.2,\"avgNeighbors\":2.46,\"avgContacts\":1.59,\"blockedFrames\":464,\"stuckRequests\":0,\"minDist\":0.64,\"stuckS\":1.7}"
+    },
+    {
+      "name": "sem deadlock: sai da multidão pela diagonal para trás",
+      "ok": true,
+      "detail": "3.57 m"
+    },
+    {
+      "name": "custo da colisão no cliente < 0,2 ms/quadro (média)",
+      "ok": true,
+      "detail": "{\"frames\":1317,\"avgMs\":0.0178,\"maxMs\":0.2,\"avgNeighbors\":1.16,\"avgContacts\":0.72,\"blockedFrames\":466,\"stuckRequests\":0,\"minDist\":0.64,\"stuckS\":0}"
+    },
+    {
+      "name": "encostados (0,64–0,7 m): o soco acerta (condição de B cai)",
+      "ok": true,
+      "detail": "d 0.66 m · condição 88"
+    }
+  ],
+  "measures": {
+    "encontro": {
+      "minD": 0.64,
+      "correcoes": {},
+      "cliente": {
+        "frames": 398,
+        "avgMs": 0.0173,
+        "maxMs": 0.2,
+        "avgNeighbors": 0.83,
+        "avgContacts": 0.79,
+        "blockedFrames": 259,
+        "stuckRequests": 0,
+        "minDist": 0.64,
+        "stuckS": 0
+      }
+    },
+    "contorno": {
+      "lateral": 0.538,
+      "d": 0.64
+    },
+    "fluxo": {
+      "mode": "flow",
+      "n": 16,
+      "done": 16,
+      "corrections": 0,
+      "minD": 0.6166006680527921,
+      "stuck": []
+    },
+    "multidao": {
+      "cliente": {
+        "frames": 588,
+        "avgMs": 0.0241,
+        "maxMs": 0.2,
+        "avgNeighbors": 2.46,
+        "avgContacts": 1.59,
+        "blockedFrames": 464,
+        "stuckRequests": 0,
+        "minDist": 0.64,
+        "stuckS": 1.7
+      },
+      "bots": {
+        "mode": "wall",
+        "n": 30,
+        "done": 0,
+        "corrections": 0,
+        "minD": null,
+        "stuck": [
+          [
+            -3.24,
+            0
+          ],
+          [
+            -2.88,
+            0.66
+          ],
+          [
+            -3.24,
+            1.32
+          ],
+          [
+            -2.52,
+            0
+          ],
+          [
+            -2.16,
+            0.66
+          ],
+          [
+            -2.52,
+            1.32
+          ],
+          [
+            -1.8,
+            0
+          ],
+          [
+            -1.44,
+            0.66
+          ],
+          [
+            -1.8,
+            1.32
+          ],
+          [
+            -1.08,
+            0
+          ],
+          [
+            -0.72,
+            0.66
+          ],
+          [
+            -1.08,
+            1.32
+          ],
+          [
+            -0.36,
+            0
+          ],
+          [
+            0,
+            0.66
+          ],
+          [
+            -0.36,
+            1.32
+          ],
+          [
+            0.36,
+            0
+          ],
+          [
+            0.72,
+            0.66
+          ],
+          [
+            0.36,
+            1.32
+          ],
+          [
+            1.08,
+            0
+          ],
+          [
+            1.44,
+            0.66
+          ],
+          [
+            1.08,
+            1.32
+          ],
+          [
+            1.8,
+            0
+          ],
+          [
+            2.16,
+            0.66
+          ],
+          [
+            1.8,
+            1.32
+          ],
+          [
+            2.52,
+            0
+          ],
+          [
+            2.88,
+            0.66
+          ],
+          [
+            2.52,
+            1.32
+          ],
+          [
+            3.24,
+            0
+          ],
+          [
+            3.6,
+            0.66
+          ],
+          [
+            3.24,
+            1.32
+          ]
+        ]
+      }
+    },
+    "custoCliente": {
+      "frames": 1317,
+      "avgMs": 0.0178,
+      "maxMs": 0.2,
+      "avgNeighbors": 1.16,
+      "avgContacts": 0.72,
+      "blockedFrames": 466,
+      "stuckRequests": 0,
+      "minDist": 0.64,
+      "stuckS": 0
+    },
+    "servidor": {
+      "collisionMs": 0.0417,
+      "collisionMaxMs": 0.477,
+      "neighborQueries": 12.4,
+      "bodyCorrections": 0,
+      "unstucks": 0
+    }
+  }
+}
