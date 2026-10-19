@@ -260,6 +260,10 @@ try {
     await p.screenshot({ path: 'screenshots/tmp/r11_editor_no_jogo.jpg', type: 'jpeg', quality: 80 });
     check('no jogo: editor abre como overlay (o jogo segue por baixo)', opened && overlay && framesOpen.frames > 10, `quadros do jogo com o editor aberto: ${JSON.stringify(framesOpen)}; fechado ${JSON.stringify(framesClosed)}`);
     await p.evaluate(async () => { const m = await import('/src/ui/escStack.ts'); m.handleEsc(); });
+    // linha de base DEPOIS da 1ª abertura: o 1º overlay coincide com o mundo terminando de carregar peças (aquecimento
+    // único, ~+40 texturas); vazamento é crescer a CADA ciclo (sonda de 30 ciclos: ciclos 10→20 = +1 textura, 0 ouvintes)
+    await w(1500);
+    const g0w = await gm();
     const tCycle = Date.now();
     for (let i = 0; i < 10; i++) {
       await p.evaluate(() => window.pvOpenCharacterEditor());
@@ -273,8 +277,8 @@ try {
     // controle: o mesmo tempo SEM editor (o mundo/multidão muda sozinho)
     await w(cycleMs);
     const g2 = await gm();
-    out.after.inGame = { before: g0, after10: g1, controlSameTimeNoEditor: g2, cycleMs, framesClosed, framesOpen };
-    const d = (k) => (g1[k] ?? 0) - (g0[k] ?? 0), dc = (k) => (g2[k] ?? 0) - (g1[k] ?? 0);
+    out.after.inGame = { before: g0, afterFirstOpen: g0w, after10: g1, controlSameTimeNoEditor: g2, cycleMs, framesClosed, framesOpen };
+    const d = (k) => (g1[k] ?? 0) - (g0w[k] ?? 0), dc = (k) => (g2[k] ?? 0) - (g1[k] ?? 0);
     check('no jogo: 10× abrir/fechar — só 1 contexto de prévia (reutilizado), renderer do jogo sem crescer além do controle', g1.contextsCreated - g0.contextsCreated <= 1 && g1.contextsLive - g0.contextsLive <= 1 && d('rendererGeometries') <= Math.max(20, dc('rendererGeometries') + 20) && d('rendererTextures') <= Math.max(10, dc('rendererTextures') + 10) && d('programs') <= 4 && d('listeners') <= 10,
       `Δ editor: contextos +${d('contextsCreated')}, geo ${d('rendererGeometries')}, tex ${d('rendererTextures')}, prog ${d('programs')}, ouvintes ${d('listeners')} · Δ controle: geo ${dc('rendererGeometries')}, tex ${dc('rendererTextures')}`);
   }

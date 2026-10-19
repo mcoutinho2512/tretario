@@ -144,6 +144,9 @@ export class ActionBar {
 
   get open() { return this.state.open; }
   close() { this.state.close(); }
+  /** rodada 11: Esc pela pilha única (listener em captura, antes do onKey da barra) — fecha e, se o foco estava no
+   * popover (navegação por teclado), devolve-o ao botão que abriu */
+  closeFromEsc() { const inside = this.pop.contains(document.activeElement); this.state.close(); if (inside) this.btns.get(this.lastOpen)?.focus(); }
 
   // ------------------------------------------------------------------ categorias
   private onCat(cat: BarCat, keyboard: boolean) {

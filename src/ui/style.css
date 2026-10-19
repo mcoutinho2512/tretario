@@ -253,7 +253,7 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); o
 .fx-disorient.reduced .fx-badge { display: flex; }
 
 /* ---- rodada 9.1: barra de ações (centro inferior, só jogador) — docs/HUD.md "Barra de ações" */
-.action-bar { position: absolute; left: 50%; bottom: calc(var(--sab) + 12px); transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.action-bar { position: absolute; left: 50%; bottom: calc(var(--sab) + 12px); transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 6px; z-index: 6; /* rodada 11: o popover abre por cima do acesso rápido (inv-quick) */ }
 .ab-row { display: flex; gap: 4px; padding: 4px; border-radius: 12px; background: var(--hud-bg); border: 1px solid var(--hud-line); pointer-events: auto; box-shadow: 0 6px 22px rgba(0, 0, 0, 0.28); }
 .ab-btn { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-width: 66px; height: 48px; padding: 4px 8px 3px; border: 0; border-radius: 9px; background: none; cursor: pointer; color: var(--hud-text); }
 .ab-btn:hover, .ab-btn.open { background: rgba(255, 255, 255, 0.09); }

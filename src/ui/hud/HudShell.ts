@@ -84,7 +84,7 @@ export class HudShell {
   readonly gameMenu: GameMenu;
   private escMenu = new EscSlot('menu-hud', 50, () => this.toggleMenu(false));
   private escClean = new EscSlot('hud-limpo', 50, () => this.toggleClean(false));
-  private escBar = new EscSlot('barra-acoes', 50, () => this.bar?.close());
+  private escBar = new EscSlot('barra-acoes', 50, () => this.bar?.closeFromEsc());
   clean = false;
   private touchUi = false;
 

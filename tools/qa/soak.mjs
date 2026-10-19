@@ -27,6 +27,11 @@
  * clique real no início e amostrado (AudioNodes vivos/criados, fontes, laços reais, vozes de multidão); bots com
  * veículos (10) além dos sociais/confronto.
  *
+ * Rodada 11 (SOAK_R11=1, implica SOAK_R10): mouse e teclado REAIS do desktop — botão direito arrastando gira a câmera,
+ * varredura de hover com o cursor, inventário (I) com seleção/prévia/equipar/desequipar de acessório e de peça de
+ * roupa, acesso rápido (1–3 aperta e guarda), menu do jogo e ajustes pelo Esc; amostra também `pointerLock` (tem
+ * de ser sempre nulo), camadas do Esc e o inventário (renderer de prévia, aberto/fechado).
+ *
  * uso (com o dev server): node tools/qa/soak.mjs [minutos=60] [tag=soak] [bots=60]
  */
 import puppeteer from 'puppeteer-core';
@@ -40,7 +45,8 @@ const BOTS = Number(process.argv[4] ?? 60);
 const BASE = process.env.BASE ?? 'http://localhost:5173';
 const PORT = Number(process.env.PV_SOAK_PORT ?? 2690);
 const SAMPLE_S = Number(process.env.SOAK_SAMPLE_S ?? 120);
-const R10 = process.env.SOAK_R10 === '1';
+const R11 = process.env.SOAK_R11 === '1';
+const R10 = process.env.SOAK_R10 === '1' || R11;
 const R9 = process.env.SOAK_R9 === '1' || R10;
 const chrome = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const w = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -136,6 +142,10 @@ const heap = async () => {
       const a = await page.evaluate(() => { const q = window.__pv.audio?.(); return q ? { audioState: q.ctxState, audioNodesLive: q.counters.nodesLive, audioNodesCreated: q.counters.nodesCreated, audioSourcesLive: q.counters.sourcesLive, audioPeakNodes: q.counters.peakNodes, audioLoopsReal: q.loops.real, audioLoopsLogical: q.loops.logical, audioCrowdVoices: q.crowd.voices } : {}; }).catch(() => ({}));
       Object.assign(r9, a);
     }
+    if (R11) {
+      const b = await page.evaluate(() => ({ pointerLock: document.pointerLockElement ? 1 : 0, escLayers: window.__pv.input?.()?.esc?.length ?? null, invOpen: window.__pvInv?.info?.()?.open ? 1 : 0, preview: JSON.stringify(window.__pvInv?.info?.()?.preview ?? null).slice(0, 120) })).catch(() => ({}));
+      Object.assign(r9, b);
+    }
   }
   return { usedMB: +(u.usedSize / 1048576).toFixed(2), rawMB: +(raw.usedSize / 1048576).toFixed(2), gpuMB: gpu, ...post, gpuNoPostMB: gpu !== null && post.postMB !== undefined ? +(gpu - post.postMB).toFixed(1) : null, ...mt, ...r9, ...srvMem };
 };
@@ -209,6 +219,29 @@ function r10Steps() {
   ];
 }
 
+// rodada 11: desktop de verdade (mouse/teclado reais), inventário, acesso rápido, menu do jogo
+function r11Steps() {
+  const W = 1280, H = 720;
+  const drag = async () => { await page.mouse.move(W * 0.6, H * 0.5); await page.mouse.down({ button: 'right' }); for (let i = 1; i <= 12; i++) await page.mouse.move(W * 0.6 + i * 18, H * 0.5 - i * 3, { steps: 2 }); await page.mouse.up({ button: 'right' }); };
+  const hover = async () => { for (let i = 0; i < 20; i++) await page.mouse.move(80 + (i * 57) % (W - 160), 160 + (i * 89) % (H - 320), { steps: 3 }); };
+  let n = 0;
+  return [
+    async () => { await drag(); await w(500); await hover(); await drag(); },
+    async () => {
+      await page.keyboard.press('KeyI'); await w(1200);
+      const e = await ev(() => window.__pvInv.entries());
+      const acc = (e || []).filter((i) => i.category === 'ACESSORIOS' && i.state !== 'locked');
+      const top = (e || []).filter((i) => i.category === 'ROUPAS' && i.state !== 'locked' && i.slot === 'TORSO');
+      const pick = (a) => a.length ? a[n++ % a.length].key : null;
+      for (const k of [pick(acc), pick(top), pick(acc)].filter(Boolean)) { await ev((key) => window.__pvInv.inv.select(key), k); await w(700); await ev((key) => window.__pvInv.inv.equip(key), k); await w(900); }
+      const a2 = pick(acc); if (a2) await ev((key) => window.__pvInv.inv.unequip(key), a2);
+      await w(600); await page.keyboard.press('Escape'); await w(800);
+    },
+    async () => { for (const k of ['Digit1', 'Digit2', 'Digit3']) { await page.keyboard.press(k); await w(1500); await page.keyboard.press(k); await w(800); } },
+    async () => { await page.keyboard.press('Escape'); await w(800); await page.keyboard.press('Escape'); await w(500); await page.keyboard.press('Escape'); await w(500); },
+  ];
+}
+
 const steps = [
   // zonas e multidão
   ...zones.map((z) => async () => { const [x, zz, h] = along(z.anchor?.t ?? (z.from + z.to) / 2, 10); await ev((x, z, h) => window.__pv.teleport(x, z, h), x, zz, h); }),
@@ -246,6 +279,7 @@ const steps = [
   async () => { if (spec) await spec.evaluate((k) => window.dispatchEvent(new KeyboardEvent('keydown', { code: `Digit${k}`, key: String(k) })), 1 + (k % 6)).catch(() => {}); },
   ...(R9 ? r9Steps() : []),
   ...(R10 ? r10Steps() : []),
+  ...(R11 ? r11Steps() : []),
   // longe de tudo (descarrega multidão/LOD) e volta
   async () => { const [x, z, h] = along(0.05, 0); await ev((x, z, h) => window.__pv.teleport(x, z, h), x, z, h); },
 ];
@@ -309,7 +343,7 @@ const summary = {
   // rodada 9.1: inclinações por minuto nos últimos 15 e 20 min (heap, GPU, GPU sem os alvos da resolução dinâmica, nós)
   slopesPerMin: Object.fromEntries([15, 20].map((n) => [`last${n}`, Object.fromEntries(['usedMB', 'gpuMB', 'gpuNoPostMB', 'nodes'].map((k) => [k, slope(Math.max(0, MIN - n), MIN, k)]))])),
   gpu: { first: gpuVals[0] ?? null, last: gpuVals.at(-1) ?? null, max: gpuVals.length ? Math.max(...gpuVals) : null },
-  ...(R9 ? { r9: Object.fromEntries(['rawMB', 'listeners', 'nodes', 'intervals', 'ragdolls', 'remotes', 'items', 'srvHeapMB', 'srvRssMB', 'srvWs', 'srvPlayers', 'srvTickMs'].map((k) => { const v = samples.map((s) => s[k]).filter((x) => typeof x === 'number'); return [k, v.length ? { first: v[0], last: v.at(-1), min: Math.min(...v), max: Math.max(...v) } : null]; })) } : {}),
+  ...(R9 ? { r9: Object.fromEntries(['pointerLock', 'escLayers', 'invOpen', 'rawMB', 'listeners', 'nodes', 'intervals', 'ragdolls', 'remotes', 'items', 'srvHeapMB', 'srvRssMB', 'srvWs', 'srvPlayers', 'srvTickMs'].map((k) => { const v = samples.map((s) => s[k]).filter((x) => typeof x === 'number'); return [k, v.length ? { first: v[0], last: v.at(-1), min: Math.min(...v), max: Math.max(...v) } : null]; })) } : {}),
 };
 summary.verdict = summary.slopeMBperMin.last30 !== null && Math.abs(summary.slopeMBperMin.last30) < 0.1 ? 'ESTABILIZOU (aquecimento de cache)' : 'CONTINUA CRESCENDO — investigar';
 writeFileSync(`screenshots/soak/${TAG}.json`, JSON.stringify({ summary, samples }, null, 1));

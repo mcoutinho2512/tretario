@@ -16,6 +16,8 @@ import puppeteer, { KnownDevices } from 'puppeteer-core';
 import { spawn } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 
+// rodada 11: Esc com nada aberto abre o MENU do jogo (pilha única) — o Esc "por garantia" só com camada aberta
+const escIfOpen = async (pg) => { if ((await pg.evaluate(() => window.__pv.input?.()?.esc?.length ?? 1)) > 0) await pg.keyboard.press('Escape'); };
 const base = process.argv[2] ?? 'http://localhost:5173';
 const PORT = Number(process.env.PV_BAR_PORT ?? 2990);
 const SHOTS = 'docs/screenshots/round9_1';
@@ -84,7 +86,7 @@ try {
     q = await bar(A);
     const opened = q.open === cat && q.items.length > 0 && await visible(A, '.ab-pop');
     const exp = await ev(A, (c) => document.querySelector(`.ab-btn[data-cat=${c}]`).getAttribute('aria-expanded'), cat);
-    await A.keyboard.press('Escape');
+    await escIfOpen(A);
     await w(150);
     const esc = (await bar(A)).open === null;
     await hit(A, `.ab-btn[data-cat=${cat}]`);
@@ -104,7 +106,7 @@ try {
   const k1 = await ev(A, () => ({ open: window.__pv.actionBar().open, idx: [...document.querySelectorAll('.ab-pop button')].indexOf(document.activeElement) }));
   await A.keyboard.press('ArrowDown');
   const k2 = await ev(A, () => [...document.querySelectorAll('.ab-pop button')].indexOf(document.activeElement));
-  await A.keyboard.press('Escape');
+  await escIfOpen(A);
   await w(100);
   const k3 = await ev(A, () => ({ open: window.__pv.actionBar().open, focus: document.activeElement?.dataset?.cat ?? null }));
   await ev(A, () => document.querySelector('.ab-btn[data-cat=itens]').focus());
@@ -134,7 +136,7 @@ try {
   await hit(A, '.ab-pop [data-id=p0]');
   const rel2 = await until(async () => (await srv(A)).prop === 0);
   check('"Mãos vazias" pela barra larga a bandeira (servidor)', rel2, JSON.stringify(await srv(A)));
-  await A.keyboard.press('Escape');
+  await escIfOpen(A);
 
   // ---- gesto pela barra
   await hit(A, '.ab-btn[data-cat=gestos]');
@@ -161,7 +163,7 @@ try {
   await hit(A, '.ab-pop [data-id=p11]');
   const bat0 = await until(async () => (await srv(A)).prop === 0);
   check('Pegar rápido: Taco pela barra (servidor) e largar tocando de novo', bat && bat0, JSON.stringify(await srv(A)));
-  await A.keyboard.press('Escape');
+  await escIfOpen(A);
 
   // ---- mapa
   await hit(A, '.ab-btn[data-cat=mapa]');
@@ -209,7 +211,7 @@ try {
   if (down) await hit(A, '.ab-pop [data-id=use]');
   const off = await until(async () => (await ev(A, () => window.__pv.riding())) === null, 5000);
   check('E — USAR pela barra monta na bicicleta (servidor) e a barra também desce', rode && off, `subiu ${!!rode} · opção "${down?.label}" · desceu ${!!off}`);
-  await A.keyboard.press('Escape');
+  await escIfOpen(A);
 
   // ---- personagem
   await hit(A, '.ab-btn[data-cat=personagem]');
@@ -235,7 +237,7 @@ try {
   await ev(A, () => window.__pv.key('KeyG'));
   await w(250);
   const wheel = await visible(A, '.action-wheel.open');
-  await A.keyboard.press('Escape');
+  await escIfOpen(A);
   check('roda G continua funcionando', wheel);
   await w(5000);
   q = await bar(A);
