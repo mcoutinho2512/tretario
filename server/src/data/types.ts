@@ -151,6 +151,11 @@ export interface DataStore {
     get(userId: string): Promise<SupporterRecord | null>;
     set(userId: string, rec: SupporterRecord): Promise<void>;
   };
+  /** rodada 11 — título EQUIPADO do perfil (coluna nova Profile.titleKey; texto de um grant `title:`), null = nenhum */
+  titles: {
+    get(userId: string): Promise<string | null>;
+    set(userId: string, title: string | null): Promise<void>;
+  };
   audit: {
     append(d: Omit<AuditRecord, 'id' | 'createdAt'>): Promise<void>;
     list(limit?: number): Promise<AuditRecord[]>;

@@ -1,3 +1,6 @@
+import { isTypingTarget } from './keymap'; // rodada 11 — inventário (o AGENTE A integra no keymap)
+import { escTop, handleEsc } from '../ui/escStack'; // rodada 11 — inventário (o AGENTE A integra no keymap)
+
 /**
  * Entrada unificada: teclado + mouse (pointer lock) no desktop; joystick virtual + arrasto no toque.
  * Produz valores abstratos (mover, olhar, correr, pular, zoom) — o jogo não lê eventos crus.
@@ -66,6 +69,15 @@ export class InputManager {
     // digitando num campo (chat, apelido…): a tecla é do campo, não do jogo
     const t = e.target as HTMLElement | null;
     if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+    // rodada 11 — inventário (o AGENTE A integra no keymap): I abre/fecha; 1–5 acesso rápido; Esc fecha o painel do
+    // topo da pilha única (src/ui/escStack.ts) quando há um — sem pilha, o comportamento antigo segue igual
+    if (!isTypingTarget(e.target) && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      if (e.code === 'KeyI') this.toggles.add('inventory');
+      const q = /^Digit([1-5])$/.exec(e.code);
+      if (q) this.toggles.add(`quick_${q[1]}`);
+      if (e.code === 'Escape' && escTop()) handleEsc();
+    }
+    if (this.moveBlocked && /^(Key[WASD]|Arrow(Up|Down|Left|Right)|Space|Shift(Left|Right))$/.test(e.code)) return; // rodada 11 — inventário aberto: personagem parado
     if (e.code === 'Space') { if (!e.repeat) this.jumpQueued = true; e.preventDefault(); }
     if (e.code === 'F3') { e.preventDefault(); this.toggles.add('debug'); }
     if (e.code === 'F1') { e.preventDefault(); this.toggles.add('controls'); }
@@ -90,6 +102,10 @@ export class InputManager {
   private onKeyUp = (e: KeyboardEvent) => {
     this.keys.delete(e.code);
   };
+
+  /** rodada 11 — inventário aberto: teclas de andar/correr/pular não movem o personagem (o mundo não pausa) */
+  moveBlocked = false;
+  setMoveBlocked(on: boolean) { this.moveBlocked = on; if (on) { for (const k of [...this.keys]) if (/^(Key[WASD]|Arrow|Shift)/.test(k)) this.keys.delete(k); this.jumpQueued = false; } }
 
   /** eixo de movimento local (x = direita, y = frente) */
   moveAxis(): { x: number; y: number } {
