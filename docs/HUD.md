@@ -94,8 +94,10 @@ instanciados (antes só com esqueleto), nunca sobre quem está fora do orçament
 ## Ajustes
 
 Qualidade gráfica (presets existentes; grava a escolha e oferece "Recarregar para aplicar" — preset, resolução dinâmica
-e LOD continuam decididos na carga), nomes dos jogadores, esconder o HUD sozinho, chat recolhido ao entrar, som
-(reservado). `role=dialog`, foco no controle marcado, Esc fecha, controles nativos (rádio/checkbox) para leitor de tela.
+e LOD continuam decididos na carga), nomes dos jogadores, esconder o HUD sozinho, chat recolhido ao entrar.
+Rodada 10: seção **Som** (substitui o "Som — Em breve"): Volume geral, Ambiente, Multidão, Veículos, Trio e carro de
+som, Efeitos, Interface (0–100) e **Silenciar tudo** (suspende o áudio); salvo em `pv3d.audio` — `docs/AUDIO_SYSTEM.md`.
+O antigo `HudPrefs.sound` ficou só por compatibilidade. `role=dialog`, foco no controle marcado, Esc fecha, controles nativos (rádio/checkbox) para leitor de tela.
 Rodada 9: **Reduzir efeitos visuais** (`reduceEffects`, também no perfil): a desorientação vira só um ícone pequeno e
 um tom leve (sem desfoque/vinheta) — `docs/COMBAT.md`.
 

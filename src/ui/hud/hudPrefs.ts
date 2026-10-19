@@ -1,5 +1,5 @@
 /**
- * Preferências do HUD (rodada 8): nomes dos jogadores, auto-ocultar, chat recolhido, som (reservado).
+ * Preferências do HUD (rodada 8): nomes dos jogadores, auto-ocultar, chat recolhido, som (legado; volumes em src/audio/settings.ts).
  * Guardadas no navegador; com sessão, os campos do perfil (`PlayerPreferences`: names/chatCollapsed/quality/reduceEffects) também
  * vão para PUT /api/me/preferences (sem sessão ou rota ausente: só local, em silêncio).
  */
@@ -10,7 +10,7 @@ export interface HudPrefs {
   names: NamesMode;
   hudAutoHide: boolean;
   chatCollapsed: boolean;
-  /** reservado: ainda não há áudio no jogo */
+  /** legado (rodada 8, sem efeito): o áudio da rodada 10 usa os volumes de src/audio/settings.ts (`pv3d.audio`) */
   sound: boolean;
   /** rodada 9 — acessibilidade: efeitos de tela fortes (desorientação) viram só ícone + tom leve */
   reduceEffects: boolean;

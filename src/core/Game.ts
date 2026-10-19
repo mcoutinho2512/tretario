@@ -94,6 +94,7 @@ import { ReconnectBadge } from '../net/ReconnectBadge';
 import { gameEndpoint } from '../net/endpoint'; // rodada 9.1 — mesma origem em produção
 import { noticeForJoinError } from '../ui/netNotice'; // rodada 9.1 — versão nova / sala cheia
 import { ProgressionUI } from '../ui/progress/ProgressionUI'; // rodada 9 — progressão
+import { AudioWorld } from '../audio/AudioWorld'; // rodada 10 — áudio
 import { mountAgendaDebate, type AgendaDebate } from '../ui/agendaDebateMount'; // rodada 9 — agenda/debate/telões
 // rodada 9 — confronto (src/combat; carregado com o multiplayer)
 import type { CombatClient } from '../combat/CombatClient';
@@ -425,6 +426,7 @@ export class Game {
     this.zones = zf.zones; this.combatRules = zf.rules;
     progress(1, 'Pronto');
     this.mountHud();
+    this.audioAttach(); // rodada 10 — áudio
     await this.connectMultiplayer();
     this.applyShotFromUrl();
   }
@@ -730,6 +732,7 @@ export class Game {
     if (this.cells && this.net) this.cells.update(dt, this.net.specCells, this.net.specCellsVersion, aerial, this.spec!.cam.altitude, (fn) => this.net!.forEachRemotePos(fn));
     mark('pedestres');
     this.crowd.end(this.camera, dt);
+    this.audioWorld.update(dt); // rodada 10 — áudio (ouvinte, passos, veículos, multidão agregada)
     mark('multidão');
     this.closure.update(this.camera.position);
     this.scenery.update(dt, this.camera.position, this.env.night);
@@ -977,6 +980,24 @@ export class Game {
     if (fx & FX.PROTECTED && this.avatar.fxDebug.aura) this.r9bSeenProtected = true;
     this.avatar.setPhys(net?.self.status ?? 0);
     this.disorient?.set(!!(fx & FX.DISORIENTED), this.hudShell.prefs.value.reduceEffects);
+  }
+
+  // rodada 10 — áudio: o AudioWorld lê o que o jogo já tem (câmera, jogador, veículos, multidão, rede, eventos)
+  private readonly audioWorld = new AudioWorld();
+  private audioAttach() {
+    const aw = this.audioWorld;
+    this.crowd.audioTap = aw.crowdTap;
+    aw.attach({
+      camera: this.camera, player: this.player, avatarPos: () => this.avatar.root.position, isDown: () => this.avatar.isDown,
+      ridingId: () => this.riding?.state.id ?? null, onPlatform: () => this.trio.active, rideables: this.rideables,
+      surfaceAt: (x, z) => this.collision.surfaceAt(x, z), net: () => this.net, spectator: this.spectator, aerial: () => this.aerial,
+      event: () => this.events.current ?? null, specCells: () => this.net?.specCells.values() ?? null, baseUrl: import.meta.env.BASE_URL,
+      eventZones: () => {
+        const evc = (window as unknown as { __pvEvents?: { points: { inst: string; x: number; z: number; radius: number }[]; list: { inst: string; format: string }[] } }).__pvEvents;
+        return evc ? evc.points.map((p) => ({ x: p.x, z: p.z, r: p.radius, type: evc.list.find((e) => e.inst === p.inst)?.format ?? 'evento' })) : [];
+      },
+    });
+    (window as unknown as { __pvAudio: () => unknown }).__pvAudio = () => aw.qa();
   }
 
   /** QA (rodada 9): itens, efeitos e quedas */
@@ -1369,6 +1390,7 @@ export class Game {
         return h.info();
       },
       ...this.r9bQa(), // rodada 9 — itens/efeitos/quedas
+      audio: () => this.audioWorld.qa(), // rodada 10 — áudio (vozes, nós vivos, células, CPU)
       /** painéis de LED: conteúdo por painel ('*' = todos). Preparado para o backend. */
       billboard: (id: string, content: unknown) => this.billboards.setPanelContent(id, content as never),
       billboards: () => this.manifest.billboards ?? [],

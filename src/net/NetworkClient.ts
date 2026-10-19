@@ -930,6 +930,16 @@ export class NetworkClient {
     for (const list of this.pool.values()) list.forEach((v) => v.dispose());
     this.pool.clear();
   }
+
+  // rodada 10 — áudio: estado mínimo dos remotos detalhados (passos/quedas perto, voto de perfil da multidão).
+  // `sup` (torcida, u8: 0 neutro, i+1 = grupo i de supporters.json) é lido de forma tolerante (ausente = 0).
+  forEachRemoteAudio(fn: (nid: number, x: number, z: number, speed: number, status: number, sup: number, riding: boolean) => void) {
+    for (const r of this.remotes.values()) {
+      if (!r.buf.length) continue;
+      const sup = Number((r as unknown as { sup?: number }).sup ?? (r.app as unknown as { sup?: number }).sup ?? 0) || 0;
+      fn(r.nid, r.state.x, r.state.z, Math.abs(r.state.speed), r.status, sup, !!(r.vehicle || r.platform));
+    }
+  }
 }
 
 const DENIAL_TEXT: Record<string, string> = {

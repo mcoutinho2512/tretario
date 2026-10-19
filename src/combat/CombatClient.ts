@@ -26,6 +26,8 @@ import { FX, PHYS, type CombatActEvent, type CombatActionDefinition, type Combat
 import { CombatHud } from './CombatHud';
 import { DummyVisual } from './DummyVisual';
 import { RateGate } from '../ui/hud/throttle';
+import { sfx } from '../audio/bus'; // rodada 10 — áudio
+import { combatSfx } from '../audio/catalog'; // rodada 10 — áudio
 
 export type CombatInput = 'cbt_punch' | 'cbt_kick' | 'cbt_dodge';
 const INPUTS: CombatInput[] = ['cbt_punch', 'cbt_kick', 'cbt_dodge'];
@@ -240,6 +242,7 @@ export class CombatClient {
     this.stamina -= def.staminaCost;
     this.predictedAt = now;
     this.d.avatar.playCombat(def.animation);
+    sfx(combatSfx(def).swing, { x: p.x, y: p.y + 1, z: p.z }); // rodada 10 — áudio
     if (def.kind !== 'dodge') this.npcPending = { def, h, at: now + def.windupMs };
     if (def.kind === 'dodge') { this.lockUntil = 0; if (def.dashM) this.dash = { dx: Math.sin(h), dz: Math.cos(h), left: def.dashM }; }
   }
@@ -266,18 +269,22 @@ export class CombatClient {
       // confirmado pelo servidor; sem previsão (contexto local divergiu): anima agora (e os NPCs reagem na janela)
       if (performance.now() - this.predictedAt > 400) {
         this.d.avatar.playCombat(def.animation);
+        { const q = this.d.avatar.root.position; sfx(combatSfx(def).swing, { x: q.x, y: q.y + 1, z: q.z }); } // rodada 10 — áudio
         if (def.kind !== 'dodge') this.npcPending = { def, h: m.h, at: performance.now() + def.windupMs };
       }
       this.last = { id: def.id, activeEnd: performance.now() + def.windupMs + def.activeMs };
       return;
     }
-    this.d.net.combatVisual(m.by)?.visual.playCombat(def.animation);
+    const cv = this.d.net.combatVisual(m.by);
+    cv?.visual.playCombat(def.animation);
+    if (cv) sfx(combatSfx(def).swing, { x: cv.x, z: cv.z }); // rodada 10 — áudio
   }
 
   private onHit(m: CombatHitEvent) {
     const now = performance.now();
     const def = this.d.table.byId.get(m.a);
     this.stats.lastHit = m;
+    this.hitSound(m, def); // rodada 10 — áudio
     if (m.dummy) { this.stats.dummyHits++; this.dummies.get(m.tgt)?.hit(m.dx, m.dz, m.st); if (m.by === this.d.net.selfNid) { this.recentAt = now; this.d.hud.pulse(); } return; }
     const self = this.d.net.selfNid;
     if (m.tgt === self) {
@@ -299,11 +306,25 @@ export class CombatClient {
       else { this.stats.blocked++; this.d.flash(this.d.consent === 'none' ? 'Sem efeito (proteção de retorno ou regra do evento)' : 'Sem efeito (modo pacífico, proteção ou regra do local)'); }
     }
   }
+  // rodada 10 — áudio: som do RESULTADO (decidido pelo servidor) na posição do alvo — arcade, sem realismo de ferimento
+  private hitSound(m: CombatHitEvent, def: CombatActionDefinition | undefined) {
+    const self = m.tgt === this.d.net.selfNid && !m.dummy;
+    const dm = m.dummy ? this.dummies.get(m.tgt) : null;
+    const pos = self ? this.d.avatar.root.position : dm ? dm.root.position : null;
+    const at = pos ? { x: pos.x, y: pos.y + 1, z: pos.z } : (() => { const c = this.d.net.combatVisual(m.tgt, false) ?? this.d.net.combatVisual(m.by, false); return c ? { x: c.x, z: c.z } : null; })();
+    if (!at) return;
+    const gain = self || m.by === this.d.net.selfNid ? 1 : 0.8;
+    if (m.r === 'dodged') sfx('dodge', { ...at, gain: gain * 0.8 });
+    else if (m.r === 'blocked') sfx('blocked', { ...at, gain });
+    else { const h = def ? combatSfx(def).hit : 'punch'; sfx(h, { ...at, gain }); if (h !== 'spray' && h !== 'push') sfx('impact', { ...at, gain: gain * 0.7 }); }
+  }
+
   /** empurrão sofrido, aplicado no próximo `update` */
   private knock: { dx: number; dz: number } | null = null;
 
   private onDenied(m: CombatDenied) {
     this.stats.denied.push(m.reason);
+    if (m.reason !== 'spam') sfx('ui_denied'); // rodada 10 — áudio
     if (this.stats.denied.length > 64) this.stats.denied.shift();
     if (m.reason === 'zona_paz') this.d.hud.peace();
     else if (m.reason === 'stamina') this.d.flash('Sem fôlego');

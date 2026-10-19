@@ -148,6 +148,12 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); o
 .sheet-note[hidden] { display: none; }
 .sheet-btn { border: 0; border-radius: 6px; background: var(--accent); color: #fff; padding: 9px 14px; font-weight: 700; cursor: pointer; }
 .sheet-foot { margin-top: 26px; font-size: 11.5px; color: var(--hud-dim); }
+/* rodada 10 — som: controles deslizantes por categoria */
+.sheet-range { display: grid; grid-template-columns: 1fr 120px 30px; align-items: center; column-gap: 8px; min-height: 34px; font-size: 13px; }
+.sheet-range input { width: 100%; accent-color: var(--accent); margin: 0; }
+.sheet-range input:disabled { opacity: 0.4; }
+.sheet-range output { text-align: right; font-variant-numeric: tabular-nums; color: var(--hud-dim); font-size: 12px; }
+.sheet-audio .sheet-check { margin-top: 10px; }
 
 /* fundo */
 .debug-panel {
