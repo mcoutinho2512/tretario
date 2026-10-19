@@ -410,7 +410,7 @@ export class CharacterEditor {
     const g = supporterGroup(data, this.hist.current.sup);
     const wear = $<HTMLButtonElement>('ed-wear');
     wear.disabled = !g;
-    wear.textContent = g ? `Vestir as cores de ${g.shortName}` : 'Vestir as cores';
+    wear.textContent = g ? `Vestir as cores: ${g.displayName}` : 'Vestir as cores';
     const wearing = !!g && this.hist.current.app.shirtDesign === g.clothingSet.shirtDesign;
     wear.setAttribute('aria-pressed', String(wearing));
     $('ed-sup-note').textContent = !g ? 'Sem torcida: nada muda no seu visual.'
