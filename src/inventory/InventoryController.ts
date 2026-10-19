@@ -18,7 +18,6 @@ import { localEntitlements } from '../characters/unlocks';
 import { validateAppearance, sameAppearance } from '../characters/validateAppearance';
 import type { ProgressionCatalog } from '../progression/engine';
 import { PROP_BY_ID } from '../social/props';
-import { DESIGN_BY_KEY } from '../social/designs';
 import { loadSupporterData } from '../supporters/data';
 import { setLocalSupporter } from '../supporters/session';
 import type { SupporterData } from '../supporters/types';
@@ -26,7 +25,7 @@ import { accountApi, errorText } from '../identity/client';
 import { pushEsc } from '../ui/escStack';
 import { buildInventory, type InventoryContext, type InventoryEntry } from './catalog';
 import { planEquip, planUnequip, type EquipPlan } from './equipRules';
-import { loadQuickbar, pinQuick, saveQuickbar } from './quickbar';
+import { isActive, loadQuickbar, pinQuick, saveQuickbar } from './quickbar';
 import { markSeen, seenItems } from './seen';
 import { InventoryPanel } from './InventoryPanel';
 import { QuickbarView } from './QuickbarView';
@@ -289,10 +288,9 @@ export class InventoryController {
     if (!data) return;
     const acct = inventoryAccount();
     if (acct) {
-      const r = await accountApi.putSupporter(group);
-      if (!r.ok || !r.data) { this.stats.refused++; this.h.notify(errorText(r.error)); return; }
-      acct.onSupporter({ current: r.data.current, pending: r.data.pending });
-      this.h.notify(r.data.deferred ? 'Troca de torcida pendente: vale quando o evento em andamento acabar.' : 'Torcida atualizada.');
+      const r = await acct.saveSupporter(group === data.neutralId ? null : group);
+      if (!r.ok) { this.stats.refused++; this.h.notify(r.error); return; }
+      this.h.notify(r.msg || 'Torcida atualizada.');
       return;
     }
     if (!this.h.online()) { this.h.notify('Torcida precisa da conexão com o servidor'); return; }
@@ -345,14 +343,4 @@ export class InventoryController {
     };
   }
   entries() { return this.items.map((i) => ({ key: i.key, category: i.category, slot: i.slot, label: i.label, state: i.state, quickbar: i.quickbar, lockedReason: i.lockedReason ?? null, isNew: !!i.isNew })); }
-}
-
-/** o item do slot está NA MÃO agora? */
-export function isActive(key: string, prop: number, design: number): boolean {
-  if (key.startsWith('prop:')) return prop !== 0 && prop === Number(key.slice(5));
-  if (key.startsWith('design:')) {
-    const d = DESIGN_BY_KEY.get(key.slice(7)), p = PROP_BY_ID.get(prop);
-    return !!d && !!p?.designSlot && d.targets.includes(p.designSlot) && design === d.id;
-  }
-  return false;
 }

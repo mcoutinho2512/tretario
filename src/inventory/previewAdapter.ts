@@ -1,12 +1,11 @@
 /**
- * Rodada 11 — ADAPTADOR da prévia 3D do inventário (contrato `AvatarPreviewHandle`, src/inventory/types.ts).
- *
- * Nesta branch usa a prévia existente (src/ui/AvatarPreview.ts); na integração troca por `createSharedPreview` do
- * editor novo (src/ui/preview/sharedPreview.ts) — só ESTE arquivo muda. Regra: UM renderer de prévia vivo por vez
- * (abrir de novo descarta o anterior) e `dispose()` ao fechar o inventário (contexto WebGL liberado).
+ * Rodada 11 — prévia 3D do inventário (contrato `AvatarPreviewHandle`, src/inventory/types.ts) sobre a prévia
+ * COMPARTILHADA do editor (src/ui/preview/sharedPreview.ts): um renderer de prévia por página, reutilizado; o
+ * inventário só cria/descarta o seu handle (personagem + câmera). Regra: um handle do inventário vivo por vez e
+ * `dispose()` ao fechar o painel.
  */
 import type { CharacterAppearance } from '../characters/bodyTypes';
-import { AvatarPreview } from '../ui/AvatarPreview';
+import { createSharedPreview, previewInfo } from '../ui/preview/sharedPreview';
 import type { AvatarPreviewHandle } from './types';
 
 export interface InventoryPreview extends AvatarPreviewHandle {
@@ -15,50 +14,33 @@ export interface InventoryPreview extends AvatarPreviewHandle {
   ready?: Promise<void>;
 }
 
-/** QA (tools/qa/inventory_mp.mjs): prévias criadas/descartadas e quantas estão vivas */
+/** QA (tools/qa/inventory_mp.mjs): handles do inventário criados/descartados e o renderer compartilhado */
 export const previewStats = {
   created: 0, disposed: 0, get live() { return this.created - this.disposed; },
-  /** memória do renderer da prévia viva (texturas/geometrias/programas do three.js); null = nenhuma */
-  memory(): { textures: number; geometries: number; programs: number } | null {
-    const r = (currentRaw as unknown as { renderer?: { info: { memory: { textures: number; geometries: number }; programs?: unknown[] } } } | null)?.renderer;
-    return r ? { textures: r.info.memory.textures, geometries: r.info.memory.geometries, programs: r.info.programs?.length ?? 0 } : null;
-  },
+  /** renderer da prévia (compartilhado): renderers vivos/criados, geometrias/texturas/programas */
+  memory() { const i = previewInfo(); return { renderersLive: i.renderersLive, renderersCreated: i.renderersCreated, textures: i.textures, geometries: i.geometries, programs: i.programs }; },
 };
 let current: InventoryPreview | null = null;
-let currentRaw: AvatarPreview | null = null;
 
 export function createInventoryPreview(container: HTMLElement, app: CharacterAppearance): InventoryPreview {
-  current?.dispose(); // nunca dois renderers de prévia
-  const canvas = document.createElement('canvas');
-  canvas.className = 'inv-preview-canvas';
-  canvas.setAttribute('aria-label', 'Prévia 3D do personagem (arraste para girar, roda para aproximar)');
-  container.appendChild(canvas);
-  const p = new AvatarPreview(canvas, app);
+  current?.dispose(); // um handle do inventário por vez
+  const p = createSharedPreview(container);
+  p.show(app);
   previewStats.created++;
   let dead = false;
-  const internals = p as unknown as { yaw: number; yawTarget: number; yawVel: number };
   const h: InventoryPreview = {
-    show(a: unknown) { if (!dead && a && typeof a === 'object') p.setAppearance(a as CharacterAppearance); },
-    view(side) {
-      if (dead) return;
-      // gira pelo caminho mais curto até a frente (0) ou as costas (π)
-      const target = side === 'front' ? -0.35 : Math.PI - 0.35;
-      const turns = Math.round((internals.yawTarget - target) / (Math.PI * 2));
-      internals.yawTarget = target + turns * Math.PI * 2;
-      internals.yawVel = 0;
-    },
+    show(a: unknown) { if (!dead) p.show(a); },
+    view(side) { if (!dead) p.view(side); },
     zoom(by) { if (!dead) p.zoom(by); },
     get ready() { return p.ready; },
     dispose() {
       if (dead) return;
       dead = true;
       p.dispose();
-      canvas.remove();
       previewStats.disposed++;
-      if (current === h) { current = null; currentRaw = null; }
+      if (current === h) current = null;
     },
   };
   current = h;
-  currentRaw = p;
   return h;
 }

@@ -99,6 +99,8 @@ export interface HumanOptions {
   clips?: string[];
   /** semente da individualidade da animação (NPCs: fase própria, balanço do parado — HumanAnimator.setVariant) */
   seed?: number;
+  /** rodada 11: false = não pré-compila no renderer do JOGO (a prévia 3D tem renderer próprio) */
+  warmup?: boolean;
 }
 
 const warmed = new Set<string>();
@@ -277,6 +279,7 @@ export class HumanCharacter {
   private clipFilter: string[] | undefined;
   private disposed = false;
   private seed: number | undefined;
+  private useWarmup: boolean;
 
   /** troca a semente da individualidade (NPC reciclado / esqueleto do pool emprestado a outra pessoa) */
   setVariant(seed: number) { this.seed = seed; this.animator?.setVariant(seed); }
@@ -288,6 +291,7 @@ export class HumanCharacter {
     this.castShadow = opts.castShadow ?? true;
     this.clipFilter = opts.clips;
     this.seed = opts.seed;
+    this.useWarmup = opts.warmup ?? true;
     this.root.name = `human_${app.body}`;
     this.root.userData.pvHuman = this; // QA (tools/qa/char_probe.mjs)
     // o esqueleto vem do LOD pedido (ou do mais barato, se o pedido for detalhado: aparece logo e melhora depois)
@@ -362,7 +366,7 @@ export class HumanCharacter {
       if (this.disposed) return;
     }
     // pré-compila os shaders deste LOD antes de mostrá-lo (evita engasgo de 100+ ms na primeira aparição)
-    if (HumanCharacter.warmup && !warmed.has(`${this.body}:${l}`)) {
+    if (HumanCharacter.warmup && this.useWarmup && !warmed.has(`${this.body}:${l}`)) {
       warmed.add(`${this.body}:${l}`);
       inst.group.visible = true;
       try { await HumanCharacter.warmup(inst.group); } catch { /* opcional */ }

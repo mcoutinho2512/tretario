@@ -10,8 +10,8 @@ export interface InventoryAccount {
   authed(): boolean;
   /** aparência aceita pelo servidor (atualiza o visual salvo da tela inicial) */
   onLook(app: CharacterAppearance): void;
-  /** torcida aceita (atualiza o rótulo TORCIDA da tela inicial) */
-  onSupporter(s: { current: string | null; pending: string | null }): void;
+  /** grava a torcida pela MESMA função da tela inicial/editor (main.ts `saveSupporter`; null = sem torcida) */
+  saveSupporter(group: string | null): Promise<{ ok: true; msg: string } | { ok: false; error: string }>;
 }
 
 let impl: InventoryAccount | null = null;

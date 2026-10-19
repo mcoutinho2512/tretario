@@ -58,3 +58,13 @@ export function unpinQuick(l: QuickbarLayout, index: number): QuickbarLayout {
   if (index >= 0 && index < QUICK_SLOTS) next[index] = null;
   return next;
 }
+
+/** o item do slot está NA MÃO agora? */
+export function isActive(key: string, prop: number, design: number): boolean {
+  if (key.startsWith('prop:')) return prop !== 0 && prop === Number(key.slice(5));
+  if (key.startsWith('design:')) {
+    const d = DESIGN_BY_KEY.get(key.slice(7)), p = PROP_BY_ID.get(prop);
+    return !!d && !!p?.designSlot && d.targets.includes(p.designSlot) && design === d.id;
+  }
+  return false;
+}

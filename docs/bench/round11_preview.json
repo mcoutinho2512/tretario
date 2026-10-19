@@ -1,0 +1,433 @@
+{
+  "before": {
+    "label": "before",
+    "date": "2026-10-19T03:45:18.972Z",
+    "warm": {
+      "contextsCreated": 2,
+      "contextsLive": 0,
+      "listeners": 133,
+      "nodes": 733,
+      "heapMB": 10.8
+    },
+    "openClose30": {
+      "contextsCreated": 2,
+      "contextsLive": 0,
+      "listeners": 223,
+      "nodes": 733,
+      "heapMB": 11.1
+    },
+    "previewInfoFirstLast": [
+      {
+        "geometries": 3,
+        "textures": 2,
+        "programs": 5,
+        "renderers": null
+      },
+      {
+        "geometries": 3,
+        "textures": 2,
+        "programs": 5,
+        "renderers": null
+      }
+    ],
+    "previewUnavailableOpens": 30,
+    "sequenceOpen": "unavailable",
+    "previewSequence": {
+      "before": {
+        "geometries": 3,
+        "textures": 2,
+        "programs": 5,
+        "renderers": null
+      },
+      "after": {
+        "geometries": 3,
+        "textures": 2,
+        "programs": 5,
+        "renderers": null
+      },
+      "clothesMs": 5058,
+      "accessoriesMs": 4866
+    },
+    "afterSequence": {
+      "contextsCreated": 2,
+      "contextsLive": 0,
+      "listeners": 226,
+      "nodes": 733,
+      "heapMB": 11.1
+    },
+    "pageErrors": []
+  },
+  "after": {
+    "label": "after",
+    "date": "2026-10-19T03:59:53.009Z",
+    "warm": {
+      "contextsCreated": 2,
+      "contextsLive": 1,
+      "listeners": 143,
+      "nodes": 965,
+      "heapMB": 11.8
+    },
+    "openClose30": {
+      "contextsCreated": 2,
+      "contextsLive": 1,
+      "listeners": 142,
+      "nodes": 966,
+      "heapMB": 13.2
+    },
+    "previewInfoFirstLast": [
+      {
+        "renderersCreated": 1,
+        "renderersLive": 1,
+        "contextsLost": 0,
+        "handlesLive": 1,
+        "handlesCreated": 2,
+        "geometries": 19,
+        "textures": 27,
+        "programs": 11,
+        "calls": 10,
+        "triangles": 31474
+      },
+      {
+        "renderersCreated": 1,
+        "renderersLive": 1,
+        "contextsLost": 0,
+        "handlesLive": 1,
+        "handlesCreated": 31,
+        "geometries": 19,
+        "textures": 26,
+        "programs": 10,
+        "calls": 10,
+        "triangles": 31474
+      }
+    ],
+    "previewUnavailableOpens": 0,
+    "sequenceOpen": "ok",
+    "previewSequence": {
+      "before": {
+        "renderersCreated": 1,
+        "renderersLive": 1,
+        "contextsLost": 0,
+        "handlesLive": 1,
+        "handlesCreated": 32,
+        "geometries": 19,
+        "textures": 26,
+        "programs": 10,
+        "calls": 10,
+        "triangles": 31474
+      },
+      "after": {
+        "renderersCreated": 1,
+        "renderersLive": 1,
+        "contextsLost": 0,
+        "handlesLive": 1,
+        "handlesCreated": 32,
+        "geometries": 24,
+        "textures": 38,
+        "programs": 11,
+        "calls": 10,
+        "triangles": 30092
+      },
+      "afterRound2": {
+        "renderersCreated": 1,
+        "renderersLive": 1,
+        "contextsLost": 0,
+        "handlesLive": 1,
+        "handlesCreated": 32,
+        "geometries": 24,
+        "textures": 38,
+        "programs": 11,
+        "calls": 10,
+        "triangles": 30092
+      },
+      "clothesMs": 5077,
+      "accessoriesMs": 4880
+    },
+    "afterSequence": {
+      "contextsCreated": 2,
+      "contextsLive": 1,
+      "listeners": 142,
+      "nodes": 966,
+      "heapMB": 13.5
+    },
+    "previewMemoryReport": {
+      "renderer": {
+        "textures": 34,
+        "geometries": 24,
+        "programs": 10
+      },
+      "totals": {
+        "textures": 28,
+        "texGpuMB": 93.3,
+        "texCpuMB": 62.5,
+        "geometries": 35,
+        "geoMB": 2.4,
+        "geoCpuMB": 2.4,
+        "materials": 50,
+        "skeletons": 49,
+        "boneTexMB": 0.2,
+        "gpuEstMB": 96
+      }
+    },
+    "cost": {
+      "width": 1056,
+      "height": 859,
+      "directMs": 1.85,
+      "renderTargetReadbackMs": 15.76
+    },
+    "contextLoss": {
+      "recovered": true,
+      "ms": 292,
+      "info": {
+        "renderersCreated": 2,
+        "renderersLive": 1,
+        "contextsLost": 1,
+        "handlesLive": 1,
+        "handlesCreated": 33,
+        "geometries": 11,
+        "textures": 20,
+        "programs": 10,
+        "calls": 10,
+        "triangles": 31474
+      }
+    },
+    "coldOpenMs": 244,
+    "warmOpenMs": 217,
+    "idle": {
+      "afterClose": {
+        "renderersCreated": 3,
+        "renderersLive": 1,
+        "contextsLost": 1,
+        "handlesLive": 0,
+        "handlesCreated": 35,
+        "geometries": 9,
+        "textures": 11,
+        "programs": 5,
+        "calls": 10,
+        "triangles": 31474
+      }
+    },
+    "pageErrors": [],
+    "inGame": {
+      "before": {
+        "geometries": 1191,
+        "textures": 182,
+        "materials": 1149,
+        "gpuEstMB": 632.1,
+        "rendererGeometries": 880,
+        "rendererTextures": 676,
+        "programs": 136,
+        "contextsCreated": 5,
+        "contextsLive": 1,
+        "listeners": 293,
+        "nodes": 1686,
+        "heapMB": 91.4
+      },
+      "after10": {
+        "geometries": 1174,
+        "textures": 183,
+        "materials": 954,
+        "gpuEstMB": 630.1,
+        "rendererGeometries": 863,
+        "rendererTextures": 548,
+        "programs": 135,
+        "contextsCreated": 6,
+        "contextsLive": 2,
+        "listeners": 298,
+        "nodes": 1692,
+        "heapMB": 90.7
+      },
+      "controlSameTimeNoEditor": {
+        "geometries": 1176,
+        "textures": 184,
+        "materials": 970,
+        "gpuEstMB": 638.8,
+        "rendererGeometries": 865,
+        "rendererTextures": 559,
+        "programs": 135,
+        "contextsCreated": 6,
+        "contextsLive": 2,
+        "listeners": 298,
+        "nodes": 1693,
+        "heapMB": 91.5
+      },
+      "cycleMs": 6548,
+      "framesClosed": {
+        "frames": 181,
+        "avgMs": 16.65,
+        "p95Ms": 17.9
+      },
+      "framesOpen": {
+        "frames": 181,
+        "avgMs": 16.67,
+        "p95Ms": 17.8
+      }
+    }
+  },
+  "qa": {
+    "date": "2026-10-19T04:01:02.540Z",
+    "pass": 32,
+    "total": 32,
+    "results": [
+      {
+        "name": "conta de teste criada e logada",
+        "ok": true,
+        "detail": "cadastro 201"
+      },
+      {
+        "name": "editor abre com a prévia 3D",
+        "ok": true,
+        "detail": ""
+      },
+      {
+        "name": "prévia: um renderer, um handle",
+        "ok": true,
+        "detail": "{\"renderersCreated\":1,\"renderersLive\":1,\"contextsLost\":0,\"handlesLive\":1,\"handlesCreated\":1,\"geometries\":11,\"textures\":20,\"programs\":12,\"calls\":9,\"triangles\":34421}"
+      },
+      {
+        "name": "Esc: o editor está na pilha única (prioridade de diálogo)",
+        "ok": true,
+        "detail": ""
+      },
+      {
+        "name": "cursor livre (sem pointer lock) no editor",
+        "ok": true,
+        "detail": ""
+      },
+      {
+        "name": "CORPO: troca de corpo na prévia",
+        "ok": true,
+        "detail": ""
+      },
+      {
+        "name": "CABELO: corte e cor",
+        "ok": true,
+        "detail": "Crespo"
+      },
+      {
+        "name": "CAMISA: camisa de futebol vira modelo camiseta",
+        "ok": true,
+        "detail": "Listras vermelho e preto #200"
+      },
+      {
+        "name": "CALÇA e CALÇADO",
+        "ok": true,
+        "detail": "Bermuda / short / Chinelo"
+      },
+      {
+        "name": "ACESSÓRIOS: óculos + cor",
+        "ok": true,
+        "detail": ""
+      },
+      {
+        "name": "desfazer (Ctrl+Z) e refazer",
+        "ok": true,
+        "detail": "acc 2837114→2039583→2837114"
+      },
+      {
+        "name": "abas alteradas marcadas",
+        "ok": true,
+        "detail": ""
+      },
+      {
+        "name": "bloqueado: cadeado com motivo, só na prévia (não entra no visual)",
+        "ok": true,
+        "detail": "{\"req\":\"Nível 3\",\"note\":\"Bloqueado — Nível 3. Você vê na prévia, mas só pode salvar depois de liberar (☰ → Progresso, na avenida).\",\"same\":true}"
+      },
+      {
+        "name": "TORCIDA: escolha + vestir as cores (camisa da torcida)",
+        "ok": true,
+        "detail": "vasco camisa #213"
+      },
+      {
+        "name": "prévia: gira com arrasto e aproxima com a roda",
+        "ok": true,
+        "detail": "yaw -0.35→3.11, zoom 0.60"
+      },
+      {
+        "name": "prévia: costas",
+        "ok": true,
+        "detail": "2.79"
+      },
+      {
+        "name": "restaurar volta ao salvo e pode ser desfeito",
+        "ok": true,
+        "detail": ""
+      },
+      {
+        "name": "salvo no servidor (validado) igual ao editor",
+        "ok": true,
+        "detail": "ok"
+      },
+      {
+        "name": "recarregar: abre com o visual e a torcida salvos",
+        "ok": true,
+        "detail": ""
+      },
+      {
+        "name": "Esc (handleEsc) fecha o editor e descarta o não salvo",
+        "ok": true,
+        "detail": ""
+      },
+      {
+        "name": "4 corpos vestem a camisa da torcida (modelo camiseta + design)",
+        "ok": true,
+        "detail": "homem:camiseta/#213 mulher:camiseta/#213 idoso:camiseta/#213 idosa:camiseta/#213"
+      },
+      {
+        "name": "1366×768: salvar visível, sem rolagem lateral, avatar grande",
+        "ok": true,
+        "detail": "{\"saveBottom\":704,\"pageScrollW\":1366,\"startScroll\":0,\"pvW\":700,\"pvH\":603}"
+      },
+      {
+        "name": "celular: abas roláveis, troca peça, sem rolagem lateral",
+        "ok": true,
+        "detail": "{\"tabsScroll\":true,\"pageScrollW\":390,\"pv\":521}"
+      },
+      {
+        "name": "30× abrir/fechar: sem novos contextos/renderers",
+        "ok": true,
+        "detail": "contextos criados 2→2, vivos 1, renderers [1,1]"
+      },
+      {
+        "name": "30× abrir/fechar: geometrias/texturas/programas estáveis",
+        "ok": true,
+        "detail": "{\"renderersCreated\":1,\"renderersLive\":1,\"contextsLost\":0,\"handlesLive\":1,\"handlesCreated\":2,\"geometries\":19,\"textures\":27,\"programs\":11,\"calls\":10,\"triangles\":31474} → {\"renderersCreated\":1,\"renderersLive\":1,\"contextsLost\":0,\"handlesLive\":1,\"handlesCreated\":31,\"geometries\":19,\"textures\":26,\"programs\":10,\"calls\":10,\"triangles\":31474}"
+      },
+      {
+        "name": "30× abrir/fechar: ouvintes e nós estáveis",
+        "ok": true,
+        "detail": "ouvintes 143→142, nós 965→966, heap 11.8→13.2 MB"
+      },
+      {
+        "name": "20 roupas + 20 acessórios (2 rodadas): só o cache de peças da 1ª; a 2ª não cresce",
+        "ok": true,
+        "detail": "geo 19 tex 26 prog 10 → geo 24 tex 38 prog 11 → geo 24 tex 38 prog 11"
+      },
+      {
+        "name": "depois da sequência: ouvintes estáveis",
+        "ok": true,
+        "detail": "143→142"
+      },
+      {
+        "name": "perda de contexto: renderer recriado e volta a desenhar",
+        "ok": true,
+        "detail": "{\"recovered\":true,\"ms\":292,\"info\":{\"renderersCreated\":2,\"renderersLive\":1,\"contextsLost\":1,\"handlesLive\":1,\"handlesCreated\":33,\"geometries\":11,\"textures\":20,\"programs\":10,\"calls\":10,\"triangles\":31474}}"
+      },
+      {
+        "name": "sem erros na página (editor)",
+        "ok": true,
+        "detail": ""
+      },
+      {
+        "name": "no jogo: editor abre como overlay (o jogo segue por baixo)",
+        "ok": true,
+        "detail": "quadros do jogo com o editor aberto: {\"frames\":181,\"avgMs\":16.67,\"p95Ms\":17.8}; fechado {\"frames\":181,\"avgMs\":16.65,\"p95Ms\":17.9}"
+      },
+      {
+        "name": "no jogo: 10× abrir/fechar — só 1 contexto de prévia (reutilizado), renderer do jogo sem crescer além do controle",
+        "ok": true,
+        "detail": "Δ editor: contextos +1, geo -17, tex -128, prog -1, ouvintes 5 · Δ controle: geo 2, tex 11"
+      }
+    ]
+  }
+}

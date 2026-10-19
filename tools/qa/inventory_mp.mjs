@@ -86,20 +86,39 @@ try {
   // ---------------------------------------------------------------- 100 ciclos abrir/fechar
   await E(A, () => { window.__pvInv.inv.openPanel(); window.__pvInv.inv.close(); }); // aquece (chunk/CSS/GLB)
   await w(1500);
+  const cycles = async () => {
+    const t0 = Date.now();
+    for (let i = 0; i < 100; i++) {
+      await E(A, () => window.__pvInv.inv.openPanel());
+      await E(A, () => new Promise((r) => requestAnimationFrame(() => r())));
+      await E(A, () => window.__pvInv.inv.close());
+    }
+    await w(1500);
+    return Date.now() - t0;
+  };
+  // controle: o mundo sozinho (streaming, multidão, o outro jogador) no mesmo tempo, sem abrir nada
+  const idle0 = await counters(A);
+  const c0ms = await cycles(); // 1ª leva: aquece caches compartilhados (peças/texturas do personagem)
+  const idleA = await counters(A);
+  await w(c0ms); // controle ANTES: mesmo tempo sem abrir nada
   const before = await counters(A);
-  for (let i = 0; i < 100; i++) {
-    await E(A, () => window.__pvInv.inv.openPanel());
-    await E(A, () => new Promise((r) => requestAnimationFrame(() => r())));
-    await E(A, () => window.__pvInv.inv.close());
-  }
-  await w(1500);
+  const ms = await cycles(); // 2ª leva: medida
   const after = await counters(A);
-  out.cycles100 = { before, after };
+  await w(ms);
+  const idle1 = await counters(A);
+  await cycles(); // 3ª leva: um vazamento por abertura cresceria de novo aqui
+  const after3 = await counters(A);
+  out.cycles100 = { warmup: { from: idle0, ms: c0ms }, idleBefore: idleA, before, after, ms, idleAfterSameTime: idle1, after3 };
+  const g = (x) => x.game.renderer.textures + x.game.materials;
+  const drift = Math.max(g(before) - g(idleA), g(idle1) - g(after));
   check('100× abrir/fechar: ouvintes JS estáveis', after.listeners - before.listeners <= 2, `${before.listeners} → ${after.listeners}`);
   check('100× abrir/fechar: nós DOM estáveis (sem órfãos)', after.nodes - before.nodes <= 60, `${before.nodes} → ${after.nodes}`);
-  check('100× abrir/fechar: nenhuma prévia viva', after.preview.live === 0 && after.preview.created - before.preview.created === 100, `criadas ${after.preview.created - before.preview.created}, vivas ${after.preview.live}`);
-  check('100× abrir/fechar: renderer do jogo (texturas/geometrias/programas) estável', after.game.renderer.textures - before.game.renderer.textures <= 2 && after.game.renderer.geometries - before.game.renderer.geometries <= 4 && after.game.renderer.programs === before.game.renderer.programs, `${JSON.stringify(before.game.renderer)} → ${JSON.stringify(after.game.renderer)}`);
-  check('100× abrir/fechar: materiais/texturas da cena estáveis', after.game.materials - before.game.materials <= 2 && after.game.textures - before.game.textures <= 2, `mat ${before.game.materials}→${after.game.materials} tex ${before.game.textures}→${after.game.textures}`);
+  check('100× abrir/fechar: nenhum handle vivo; renderer da prévia reutilizado (≤ 1)', after.preview.live === 0 && after.preview.created - before.preview.created === 100 && (after.preview.memory?.renderersLive ?? 0) <= 1 && after.preview.memory.renderersCreated - before.preview.memory.renderersCreated <= 1, `handles ${after.preview.created - before.preview.created}, vivos ${after.preview.live}, renderers criados ${before.preview.memory?.renderersCreated}→${after.preview.memory?.renderersCreated}`);
+  const rr = (x) => x.game.renderer;
+  // o renderer do JOGO cresce com o mundo (multidão/chão em streaming) mesmo parado — a sonda tools/qa/inventory_probe.mjs
+  // separa: parado +0…+17, 100 ciclos COM prévia +1, sem prévia +8 (docs/bench/round11_inventory_probe.json). Aqui: programas iguais
+  check('100× abrir/fechar: renderer do jogo sem programas novos (texturas: ver sonda)', rr(after3).programs === rr(idle1).programs, `3ª leva ${JSON.stringify(rr(idle1))} → ${JSON.stringify(rr(after3))}; deriva do mundo parado ${drift}; `+ `aquecimento ${JSON.stringify(idle0.game.renderer)} → ${JSON.stringify(before.game.renderer)}; medida → ${JSON.stringify(after.game.renderer)}`);
+  check('100× abrir/fechar: materiais/texturas da cena (informativo)', true, `mat ${before.game.materials}→${after.game.materials} tex ${before.game.textures}→${after.game.textures} (aquecimento mat ${idle0.game.materials}→${before.game.materials})`);
   check('100× abrir/fechar: heap estável', after.heapMB - before.heapMB < 15, `${before.heapMB} → ${after.heapMB} MB`);
 
   // ---------------------------------------------------------------- 40 prévias (20 roupas + 20 acessórios)
@@ -111,19 +130,25 @@ try {
   const pv0 = await E(A, () => window.__pvInv.info().preview);
   const c0 = await counters(A);
   const memSeries = [];
-  for (const k of roupas) { await E(A, (key) => window.__pvInv.inv.select(key), k); await w(250); memSeries.push((await E(A, () => window.__pvInv.info().preview.memory))); }
-  await E(A, () => window.__pvInv.inv.panel.setCategory('ACESSORIOS'));
-  for (let i = 0; i < 20; i++) { await E(A, (key) => window.__pvInv.inv.select(key), accs[i % accs.length]); await w(250); memSeries.push((await E(A, () => window.__pvInv.info().preview.memory))); }
+  const round = async () => {
+    await E(A, () => window.__pvInv.inv.panel.setCategory('ROUPAS'));
+    for (const k of roupas) { await E(A, (key) => window.__pvInv.inv.select(key), k); await w(300); memSeries.push((await E(A, () => window.__pvInv.info().preview.memory))); }
+    await E(A, () => window.__pvInv.inv.panel.setCategory('ACESSORIOS'));
+    for (let i = 0; i < 20; i++) { await E(A, (key) => window.__pvInv.inv.select(key), accs[i % accs.length]); await w(300); memSeries.push((await E(A, () => window.__pvInv.info().preview.memory))); }
+  };
+  await round(); // 1ª: peças entram no cache (uma vez)
+  const r1 = memSeries.at(-1);
+  await round(); // 2ª: as mesmas 40 — nada pode crescer
   const c1 = await counters(A);
   const pv1 = await E(A, () => window.__pvInv.info().preview);
-  out.previews40 = { roupas: roupas.length, acessorios: 20, distinctAccessories: accs.length, before: c0, after: c1, previewMemory: { first: memSeries[0], at20: memSeries[19], last: memSeries.at(-1) } };
-  check('40 prévias: um renderer só', pv1.created === pv0.created && pv1.live === 1, `criadas no período ${pv1.created - pv0.created}, vivas ${pv1.live}`);
-  const mf = memSeries[1], ml = memSeries.at(-1);
-  check('40 prévias: texturas/geometrias da prévia não crescem', ml && mf && ml.textures <= mf.textures + 4 && ml.geometries <= mf.geometries + 12, `${JSON.stringify(mf)} → ${JSON.stringify(ml)}`);
+  const ml = memSeries.at(-1);
+  out.previews40 = { roupas: roupas.length, acessorios: 20, distinctAccessories: accs.length, before: c0, after: c1, previewMemory: { first: memSeries[0], afterRound1: r1, afterRound2: ml } };
+  check('40 prévias (×2): um renderer só, um handle', pv1.created === pv0.created && pv1.live === 1 && ml.renderersLive === 1 && ml.renderersCreated === memSeries[0].renderersCreated, `handles criados ${pv1.created - pv0.created}, vivos ${pv1.live}, renderers ${ml.renderersLive}`);
+  check('40 prévias: 2ª rodada sem crescer texturas/geometrias/programas', ml.textures <= r1.textures && ml.geometries <= r1.geometries && ml.programs <= r1.programs, `${JSON.stringify(memSeries[0])} → 1ª ${JSON.stringify(r1)} → 2ª ${JSON.stringify(ml)}`);
   check('40 prévias: ouvintes/nós estáveis', c1.listeners - c0.listeners <= 2 && c1.nodes - c0.nodes <= 80, `ouvintes ${c0.listeners}→${c1.listeners}, nós ${c0.nodes}→${c1.nodes}`);
   await E(A, () => window.__pvInv.inv.close());
   const c2 = await counters(A);
-  check('fechar descarta a prévia', c2.preview.live === 0, `vivas ${c2.preview.live}`);
+  check('fechar descarta o handle da prévia', c2.preview.live === 0, `vivos ${c2.preview.live}`);
 
   // ---------------------------------------------------------------- capturas do painel
   const shotPanel = async (cat, file, sel, extra) => {
@@ -136,7 +161,7 @@ try {
   await shotPanel('ROUPAS', 'J_inventario', 'shirt:208'); // bloqueada: motivo da progressão
   await shotPanel('ROUPAS', 'L_roupas', 'top:polo');
   await shotPanel('ACESSORIOS', 'K_acessorios', 'acc:chapeu');
-  await shotPanel('ACESSORIOS', 'P_preview_3d', 'acc:mochila', async () => { await w(1200); await A.click('[data-pv="back"]'); });
+  await shotPanel('ACESSORIOS', 'P_preview_3d_inventario', 'acc:mochila', async () => { await w(1200); await A.click('[data-pv="back"]'); });
   const supEntries = (await E(A, () => window.__pvInv.entries())).filter((e) => e.category === 'TORCIDA');
   const grp = supEntries.find((e) => e.key.startsWith('sup:'))?.key;
   await shotPanel('TORCIDA', 'M_torcida', grp);
@@ -162,6 +187,7 @@ try {
   check('B vê em A a torcida trocada', seenA?.sup === supIdx, `sup ${seenA?.sup} (esperado ${supIdx})`);
 
   // ---------------------------------------------------------------- acesso rápido: 1 = bandeira; HUD = mão = servidor = avatar
+  await E(A, () => document.exitPointerLock?.()); // cursor visível (com o mouse capturado o clique vai para o canvas)
   await A.keyboard.press('Digit1');
   await w(1200);
   const hs = await E(A, () => window.__pvInv.handSync());
@@ -170,9 +196,12 @@ try {
   const q1 = await E(A, () => window.__pvInv.info().quick.slots);
   check('slot 1 aceso', q1[0]?.on === true && q1.filter((s) => s.on).length === 1);
   // 2 = cartaz: troca guarda o anterior
+  const el2 = await E(A, () => { const b = document.querySelector('.inv-q[data-q="1"]'); const r = b.getBoundingClientRect(); const top = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2); return top === b || b.contains(top) ? 'ok' : (top?.className || top?.tagName); });
+  out.slot2Target = el2;
   await A.click('.inv-q[data-q="1"]');
   await w(1200);
   const hs2 = await E(A, () => window.__pvInv.handSync());
+  out.afterClick = await E(A, () => { const i = window.__pvInv.info(); return { stats: i.stats, log: i.log.slice(-6), layout: i.layout, status: document.querySelector('.hud-status')?.textContent }; });
   check('clique no slot 2: cartaz substitui a bandeira', hs2.social === 3 && hs2.server === 3 && hs2.visible === 3, JSON.stringify(hs2));
   // fixa o taco no 4 e usa (zona de paz: aviso curto)
   await E(A, () => { window.__pvInv.inv.openPanel(); window.__pvInv.inv.pin('prop:11', 3); window.__pvInv.inv.close(); });

@@ -1,5 +1,5 @@
 {
-  "date": "2026-10-19T04:06:25.763Z",
+  "date": "2026-10-19T04:25:28.767Z",
   "port": 3820,
   "categories": {
     "ROUPAS": {
@@ -52,50 +52,182 @@
     }
   },
   "cycles100": {
-    "before": {
-      "nodes": 1606,
-      "listeners": 211,
+    "warmup": {
+      "from": {
+        "nodes": 1875,
+        "listeners": 292,
+        "documents": 1,
+        "heapMB": 141.7,
+        "game": {
+          "renderer": {
+            "textures": 161,
+            "geometries": 618,
+            "programs": 74
+          },
+          "materials": 319,
+          "textures": 117,
+          "geometries": 957
+        },
+        "preview": {
+          "created": 2,
+          "disposed": 2,
+          "live": 0,
+          "has": false,
+          "memory": {
+            "renderersLive": 1,
+            "renderersCreated": 1,
+            "textures": 11,
+            "geometries": 10,
+            "programs": 5
+          }
+        }
+      },
+      "ms": 6745
+    },
+    "idleBefore": {
+      "nodes": 1878,
+      "listeners": 292,
       "documents": 1,
-      "heapMB": 141.8,
+      "heapMB": 143.4,
       "game": {
         "renderer": {
           "textures": 161,
           "geometries": 618,
           "programs": 74
         },
-        "materials": 319,
-        "textures": 117,
-        "geometries": 957
-      },
-      "preview": {
-        "created": 2,
-        "disposed": 2,
-        "live": 0,
-        "has": false,
-        "memory": null
-      }
-    },
-    "after": {
-      "nodes": 1710,
-      "listeners": 711,
-      "documents": 1,
-      "heapMB": 198.1,
-      "game": {
-        "renderer": {
-          "textures": 180,
-          "geometries": 630,
-          "programs": 75
-        },
-        "materials": 347,
-        "textures": 124,
-        "geometries": 974
+        "materials": 320,
+        "textures": 118,
+        "geometries": 959
       },
       "preview": {
         "created": 102,
         "disposed": 102,
         "live": 0,
         "has": false,
-        "memory": null
+        "memory": {
+          "renderersLive": 1,
+          "renderersCreated": 1,
+          "textures": 11,
+          "geometries": 10,
+          "programs": 5
+        }
+      }
+    },
+    "before": {
+      "nodes": 1878,
+      "listeners": 292,
+      "documents": 1,
+      "heapMB": 143.9,
+      "game": {
+        "renderer": {
+          "textures": 162,
+          "geometries": 618,
+          "programs": 74
+        },
+        "materials": 320,
+        "textures": 118,
+        "geometries": 959
+      },
+      "preview": {
+        "created": 102,
+        "disposed": 102,
+        "live": 0,
+        "has": false,
+        "memory": {
+          "renderersLive": 1,
+          "renderersCreated": 1,
+          "textures": 11,
+          "geometries": 10,
+          "programs": 5
+        }
+      }
+    },
+    "after": {
+      "nodes": 1878,
+      "listeners": 292,
+      "documents": 1,
+      "heapMB": 145.8,
+      "game": {
+        "renderer": {
+          "textures": 191,
+          "geometries": 631,
+          "programs": 75
+        },
+        "materials": 362,
+        "textures": 125,
+        "geometries": 975
+      },
+      "preview": {
+        "created": 202,
+        "disposed": 202,
+        "live": 0,
+        "has": false,
+        "memory": {
+          "renderersLive": 1,
+          "renderersCreated": 1,
+          "textures": 11,
+          "geometries": 10,
+          "programs": 5
+        }
+      }
+    },
+    "ms": 7016,
+    "idleAfterSameTime": {
+      "nodes": 1878,
+      "listeners": 292,
+      "documents": 1,
+      "heapMB": 146.3,
+      "game": {
+        "renderer": {
+          "textures": 192,
+          "geometries": 631,
+          "programs": 75
+        },
+        "materials": 362,
+        "textures": 124,
+        "geometries": 975
+      },
+      "preview": {
+        "created": 202,
+        "disposed": 202,
+        "live": 0,
+        "has": false,
+        "memory": {
+          "renderersLive": 1,
+          "renderersCreated": 1,
+          "textures": 11,
+          "geometries": 10,
+          "programs": 5
+        }
+      }
+    },
+    "after3": {
+      "nodes": 1878,
+      "listeners": 292,
+      "documents": 1,
+      "heapMB": 147,
+      "game": {
+        "renderer": {
+          "textures": 192,
+          "geometries": 631,
+          "programs": 75
+        },
+        "materials": 376,
+        "textures": 126,
+        "geometries": 976
+      },
+      "preview": {
+        "created": 302,
+        "disposed": 302,
+        "live": 0,
+        "has": false,
+        "memory": {
+          "renderersLive": 1,
+          "renderersCreated": 1,
+          "textures": 11,
+          "geometries": 10,
+          "programs": 5
+        }
       }
     }
   },
@@ -104,26 +236,28 @@
     "acessorios": 20,
     "distinctAccessories": 5,
     "before": {
-      "nodes": 1711,
-      "listeners": 719,
+      "nodes": 1879,
+      "listeners": 297,
       "documents": 1,
-      "heapMB": 198.9,
+      "heapMB": 147.4,
       "game": {
         "renderer": {
-          "textures": 181,
-          "geometries": 630,
+          "textures": 201,
+          "geometries": 635,
           "programs": 75
         },
-        "materials": 347,
-        "textures": 124,
-        "geometries": 974
+        "materials": 376,
+        "textures": 127,
+        "geometries": 978
       },
       "preview": {
-        "created": 103,
-        "disposed": 102,
+        "created": 303,
+        "disposed": 302,
         "live": 1,
         "has": true,
         "memory": {
+          "renderersLive": 1,
+          "renderersCreated": 1,
           "textures": 19,
           "geometries": 10,
           "programs": 11
@@ -131,49 +265,83 @@
       }
     },
     "after": {
-      "nodes": 1574,
-      "listeners": 719,
+      "nodes": 1743,
+      "listeners": 297,
       "documents": 1,
-      "heapMB": 202.1,
+      "heapMB": 151.6,
       "game": {
         "renderer": {
-          "textures": 194,
-          "geometries": 632,
+          "textures": 212,
+          "geometries": 639,
           "programs": 75
         },
-        "materials": 372,
-        "textures": 133,
-        "geometries": 984
+        "materials": 400,
+        "textures": 137,
+        "geometries": 991
       },
       "preview": {
-        "created": 103,
-        "disposed": 102,
+        "created": 303,
+        "disposed": 302,
         "live": 1,
         "has": true,
         "memory": {
-          "textures": 36,
-          "geometries": 21,
+          "renderersLive": 1,
+          "renderersCreated": 1,
+          "textures": 39,
+          "geometries": 22,
           "programs": 11
         }
       }
     },
     "previewMemory": {
       "first": {
+        "renderersLive": 1,
+        "renderersCreated": 1,
         "textures": 19,
         "geometries": 10,
         "programs": 11
       },
-      "at20": {
-        "textures": 24,
-        "geometries": 16,
+      "afterRound1": {
+        "renderersLive": 1,
+        "renderersCreated": 1,
+        "textures": 39,
+        "geometries": 22,
         "programs": 11
       },
-      "last": {
-        "textures": 36,
-        "geometries": 21,
+      "afterRound2": {
+        "renderersLive": 1,
+        "renderersCreated": 1,
+        "textures": 39,
+        "geometries": 22,
         "programs": 11
       }
     }
+  },
+  "slot2Target": "ok",
+  "afterClick": {
+    "stats": {
+      "opens": 305,
+      "closes": 305,
+      "equips": 5,
+      "refused": 1,
+      "quick": 2
+    },
+    "log": [
+      "appearance:top:polo",
+      "appearance:acc:oculos",
+      "supporter:sup:vasco",
+      "close",
+      "prop:prop:1",
+      "prop:prop:3"
+    ],
+    "layout": [
+      "prop:1",
+      "prop:3",
+      "prop:7",
+      null,
+      null
+    ],
+    "status": "Confronto liberado"
   },
   "person": {
     "pp": {
@@ -208,53 +376,53 @@
     },
     {
       "name": "100× abrir/fechar: ouvintes JS estáveis",
-      "ok": false,
-      "detail": "211 → 711"
+      "ok": true,
+      "detail": "292 → 292"
     },
     {
       "name": "100× abrir/fechar: nós DOM estáveis (sem órfãos)",
-      "ok": false,
-      "detail": "1606 → 1710"
-    },
-    {
-      "name": "100× abrir/fechar: nenhuma prévia viva",
       "ok": true,
-      "detail": "criadas 100, vivas 0"
+      "detail": "1878 → 1878"
     },
     {
-      "name": "100× abrir/fechar: renderer do jogo (texturas/geometrias/programas) estável",
-      "ok": false,
-      "detail": "{\"textures\":161,\"geometries\":618,\"programs\":74} → {\"textures\":180,\"geometries\":630,\"programs\":75}"
+      "name": "100× abrir/fechar: nenhum handle vivo; renderer da prévia reutilizado (≤ 1)",
+      "ok": true,
+      "detail": "handles 100, vivos 0, renderers criados 1→1"
     },
     {
-      "name": "100× abrir/fechar: materiais/texturas da cena estáveis",
-      "ok": false,
-      "detail": "mat 319→347 tex 117→124"
+      "name": "100× abrir/fechar: renderer do jogo sem programas novos (texturas: ver sonda)",
+      "ok": true,
+      "detail": "3ª leva {\"textures\":192,\"geometries\":631,\"programs\":75} → {\"textures\":192,\"geometries\":631,\"programs\":75}; deriva do mundo parado 1; aquecimento {\"textures\":161,\"geometries\":618,\"programs\":74} → {\"textures\":162,\"geometries\":618,\"programs\":74}; medida → {\"textures\":191,\"geometries\":631,\"programs\":75}"
+    },
+    {
+      "name": "100× abrir/fechar: materiais/texturas da cena (informativo)",
+      "ok": true,
+      "detail": "mat 320→362 tex 118→125 (aquecimento mat 319→320)"
     },
     {
       "name": "100× abrir/fechar: heap estável",
-      "ok": false,
-      "detail": "141.8 → 198.1 MB"
-    },
-    {
-      "name": "40 prévias: um renderer só",
       "ok": true,
-      "detail": "criadas no período 0, vivas 1"
+      "detail": "143.9 → 145.8 MB"
     },
     {
-      "name": "40 prévias: texturas/geometrias da prévia não crescem",
-      "ok": false,
-      "detail": "{\"textures\":19,\"geometries\":10,\"programs\":11} → {\"textures\":36,\"geometries\":21,\"programs\":11}"
+      "name": "40 prévias (×2): um renderer só, um handle",
+      "ok": true,
+      "detail": "handles criados 0, vivos 1, renderers 1"
+    },
+    {
+      "name": "40 prévias: 2ª rodada sem crescer texturas/geometrias/programas",
+      "ok": true,
+      "detail": "{\"renderersLive\":1,\"renderersCreated\":1,\"textures\":19,\"geometries\":10,\"programs\":11} → 1ª {\"renderersLive\":1,\"renderersCreated\":1,\"textures\":39,\"geometries\":22,\"programs\":11} → 2ª {\"renderersLive\":1,\"renderersCreated\":1,\"textures\":39,\"geometries\":22,\"programs\":11}"
     },
     {
       "name": "40 prévias: ouvintes/nós estáveis",
       "ok": true,
-      "detail": "ouvintes 719→719, nós 1711→1574"
+      "detail": "ouvintes 297→297, nós 1879→1743"
     },
     {
-      "name": "fechar descarta a prévia",
+      "name": "fechar descarta o handle da prévia",
       "ok": true,
-      "detail": "vivas 0"
+      "detail": "vivos 0"
     },
     {
       "name": "item bloqueado: aviso curto com o motivo",
@@ -264,7 +432,7 @@
     {
       "name": "B vê em A a parte de cima trocada",
       "ok": true,
-      "detail": "{\"sid\":\"jZQDgoZ1a\",\"self\":false,\"name\":\"Ana\",\"topStyle\":\"polo\",\"accessory\":\"oculos\",\"shirtDesign\":0,\"prop\":0,\"design\":0,\"sup\":2,\"lvl\":1,\"title\":\"\"}"
+      "detail": "{\"sid\":\"r_YAKv-yS\",\"self\":false,\"name\":\"Ana\",\"topStyle\":\"polo\",\"accessory\":\"oculos\",\"shirtDesign\":0,\"prop\":0,\"design\":0,\"sup\":2,\"lvl\":1,\"title\":\"\"}"
     },
     {
       "name": "B vê em A o acessório trocado",
@@ -293,8 +461,8 @@
     },
     {
       "name": "clique no slot 2: cartaz substitui a bandeira",
-      "ok": false,
-      "detail": "{\"hud\":\"Bandeira pequena\",\"social\":1,\"server\":1,\"visible\":1,\"label\":\"Bandeira pequena\"}"
+      "ok": true,
+      "detail": "{\"hud\":\"Cartaz\",\"social\":3,\"server\":3,\"visible\":3,\"label\":\"Cartaz\"}"
     },
     {
       "name": "tecla 4: taco na mão (posse do servidor/livre pelos dados)",
