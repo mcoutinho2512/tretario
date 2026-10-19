@@ -7,9 +7,10 @@ import { afterAll, describe, expect, it } from 'vitest';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { Client, type Room } from '@colyseus/sdk';
+import { freePortBlock } from './fixtures/freePort';
 
 const skip = process.env.PV_SKIP_NET_TESTS === '1';
-const BASE_PORT = 29102 + (process.pid % 200) * 8;
+const BASE_PORT = await freePortBlock(8);
 const w = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const APP = { body: 'homem', skin: 1, hair: 1, top: 1, bottom: 1, shoes: 1 };
 const QUIET = ['crowd', 'gf', 'gf_del', 'gf_res', 'pong', 'correct', 'chat_hello', 'chat', 'chat_mutes', 'mode_ok', 'mode_denied', 'knock', 'action', 'push_denied', 'act_denied', 'prop_denied'];
@@ -24,7 +25,7 @@ const servers: ChildProcess[] = [];
 const rooms: Room[] = [];
 
 /** sobe o servidor; sob carga (suíte inteira + outros processos) a subida passa de 20 s, e a porta derivada do pid
- * pode estar ocupada por outra suíte em paralelo → até 45 s por tentativa e, se o processo morrer, outra porta */
+ * pode estar ocupada → até 45 s por tentativa e, se o processo morrer, outro bloco livre (fixtures/freePort) */
 async function startServer(port: number, env: Record<string, string> = {}, tries = 3): Promise<string> {
   const srv = spawn('npx', ['tsx', 'src/index.ts'], { cwd: 'server', env: { ...process.env, PORT: String(port), PV_TEST: '1', PV_STORE: 'memory', PV_GRAFFITI_STORE: 'memory', PV_EVENT: 'cotidiano', PV_PROTECT_MS: '300', DATABASE_URL: '', ...env }, stdio: ['ignore', 'pipe', 'pipe'], detached: true });
   servers.push(srv);
@@ -35,7 +36,7 @@ async function startServer(port: number, env: Record<string, string> = {}, tries
   for (let i = 0; i < 450 && !ready && !dead; i++) await w(100);
   if (ready) return `ws://127.0.0.1:${port}`;
   if (!dead && srv.pid) { try { process.kill(-srv.pid, 'SIGTERM'); } catch { /* */ } }
-  if (tries > 1) return startServer(port + 401, env, tries - 1);
+  if (tries > 1) return startServer(await freePortBlock(2), env, tries - 1);
   throw new Error('servidor de teste não subiu');
 }
 
