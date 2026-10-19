@@ -1158,6 +1158,7 @@ export class Game {
       ix: () => this.ix?.info() ?? null,
       // rodada 11 — entrada (QA: tools/qa/desktop_input.mjs)
       ixPerfReset: () => this.ix?.perfReset(),
+      ixPick: (x: number, y: number) => this.ix?.pick(x, y)?.key ?? null,
       input: () => ({ ...this.input.info(), esc: escLayers(), escLog: escLog.slice(-8), camYaw: this.cam.yaw, vehReturning: this.vehCam.returning, menu: this.hudShell.gameMenu.open, controls: this.hudShell.controls.open, settings: this.hudShell.settings.open }),
       ixPoint: (x: number, y: number, via: 'click' | 'tap' | 'aim' = 'click') => this.ix?.pointAt(x, y, via) ?? false,
       ixUse: () => this.ix?.useKey() ?? false,

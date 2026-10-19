@@ -92,6 +92,9 @@ describe('campo de texto (regra global)', () => {
     expect(isTypingTarget({ tagName: 'BUTTON', isContentEditable: false } as unknown as EventTarget)).toBe(false);
     expect(isTypingTarget({ tagName: 'CANVAS' } as unknown as EventTarget)).toBe(false);
     expect(isTypingTarget(null)).toBe(false);
+    // rádio/caixa/controle deslizante dos ajustes não são campo de texto: F1/Esc/WASD continuam valendo
+    for (const type of ['radio', 'checkbox', 'range']) expect(isTypingTarget({ tagName: 'INPUT', type } as unknown as EventTarget)).toBe(false);
+    for (const type of ['text', 'search', 'email', 'password', 'number']) expect(isTypingTarget({ tagName: 'INPUT', type } as unknown as EventTarget)).toBe(true);
   });
 });
 

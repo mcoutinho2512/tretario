@@ -83,11 +83,15 @@ export function resolveKeymap(over: Partial<Record<GameAction, string[]>> = load
   return m;
 }
 
+/** INPUT que não recebe texto (rodada 11): com foco neles as teclas de jogo continuam valendo (ex.: F1 com um rádio dos ajustes focado) */
+const NON_TEXT_INPUT = new Set(['checkbox', 'radio', 'range', 'button', 'submit', 'reset', 'color', 'file', 'image']);
+
 /** foco em campo de texto: atalhos de jogo não valem (regra global) */
 export function isTypingTarget(t: EventTarget | null): boolean {
   const el = t as HTMLElement | null;
   if (!el || !el.tagName) return false;
-  return el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable === true;
+  if (el.tagName === 'INPUT') return !NON_TEXT_INPUT.has(String((el as HTMLInputElement).type ?? '').toLowerCase());
+  return el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable === true;
 }
 
 // ---------------------------------------------------------------- rodada 11 (agente A) — acréscimos

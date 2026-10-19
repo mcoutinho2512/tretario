@@ -1,0 +1,350 @@
+{
+  "ok": 45,
+  "total": 45,
+  "results": [
+    {
+      "name": "entrou: cursor visível, sem pointer lock, nenhum requestPointerLock",
+      "ok": true,
+      "detail": "{\"lock\":null,\"canvas\":\"auto\",\"body\":\"auto\",\"calls\":0,\"seen\":0,\"hidden\":false}"
+    },
+    {
+      "name": "clique esquerdo no cenário: sem pointer lock e sem soco",
+      "ok": true,
+      "detail": "golpes 0→0"
+    },
+    {
+      "name": "botão direito + arrasto gira a câmera (yaw muda) com o cursor visível",
+      "ok": true,
+      "detail": "Δyaw=-0.58 rad · olhando=true"
+    },
+    {
+      "name": "soltou o direito: mover o mouse não gira mais",
+      "ok": true,
+      "detail": "Δ=0.0000"
+    },
+    {
+      "name": "menu de contexto do navegador bloqueado sobre o cenário",
+      "ok": true,
+      "detail": "menus=0"
+    },
+    {
+      "name": "arrasto de câmera sem pointer lock",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "esquerdo arrastando gira e NÃO vira clique",
+      "ok": true,
+      "detail": "cliques=0"
+    },
+    {
+      "name": "HUD consome: botão direito/roda/clique no minimapa não giram, não dão zoom e não interagem com o mundo",
+      "ok": true,
+      "detail": "alvo=CANVAS. Δyaw=0.0000 cliquesMundo=0"
+    },
+    {
+      "name": "carro distante: IDENTIFICADO no hover (\"CARRO · longe\" / chegue mais perto) e não usado",
+      "ok": true,
+      "detail": "CARRO · longe · cursor=\"\""
+    },
+    {
+      "name": "clique no carro distante: só explica (servidor não é chamado para entrar)",
+      "ok": true,
+      "detail": "ok"
+    },
+    {
+      "name": "hover no carro ao alcance: realce \"CARRO · Entrar\" e cursor de mão",
+      "ok": true,
+      "detail": "E · CARRO · Entrar · cursor=pointer"
+    },
+    {
+      "name": "clique no carro → entra (servidor confirma), sem pointer lock",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "dirigindo: botão direito olha em volta (câmera fora do rumo enquanto segura)",
+      "ok": true,
+      "detail": "desvio=1.28 rad"
+    },
+    {
+      "name": "soltou: espera ~1 s (0,5 s depois ainda olhando) e volta atrás do veículo suavemente",
+      "ok": true,
+      "detail": "0,5 s: 1.28 · 2,4 s: 0.04 rad"
+    },
+    {
+      "name": "dirigindo: WASD com o cursor visível, sem pointer lock",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "botão SAIR do HUD do veículo (clique) desce",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "moto: clique entra, direito olha em volta, tecla E sai — sem pointer lock",
+      "ok": true,
+      "detail": "Δyaw=-0.48"
+    },
+    {
+      "name": "bicycle: clique entra, direito olha em volta, SAIR sai — sem pointer lock",
+      "ok": true,
+      "detail": "Δyaw=-0.48"
+    },
+    {
+      "name": "scooter: clique entra, direito olha em volta, SAIR sai — sem pointer lock",
+      "ok": true,
+      "detail": "Δyaw=-0.48"
+    },
+    {
+      "name": "combate: R soco · Q chute · C esquiva pelo teclado",
+      "ok": true,
+      "detail": "pedidos 0→3"
+    },
+    {
+      "name": "clique esquerdo não soca (nem no confronto)",
+      "ok": true,
+      "detail": "pedidos 3→3"
+    },
+    {
+      "name": "combate sem pointer lock",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "chat: Enter foca o campo; WASD digitando não move",
+      "ok": true,
+      "detail": "foco=true Δ=0.000 m"
+    },
+    {
+      "name": "chat: canais GERAL / PERTO / GRUPO preservados",
+      "ok": true,
+      "detail": "Geral,Perto,Grupo"
+    },
+    {
+      "name": "chat: Esc sai do chat (e NÃO abre o menu junto)",
+      "ok": true,
+      "detail": "{\"focus\":false,\"state\":\"idle\",\"menu\":false}"
+    },
+    {
+      "name": "chat: clique fora devolve ao jogo (W volta a andar)",
+      "ok": true,
+      "detail": "andou 0.78 m"
+    },
+    {
+      "name": "Esc fecha só o topo: controles → ajustes → (nada) abre o menu do jogo",
+      "ok": true,
+      "detail": "[\"ajustes\",\"controles\"] → [\"ajustes\"] → [] → menu=true"
+    },
+    {
+      "name": "menu do jogo: CONTINUAR, CONFIGURAÇÕES, CONTROLES, ÁUDIO, GRÁFICOS, SAIR",
+      "ok": true,
+      "detail": "CONTINUAR · CONFIGURAÇÕES · CONTROLES · ÁUDIO · GRÁFICOS · SAIR"
+    },
+    {
+      "name": "menu aberto: mundo não pausa e não desconecta",
+      "ok": true,
+      "detail": "status online→online · quadros=2377"
+    },
+    {
+      "name": "SAIR pede confirmação; Esc cancela só ela (menu continua)",
+      "ok": true,
+      "detail": "[\"menu-jogo\"]"
+    },
+    {
+      "name": "tela de CONTROLES agrupada (MOVIMENTO, CÂMERA, INTERAÇÃO, VEÍCULOS, COMBATE, ITENS, SOCIAL)",
+      "ok": true,
+      "detail": "MOVIMENTO · CÂMERA · INTERAÇÃO · VEÍCULOS · COMBATE · ITENS · SOCIAL · SISTEMA"
+    },
+    {
+      "name": "remapeamento: clique na tecla, aperta a nova (Mapa → N) e N passa a abrir o mapa",
+      "ok": true,
+      "detail": "tecla=N mapa false→true"
+    },
+    {
+      "name": "remapeamento: tecla já usada pergunta (conflito avisado)",
+      "ok": true,
+      "detail": "I já é de \"Inventário\". Trocar mesmo assim Cancelar"
+    },
+    {
+      "name": "restaurar padrão (Mapa volta a M)",
+      "ok": true,
+      "detail": "M"
+    },
+    {
+      "name": "menu/controles sem pointer lock",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "hover em pessoa: cursor de interação (context-menu)",
+      "ok": true,
+      "detail": "cursor=context-menu"
+    },
+    {
+      "name": "arrastar sobre o jogador não abre o painel; clique parado abre",
+      "ok": true,
+      "detail": "arrasto=false clique=true"
+    },
+    {
+      "name": "girar a câmera com o painel da pessoa aberto não o fecha",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Esc fecha o painel da pessoa (só ele)",
+      "ok": true,
+      "detail": "{\"p\":false,\"menu\":false}"
+    },
+    {
+      "name": "evento/agenda: sem pointer lock em nenhum momento",
+      "ok": true,
+      "detail": "11 pontos checados"
+    },
+    {
+      "name": "1920×1080: entrou sem pointer lock, cursor visível",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "1920×1080: botão direito + arrasto gira",
+      "ok": true,
+      "detail": "Δ=-0.72"
+    },
+    {
+      "name": "1920×1080: clique entra no carro, E sai",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "1920×1080: Esc sem nada aberto abre o menu",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "1920×1080: sem pointer lock do começo ao fim",
+      "ok": true,
+      "detail": ""
+    }
+  ],
+  "lockLog": [
+    {
+      "where": "entrada",
+      "lock": null,
+      "canvas": "auto",
+      "body": "auto",
+      "calls": 0,
+      "seen": 0,
+      "hidden": false
+    },
+    {
+      "where": "clique vazio",
+      "lock": null,
+      "canvas": "auto",
+      "body": "auto",
+      "calls": 0,
+      "seen": 0,
+      "hidden": false
+    },
+    {
+      "where": "arrasto direito",
+      "lock": null,
+      "canvas": "auto",
+      "body": "auto",
+      "calls": 0,
+      "seen": 0,
+      "hidden": false
+    },
+    {
+      "where": "entrou no carro",
+      "lock": null,
+      "canvas": "pointer",
+      "body": "auto",
+      "calls": 0,
+      "seen": 0,
+      "hidden": false
+    },
+    {
+      "where": "dirigindo",
+      "lock": null,
+      "canvas": "auto",
+      "body": "auto",
+      "calls": 0,
+      "seen": 0,
+      "hidden": false
+    },
+    {
+      "where": "moto",
+      "lock": null,
+      "canvas": "auto",
+      "body": "auto",
+      "calls": 0,
+      "seen": 0,
+      "hidden": false
+    },
+    {
+      "where": "bicycle",
+      "lock": null,
+      "canvas": "auto",
+      "body": "auto",
+      "calls": 0,
+      "seen": 0,
+      "hidden": false
+    },
+    {
+      "where": "scooter",
+      "lock": null,
+      "canvas": "auto",
+      "body": "auto",
+      "calls": 0,
+      "seen": 0,
+      "hidden": false
+    },
+    {
+      "where": "combate",
+      "lock": null,
+      "canvas": "auto",
+      "body": "auto",
+      "calls": 0,
+      "seen": 0,
+      "hidden": false
+    },
+    {
+      "where": "menu",
+      "lock": null,
+      "canvas": "auto",
+      "body": "auto",
+      "calls": 0,
+      "seen": 0,
+      "hidden": false
+    },
+    {
+      "where": "evento",
+      "lock": null,
+      "canvas": "auto",
+      "body": "auto",
+      "calls": 0,
+      "seen": 0,
+      "hidden": false
+    },
+    {
+      "where": "hd entrada",
+      "lock": null,
+      "canvas": "auto",
+      "body": "auto",
+      "calls": 0,
+      "seen": 0,
+      "hidden": false
+    },
+    {
+      "where": "hd fim",
+      "lock": null,
+      "canvas": "auto",
+      "body": "auto",
+      "calls": 0,
+      "seen": 0,
+      "hidden": false
+    }
+  ]
+}
