@@ -22,7 +22,9 @@ import type { CharacterAppearance } from '../characters/bodyTypes';
 import type { CrowdDirector } from '../characters/crowd/CrowdDirector';
 import { createAgent, type CrowdAgent } from '../characters/crowd/crowdBudget';
 import { randomAppearance, type BodyType } from '../characters/bodyTypes';
-import { SocialSchedule, rng, type SocialCrowdConfig } from './crowdSocial';
+import { SocialSchedule, rng, type SocialCrowdConfig, type SocialProfile } from './crowdSocial';
+import { supAt, supporterData, supporterOutfit } from '../supporters/data'; // rodada 10 — concentrações de torcida
+import { PROP_BY_KIND } from './props';
 import { RallyRegistry, rallyPoints } from './rally';
 import { startNpcReaction, stepNpcReaction, type NpcHittable, type NpcReaction, type NpcTarget, npcDownPhase } from '../combat/npcHits';
 
@@ -150,7 +152,9 @@ export class RallyCrowd implements NpcHittable {
   private rebuild() {
     for (const m of this.members) this.release(m);
     this.members = [];
-    const pts = rallyPoints.all().filter((p) => p.strength > 0);
+    // rodada 10: pontos com NPCs RESERVADOS (eventos agendados: caminhada, torcidas) primeiro — o teto do preset corta o
+    // fim da lista, e o público reservado de um evento não deve sumir atrás da multidão de ambiente dos trios
+    const pts = rallyPoints.all().filter((p) => p.strength > 0).sort((a, b) => (b.crowd ? 1 : 0) - (a.crowd ? 1 : 0));
     this.stats.points = pts.length;
     // pontos com NPCs reservados (eventos agendados, rodada 9) ficam fora da divisão proporcional de rallyCrowd
     if ((!this.target && !pts.some((p) => p.crowd)) || !pts.length) return;
@@ -168,10 +172,22 @@ export class RallyCrowd implements NpcHittable {
         if (this.blocked(spot.x, spot.z)) continue;
         const body = BODIES[seed % BODIES.length];
         const app = randomAppearance(seed, body);
+        // rodada 10 — concentração de TORCIDA (dados): a maioria veste a camisa, parte leva bandeira/faixa das cores
+        const sup = p.sup ? supAt(supporterData(), p.sup) : null;
+        let profile: SocialProfile | undefined;
+        if (sup) {
+          const o = supporterOutfit(sup);
+          if (r() < 0.8) Object.assign(app, { topStyle: 'camiseta', shirtDesign: o.shirtDesign, top: o.top }, r() < 0.35 && o.bottom !== undefined ? { bottom: o.bottom } : {});
+          const roll = r();
+          const flags = sup.flagSet, banners = sup.bannerSet;
+          if (roll < 0.4 && flags.length) profile = { prop: PROP_BY_KIND.get(roll < 0.12 ? 'flag_large' : 'flag_small')!.id, design: flags[Math.floor(r() * flags.length)] };
+          else if (roll < 0.5 && banners.length) profile = { prop: PROP_BY_KIND.get('banner')!.id, design: banners[Math.floor(r() * banners.length)] };
+          else if (roll < 0.9) profile = { prop: 0, design: 0 };
+        }
         const agent = createAgent({ maxTier: 1, body: BODY_INDEX[body], skin: app.skin, hair: app.hair, top: app.top, bottom: app.bottom, scale: app.scale, look: packLook(app), shirt: app.shirtDesign ?? 0, x: spot.x, z: spot.z });
         this.members.push({
           agent, seed, point: p.id, u1, u2, x: spot.x, z: spot.z, heading: Math.atan2(p.x - spot.x, p.z - spot.z), speed: 0,
-          look: (r() - 0.5) * 0.5, schedule: new SocialSchedule(seed, this.cfg), react: null, app, skin: null,
+          look: (r() - 0.5) * 0.5, schedule: new SocialSchedule(seed, this.cfg, profile), react: null, app, skin: null,
         });
       }
     });

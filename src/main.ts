@@ -27,6 +27,9 @@ import { accountApi, errorText } from './identity/client';
 import { groupDesigns, withGroupShirt, type CurrentEventResponse, type PublicGroup } from './events/groups';
 import { AccountDialog } from './ui/accountDialog';
 import { GroupPicker } from './ui/groupPicker';
+import { SupporterPicker, shirtSwatch } from './ui/supporterPicker'; // rodada 10 — torcidas
+import { loadSupporterData, supporterGroup, supporterOutfit } from './supporters/data'; // rodada 10 — torcidas
+import { localSupporter, setLocalSupporter } from './supporters/session'; // rodada 10 — torcida sem conta (só a sessão)
 import { metricsLine } from './ui/metricsText';
 import { openCharacterEditor, registerCharacterEditor } from './ui/editorBridge';
 import type { EventDef } from './events/types';
@@ -389,10 +392,58 @@ $('btn-back').addEventListener('click', () => {
 // ------------------------------------------------------------------ início
 const dialog = new AccountDialog(appEl);
 const picker = new GroupPicker(appEl);
+// ------------------------------------------------------------------ rodada 10 — torcida (src/supporters; não obrigatória)
+const supPicker = new SupporterPicker(appEl);
+let mySupporter: { current: string | null; pending: string | null } = { current: null, pending: null };
+function renderSupporterChip() {
+  void loadSupporterData().then((data) => {
+    const el = document.getElementById('btn-supporter-label');
+    if (!el) return;
+    const g = supporterGroup(data, mySupporter.current);
+    el.innerHTML = '';
+    if (g) { const sw = document.createElement('span'); sw.className = 'swatch-shirt'; sw.setAttribute('style', shirtSwatch(DESIGN_BY_ID.get(g.clothingSet.shirtDesign))); el.append(sw, `TORCIDA: ${g.shortName}`); }
+    else el.textContent = mySupporter.current ? 'TORCIDA: NENHUMA' : 'TORCIDA';
+    $('home-sup').classList.toggle('hidden', !data?.groups.length);
+  });
+}
+async function refreshSupporter() {
+  if (authed()) { const r = await accountApi.getSupporter(); mySupporter = r.ok && r.data ? { current: r.data.current, pending: r.data.pending } : { current: null, pending: null }; }
+  else mySupporter = { current: localSupporter(), pending: null };
+  renderSupporterChip();
+}
+async function pickSupporter(): Promise<void> {
+  const data = await loadSupporterData();
+  if (!data) return;
+  home.classList.add('hidden');
+  const choice = await supPicker.open(data, mySupporter.current, { account: authed(), pending: mySupporter.pending });
+  if (!choice) { supPicker.root.classList.add('hidden'); showHome(); return; }
+  let msg = '';
+  if (authed()) {
+    supPicker.status('Salvando…');
+    const r = await accountApi.putSupporter(choice.group);
+    if (!r.ok || !r.data) { supPicker.status(errorText(r.error)); return pickSupporter(); }
+    mySupporter = { current: r.data.current, pending: r.data.pending };
+    if (r.data.deferred) msg = 'Troca de torcida pendente: vale quando você sair do evento em andamento.';
+  } else { setLocalSupporter(choice.group === data.neutralId ? null : choice.group); mySupporter = { current: localSupporter(), pending: null }; }
+  // "vestir as cores": camisa da torcida + cores sugeridas (o resto do visual fica igual)
+  const g = supporterGroup(data, choice.group);
+  if (g && choice.wearColors) {
+    const next = vApp({ ...look, topStyle: 'camiseta', ...supporterOutfit(g) });
+    if (next) {
+      if (authed()) { const a = await accountApi.putAppearance(next); if (a.ok && a.data) { look = a.data.appearance; savedLook = look; if (me) me.appearance = look; } }
+      else { look = next; saveLocalLook(); }
+      game?.setAppearance(look);
+    }
+  } else if (authed()) game?.setAppearance(look); // avisa a sala para reler
+  supPicker.root.classList.add('hidden');
+  showHome(msg || (g ? `Torcida: ${g.displayName}.` : 'Você está sem torcida.'));
+}
+$('btn-supporter').addEventListener('click', () => void pickSupporter());
 
 function showHome(msg = '') {
   start.classList.add('hidden');
   picker.root.classList.add('hidden');
+  supPicker.root.classList.add('hidden'); // rodada 10 — torcida
   home.classList.remove('hidden');
   renderHome();
   homeMsg(msg);
@@ -426,6 +477,7 @@ function renderHome() {
     gl.append(sw, ` ${g.name}`);
   } else gl.textContent = ev?.groups.length ? 'ESCOLHER GRUPO' : 'GRUPO';
   $('btn-group').classList.toggle('hidden', !ev?.groups.length);
+  renderSupporterChip(); // rodada 10 — torcida
 }
 
 /** evento atual: do servidor; sem servidor, dos dados estáticos (mesmo arquivo) */
@@ -471,6 +523,7 @@ async function refreshMe() {
     if (me.preferences?.quality) setQuality(me.preferences.quality as QualityChoice, false);
     if (me.membership === undefined && ev) me.membership = ev.membership;
   } else savedLook = null;
+  await refreshSupporter(); // rodada 10 — torcida
   renderHome();
 }
 
@@ -520,6 +573,7 @@ $('btn-group').addEventListener('click', () => { if (authed()) void pickGroup();
 $('btn-logout').addEventListener('click', async () => {
   await accountApi.logout();
   me = null; savedLook = null;
+  mySupporter = { current: localSupporter(), pending: null }; // rodada 10 — torcida volta a ser só da sessão
   look = loadLocalLook();
   showHome('Você saiu da conta.');
 });

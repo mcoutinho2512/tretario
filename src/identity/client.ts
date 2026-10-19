@@ -46,6 +46,9 @@ export const accountApi = {
   clearMembership: () => call<unknown>('DELETE', API.membership),
   joinTicket: (role: 'player' | 'spectator' = 'player') => call<{ ticket: string }>('POST', API.joinTicket, { role }),
   metrics: () => call<PublicMetrics>('GET', API.metrics, undefined, 4000),
+  // rodada 10 — torcida da própria conta (src/supporters; visitante sem conta escolhe só na sessão)
+  getSupporter: () => call<{ current: string | null; pending: string | null; sup: number; cooldownS: number }>('GET', '/api/me/supporter'),
+  putSupporter: (group: string) => call<{ current: string | null; pending: string | null; sup: number; deferred: boolean }>('PUT', '/api/me/supporter', { group }),
 };
 
 /** mensagens de erro (códigos da API → texto para a pessoa) */
@@ -72,6 +75,8 @@ const ERRORS: Record<string, string> = {
   aparencia_invalida: 'Visual inválido. Tente outra combinação.',
   grupo_invalido: 'Grupo indisponível neste evento.',
   perfil_inexistente: 'Perfil ainda não criado.',
+  torcida_invalida: 'Torcida indisponível.',
+  cooldown: 'Você trocou de torcida há pouco. Aguarde um minuto para trocar de novo.',
   // rodada 9.1 — produção beta
   aguardando_liberacao: 'Cadastro recebido — o acesso beta é liberado pela equipe.',
   origem_invalida: 'Pedido recusado por segurança. Recarregue a página.',

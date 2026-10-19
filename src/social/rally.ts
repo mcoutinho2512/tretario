@@ -27,6 +27,8 @@ export interface RallyPoint {
   crowd?: number;
   /** rodada 9 — rótulo no minimapa (nome do evento) */
   label?: string;
+  /** rodada 10 — concentração de TORCIDA: NetPlayer.sup do grupo (i+1 em supporters.json); NPCs vestem as cores */
+  sup?: number;
 }
 
 /** pesos típicos por tipo de ponto */

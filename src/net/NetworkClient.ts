@@ -22,6 +22,7 @@
 import './netWebSocket'; // precisa vir ANTES do SDK (instrumenta globalThis.WebSocket)
 import * as THREE from 'three';
 import { Client, Callbacks, type Room } from '@colyseus/sdk';
+import { supporterJoinOpt } from '../supporters/session'; // rodada 10 — torcida de quem não tem conta (só a sessão)
 import { ROOM_NAME, NET_TICK_HZ, LOCO, JOIN_ERROR, PROTOCOL_VERSION, type JoinOptions } from './protocol';
 import { packMove, RULES } from './rules';
 import { FallSync } from '../player/fallSync';
@@ -279,7 +280,7 @@ export class NetworkClient {
     const ticket = o.ticket ?? await this.ticketProvider?.();
     o.ticket = undefined;
     const spec = o.role === 'spectator' ? (this.spectatorFocus ?? o.specCam) : undefined;
-    const opts: JoinOptions = { pv: pvForJoin(), name, body: app.body, skin: app.skin, hair: app.hair, top: app.top, bottom: app.bottom, shoes: app.shoes, accessory: app.accessory ?? 'nenhum', acc: app.acc ?? 0x222222, topStyle: app.topStyle, bottomStyle: app.bottomStyle, shoeStyle: app.shoeStyle, hairStyle: app.hairStyle, shirtDesign: app.shirtDesign ?? 0, cid: anonymousClientId(), ...(testSpawn ? { testSpawn } : {}), ...testGroupOpt(), ...(this.crowd ? { aoiMax: Math.max(16, Math.min(64, this.crowd.budget.skinned * 2)) } : {}),
+    const opts: JoinOptions = { pv: pvForJoin(), name, body: app.body, skin: app.skin, hair: app.hair, top: app.top, bottom: app.bottom, shoes: app.shoes, accessory: app.accessory ?? 'nenhum', acc: app.acc ?? 0x222222, topStyle: app.topStyle, bottomStyle: app.bottomStyle, shoeStyle: app.shoeStyle, hairStyle: app.hairStyle, shirtDesign: app.shirtDesign ?? 0, cid: anonymousClientId(), ...(testSpawn ? { testSpawn } : {}), ...testGroupOpt(), ...supporterJoinOpt(), ...(this.crowd ? { aoiMax: Math.max(16, Math.min(64, this.crowd.budget.skinned * 2)) } : {}),
       ...(o.role ? { role: o.role } : {}), ...(ticket ? { ticket } : {}), ...(spec ? { specCam: { x: spec.x, z: spec.z, ...(spec.alt !== undefined ? { alt: Math.round(spec.alt) } : {}) } } : {}), ...(o.testUser ? { testUser: o.testUser } : {}) };
     const room = await client.joinOrCreate(ROOM_NAME, opts);
     this.bind(room);

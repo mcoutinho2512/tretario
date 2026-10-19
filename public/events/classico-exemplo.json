@@ -403,7 +403,7 @@
         "meet": {
           "id": "encontro",
           "at": {
-            "t": 0.655,
+            "t": 0.635,
             "side": 0
           },
           "radius": 14
@@ -412,32 +412,32 @@
           {
             "group": "flamengo",
             "at": {
-              "t": 0.62,
-              "side": -24
+              "t": 0.625,
+              "side": -16
             },
             "radius": 13
           },
           {
             "group": "vasco",
             "at": {
-              "t": 0.62,
-              "side": 24
+              "t": 0.625,
+              "side": 16
             },
             "radius": 13
           },
           {
             "group": "fluminense",
             "at": {
-              "t": 0.69,
-              "side": -24
+              "t": 0.645,
+              "side": -16
             },
             "radius": 13
           },
           {
             "group": "botafogo",
             "at": {
-              "t": 0.69,
-              "side": 24
+              "t": 0.645,
+              "side": 16
             },
             "radius": 13
           }

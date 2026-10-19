@@ -1,0 +1,80 @@
+{
+  "date": "2026-10-19T01:07:55.807Z",
+  "port": 3150,
+  "rallyCrowd": {
+    "members": 522,
+    "submitted": 445,
+    "skinned": 2,
+    "points": 13
+  },
+  "metrics": {
+    "playersOnline": 1,
+    "spectatorsOnline": 0,
+    "environmentCrowd": 416,
+    "totalConnections": 6,
+    "testBots": 5,
+    "eventId": "manifestacao",
+    "eventName": "Ato na Presidente Vargas",
+    "updatedAt": 1792372099104
+  },
+  "render": {
+    "calls": 699,
+    "triangles": 2109832,
+    "textures": 402,
+    "geometries": 725,
+    "fps": 59.982005399452724
+  },
+  "session": true,
+  "results": [
+    {
+      "name": "A_selecao_torcidas: 4 torcidas + neutro",
+      "ok": true,
+      "detail": "5 cartões, erros 0"
+    },
+    {
+      "name": "A_selecao_torcidas: escolha local da sessão",
+      "ok": true,
+      "detail": "TORCIDA: FLU"
+    },
+    {
+      "name": "A_selecao_torcidas_celular: 4 torcidas + neutro",
+      "ok": true,
+      "detail": "5 cartões, erros 0"
+    },
+    {
+      "name": "A_selecao_torcidas_celular: escolha local da sessão",
+      "ok": true,
+      "detail": "TORCIDA: FLU"
+    },
+    {
+      "name": "sup na rede (bots sem conta escolhem pela entrada)",
+      "ok": true,
+      "detail": "1,2,3,4,1"
+    },
+    {
+      "name": "encontro de torcidas na agenda",
+      "ok": true,
+      "detail": "encontro-torcidas@1792372095000"
+    },
+    {
+      "name": "4 concentrações de torcida (evt_pts com sup)",
+      "ok": true,
+      "detail": "FLA@1 VAS@2 FLU@3 BOT@4"
+    },
+    {
+      "name": "NPCs simulados nas concentrações",
+      "ok": true,
+      "detail": "522 membros"
+    },
+    {
+      "name": "NPCs fora da contagem de jogadores",
+      "ok": true,
+      "detail": "{\"playersOnline\":1,\"testBots\":5}"
+    },
+    {
+      "name": "navegador sem erros",
+      "ok": true,
+      "detail": ""
+    }
+  ]
+}
