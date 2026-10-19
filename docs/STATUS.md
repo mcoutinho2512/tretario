@@ -63,6 +63,18 @@ de GPU: era o medidor — a prévia 3D descarta o 2º contexto WebGL após 15 s 
 abertura sem `deleteTexture`; o livro-razão de QA agora tira da conta os objetos de contextos perdidos (sonda de 6
 ciclos: total real plano, +51 MB/ciclo expurgados).
 
+**Produção (2026-10-19 16:45 UTC)**: commit `7b69c7741fbf` em https://tretario.com.br pelo pipeline oficial — verificação
+na VPS 837/837, backup pré-deploy `tretario-20261019T164534-7b69c7741fbf.dump` (sha256 ok), guarda "sem comandos
+destrutivos", migration `20261019120000_round11_profile_title` aplicada, 145 s de deploy, **1,5 s fora do ar**, health
+pronto, smoke do pipeline ok; release anterior (7bb3696) guardado para rollback. Smoke pela internet
+(`tools/qa/prod_e2e.mjs`): visitante 6/6, jogador + XP + logout/login 5/5, rodada 10 8/8. **Por motor de navegador**
+(login, entrar como jogador, botão direito gira a câmera, cursor nunca capturado, inventário I/Esc, Esc abre o menu,
+WASD, FPS): **Chrome 10/10**; **WebKit (motor do Safari, Playwright 26.0) 9/10** — o único item é um erro que só o
+instrumentador do Playwright enxerga: o SDK do Colyseus tenta de propósito `new WebSocket(url, {headers})` (forma do
+Node), que lança no navegador e é capturado antes de cair na forma do navegador; num Safari real a exceção não escapa
+e o jogo conectou normalmente; **Firefox: não testado** — o Firefox de teste do Playwright não abre neste macOS
+(sandbox do processo auxiliar). Edge, Firefox e Safari reais não estão disponíveis nesta máquina.
+
 **Limites conhecidos (rodada 11)**: sem menu contextual no botão direito curto (a câmera tem prioridade); sem modo
 opcional "capturar mouse"; botões do mouse não são remapeáveis; não há arrastar do inventário para o acesso rápido
 (fixa-se pelos botões 1–5); a prévia 3D custa ~93 MB de GPU enquanto aberta (2º contexto); aviso "Taco não pode ser
