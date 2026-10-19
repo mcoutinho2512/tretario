@@ -36,7 +36,8 @@ import { DEFAULT_PLAYER_APPEARANCE, type CharacterAppearance } from '../../src/c
 import { loadPlayerLook } from './identity/appearance.ts';
 import { validateMoveInWorld } from '../../src/net/authority.ts';
 import { RULES, STATUS, VEHICLE_BOX, VEHICLE_STATE, EVENT_VEHICLE_KINDS, boxesOverlap, canPush, canEnter, impactAllowed, knockdownOutcome, pushOutOfBox, shouldResetVehicle, vehicleBlock, vehicleImpact, unpackMove, type Actor, type Mode, type VehicleKind } from '../../src/net/rules.ts';
-import { TRIO, canBoard, exitPoints, localToWorld, unpackPlatformMove, validatePlatformMove } from '../../src/vehicles/platform.ts';
+import { TRIO, canBoard, localToWorld, unpackPlatformMove, validatePlatformMove } from '../../src/vehicles/platform.ts';
+import { findSafeExit } from '../../src/vehicles/exitSafety.ts'; // rodada 10 — montagem
 import { DESIGN_BY_KEY } from '../../src/social/designs.ts';
 import { metrics } from './metrics.ts';
 import { SpatialGrid, selectInterest, selectInterestSlots, InterestScratch, makeSlotView, type SlotView } from '../../src/net/spatialGrid.ts';
@@ -1300,20 +1301,32 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
       v.occupant = ''; v.speed = 0; v.state = VEHICLE_STATE.AVAILABLE;
       const vrt = this.vehRT.get(vid);
       if (vrt) vrt.idleSince = Date.now();
-      // sai pelo lado esquerdo (motorista); se houver parede, pelo direito; senão no lugar
-      const side = v.kind === 'car' ? 1.6 : v.kind === 'moto' ? 1.0 : 0.9;
-      let cands = [[-Math.cos(v.heading), Math.sin(v.heading)], [Math.cos(v.heading), -Math.sin(v.heading)]].map(([dx, dz]) => ({ x: v.x + dx * side, z: v.z + dz * side }));
-      // veículos de evento: desce pela porta da cabine (longe do centro), fora da carroceria
-      if (EVENT_VEHICLE_KINDS.has(v.kind)) cands = exitPoints(v.kind, v);
-      let out = { x: v.x, z: v.z };
-      for (const t of cands) {
-        if (world().walls.raycast(v.x, 0.6, v.z, t.x, 0.6, t.z) >= 1) { out = t; break; }
-      }
+      // rodada 10 — montagem: saída SEGURA (src/vehicles/exitSafety.ts) — porta do motorista → outro lado → frente →
+      // trás → anel; nunca dentro de parede, de outro veículo, colado em outra pessoa nem fora do mapa
+      const out = this.safeExitFor(client.sessionId, vid, v);
       p.x = out.x; p.z = out.z;
       r.last = { x: out.x, y: 0, z: out.z, t: Date.now(), seq: Math.max(r.last.seq, Number.isFinite(seq) ? (seq as number) : r.last.seq) };
       client.send('exit_ok', { x: out.x, z: out.z });
     }
   }
+
+  // rodada 10 — montagem: ponto de saída seguro (paredes, mapa, outros veículos, pessoas a pé por perto)
+  private safeExitFor(sid: string, vid: string, v: { x: number; z: number; heading: number; kind: string }): { x: number; z: number } {
+    const vehicles: { x: number; z: number; heading: number; kind: string }[] = [];
+    this.state.vehicles.forEach((o, id) => { if (id !== vid && Math.hypot(o.x - v.x, o.z - v.z) < 16) vehicles.push({ x: o.x, z: o.z, heading: o.heading, kind: o.kind }); });
+    const people: { x: number; z: number }[] = [];
+    this.grid.forEachInRadius(v.x, v.z, 8, (sl) => {
+      const id = this.slotIds[sl];
+      const q = id && id !== sid ? this.state.players.get(id) : undefined;
+      if (q && !q.vehicle && !q.platform) people.push({ x: q.x, z: q.z });
+    });
+    const W = world();
+    const r = findSafeExit(v.kind, v, { clear: (ax, az, bx, bz) => W.walls.raycast(ax, 0.6, az, bx, 0.6, bz) >= 1, bounds: W.manifest.bounds as [number, number, number, number] }, { vehicles, people });
+    this.lastExit = { sid, vid, ...r };
+    return r;
+  }
+  /** QA: última saída decidida (tag do candidato, motivo) */
+  lastExit: { sid: string; vid: string; x: number; z: number; reason: string; tag: string; tried: number } | null = null;
 
   // ---------------------------------------------------------------- trio elétrico (plataforma) e veículos de evento
   /**
