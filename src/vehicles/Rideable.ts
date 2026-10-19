@@ -11,7 +11,10 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { CollisionWorld } from '../physics/CollisionWorld';
 import { legacyGeometry } from '../traffic/legacyModels';
-import { getVehicleGeometry, vehicleMaterial } from '../traffic/vehicleModels';
+import { getVehicleGeometry, getVehicleSplit, vehicleGlassMaterial, vehicleMaterial } from '../traffic/vehicleModels';
+import { mountProfile } from './seats'; // rodada 10 — montagem
+import type { RideDyn } from '../characters/human/vehicleClips';
+import { angleDelta } from '../npc/gait';
 import { distToVehicle, EVENT_VEHICLE_KINDS } from '../net/rules';
 import { TRIO, distToCabDoor, localToWorld } from './platform';
 import { applyDesign, buildSoundcar, buildTrio } from './eventModels';
@@ -122,6 +125,31 @@ export function rideableModel(kind: RideableKind, color: number): THREE.Group {
   return proto.clone();
 }
 
+type V3 = [number, number, number];
+/** cilindro entre dois pontos (tubos de quadro, garfo, guidão) */
+function tube(a: V3, b: V3, r: number, seg = 6) {
+  const A = new THREE.Vector3(...a), B = new THREE.Vector3(...b);
+  const g = new THREE.CylinderGeometry(r, r, A.distanceTo(B), seg);
+  g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), B.clone().sub(A).normalize()));
+  g.translate((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2);
+  g.deleteAttribute('uv');
+  return g;
+}
+const noUv = (g: THREE.BufferGeometry) => { g.deleteAttribute('uv'); return g; };
+
+/**
+ * rodada 10 — montagem: guidão/garfo/roda dianteira num grupo `steer` que gira em torno do eixo de direção
+ * (MountRig.steerPivot/steerAxis); as geometrias são escritas no referencial do veículo e deslocadas para o pivô
+ */
+function steerGroup(kind: RideableKind, meshes: THREE.Mesh[]): THREE.Group {
+  const r = mountProfile(kind).rig;
+  const sg = new THREE.Group();
+  sg.name = 'steer';
+  sg.position.set(...r.steerPivot);
+  for (const m of meshes) { m.geometry.translate(-r.steerPivot[0], -r.steerPivot[1], -r.steerPivot[2]); sg.add(m); }
+  return sg;
+}
+
 function buildRideableModel(kind: RideableKind, color: number): THREE.Group {
   // veículos de evento: modelos com LOD próprio e painéis de design (src/vehicles/eventModels.ts)
   if (kind === 'soundcar') return buildSoundcar();
@@ -130,74 +158,151 @@ function buildRideableModel(kind: RideableKind, color: number): THREE.Group {
   const frameMat = new THREE.MeshStandardMaterial({ color, roughness: 0.45, metalness: 0.5 });
   const dark = new THREE.MeshStandardMaterial({ color: 0x1b1b1b, roughness: 0.7, metalness: 0.2 });
   if (kind === 'bicycle') {
-    const wheels = mergeGeometries([
-      part(new THREE.TorusGeometry(0.33, 0.035, 8, 24), 0, 0.35, 0.52, 0, Math.PI / 2),
-      part(new THREE.TorusGeometry(0.33, 0.035, 8, 24), 0, 0.35, -0.52, 0, Math.PI / 2),
-    ])!;
+    // bicicleta urbana compartilhada (rodada 10: guidão recuado/alto, pedivela e garfo que giram — o corpo monta de verdade)
+    const rearWheel = part(new THREE.TorusGeometry(0.33, 0.035, 8, 24), 0, 0.35, -0.52, 0, Math.PI / 2);
     const frame = mergeGeometries([
-      part(new THREE.CylinderGeometry(0.025, 0.025, 0.8, 6), 0, 0.62, 0.05, Math.PI / 2 - 0.3), // tubo superior
-      part(new THREE.CylinderGeometry(0.025, 0.025, 0.75, 6), 0, 0.5, 0.18, -0.9), // tubo inferior
-      part(new THREE.CylinderGeometry(0.025, 0.025, 0.62, 6), 0, 0.62, -0.18, 0.25), // selim
-      part(new THREE.CylinderGeometry(0.02, 0.02, 0.6, 6), 0, 0.42, -0.38, Math.PI / 2 + 0.55), // traseiro
-      part(new THREE.CylinderGeometry(0.022, 0.022, 0.6, 6), 0, 0.68, 0.52, 0.25), // garfo
-      part(new THREE.CylinderGeometry(0.02, 0.02, 0.55, 6), 0, 1.0, 0.6, 0, 0, Math.PI / 2), // guidão
-      part(new THREE.BoxGeometry(0.4, 0.06, 0.3), 0, 0.85, 0.72), // cesta (padrão de bike compartilhada)
+      tube([0, 0.86, -0.22], [0, 0.86, 0.42], 0.025), // tubo superior
+      tube([0, 0.82, 0.44], [0, 0.33, 0], 0.028), // tubo inferior
+      tube([0, 0.33, 0], [0, 0.9, -0.25], 0.025), // tubo do selim
+      tube([0, 0.33, 0], [0, 0.35, -0.52], 0.018), // corrente (baixo)
+      tube([0, 0.86, -0.22], [0, 0.35, -0.52], 0.018), // traseiro
+      tube([0, 0.9, -0.25], [0, 0.94, -0.28], 0.02), // canote
+      tube([-0.07, 0.33, 0], [0.07, 0.33, 0], 0.045, 10), // movimento central
     ])!;
-    const seat = part(new THREE.BoxGeometry(0.14, 0.05, 0.26), 0, 0.94, -0.28);
-    g.add(new THREE.Mesh(wheels, dark), new THREE.Mesh(frame, frameMat), new THREE.Mesh(seat, dark));
+    const seat = part(new THREE.BoxGeometry(0.15, 0.05, 0.26), 0, 0.94, -0.3);
+    g.add(new THREE.Mesh(rearWheel, dark), new THREE.Mesh(frame, frameMat), new THREE.Mesh(seat, dark));
+    const front = mergeGeometries([
+      tube([0, 0.86, 0.44], [0, 0.35, 0.52], 0.022), // garfo
+      tube([0, 0.86, 0.44], [0, 1.03, 0.41], 0.02), // mesa
+      tube([0.2, 1.04, 0.37], [-0.2, 1.04, 0.37], 0.018), // guidão
+      tube([0.2, 1.04, 0.37], [0.27, 1.04, 0.29], 0.018), tube([-0.2, 1.04, 0.37], [-0.27, 1.04, 0.29], 0.018),
+      part(new THREE.BoxGeometry(0.4, 0.06, 0.3), 0, 0.84, 0.66), // cesta (padrão de bike compartilhada)
+    ])!;
+    const frontDark = mergeGeometries([
+      part(new THREE.TorusGeometry(0.33, 0.035, 8, 24), 0, 0.35, 0.52, 0, Math.PI / 2),
+      tube([0.27, 1.04, 0.29], [0.31, 1.04, 0.24], 0.024), tube([-0.27, 1.04, 0.29], [-0.31, 1.04, 0.24], 0.024), // manoplas
+    ])!;
+    g.add(steerGroup('bicycle', [new THREE.Mesh(front, frameMat), new THREE.Mesh(frontDark, dark)]));
+    // pedivela (gira com a pedalada — RideableSystem.sync)
+    const crank = new THREE.Group();
+    crank.name = 'crank';
+    crank.position.set(0, 0.33, 0);
+    crank.add(new THREE.Mesh(mergeGeometries([
+      tube([0.085, 0, 0], [0.085, 0, 0.17], 0.012), tube([-0.085, 0, 0], [-0.085, 0, -0.17], 0.012),
+      part(new THREE.BoxGeometry(0.09, 0.022, 0.06), 0.13, 0, 0.17), part(new THREE.BoxGeometry(0.09, 0.022, 0.06), -0.13, 0, -0.17),
+      part(new THREE.CylinderGeometry(0.1, 0.1, 0.01, 16), -0.06, 0, 0, 0, 0, Math.PI / 2), // coroa
+    ])!, dark));
+    g.add(crank);
   } else if (kind === 'car') {
-    // automóvel dirigível: mesmo sedan do trânsito (4,4 m × 1,8 m), cor de destaque via instanceColor
-    const car = new THREE.InstancedMesh(getVehicleGeometry('sedan', 0, () => legacyGeometry('sedan')), vehicleMaterial(), 1);
+    // automóvel dirigível: mesmo sedan do trânsito (4,4 m × 1,8 m), cor de destaque via instanceColor.
+    // rodada 10 — montagem: vidros translúcidos (motorista visível) + interior simples (bancos, painel, volante que gira)
+    const split = getVehicleSplit('sedan');
+    const car = new THREE.InstancedMesh(split?.body ?? getVehicleGeometry('sedan', 0, () => legacyGeometry('sedan')), vehicleMaterial(), 1);
     car.setMatrixAt(0, new THREE.Matrix4());
     car.setColorAt(0, new THREE.Color(color));
     car.name = 'car_body';
     g.add(car);
+    if (split) {
+      const glass = new THREE.Mesh(split.glass, vehicleGlassMaterial(true));
+      glass.name = 'car_glass';
+      glass.renderOrder = 2;
+      glass.userData.noShadow = true;
+      g.add(glass);
+    }
+    g.add(carInterior());
   } else if (kind === 'moto') {
     // moto urbana genérica (~150 cc), 2,1 m: pneus largos com aro, garfo, tanque, banco, motor, escapamento, farol
     const tire = new THREE.MeshStandardMaterial({ color: 0x151515, roughness: 0.9 });
     const metal = new THREE.MeshStandardMaterial({ color: 0x9aa0a6, roughness: 0.3, metalness: 0.85 });
     const paint = new THREE.MeshPhysicalMaterial({ color, roughness: 0.35, metalness: 0.3, clearcoat: 0.8, clearcoatRoughness: 0.15 });
-    const tires = mergeGeometries([
-      part(new THREE.TorusGeometry(0.27, 0.075, 10, 28), 0, 0.33, 0.72, 0, Math.PI / 2),
-      part(new THREE.TorusGeometry(0.27, 0.085, 10, 28), 0, 0.33, -0.66, 0, Math.PI / 2),
-    ])!;
+    const tires = part(new THREE.TorusGeometry(0.27, 0.085, 10, 28), 0, 0.33, -0.66, 0, Math.PI / 2);
     const rims = mergeGeometries([
-      part(new THREE.CylinderGeometry(0.2, 0.2, 0.05, 18), 0, 0.33, 0.72, 0, 0, Math.PI / 2),
       part(new THREE.CylinderGeometry(0.2, 0.2, 0.05, 18), 0, 0.33, -0.66, 0, 0, Math.PI / 2),
-      part(new THREE.CylinderGeometry(0.022, 0.022, 0.62, 8), 0.09, 0.62, 0.62, -0.42), // garfo
-      part(new THREE.CylinderGeometry(0.022, 0.022, 0.62, 8), -0.09, 0.62, 0.62, -0.42),
-      part(new THREE.CylinderGeometry(0.018, 0.018, 0.72, 8), 0, 1.04, 0.47, 0, 0, Math.PI / 2), // guidão
       part(new THREE.CylinderGeometry(0.035, 0.045, 0.75, 10), 0.17, 0.42, -0.42, Math.PI / 2 - 0.12), // escapamento
       part(new THREE.CylinderGeometry(0.02, 0.02, 0.5, 6), 0.06, 0.46, -0.45, Math.PI / 2 + 0.35), // balança
       part(new THREE.CylinderGeometry(0.02, 0.02, 0.5, 6), -0.06, 0.46, -0.45, Math.PI / 2 + 0.35),
+      tube([0.12, 0.43, -0.1], [0.26, 0.43, -0.1], 0.018), tube([-0.12, 0.43, -0.1], [-0.26, 0.43, -0.1], 0.018), // pedaleiras
     ])!;
     const body = mergeGeometries([
       part(new THREE.SphereGeometry(0.2, 16, 10).scale(0.85, 0.62, 1.25), 0, 0.88, 0.2), // tanque
       part(new THREE.BoxGeometry(0.2, 0.08, 0.55), 0, 0.84, -0.28), // rabeta
-      part(new THREE.BoxGeometry(0.14, 0.05, 0.5), 0, 0.37 + 0.36, 0.72 - 0.02).rotateX(0), // para-lama dianteiro (alto)
-      part(new THREE.BoxGeometry(0.2, 0.16, 0.18), 0, 0.98, 0.55), // carenagem do farol
     ])!;
     const dark2 = mergeGeometries([
       part(new THREE.BoxGeometry(0.24, 0.24, 0.36), 0, 0.5, 0.0), // motor
       part(new THREE.BoxGeometry(0.22, 0.07, 0.62), 0, 0.92, -0.18), // banco
       part(new THREE.BoxGeometry(0.2, 0.12, 0.02), 0, 0.68, -0.98), // placa (genérica, sem caracteres)
     ])!;
-    const lamp = new THREE.Mesh(part(new THREE.CylinderGeometry(0.07, 0.07, 0.04, 14), 0, 0.98, 0.65, Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0xfff4dc, emissive: 0xfff0cc, emissiveIntensity: 0.25, roughness: 0.2 }));
     const tail = new THREE.Mesh(part(new THREE.BoxGeometry(0.12, 0.05, 0.03), 0, 0.82, -0.57), new THREE.MeshStandardMaterial({ color: 0x8a0d0d, emissive: 0x500000, emissiveIntensity: 0.4 }));
-    g.add(new THREE.Mesh(tires, tire), new THREE.Mesh(rims, metal), new THREE.Mesh(body, paint), new THREE.Mesh(dark2, dark), lamp, tail);
+    g.add(new THREE.Mesh(tires, tire), new THREE.Mesh(rims, metal), new THREE.Mesh(body, paint), new THREE.Mesh(dark2, dark), tail);
+    // frente que esterça: pneu/aro dianteiros, garfo, guidão, carenagem do farol, para-lama, farol
+    const fTire = part(new THREE.TorusGeometry(0.27, 0.075, 10, 28), 0, 0.33, 0.72, 0, Math.PI / 2);
+    const fMetal = mergeGeometries([
+      part(new THREE.CylinderGeometry(0.2, 0.2, 0.05, 18), 0, 0.33, 0.72, 0, 0, Math.PI / 2),
+      part(new THREE.CylinderGeometry(0.022, 0.022, 0.62, 8), 0.09, 0.62, 0.62, -0.42), // garfo
+      part(new THREE.CylinderGeometry(0.022, 0.022, 0.62, 8), -0.09, 0.62, 0.62, -0.42),
+      part(new THREE.CylinderGeometry(0.018, 0.018, 0.72, 8), 0, 1.04, 0.47, 0, 0, Math.PI / 2), // guidão
+    ])!;
+    const fPaint = mergeGeometries([
+      part(new THREE.BoxGeometry(0.14, 0.05, 0.5), 0, 0.37 + 0.36, 0.72 - 0.02), // para-lama dianteiro (alto)
+      part(new THREE.BoxGeometry(0.2, 0.16, 0.18), 0, 0.98, 0.55), // carenagem do farol
+    ])!;
+    const grips = mergeGeometries([tube([0.25, 1.04, 0.47], [0.36, 1.04, 0.47], 0.024), tube([-0.25, 1.04, 0.47], [-0.36, 1.04, 0.47], 0.024)])!;
+    const lamp = new THREE.Mesh(part(new THREE.CylinderGeometry(0.07, 0.07, 0.04, 14), 0, 0.98, 0.65, Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0xfff4dc, emissive: 0xfff0cc, emissiveIntensity: 0.25, roughness: 0.2 }));
+    g.add(steerGroup('moto', [new THREE.Mesh(fTire, tire), new THREE.Mesh(fMetal, metal), new THREE.Mesh(fPaint, paint), new THREE.Mesh(grips, dark), lamp]));
   } else if (kind === 'scooter') {
-    const wheels = mergeGeometries([
+    const rear = part(new THREE.CylinderGeometry(0.1, 0.1, 0.05, 14), 0, 0.1, -0.42, 0, 0, Math.PI / 2);
+    const deck = part(new THREE.BoxGeometry(0.17, 0.06, 0.82), 0, 0.15, 0); // plataforma
+    g.add(new THREE.Mesh(rear, dark), new THREE.Mesh(deck, frameMat));
+    const stem = mergeGeometries([
+      tube([0, 0.16, 0.37], [0, 1.16, 0.49], 0.025, 8), // haste
+      part(new THREE.CylinderGeometry(0.02, 0.02, 0.48, 6), 0, 1.16, 0.49, 0, 0, Math.PI / 2), // guidão
+    ])!;
+    const fw = mergeGeometries([
       part(new THREE.CylinderGeometry(0.1, 0.1, 0.05, 14), 0, 0.1, 0.42, 0, 0, Math.PI / 2),
-      part(new THREE.CylinderGeometry(0.1, 0.1, 0.05, 14), 0, 0.1, -0.42, 0, 0, Math.PI / 2),
+      tube([0.2, 1.16, 0.49], [0.26, 1.16, 0.49], 0.024), tube([-0.2, 1.16, 0.49], [-0.26, 1.16, 0.49], 0.024), // manoplas
     ])!;
-    const body = mergeGeometries([
-      part(new THREE.BoxGeometry(0.17, 0.06, 0.82), 0, 0.15, 0), // plataforma
-      part(new THREE.CylinderGeometry(0.025, 0.025, 1.0, 8), 0, 0.68, 0.42, 0.12), // haste
-      part(new THREE.CylinderGeometry(0.02, 0.02, 0.48, 6), 0, 1.16, 0.48, 0, 0, Math.PI / 2), // guidão
-    ])!;
-    g.add(new THREE.Mesh(wheels, dark), new THREE.Mesh(body, frameMat));
+    g.add(steerGroup('scooter', [new THREE.Mesh(stem, frameMat), new THREE.Mesh(fw, dark)]));
   }
-  g.traverse((o) => { if ((o as THREE.Mesh).isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+  g.traverse((o) => { if ((o as THREE.Mesh).isMesh && !o.userData.noShadow) { o.castShadow = true; o.receiveShadow = true; } });
+  return g;
+}
+
+/**
+ * rodada 10 — interior simples do carro dirigível (sedan): "banheira" escura vista por dentro (esconde o vazio da
+ * carroceria através dos vidros), bancos, painel e volante (grupo `steer`, gira com o esterço). 3 draw calls; só perto
+ * (RideableSystem.sync esconde de longe e deixa o vidro opaco).
+ */
+function carInterior(): THREE.Group {
+  const g = new THREE.Group();
+  g.name = 'car_interior';
+  const tub = new THREE.Mesh(noUv(new THREE.BoxGeometry(1.64, 0.62, 2.5)), new THREE.MeshStandardMaterial({ color: 0x1d1e21, roughness: 0.9, side: THREE.BackSide }));
+  tub.position.set(0, 0.61, -0.25);
+  tub.userData.noShadow = true;
+  const seats = mergeGeometries([
+    part(new THREE.BoxGeometry(0.5, 0.12, 0.5), 0.37, 0.4, -0.2), part(new THREE.BoxGeometry(0.5, 0.68, 0.12), 0.37, 0.76, -0.52, -0.18),
+    part(new THREE.BoxGeometry(0.5, 0.12, 0.5), -0.37, 0.4, -0.2), part(new THREE.BoxGeometry(0.5, 0.68, 0.12), -0.37, 0.76, -0.52, -0.18),
+    part(new THREE.BoxGeometry(0.22, 0.14, 0.1), 0.37, 1.18, -0.6), part(new THREE.BoxGeometry(0.22, 0.14, 0.1), -0.37, 1.18, -0.6), // encostos de cabeça
+    part(new THREE.BoxGeometry(1.42, 0.14, 0.5), 0, 0.42, -1.12), part(new THREE.BoxGeometry(1.42, 0.55, 0.12), 0, 0.72, -1.38, -0.2),
+    part(new THREE.BoxGeometry(1.62, 0.2, 0.36), 0, 0.88, 0.94), // painel
+    part(new THREE.BoxGeometry(0.2, 0.3, 0.7), 0, 0.45, 0.35), // console central
+  ])!;
+  const inner = new THREE.Mesh(seats, new THREE.MeshStandardMaterial({ color: 0x34363b, roughness: 0.92 }));
+  inner.userData.noShadow = true;
+  const r = mountProfile('car').rig;
+  const sg = new THREE.Group();
+  sg.name = 'steer';
+  sg.position.set(...r.steerPivot);
+  const wheel = new THREE.Mesh(mergeGeometries([
+    noUv(new THREE.TorusGeometry(0.19, 0.022, 8, 28)),
+    noUv(new THREE.BoxGeometry(0.36, 0.03, 0.02)),
+    noUv(new THREE.CylinderGeometry(0.05, 0.05, 0.05, 10).rotateX(Math.PI / 2)),
+    noUv(new THREE.CylinderGeometry(0.02, 0.02, 0.35, 6).rotateX(Math.PI / 2).translate(0, 0, 0.17)), // coluna
+  ])!, new THREE.MeshStandardMaterial({ color: 0x141414, roughness: 0.6 }));
+  // plano do volante perpendicular à coluna: o −z local do volante aponta para o motorista (eixo do perfil)
+  wheel.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, -1), new THREE.Vector3(...r.steerAxis).normalize());
+  wheel.userData.noShadow = true;
+  sg.add(wheel);
+  g.add(tub, inner, sg);
   return g;
 }
 
@@ -208,6 +313,11 @@ export interface RideableInstance {
   netState: number;
   /** design dos painéis (carro de som/trio; 0 = arte neutra padrão) */
   design: number;
+  /** rodada 10 — montagem: dinâmica VISUAL (inclinação, esterço, pedivela, velocidade estimada) — calculada aqui
+   * pelo deslocamento, igual para o veículo local e os remotos; nada disso vai para a rede */
+  dyn: RideDyn;
+  /** esterço do motorista LOCAL (entrada, −1..1) — o guidão gira mesmo parado */
+  steerHint?: number;
 }
 
 /** cores genéricas (sem marcas): carros com paleta de rua, motos e bicicletas/patinetes compartilhados */
@@ -241,7 +351,7 @@ export class RideableSystem {
       model.name = `rideable_${sp.id}`;
       this.group.add(model);
       if (EVENT_VEHICLE_KINDS.has(sp.kind)) applyDesign(model, 0);
-      const it: RideableInstance = { state, def: RIDEABLE_DEFS[sp.kind], model, netState: 0, design: 0 };
+      const it: RideableInstance = { state, def: RIDEABLE_DEFS[sp.kind], model, netState: 0, design: 0, dyn: { lean: 0, steer: 0, crank: 0, speed: 0, accel: 0 } };
       this.items.push(it);
       this.byId.set(sp.id, it);
     }
@@ -321,12 +431,71 @@ export class RideableSystem {
   }
 
   sync(cam?: THREE.Vector3) {
+    // rodada 10 — montagem: dinâmica visual pelo tempo real entre chamadas (duas chamadas no mesmo quadro: dt ≈ 0, pula)
+    const now = performance.now();
+    const dt = (now - this.lastSync) / 1000;
+    this.lastSync = now;
+    const stepDyn = dt > 0.002 && dt < 0.5;
     for (const it of this.items) {
       const s = it.state;
+      if (stepDyn) this.dynamics(it, dt);
       it.model.position.set(s.x, s.y, s.z);
-      it.model.rotation.y = s.heading;
-      it.model.visible = !cam || Math.hypot(s.x - cam.x, s.z - cam.z) < DRAW_DIST[it.def.kind];
+      it.model.rotation.set(0, s.heading, -it.dyn.lean); // inclinação em torno do eixo longitudinal (contato no chão)
+      const d = cam ? Math.hypot(s.x - cam.x, s.z - cam.z) : 0;
+      it.model.visible = !cam || d < DRAW_DIST[it.def.kind];
+      if (it.model.visible) this.applyParts(it, d);
     }
     this.updateRally();
+  }
+
+  private lastSync = performance.now();
+  private prev = new Map<RideableInstance, { x: number; z: number; h: number }>();
+  private parts = new Map<RideableInstance, { steer: THREE.Object3D | null; crank: THREE.Object3D | null; interior: THREE.Object3D | null; glass: THREE.Mesh | null; axis: THREE.Vector3; max: number; near: boolean }>();
+
+  /** velocidade/aceleração/giro estimados pelo deslocamento → esterço, inclinação (duas rodas) e pedivela */
+  private dynamics(it: RideableInstance, dt: number) {
+    const s = it.state, d = it.dyn;
+    const p = this.prev.get(it);
+    if (!p) { this.prev.set(it, { x: s.x, z: s.z, h: s.heading }); return; }
+    const dx = s.x - p.x, dz = s.z - p.z, dist = Math.hypot(dx, dz);
+    const jump = dist > 6; // volta para a vaga / correção grande: não é velocidade
+    const v = jump ? 0 : (dx * Math.sin(s.heading) + dz * Math.cos(s.heading)) / dt;
+    const yaw = jump ? 0 : angleDelta(p.h, s.heading) / dt;
+    p.x = s.x; p.z = s.z; p.h = s.heading;
+    const prevSpeed = d.speed;
+    d.speed += (v - d.speed) * (1 - Math.exp(-8 * dt));
+    d.accel += ((d.speed - prevSpeed) / dt - d.accel) * (1 - Math.exp(-4 * dt));
+    const rig = mountProfile(it.def.kind).rig;
+    const sp = Math.abs(d.speed);
+    let steerT = sp > 0.25 ? THREE.MathUtils.clamp(yaw / (it.def.turnRate * Math.max(0.2, Math.min(1, sp / 2.5))) * Math.sign(d.speed), -1, 1) : 0;
+    if (it.steerHint !== undefined && it.state.occupant) steerT = THREE.MathUtils.clamp(it.steerHint, -1, 1);
+    d.steer += (steerT - d.steer) * (1 - Math.exp(-10 * dt));
+    const leanT = it.state.occupant ? THREE.MathUtils.clamp(Math.atan((d.speed * yaw) / 9.81), -rig.leanMax, rig.leanMax) : 0;
+    d.lean += (leanT - d.lean) * (1 - Math.exp(-6 * dt));
+    if (rig.crank && it.state.occupant && sp > 0.3 && d.accel > -0.35) d.crank = (d.crank + (d.speed * dt / rig.crank.mPerRev) * Math.PI * 2) % (Math.PI * 2);
+  }
+
+  /** guidão/volante, pedivela; carro: interior e vidro translúcido só de perto (longe: vidro opaco, sem interior) */
+  private applyParts(it: RideableInstance, dist: number) {
+    let pt = this.parts.get(it);
+    if (!pt) {
+      const rig = mountProfile(it.def.kind).rig;
+      pt = {
+        steer: it.model.getObjectByName('steer') ?? null, crank: it.model.getObjectByName('crank') ?? null,
+        interior: it.model.getObjectByName('car_interior') ?? null, glass: (it.model.getObjectByName('car_glass') as THREE.Mesh) ?? null,
+        axis: new THREE.Vector3(...rig.steerAxis).normalize(), max: rig.steerMax, near: true,
+      };
+      this.parts.set(it, pt);
+    }
+    pt.steer?.quaternion.setFromAxisAngle(pt.axis, it.dyn.steer * pt.max);
+    if (pt.crank) pt.crank.rotation.x = it.dyn.crank;
+    if (pt.interior || pt.glass) {
+      const near = dist < 45;
+      if (near !== pt.near) {
+        pt.near = near;
+        if (pt.interior) pt.interior.visible = near;
+        if (pt.glass) pt.glass.material = vehicleGlassMaterial(near);
+      }
+    }
   }
 }

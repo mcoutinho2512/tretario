@@ -59,7 +59,8 @@ import { RIDEABLE_DEFS, RideableSystem, seatWorld, stepRideable, type RideableIn
 // ---- rodada 7: veículos de evento (trio elétrico, carro de som) e cenário (caminhões, telões, palco)
 import { EventScenery } from '../world/eventScenery';
 import { TrioRider } from '../vehicles/trioRider';
-import { TRIO, exitPoints, localToWorld } from '../vehicles/platform';
+import { TRIO, localToWorld } from '../vehicles/platform';
+import { findSafeExit } from '../vehicles/exitSafety'; // rodada 10 — montagem
 import { screenFeed } from '../events/screenFeed';
 import { InteractionController } from '../interaction/InteractionMode';
 import type { KnockMsg } from '../net/NetworkClient';
@@ -717,8 +718,10 @@ export class Game {
     if (this.freeCam) { this.camera.position.set(...this.freeCam.p); this.camera.lookAt(...this.freeCam.t); this.camera.updateMatrixWorld(); }
     this.signals.setTime(worldClock.seconds());
     if (this.net) {
-      this.net.update(dt, this.player, this.riding ? this.riding.state.id : null, this.camera, { w: this.canvas.clientWidth, h: this.canvas.clientHeight });
+      // rodada 10 — montagem: veículos remotos suavizados ANTES dos corpos remotos (o motorista é posto no banco do
+      // veículo como este cliente o desenha neste quadro)
       this.rideables.smooth(dt, this.net.sessionId);
+      this.net.update(dt, this.player, this.riding ? this.riding.state.id : null, this.camera, { w: this.canvas.clientWidth, h: this.canvas.clientHeight });
     }
     this.graffiti.update(dt, this.camera.position, this.player);
     mark('rede');
@@ -853,6 +856,7 @@ export class Game {
     this.net.onVehicle = (id, v) => this.rideables.applyServer(id, v.x, v.y, v.z, v.heading, v.occupant, this.net!.sessionId, v.state, v.design);
     // trio elétrico: passageiros presos à pose do trio COMO ESTE CLIENTE O DESENHA
     this.net.platformPose = (id) => { const it = this.rideables.byId.get(id); return it ? it.state : null; };
+    this.net.vehicleSource = (id) => this.rideables.byId.get(id) ?? null; // rodada 10 — montagem
     this.net.onBoard = (ok, d) => {
       this.pendingBoard = false;
       if (ok) { this.trio.board(d.id, d.lx, d.lz); this.cam.setProfile('foot'); this.flash('Você subiu no trio elétrico (servidor confirmou)'); }
@@ -1014,9 +1018,13 @@ export class Game {
     if (!v) return;
     v.state.occupant = null;
     v.state.speed = 0;
-    if (!pos && EVENT_VEHICLE_KINDS.has(v.def.kind)) pos = exitPoints(v.def.kind, v.state)[0];
-    if (pos) { this.player.x = pos.x; this.player.z = pos.z; }
-    else { const side = v.def.kind === 'car' ? -1.6 : v.def.kind === 'moto' ? 1.0 : 0.9; this.player.x = v.state.x + Math.cos(v.state.heading) * side; this.player.z = v.state.z - Math.sin(v.state.heading) * side; }
+    v.steerHint = undefined;
+    // rodada 10 — montagem: offline usa a mesma saída segura do servidor (paredes, mapa, veículos, pedestres)
+    if (!pos) {
+      const vehicles = this.rideables.items.filter((o) => o !== v && Math.hypot(o.state.x - v.state.x, o.state.z - v.state.z) < 16).map((o) => ({ x: o.state.x, z: o.state.z, heading: o.state.heading, kind: o.def.kind }));
+      pos = findSafeExit(v.def.kind, v.state, { clear: (ax, az, bx, bz) => this.collision.raycast(ax, 0.6, az, bx, 0.6, bz) >= 1, bounds: this.manifest.bounds as [number, number, number, number], blocked: (x, z) => this.collision.isBlockedSurface(x, z) }, { vehicles, people: this.peds.nearby(v.state.x, v.state.z, 6) });
+    }
+    this.player.x = pos.x; this.player.z = pos.z;
     this.player.y = this.collision.groundHeight(this.player.x, this.player.z);
     this.player.heading = v.state.heading;
     this.riding = null;
@@ -1079,7 +1087,9 @@ export class Game {
     } else if (this.riding) {
       const v = this.riding;
       const prev = { x: v.state.x, z: v.state.z };
-      stepRideable(v.state, v.def, { throttle: ax.y, steer: -ax.x, boost: this.input.running() }, dt, this.collision);
+      // rodada 10 — montagem: só anda depois de sentar (entrada visual); o guidão/volante segue a entrada
+      v.steerHint = -ax.x;
+      stepRideable(v.state, v.def, { throttle: this.avatar.mountBusy ? 0 : ax.y, steer: -ax.x, boost: this.input.running() }, dt, this.collision);
       {
         // MODO PACÍFICO (padrão): o veículo para antes de encostar em qualquer pessoa — mesma regra do servidor
         // (vehicleBlock). Atropelamento só existe entre jogadores em modo interação, com carro/moto (servidor decide).
@@ -1107,7 +1117,7 @@ export class Game {
       this.player.heading = v.state.heading; this.player.speed = Math.abs(v.state.speed);
       this.player.locomotion = 'walk';
       const seat = seatWorld(v.def, v.state.x, v.state.z, v.state.heading);
-      this.avatar.updateRiding(seat.x, v.state.y, seat.z, v.state.heading, v.def.pose, v.state.speed, v.def.seatHeight, dt);
+      this.avatar.updateRiding(seat.x, v.state.y, seat.z, v.state.heading, v.def.pose, v.state.speed, v.def.seatHeight, dt, v); // rodada 10 — montagem
       let dyaw = v.state.heading - this.cam.yaw;
       while (dyaw > Math.PI) dyaw -= Math.PI * 2;
       while (dyaw < -Math.PI) dyaw += Math.PI * 2;
@@ -1271,6 +1281,10 @@ export class Game {
       /** QA de custo: mostra/esconde um objeto da cena pelo nome (medir draw calls/triângulos com e sem) */
       showObject: (name: string, visible: boolean) => { const o = this.scene.getObjectByName(name); for (const c of o?.children ?? []) c.visible = visible; return !!o; },
       ridingId: () => this.riding?.state.id ?? null,
+      // rodada 10 — montagem (QA): fase/erros do IK do jogador local e dos remotos; dinâmica de um veículo
+      mount: () => ({ local: this.avatar.mountInfo, root: this.avatar.root.position.toArray().map((x) => +x.toFixed(3)), remotes: this.net?.mountDebug() ?? [], cost: { ...AvatarVisual.mountCost } }),
+      mountCostReset: () => { AvatarVisual.mountCost.ms = 0; AvatarVisual.mountCost.n = 0; AvatarVisual.mountCost.ik = 0; },
+      vehicleDyn: (id: string) => { const it = this.rideables.byId.get(id); return it ? { ...it.dyn, x: it.state.x, z: it.state.z, heading: it.state.heading, occupant: it.state.occupant } : null; },
       carHeading: () => this.riding?.state.heading ?? null,
       /** anda até (x,z) usando o movimento normal (aceito pelo servidor) */
       hitches: () => this.hitchLog.slice(),

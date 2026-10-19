@@ -88,8 +88,8 @@ export type MountProfileFull = MountProfile & { rig: MountRig };
 export const MOUNT_PROFILES: Record<MountKind, MountProfileFull> = {
   car: {
     kind: 'car', enterMs: 900, exitMs: 750, camera: { distance: 7.4, height: 1.85 },
-    seats: [{ role: 'DRIVER', pose: 'car_seat', hip: [0.37, 0.5, -0.42], handL: [0.54, 0.95, 0.06], handR: [0.2, 0.95, 0.06], footL: [0.45, 0.25, 0.6], footR: [0.29, 0.25, 0.62], entry: [1.35, 0, -0.3] }],
-    rig: { baseClip: 'drive', steerPivot: [0.37, 0.92, 0.1], steerAxis: [0, 0.42, -0.907], steerMax: 1.6, handFollow: 0.9, leanMax: 0, torso: [-0.12, 0.15], kneePole: [0.15, 1, 0.6], elbowPole: [0.7, -0.7, -0.2] },
+    seats: [{ role: 'DRIVER', pose: 'car_seat', hip: [0.37, 0.58, -0.2], handL: [0.53, 0.97, 0.31], handR: [0.21, 0.97, 0.31], footL: [0.45, 0.27, 0.86], footR: [0.29, 0.27, 0.88], entry: [1.35, 0, -0.1] }],
+    rig: { baseClip: 'drive', steerPivot: [0.37, 0.93, 0.36], steerAxis: [0, 0.42, -0.907], steerMax: 1.6, handFollow: 0.9, leanMax: 0, torso: [-0.12, 0.15], kneePole: [0.15, 1, 0.6], elbowPole: [0.7, -0.7, -0.2] },
   },
   moto: {
     kind: 'moto', enterMs: 650, exitMs: 550, camera: { distance: 4.9, height: 1.55 },
@@ -105,7 +105,7 @@ export const MOUNT_PROFILES: Record<MountKind, MountProfileFull> = {
     kind: 'scooter', enterMs: 420, exitMs: 380, camera: { distance: 4.4, height: 1.5 },
     // em pé: `hip` y = altura da plataforma (o corpo fica de pé sobre ela); pé esquerdo na frente
     seats: [{ role: 'DRIVER', pose: 'scooter_stand', hip: [0, 0.18, -0.08], handL: [0.22, 1.16, 0.49], handR: [-0.22, 1.16, 0.49], footL: [0.05, 0.25, 0.14], footR: [-0.06, 0.25, -0.2], entry: [0.55, 0, -0.1] }],
-    rig: { baseClip: 'idle', steerPivot: [0, 0.6, 0.42], steerAxis: [0, 0.993, 0.12], steerMax: 0.45, handFollow: 0.45, leanMax: 0.18, torso: [0, 0.3], kneePole: [0.1, 0, 1], elbowPole: [0.8, -0.6, -0.3], kick: { ground: [-0.15, 0.08, -0.3], stroke: 0.42, maxSpeed: 3.2 } },
+    rig: { baseClip: 'idle', steerPivot: [0, 0.6, 0.42], steerAxis: [0, 0.993, 0.12], steerMax: 0.45, handFollow: 0.45, leanMax: 0.18, torso: [0, 0.45], kneePole: [0.1, 0, 1], elbowPole: [0.8, -0.6, -0.3], kick: { ground: [-0.15, 0.08, -0.3], stroke: 0.42, maxSpeed: 3.2 } },
   },
   soundcar: {
     kind: 'soundcar', enterMs: 800, exitMs: 700, camera: { distance: 10, height: 2.6 },

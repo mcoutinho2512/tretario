@@ -14,6 +14,8 @@ const LOCO = ['idle', 'walk', 'jog', 'sprint'] as const;
 type Loco = (typeof LOCO)[number];
 export type RidePose = 'sit-pedal' | 'stand' | 'drive' | 'ride';
 export type ShowPose = 'parado' | 'andando' | 'acenando' | 'dancando';
+/** rodada 10 — montagem: clipe-base do perfil + solver de IK/raiz (src/characters/human/vehicleClips.ts) */
+export interface RideMount { clip: string; w: number; solve?: (bones: Map<string, THREE.Object3D>, save: (b: THREE.Object3D) => void) => void }
 
 /** duração do crossfade de entrada/saída da camada de ação (s) */
 const ACT_FADE = 0.32;
@@ -577,17 +579,24 @@ export class HumanAnimator {
     }
   }
 
-  updateRiding(pose: RidePose, speed: number, dt: number) {
+  /**
+   * montado. rodada 10 — montagem: com `mount`, o clipe-base vem do perfil (`clip`, misturado com o idle por `w` nas
+   * transições) e `solve` (src/characters/human/vehicleClips.ts) posiciona a raiz e aplica IK depois do mixer; os
+   * ossos que ele mexe são salvos (`saveAdjusted`) e voltam à pose do clipe no quadro seguinte. Sem `mount`: antigo.
+   */
+  updateRiding(pose: RidePose, speed: number, dt: number, mount?: RideMount) {
     this.t += dt;
     const targets: Record<string, number> = {};
     for (const k of this.act.keys()) targets[k] = 0;
-    targets[pose === 'drive' ? 'drive' : pose === 'sit-pedal' || pose === 'ride' ? 'sit' : 'idle'] = 1;
+    if (mount && this.act.has(mount.clip)) { targets[mount.clip] = mount.w; targets.idle = (targets.idle ?? 0) + 1 - mount.w; }
+    else targets[pose === 'drive' ? 'drive' : pose === 'sit-pedal' || pose === 'ride' ? 'sit' : 'idle'] = 1;
     this.blend(targets, dt, 14);
     this.restorePose();
     this.mixer.update(dt);
     this.root.position.y = this.baseY;
     this.root.updateMatrixWorld(true);
-    if (pose === 'sit-pedal') this.pedal(speed);
+    if (mount?.solve) mount.solve(this.bones, (b) => this.saveAdjusted(b));
+    else if (pose === 'sit-pedal') this.pedal(speed);
   }
 
   private restorePose() {

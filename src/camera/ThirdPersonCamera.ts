@@ -4,6 +4,7 @@
  */
 import * as THREE from 'three';
 import type { CollisionWorld } from '../physics/CollisionWorld';
+import { mountProfile } from '../vehicles/seats';
 
 export class ThirdPersonCamera {
   yaw = 0; // 0 = câmera atrás olhando para +Z
@@ -26,11 +27,14 @@ export class ThirdPersonCamera {
   /** perfil de câmera por veículo (distância e altura do pivô) */
   pivotHeight = 1.6;
   setProfile(kind: 'foot' | 'bicycle' | 'scooter' | 'car' | 'moto' | 'soundcar' | 'trio') {
-    // veículos de evento são grandes: câmera mais longe e mais alta (o trio tem 7 m com a treliça)
-    const d = kind === 'trio' ? 17 : kind === 'soundcar' ? 10 : kind === 'car' ? 8.5 : kind === 'foot' ? 5.2 : 6;
-    this.pivotHeight = kind === 'trio' ? 4.2 : kind === 'soundcar' ? 2.6 : kind === 'car' ? 1.9 : 1.6;
+    // rodada 10 — montagem: distância/altura por categoria vêm do perfil (src/vehicles/seats.ts MOUNT_PROFILES): carro
+    // confortável, moto mais perto, bicicleta/patinete com o corpo inteiro no quadro; trio/carro de som longe e alto.
+    // Tela de toque (celular): um pouco mais longe — o corpo e o veículo não ficam escondidos atrás dos controles.
+    const cam = kind === 'foot' ? { distance: 5.2, height: 1.6 } : mountProfile(kind).camera;
+    const touch = typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches;
+    this.pivotHeight = cam.height;
     this.maxDistance = kind === 'trio' ? 30 : kind === 'soundcar' ? 22 : kind === 'car' ? 18 : 16;
-    this.targetDistance = d;
+    this.targetDistance = cam.distance * (touch && kind !== 'foot' ? 1.1 : 1);
   }
 
   zoom(delta: number) {

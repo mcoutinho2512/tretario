@@ -18,6 +18,9 @@ import { FX } from '../combat/types';
 import { STATUS } from '../net/rules';
 import { ProtectedAura } from '../combat/fxVisuals';
 import { angleDelta, turnToward } from '../npc/gait';
+import { MountRigSolver, mountWeights, vehicleMatrix, type MountSource } from '../characters/human/vehicleClips'; // rodada 10 — montagem
+import { MountTracker, mountProfile, type MountPhase } from '../vehicles/seats';
+import { sfx } from '../audio/bus';
 
 /** ossos do ragdoll (nomes do rig antigo) → rig "game_engine" do personagem humano */
 const HUMAN_BONES: Record<BoneName, string> = {
@@ -28,11 +31,16 @@ const HUMAN_BONES: Record<BoneName, string> = {
   RightUpperLeg: 'thigh_r', RightLowerLeg: 'calf_r', RightFoot: 'foot_r',
 };
 
+/** suavização 0..1 (transições de montagem) */
+const ease3 = (x: number) => { const k = Math.min(1, Math.max(0, x)); return k * k * (3 - 2 * k); };
+
 const useClassic = typeof location !== 'undefined' && new URLSearchParams(location.search).get('avatar') === 'classic';
 
 export interface AvatarOptions { lod?: Lod; castShadow?: boolean }
 
 export class AvatarVisual {
+  /** rodada 10 — montagem (QA): tempo acumulado do solver de montagem (raiz + IK), chamadas e chamadas com IK */
+  static mountCost = { ms: 0, n: 0, ik: 0 };
   /** LOD mais detalhado para jogadores remotos (preset): 0 no HIGH/ULTRA, 1 no MEDIUM, 2 no LOW */
   static maxRemoteDetail: Lod = 0;
   readonly root = new THREE.Group();
@@ -123,6 +131,8 @@ export class AvatarVisual {
     this.gait.init = false; this.gait.roll = this.gait.pitch = this.gait.yawRate = this.gait.accel = 0;
     this.animAcc = 0;
     this.pushT = 0;
+    this.mount.reset(); this.mountSrc = null; this.mountFrom = null; this.enterWalk = null; // rodada 10 — montagem
+    this.root.rotation.set(0, 0, 0);
   }
 
   /** nível de detalhe fixo (jogador local) */
@@ -320,8 +330,13 @@ export class AvatarVisual {
     this.human?.animator?.playCombat(name);
   }
 
-  /** montado num veículo: posiciona sobre ele e aplica a pose */
-  updateRiding(x: number, y: number, z: number, heading: number, pose: 'sit-pedal' | 'stand' | 'drive' | 'ride', speed: number, seatHeight: number, dt: number) {
+  /**
+   * montado num veículo: posiciona sobre ele e aplica a pose. rodada 10 — montagem: com `src` (o veículo), o corpo vai
+   * fisicamente para o banco (âncoras do perfil, IK de mãos/pés, transições de entrada/saída — src/vehicles/seats.ts e
+   * src/characters/human/vehicleClips.ts). Sem `src` (ou personagem de reserva): pose antiga.
+   */
+  updateRiding(x: number, y: number, z: number, heading: number, pose: 'sit-pedal' | 'stand' | 'drive' | 'ride', speed: number, seatHeight: number, dt: number, src?: MountSource) {
+    if (src && this.human?.animator && !this.legacy) { this.rideMount(src, pose, speed, dt); return; }
     this.smoothY = y;
     this.root.rotation.y = heading;
     this.gait.face = heading;
@@ -345,12 +360,104 @@ export class AvatarVisual {
     this.root.position.set(x, y + lift, z);
   }
 
+  // ------------------------------------------------------------------ rodada 10 — montagem (entrar/montado/sair)
+  private mount = new MountTracker();
+  private mountSrc: MountSource | null = null;
+  private solver: MountRigSolver | null = null;
+  /** raiz a pé: início da entrada (depois de andar até a porta) / fim da saída */
+  private mountFrom: { x: number; y: number; z: number; yaw: number } | null = null;
+  /** entrada: trecho a pé até o ponto de entrada (fração da entrada) */
+  private enterWalk: { sx: number; sz: number; ex: number; ez: number; y: number; f1: number; yaw: number } | null = null;
+  /** QA: fase e pesos */
+  get mountInfo() { return { phase: this.mount.phase as MountPhase, vehicle: this.mount.vehicle, kind: this.mount.kind, solver: this.solver?.qa ?? null }; }
+  /** ainda entrando no veículo (o carro só anda depois de sentar) */
+  get mountBusy() { return this.mount.phase === 'entering'; }
+
+  private rideMount(src: MountSource, pose: 'sit-pedal' | 'stand' | 'drive' | 'ride', speed: number, dt: number) {
+    const now = performance.now();
+    const r = this.mount.step(src.state.id, src.def.kind, now, !this.initialized);
+    this.initialized = true;
+    this.mountSrc = src;
+    if (r.changed && r.phase === 'entering') {
+      // começa de onde o corpo está (a pé); anda até a porta/lado mais próximo e então senta
+      const e = mountProfile(src.def.kind).seats[0].entry;
+      const M = vehicleMatrix(src, new THREE.Matrix4());
+      const sx = this.root.position.x, sz = this.root.position.z;
+      const a = new THREE.Vector3(e[0], 0, e[2]).applyMatrix4(M), b = new THREE.Vector3(-e[0], 0, e[2]).applyMatrix4(M);
+      const E = Math.hypot(a.x - sx, a.z - sz) <= Math.hypot(b.x - sx, b.z - sz) ? a : b;
+      const d = Math.hypot(E.x - sx, E.z - sz);
+      const f1 = d < 0.3 ? 0 : Math.min(0.45, (d / 1.5) * 1000 / mountProfile(src.def.kind).enterMs);
+      this.enterWalk = { sx, sz, ex: f1 > 0 ? E.x : sx, ez: f1 > 0 ? E.z : sz, y: this.root.position.y, f1, yaw: f1 > 0 ? Math.atan2(E.x - sx, E.z - sz) : this.gait.face };
+      this.mountFrom = { x: this.enterWalk.ex, y: src.state.y, z: this.enterWalk.ez, yaw: this.enterWalk.yaw };
+      this.human?.animator?.stopClip();
+      const k = src.def.kind;
+      sfx(k === 'car' || k === 'soundcar' || k === 'trio' ? 'veh_door' : 'veh_mount', { x: src.state.x, y: src.state.y, z: src.state.z });
+    }
+    let w = 1;
+    if (r.phase === 'entering' && this.enterWalk) {
+      const ew = this.enterWalk;
+      if (r.k < ew.f1) {
+        // trecho a pé até a porta (locomoção normal, sem deslizar)
+        const u = r.k / ew.f1;
+        this.root.position.set(ew.sx + (ew.ex - ew.sx) * u, ew.y + (src.state.y - ew.y) * u, ew.sz + (ew.ez - ew.sz) * u);
+        this.gait.face = turnToward(this.gait.face, ew.yaw, dt, 16, 9);
+        this.root.rotation.set(0, this.gait.face, 0);
+        this.animate(1.4, true, dt);
+        return;
+      }
+      w = ease3((r.k - ew.f1) / Math.max(1e-3, 1 - ew.f1));
+    }
+    this.applyMount(src, pose, speed, w, r.phase === 'mounted' ? null : this.mountFrom, dt);
+    this.gait.face = src.state.heading;
+  }
+
+  private applyMount(src: MountSource, pose: 'sit-pedal' | 'stand' | 'drive' | 'ride', speed: number, w: number, from: { x: number; y: number; z: number; yaw: number } | null, dt: number) {
+    const a = this.human?.animator;
+    if (!a) return;
+    { const pv = this.human?.armature; if (pv) { pv.rotation.x = 0; pv.rotation.z = 0; } }
+    this.solver ??= new MountRigSolver(this.human!.bones as unknown as Map<string, THREE.Object3D>);
+    const solver = this.solver;
+    const rig = mountProfile(src.def.kind).rig;
+    a.updateRiding(pose, src.dyn?.speed ?? speed, dt, {
+      clip: rig.baseClip, w: from ? mountWeights(src.def.kind, w).clip : w,
+      solve: (_b, save) => {
+        const t0 = performance.now();
+        solver.solve({ root: this.root, src, w, from, ik: a.detail, save, dt });
+        const c = AvatarVisual.mountCost; c.ms += performance.now() - t0; c.n++; if (a.detail) c.ik++;
+      },
+    });
+    this.smoothY = this.root.position.y;
+  }
+
+  /** saída em curso (chamado pelo update a pé): do banco até onde o jogador está; true enquanto controla a pose */
+  private updateExit(s: PlayerState, dt: number): boolean {
+    if (this.mount.phase === 'none' || !this.mountSrc) return false;
+    const r = this.mount.step(null, null, performance.now());
+    if (r.phase === 'exiting') {
+      if (r.changed) {
+        this.mountFrom = { x: s.x, y: s.y, z: s.z, yaw: s.heading };
+        const k = this.mountSrc.def.kind;
+        sfx(k === 'car' || k === 'soundcar' || k === 'trio' ? 'veh_door' : 'veh_mount', { x: s.x, y: s.y, z: s.z });
+      }
+      this.mountFrom!.x = s.x; this.mountFrom!.z = s.z; this.mountFrom!.y = s.y; this.mountFrom!.yaw = s.heading;
+      this.applyMount(this.mountSrc, 'drive', 0, 1 - ease3(r.k), this.mountFrom, dt);
+      this.gait.face = s.heading; this.gait.speed = 0;
+      return true;
+    }
+    // terminou: corpo de pé no lugar do jogador, sem resto de inclinação
+    this.mountSrc = null;
+    this.root.rotation.set(0, s.heading, 0);
+    this.gait.face = s.heading; this.smoothY = s.y;
+    return false;
+  }
+
   /**
    * `animate` (opcional): decisão externa de atualizar a animação neste quadro (orçamento da multidão, escalonado);
    * sem ela, a frequência sai do LOD (perto: todo quadro; LOD2: 1/2; LOD3: 1/4). O tempo acumulado nunca se perde.
    */
   update(s: PlayerState, dt: number, animate?: boolean) {
     if (this.updateFall(s.x, s.y, s.z, s.heading, dt)) { this.smoothY = s.y; return; }
+    if (this.mount.phase !== 'none' && this.updateExit(s, dt)) return; // rodada 10 — montagem: saindo do veículo
     if (!this.initialized) { this.smoothY = s.y; this.initialized = true; }
     this.smoothY += (s.y - this.smoothY) * (1 - Math.exp(-18 * dt));
     if (Math.abs(s.y - this.smoothY) > 0.6) this.smoothY = s.y;
