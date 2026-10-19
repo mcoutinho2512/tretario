@@ -60,6 +60,8 @@ export interface VehicleDeps {
   enter(it: RideableInstance): void;
   board(it: RideableInstance): void;
   exit(): void;
+  /** rodada 12 — sessionId próprio (veículo pessoal de outro não é alvo) */
+  self?(): string;
 }
 
 /** veículos (entrar/montar/usar/dirigir), escada do trio (subir) e sair/descer */
@@ -88,6 +90,7 @@ export class VehicleProvider implements InteractionProvider {
     for (const it of d.items()) {
       const s = it.state;
       if ((s.x - x) ** 2 + (s.z - z) ** 2 > R2) continue;
+      if (it.owner && it.owner !== d.self?.()) continue; // rodada 12 — veículo pessoal de outro: só o dono usa
       const busy = it.netState === 2 || (it.def.kind !== 'trio' && !!s.occupant);
       const kind = it.def.kind;
       if (kind === 'trio') {

@@ -200,3 +200,18 @@ export interface EventResultRow { name: string; rank: number; timeMs: number; st
 export interface EventResultMessage { inst: string; format: string; rows: EventResultRow[]; score?: Record<string, number> }
 /** cliente → servidor `evt_watch {inst, on}`: acompanhar sem se inscrever (marcadores, placar, resultado) */
 export interface EventWatchRequest { inst: string; on?: boolean }
+
+/* ── rodada 12 (mundo dinâmico: server/src/world/DynamicWorldDirector.ts, docs/DYNAMIC_WORLD.md) ──────────────── */
+
+/**
+ * sinal de um EVENTO DINÂMICO (nasce do estado do mundo, não da agenda) para áudio e HUD/minimapa. Poucos campos,
+ * arredondados; o cliente NÃO decide nada com isto (só som, marcador e indicador).
+ *  k   tipo (DynamicEventKind: CONCENTRACAO, CAMINHADA, MANIFESTACAO, ENCONTRO_TORCIDAS, DISCUSSAO, BRIGA,
+ *      BRIGA_GENERALIZADA, CORRIDA_IMPROVISADA, FESTA)
+ *  e   escalada 0 CALMO · 1 TENSÃO · 2 CONFRONTO · 3 GENERALIZADO (focos de briga; reuniões ficam em 0)
+ *  n/w participantes / observadores (autônomos; nunca contados como jogadores online)
+ *  ci  intensidade da multidão 0..1 · ch torcida/aplauso/canto 0..1 · cb intensidade de confronto 0..1
+ */
+export interface DynamicSignalWire { id: string; k: string; x: number; z: number; r: number; e: number; n: number; w: number; ci: number; ch: number; cb: number }
+/** servidor → todos `dyn {list}`: ≤ 1 Hz, só quando muda; também na entrada (lista atual) */
+export interface DynamicSignalsMessage { list: DynamicSignalWire[] }

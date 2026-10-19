@@ -1,0 +1,63 @@
+{
+  "when": "2026-10-19T22:09:28.240Z",
+  "base": "http://localhost:5215",
+  "results": [
+    {
+      "label": "antes",
+      "kind": 2,
+      "N": 50,
+      "remotes": 50,
+      "far": 0,
+      "cpuMs": 7.8988,
+      "fps": 59.8,
+      "p95FrameMs": 18.3,
+      "crowdMs": 0.06,
+      "skinned": 21.9,
+      "netUpdateMs": null,
+      "lookActive": null,
+      "labelsShown": 8.4,
+      "labelDecideMs": 0.0137,
+      "labelFrameMs": null,
+      "occlusionRaysTotal": null,
+      "domLabelNodes": 50
+    },
+    {
+      "label": "antes",
+      "kind": 2,
+      "N": 250,
+      "remotes": 64,
+      "far": 174,
+      "cpuMs": 15.8705,
+      "fps": 56.9,
+      "p95FrameMs": 23.9,
+      "crowdMs": 0.18,
+      "skinned": 32,
+      "netUpdateMs": null,
+      "lookActive": null,
+      "labelsShown": 14,
+      "labelDecideMs": 0.0369,
+      "labelFrameMs": null,
+      "occlusionRaysTotal": null,
+      "domLabelNodes": 64
+    },
+    {
+      "label": "antes",
+      "kind": 2,
+      "N": 500,
+      "remotes": 64,
+      "far": 424,
+      "cpuMs": 13.9481,
+      "fps": 60,
+      "p95FrameMs": 17.9,
+      "crowdMs": 0.18,
+      "skinned": 32,
+      "netUpdateMs": null,
+      "lookActive": null,
+      "labelsShown": 14,
+      "labelDecideMs": 0.0351,
+      "labelFrameMs": null,
+      "occlusionRaysTotal": null,
+      "domLabelNodes": 64
+    }
+  ]
+}

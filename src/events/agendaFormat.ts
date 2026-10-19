@@ -8,7 +8,7 @@ import { clock } from './debate';
 
 /** rótulo curto por formato (o nome do evento vem dos dados; isto só cobre a ausência dele) */
 const FORMAT_LABEL: Record<string, string> = {
-  debate: 'DEBATE', caminhada: 'CAMINHADA', corrida: 'CORRIDA', manifestacao: 'ATO', encontro: 'ENCONTRO', show: 'SHOW', missao: 'MISSÃO', confronto: 'CONFRONTO', trio: 'TRIO',
+  dinamico: 'ACONTECENDO', debate: 'DEBATE', caminhada: 'CAMINHADA', corrida: 'CORRIDA', manifestacao: 'ATO', encontro: 'ENCONTRO', show: 'SHOW', missao: 'MISSÃO', confronto: 'CONFRONTO', trio: 'TRIO',
 };
 
 export const STATE_LABEL: Record<EventState, string> = {
@@ -85,6 +85,8 @@ export function joinAction(e: AgendaEntry): 'join' | 'leave' | null {
   if (e.state === 'FINISHED' || e.state === 'CANCELLED') return null;
   // debate: participação é pela FILA do palco (painel do debate), não por inscrição no agendador
   if (e.format === 'debate') return null;
+  // rodada 12 — evento DINÂMICO (nasceu do mundo: concentração, festa, briga…): participar é ir até lá, não há inscrição
+  if (e.format === 'dinamico') return null;
   if (e.joined) return 'leave';
   if (e.state === 'SCHEDULED') return null;
   if (e.capacity > 0 && e.count >= e.capacity) return null;

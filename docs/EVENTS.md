@@ -127,3 +127,13 @@ encurtados.
 Agenda incluída: `manifestacao` — caminhada Central → Candelária (a cada 60 min), corridas de bicicleta e de patinete
 na Cidade Nova (a cada 30 min); `cotidiano` — as duas corridas; `encontro-exemplo` — caminhada; `classico-exemplo` —
 desafio das torcidas no Campo de Santana (confronto, `CONTESTED`, fogo amigo desligado) e corrida de bicicleta.
+
+## Eventos dinâmicos (rodada 12) — nascem do mundo, entram na mesma agenda
+Além da agenda recorrente, o **diretor do mundo dinâmico** (`server/src/world/DynamicWorldDirector.ts`,
+[DYNAMIC_WORLD.md](DYNAMIC_WORLD.md)) faz nascer eventos a partir do estado dos personagens autônomos: concentração,
+caminhada, manifestação, encontro de torcidas, festa, corrida improvisada, discussão, briga e briga generalizada.
+**Não há agenda paralela**: o `EventRuntime` recebe as entradas pelo gancho `EventHost.extraAgenda` (formato
+`dinamico`, estado `ACTIVE` — aparecem em "Acontecendo agora" e na tela AGENDA, sem inscrição: `joinAction` → null) e
+as concentrações pelo gancho novo `EventHost.extraRallies` (mesmo `evt_pts`, `crowd: 0`, `inst` = id do ponto; também
+no ambiente do espectador via `rallies()`). Sinais para áudio/HUD: mensagem leve `dyn` (≤ 1 Hz, na mudança).
+QA: `qa_dyn {kind, x, z}` só no servidor de teste.

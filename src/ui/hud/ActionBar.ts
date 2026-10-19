@@ -32,6 +32,10 @@ export interface ActionBarDeps {
   /** veículos livres por perto (um por tipo) */
   vehicles(): NearVehicle[];
   vehicleLabel(kind: string): string;
+  /** rodada 12 — veículos PESSOAIS (selecionou → aparece): tipos e qual estou usando */
+  personal?(): { kind: string; label: string; active: boolean }[];
+  /** rodada 12 — pede o pessoal (o mesmo de novo, montado: desce) */
+  requestVehicle?(kind: string): void;
   /** E / USAR */
   use(): void;
   /** direção para um ponto (alvo no minimapa + mapa expandido + aviso de distância), sem teleporte */
@@ -206,6 +210,12 @@ export class ActionBar {
         // "E — USAR BICICLETA" / "E — descer · W pedalar…": a tecla vai no <kbd>, a ajuda de direção fica no HUD
         const useLabel = prompt.replace(/^E — /, '').split(' · ')[0];
         if (prompt) out.push({ entries: [{ label: useLabel.charAt(0).toUpperCase() + useLabel.slice(1), kbd: d.touch ? undefined : 'E', id: 'use', pick: () => d.use(), closes: true }] });
+        // rodada 12 — veículo pessoal: escolher = aparece aqui (nada de "o mais próximo está a 83 m")
+        const pers = d.personal?.() ?? [];
+        if (pers.length && d.requestVehicle) {
+          out.push({ title: 'Seu veículo', entries: pers.map((v) => ({ label: v.active ? `${v.label} · descer` : v.label, active: v.active, id: `v_${v.kind}`, pick: () => d.requestVehicle!(v.kind), closes: true })) });
+          return out;
+        }
         const list = d.vehicles();
         out.push({
           title: list.length ? 'Por perto' : undefined,
@@ -264,7 +274,7 @@ export class ActionBar {
   private signature(cat: BarCat): string {
     const d = this.deps, s = d.social;
     switch (cat) {
-      case 'veiculos': return `${d.vehiclePrompt()}|${d.vehicles().map((v) => `${v.kind}:${distLabel(v.d)}`).join(',')}`;
+      case 'veiculos': return d.personal ? `${d.vehiclePrompt()}|${d.personal().map((v) => `${v.kind}:${v.active ? 1 : 0}`).join(',')}` : `${d.vehiclePrompt()}|${d.vehicles().map((v) => `${v.kind}:${distLabel(v.d)}`).join(',')}`;
       case 'itens': case 'confronto': return `${s.prop}|${s.design}|${d.extraProps().join(',')}`;
       case 'gestos': return `${s.act}|${s.prop}`;
       default: return '';

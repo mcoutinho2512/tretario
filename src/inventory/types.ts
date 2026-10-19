@@ -8,10 +8,10 @@
  */
 import type { ItemKey } from '../characters/unlocks';
 
-export type EquipSlot = 'HEAD' | 'TORSO' | 'LEGS' | 'FEET' | 'HAND' | 'BACK' | 'ACCESSORY' | 'TITLE' | 'SUPPORTER';
+export type EquipSlot = 'HEAD' | 'TORSO' | 'LEGS' | 'FEET' | 'HAND' | 'BACK' | 'ACCESSORY' | 'TITLE' | 'SUPPORTER' | 'VEHICLE';
 
 /** só categorias com conteúdo real aparecem na interface */
-export type InventoryCategory = 'ROUPAS' | 'ACESSORIOS' | 'ITENS' | 'EQUIPAMENTOS' | 'BANDEIRAS' | 'MANIFESTACAO' | 'TORCIDA' | 'COSMETICOS' | 'TITULOS';
+export type InventoryCategory = 'ROUPAS' | 'ACESSORIOS' | 'ITENS' | 'EQUIPAMENTOS' | 'BANDEIRAS' | 'MANIFESTACAO' | 'TORCIDA' | 'COSMETICOS' | 'TITULOS' | 'VEICULOS';
 
 export type InventoryFilter = 'TODOS' | 'EQUIPADOS' | 'DESBLOQUEADOS' | 'NOVOS';
 
@@ -19,7 +19,7 @@ export type ItemState = 'equipped' | 'available' | 'locked';
 
 export interface InventoryItem {
   /** chave estável: ItemKey de unlocks (aparência/design/ação) ou `prop:<id>` (segurável) / `title:<id>` / `sup:<id>` */
-  key: ItemKey | `prop:${number}` | `title:${string}` | `sup:${string}`;
+  key: ItemKey | `prop:${number}` | `title:${string}` | `sup:${string}` | `veh:${string}`; // rodada 12 — `veh:<tipo>` = veículo pessoal
   category: InventoryCategory;
   slot: EquipSlot;
   label: string;
@@ -30,7 +30,7 @@ export interface InventoryItem {
   isNew?: boolean;
   /** por que está bloqueado ("Nível 4", "Missão X", "Evento") — sem loja */
   lockedReason?: string;
-  /** cabe no acesso rápido (só itens de gameplay: seguráveis e de confronto; nunca roupa) */
+  /** cabe no acesso rápido (só itens de gameplay: seguráveis, de confronto e — rodada 12 — veículos pessoais; nunca roupa) */
   quickbar: boolean;
 }
 

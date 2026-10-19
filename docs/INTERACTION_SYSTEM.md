@@ -96,6 +96,8 @@ Testado na sala REAL com clientes do SDK mandando mensagens cruas (`tests/intera
 | "assumir" o carro alheio: `exit` de quem não está nele, `move` com campos extras/ocupante, `enter` com `occupant`/`force` | nada muda |
 | `item_pick` longe (posição do cliente ignorada) / inexistente / id não numérico / já pego por outro | `longe` / `inexistente` / `invalido` / `ocupado` |
 | `user_report` | ver abaixo |
+| rodada 12 — `enter` no veículo PESSOAL de outro (`NetVehicle.owner`) | `enter_denied pessoal` (só o dono usa; no cliente o pessoal alheio nem vira alvo — `VehicleProvider` e `RideableSystem.nearest` pulam) |
+| rodada 12 — `pveh_req` forjado (100×, tipos inválidos, espectador, caído) | ≤ 1 ativo, `taxa` / `tipo` / `espectador` / `caido` (`tests/personalVehiclesServer.test.ts`) |
 
 **Brechas corrigidas nesta rodada** (`PresidenteVargasRoom.onEnter`):
 - a resposta `enter_denied` ecoava o `id` cru do cliente (objeto/texto arbitrário): agora só texto ≤ 64 caracteres;
@@ -195,3 +197,11 @@ escolha. Nada de raycast contra malhas: a seleção é aritmética sobre os cand
 
 Pose/animação/câmera do avatar no veículo e saída segura no servidor (agente C), áudio (agente D — os `sfx('ui_click'
 | 'ui_open' | 'ui_denied')` daqui são no-op até o áudio registrar), animações de combate (agente E).
+
+## Veículo pessoal (rodada 12)
+
+"Selecionou → aparece": a barra (Veículos), o inventário e o acesso rápido não apontam mais "o mais próximo"; pedem o
+veículo PESSOAL (`pveh_req`). O servidor cria um `NetVehicle` comum (com `owner`) num ponto seguro perto e monta pelo
+MESMO `mountVehicle` do `enter` (missão `vehicle_enter` conta, animação de montagem da rodada 10). O provedor de
+veículos ignora o pessoal de outro jogador (sem prompt "E — USAR" nele). Veículos do mundo (vagas) continuam como
+alvo normal. Ver docs/PERSONAL_VEHICLES.md.

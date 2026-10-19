@@ -56,6 +56,9 @@ export interface InventoryHost {
   notify(msg: string): void;
   onModal(open: boolean): void;
   setMoveBlocked(on: boolean): void;
+  /** rodada 12 — pede o veículo pessoal (`pveh_req`; null = descer) e o tipo em que está montado agora */
+  requestVehicle?(kind: string | null): void;
+  personalVehicle?(): string | null;
 }
 
 const APP_FIELDS = ['topStyle', 'bottomStyle', 'shoeStyle', 'hairStyle', 'accessory', 'shirtDesign'] as const;
@@ -133,7 +136,7 @@ export class InventoryController {
       carried: this.h.carried(), freeCombat: this.h.freeCombat(), titles: this.h.titles(),
       title: typeof self?.title === 'string' && self.title ? self.title : null,
       supporters: this.sup, supporter: supIdx > 0 ? this.sup?.groups[supIdx - 1]?.id ?? null : null,
-      progression: this.h.progression(), seen: seenItems(),
+      progression: this.h.progression(), seen: seenItems(), vehicle: this.h.personalVehicle?.() ?? null,
     };
   }
 
@@ -141,7 +144,7 @@ export class InventoryController {
   private refresh(force = false) {
     const c = this.ctx();
     const a = c.app;
-    const sig = `${a.body}|${APP_FIELDS.map((f) => a[f] ?? '').join(',')}|${c.prop}.${c.design}|${c.carried}${c.freeCombat ? 'f' : ''}|${c.ent.size}|${c.titles.length}|${c.title}|${c.supporter}|${c.supporters ? 1 : 0}|${c.progression ? 1 : 0}|${c.seen?.size}`;
+    const sig = `${a.body}|${APP_FIELDS.map((f) => a[f] ?? '').join(',')}|${c.prop}.${c.design}|${c.carried}${c.freeCombat ? 'f' : ''}|${c.ent.size}|${c.titles.length}|${c.title}|${c.supporter}|${c.supporters ? 1 : 0}|${c.progression ? 1 : 0}|${c.seen?.size}|${c.vehicle ?? ''}`;
     if (!force && sig === this.sig) return false;
     this.sig = sig;
     this.items = buildInventory(c);
@@ -162,7 +165,7 @@ export class InventoryController {
     const prop = this.h.social.prop, design = this.h.social.design;
     this.quickbar.set(this.layout.map((key) => {
       const item = key ? this.items.find((i) => i.key === key) ?? null : null;
-      return { key, item, active: !!key && isActive(key, prop, design) };
+      return { key, item, active: !!key && isActive(key, prop, design, this.h.personalVehicle?.()) };
     }), this.items.some((i) => i.isNew));
   }
 
@@ -213,6 +216,7 @@ export class InventoryController {
     try {
       if (plan.kind === 'appearance') await this.applyAppearance(plan.app, it);
       else if (plan.kind === 'prop') await this.applyProp(plan.prop, plan.design);
+      else if (plan.kind === 'vehicle') { if (this.h.requestVehicle) { this.h.requestVehicle(plan.vehicle); this.close(); } else this.h.notify('Veículos indisponíveis aqui'); } // rodada 12 — o servidor decide; fecha para ver surgir
       else if (plan.kind === 'title') await this.applyTitle(plan.title);
       else await this.applySupporter(plan.group);
     } finally {
@@ -323,7 +327,7 @@ export class InventoryController {
     this.refresh();
     const it = this.items.find((x) => x.key === key);
     if (!it) return;
-    if (isActive(key, this.h.social.prop, this.h.social.design)) { await this.run({ kind: 'prop', prop: 0 }, it); return; }
+    if (isActive(key, this.h.social.prop, this.h.social.design, this.h.personalVehicle?.())) { await this.run(key.startsWith('veh:') ? { kind: 'vehicle', vehicle: null } : { kind: 'prop', prop: 0 }, it); return; }
     await this.equip(key);
   }
 

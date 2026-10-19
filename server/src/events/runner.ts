@@ -63,6 +63,11 @@ export interface EventHost {
   log?(msg: string): void;
   /** entradas de agenda de OUTROS sistemas da sala (ex.: palco de debate, server/src/debate) — mesma mensagem `agenda` */
   extraAgenda?(now: number): AgendaEntry[];
+  /**
+   * rodada 12 — concentrações de OUTROS sistemas (mundo dinâmico: server/src/world/DynamicWorldDirector.ts) — entram
+   * no MESMO `evt_pts` (minimapa/RallyPoint) e no ambiente do espectador, com `inst` = id do ponto
+   */
+  extraRallies?(now: number): EventRallyPoint[];
   /** chave estável do participante: `u:<conta>`; sem conta `s:<sessão>` (ausente = `s:<sessão>`) — dona da inscrição */
   participantKey?(sid: string): string;
 }

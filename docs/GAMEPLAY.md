@@ -110,3 +110,12 @@ continuam **separados** dos jogadores: `playersOnline` nunca conta NPC; a agenda
 Contadores agregados no servidor (sessões, missões iniciadas/concluídas, eventos, zonas, corridas, debate,
 participação em confronto) para medir retenção no futuro — sem serviço externo, sem conteúdo privado:
 `npm run dev:telemetry` ([PROGRESSION.md](PROGRESSION.md)).
+
+## Rodada 12 — mundo dinâmico
+A avenida muda sozinha: personagens autônomos formam **concentrações** a partir de um núcleo pequeno (outros chegam,
+alguns saem), que podem virar **manifestação**, **caminhada** pelo eixo, **encontro de torcidas** ou **festa**; surgem
+**corridas improvisadas**; e, raramente, uma **discussão** vira **briga** e, por adesões, **briga generalizada** —
+com orçamento por hora e por região (nunca "uma briga por minuto") e desescalada por cansaço e dispersão. Os eventos
+vivos aparecem em "Acontecendo agora" e no minimapa; o áudio e o HUD recebem a intensidade de multidão, torcida e
+confronto pela mensagem `dyn`. O jogador participa indo até lá (sem inscrição) e só vira alvo de reação se agredir
+alguém. Detalhes e números: [DYNAMIC_WORLD.md](DYNAMIC_WORLD.md).

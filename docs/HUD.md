@@ -141,7 +141,7 @@ pacote de ícones). Botões com `^` abrem um popover para cima; Esc, clique/toqu
 
 | Botão | O que faz (sempre pelo caminho de sempre) |
 |---|---|
-| **Veículos ^** | "USAR BICICLETA / SUBIR NO TRIO / descer…" quando há algo ao alcance (o texto da ação contextual do HUD; clique = tecla **E**) + o veículo livre mais perto de cada tipo com a distância (bicicleta, patinete, carro, moto, carro de som, trio pela escada). Clique na lista = alvo no minimapa + mapa expandido + aviso de distância; **sem teleporte**. Ponto amarelo no botão quando há veículo usável perto |
+| **Veículos ^** | "USAR BICICLETA / SUBIR NO TRIO / descer…" quando há algo ao alcance (o texto da ação contextual do HUD; clique = tecla **E**) + **Seu veículo** (rodada 12): Patinete · Bicicleta · Moto · Carro — escolher = o veículo PESSOAL **aparece junto e você já está montado** (`pveh_req`, docs/PERSONAL_VEHICLES.md); o mesmo de novo, montado, = descer. Nada de "o mais próximo está a 83 m". Ponto amarelo no botão quando há veículo usável perto |
 | **Itens ^** | as mesmas opções da categoria ITENS da roda (`itemOptions`): Mãos vazias, bandeiras/cartazes/faixa/…, e os itens de confronto oferecidos (`ItemsClient.wheelExtra`); ◀ design ▶ para o item na mão; tocar no item na mão de novo o larga |
 | **Pichar** | abre o editor de grafite se houver tapume/parede liberada perto (`graffiti.tryOpen`, o mesmo do **E**); senão aviso "Aproxime-se de um tapume ou parede liberada para pichar" |
 | **Confronto ^** | Soco (R), Chute (Q), Esquiva (C), Empurrão (F) — entram como as teclas (`input.queueToggle`); "Pegar rápido" Taco/Barra/Spray (`requestProp`, apagado se o servidor não oferece). No botão, duas linhas finas de condição/fôlego enquanto o HUD de confronto está à vista (lidas de `CombatHud.state`, nada recalculado) |
@@ -171,7 +171,7 @@ pacote de ícones). Botões com `^` abrem um popover para cima; Esc, clique/toqu
 QA `tools/qa/action_bar.mjs` (servidor de teste próprio; desktop 1280×720 + iPhone 14): 38 verificações — barra
 visível/ausente no espectador, cada popover abre e fecha (clique, Esc, fora, teclado), item → `prop` confirmado pelo
 servidor e largado pela barra, design pela barra, gesto confirmado, Soco/Chute sobem `combat().stats.acts`, Taco
-rápido, Mapa, Pichar (dica e editor), Veículos (E — USAR monta/desce, lista → alvo no mapa), Personagem, HUD limpo,
+rápido, Mapa, Pichar (dica e editor), Veículos (E — USAR monta/desce; rodada 12: lista = veículo pessoal, tools/qa/personal_vehicles_mp.mjs), Personagem, HUD limpo,
 esmaecer/voltar, roda G, e no celular ícones ≥ 44 px, AÇÕES oculto e nenhuma sobreposição (caixas) com joystick e
 botões. Capturas: `docs/screenshots/round9_1/menu_barra_desktop.jpg`, `menu_barra_popover.jpg`,
 `menu_barra_celular.jpg`, `menu_barra_celular_popover.jpg`.
@@ -382,3 +382,52 @@ caso) e multidão de bots: **17/17 sem sobreposição, sem corte e com o centro 
   personagem (`input.setMoveBlocked`) e o clique no cenário não interage.
 - Avisos curtos (sem modal) pelo canal de sempre (`flash`): "Você não possui este item.", "<item>: bloqueado — Nível 3",
   "Título: …", "Torcida atualizada.".
+
+## Rodada 12 — nomes da população e minimapa (agente D; docs/AUTONOMOUS_CHARACTERS.md § Cliente)
+
+### Nomes
+
+- **Pool fixo de rótulos** (`src/net/NameTagPool.ts`): 18 nós `.name-label` no total (teto de 14 visíveis + folga),
+  emprestados a quem a decisão escolhe. Antes: um nó por remoto detalhado (até 64). Texto/classe só quando mudam;
+  por quadro só o `transform` dos emprestados e só quando muda de pixel.
+- **Autônomos** (`NetPlayer.kind = 1`): parte SEM nome (`autonomousTagged`: hash do nid × `autonomous.json`
+  `nametag.share` = 0,6; ou `NetPlayer.tag` se o servidor mandar); com nome: completo até 18 m, faixa média até 35 m,
+  nada além.
+- **Densidade**: faixa média (humanos 15–30 m, autônomos 18–35 m) com mais de 8 candidatos → só centro da tela,
+  interagindo ou em foco (PRÓXIMOS; TODOS ignora).
+- **Foco**: pessoa sob o cursor (hover do InteractionSystem) ou aberta no painel → apelido completo, prioridade × 0,1.
+- **Oclusão amostrada**: raio câmera → cabeça contra as paredes **≥ 3 m** do `CollisionWorld` (prédios; gradil e
+  mureta não escondem). `OcclusionCache`: ≤ 8 raios novos por decisão (5 Hz), resultado válido 400 ms, ocluir exige 2
+  bloqueios seguidos (sem piscar na quina), desocluir é imediato. Ocluído não gasta vaga do teto.
+
+Medição (`tools/qa/nametag_bench.mjs`, Chrome + Metal, M-series, preset ALTO com até 64 remotos detalhados — o resto
+vira multidão distante, sem nome; dados completos em docs/bench/round12_nametags.json). "antes" = master df8028f.
+
+| pessoas na área | 50 | 250 | 500 |
+|---|---|---|---|
+| nós `.name-label` antes → depois | 50 → **18** | 64 → **18** | 64 → **18** |
+| rótulos visíveis (autônomos) | 2,6 | 14 | 14 |
+| decisão (5 Hz), ms antes → depois | 0,014 → 0,025 | 0,037 → 0,056 | 0,035 → 0,044 |
+| transform por quadro, ms | 0,010 | 0,034 | 0,028 |
+| raios de oclusão por decisão | ≤ 8 | ≤ 8 | ≤ 8 |
+| update dos remotos (interp. + esqueletos + olhar + rótulos), ms: sem variedade/olhar → com (32 olhando) | 0,34 → 0,42 | 0,79 → 1,12 | 1,05 → 1,05 |
+
+Sintético (`tools/qa/nametag_synth.ts`, só a decisão com 50/250/500 candidatos + oclusão): 0,012 / 0,017 / 0,028 ms.
+CPU do quadro inteiro variou ±3 ms entre execuções (máquina compartilhada) — sem diferença atribuível.
+
+### Minimapa
+
+A população (autônomos inclusive) continua SÓ no calor da densidade (`DensityGrid`, células de 10 m) — nunca um
+ponto por pessoa. Novo: `Minimap.dynamicMarks` — **uma marca agregada por foco** de evento dinâmico
+(`dynamicEventMark`): tamanho pela massa, âmbar (ato/concentração), dourado (festa), vermelho (confusão), anel
+pulsando pela intensidade; rótulo genérico (Concentração, Caminhada, Ato, Torcidas, Agito, Confusão, Corrida, Festa)
+só no mapa expandido. A escalada interna nunca aparece como texto. Alimentado pela mensagem `dyn` do AGENTE E (`EventClient.onDyn`; concentrações agendadas continuam por `evt_pts`).
+
+## Veículo pessoal no HUD (rodada 12)
+
+Barra (Veículos → Seu veículo), inventário (VEÍCULOS → USAR AGORA) e acesso rápido (`veh:<tipo>` fixado) PEDEM o
+veículo pessoal; o servidor decide o ponto. Aviso curto de uma linha: "Patinete disponível" (montado) · "Carro
+disponível — ali do lado (9 m): E para entrar" (+ alvo "Seu carro" no minimapa) quando a porta ficou longe para montar
+sozinho · recusa: "Devagar — espere um instante…", "Sem lugar seguro aqui…", "Desça do veículo/trio primeiro",
+"Levante-se primeiro", "Este evento não permite esse veículo". O HUD do veículo (velocidade + SAIR/DESCER) é o mesmo
+da rodada 10. Detalhes: docs/PERSONAL_VEHICLES.md.

@@ -27,6 +27,12 @@ const COMPACT_PPM = 0.32; // px CSS por metro na visão compacta (~575 m de lado
 export class Minimap {
   /** rodada 9 — marcas de eventos agendados (escritas pelo EventClient; desenhadas no próximo quadro do mapa) */
   eventMarks: { x: number; z: number; color: string; label?: string; r?: number; ring?: string }[] = [];
+  /**
+   * rodada 12 — focos de eventos DINÂMICOS (src/events/dynamicPresentation.ts): uma marca AGREGADA por foco, com
+   * anel pulsando pela intensidade. A população (autônomos inclusive) continua só no calor da densidade — nunca um
+   * ponto por pessoa.
+   */
+  dynamicMarks: { x: number; z: number; color: string; label?: string; r: number; ring?: string; pulse: number }[] = [];
   readonly el: HTMLDivElement;
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
@@ -290,6 +296,16 @@ export class Minimap {
       // rodada 10 — concentração de torcida (agregada): anel na 2ª cor e sigla em claro (cores escuras somem no mapa)
       if (m.ring) { c.fillStyle = m.ring; c.beginPath(); c.arc(x, y, ((m.r ?? 3) + 2) * u, 0, Math.PI * 2); c.fill(); this.marker(x, y, u, m.color, '', m.r ?? 3); if (m.label) this.text(m.label, x, y - ((m.r ?? 3) + 9) * u, u, '#f4f1e8', 'center', true); }
       else this.marker(x, y, u, m.color, m.label ?? '', m.r ?? 3);
+    }
+    // rodada 12 — focos dinâmicos: anel pulsando (intensidade) + marca; rótulo genérico só na visão expandida
+    if (this.dynamicMarks.length) {
+      const ph = (performance.now() / 1000) % 1;
+      for (const m of this.dynamicMarks) {
+        const x = sx(m.x), y = sy(m.z);
+        if (!inView(x, y, 30)) continue;
+        if (m.ring) { c.fillStyle = m.ring; c.beginPath(); c.arc(x, y, (m.r + 2 + 6 * m.pulse * ph) * u, 0, Math.PI * 2); c.fill(); }
+        this.marker(x, y, u, m.color, this.expanded && !narrow ? m.label ?? '' : '', m.r);
+      }
     }
     // rótulos
     c.textBaseline = 'middle';

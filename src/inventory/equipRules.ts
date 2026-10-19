@@ -17,12 +17,15 @@ import { isAvailable, type ItemEntitlements, type ItemKey } from '../characters/
 import { sanitizeShirtDesign } from '../net/protocol';
 import { DESIGN_BY_ID, DESIGN_BY_KEY } from '../social/designs';
 import { PROPS, PROP_BY_ID, NO_PROP } from '../social/props';
+import { isPersonalKind } from '../vehicles/personal'; // rodada 12
 
 export type EquipPlan =
   | { kind: 'appearance'; app: CharacterAppearance }
   | { kind: 'prop'; prop: number; design?: number }
   | { kind: 'title'; title: string | null }
   | { kind: 'supporter'; group: string }
+  /** rodada 12 — veículo pessoal (null = descer) */
+  | { kind: 'vehicle'; vehicle: string | null }
   | { kind: 'none'; reason: string };
 
 export interface EquipState {
@@ -75,6 +78,7 @@ export function planEquip(key: string, s: EquipState): EquipPlan {
   }
   if (pre === 'title') return { kind: 'title', title: rest };
   if (pre === 'sup') return { kind: 'supporter', group: rest };
+  if (pre === 'veh') return isPersonalKind(rest) ? { kind: 'vehicle', vehicle: rest } : { kind: 'none', reason: 'Veículo inexistente' }; // rodada 12
   return { kind: 'none', reason: 'Item desconhecido' };
 }
 
@@ -93,6 +97,7 @@ export function planUnequip(key: string, s: EquipState): EquipPlan {
   if (pre === 'prop' || pre === 'design') return { kind: 'prop', prop: NO_PROP };
   if (pre === 'title') return { kind: 'title', title: null };
   if (pre === 'sup') return s.neutralId ? { kind: 'supporter', group: s.neutralId } : { kind: 'none', reason: 'Sem dados de torcida' };
+  if (pre === 'veh') return { kind: 'vehicle', vehicle: null }; // rodada 12 — descer
   return { kind: 'none', reason: 'Item desconhecido' };
 }
 

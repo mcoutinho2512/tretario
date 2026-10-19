@@ -445,3 +445,22 @@ vista do outro jogador (não investigado). Sem som nesta parte (o AGENTE D liga 
   de eventos de confronto nunca sofre impacto.
 - **Teclas**: R soco · Q chute · C esquiva · F empurrão · T pegar/trocar item · Z largar · X guardar/sacar.
 
+
+## Briga emergente (rodada 12)
+Com a avenida toda em COMBAT não é preciso evento para haver briga; o **mundo dinâmico**
+([DYNAMIC_WORLD.md](DYNAMIC_WORLD.md)) faz brigas NASCEREM entre personagens autônomos, sempre pelo **mesmo
+CombatSystem** (o diretor só propõe objetivos; quem golpeia é o cérebro do autônomo, com as mesmas regras de alcance,
+fôlego, recarga e proteção dos jogadores):
+
+- **CALMO → TENSÃO** (discussão entre 2: aproximação e gestos) **→ CONFRONTO** (empurrão nos primeiros 3 s, depois
+  soco; amigos se aproximam, uns entram, outros olham, fogem ou ignoram — pesos por personalidade nos dados)
+  **→ GENERALIZADO** (só por adesões: ≥ 6 brigando, ≤ 2 novos por avaliação, teto 30). Um nível por vez, com tempo
+  mínimo em cada.
+- **Frequência controlada** (`public/gameplay/dynamic_world.json` `budget.conflict`): ≤ 10 discussões, ≤ 4 brigas e
+  ≤ 1 generalizada por hora; 150 s entre focos; 10 min por região de 80 m; ≤ 2 focos simultâneos.
+- **Desescalada natural**: cansaço (o autônomo larga `JOIN_FIGHT` quando a stamina acaba), dispersão (um nível a menos a
+  cada 4 s, `LEAVE_AREA`) e tempo máximo.
+- **Torcidas**: torcidas diferentes só **multiplicam a chance** de tensão (igualdade do índice `sup`); nunca combate
+  automático. **Humanos** só entram num foco se agredirem um autônomo (derrubada de autônomo por humano →
+  `dyn.onAggression`); nunca são escolhidos como alvo.
+- Recompensa: nenhuma (sem XP por golpe, como antes).

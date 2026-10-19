@@ -131,7 +131,7 @@ export class WallGrid {
   }
 
   /** Primeira interseção do segmento 3D a→b com paredes (fração 0–1), ou 1 se livre. */
-  raycast(ax: number, ay: number, az: number, bx: number, by: number, bz: number): number {
+  raycast(ax: number, ay: number, az: number, bx: number, by: number, bz: number, minTop = -Infinity): number {
     let best = 1;
     const ix0 = Math.floor(Math.min(ax, bx) / CELL), ix1 = Math.floor(Math.max(ax, bx) / CELL);
     const iz0 = Math.floor(Math.min(az, bz) / CELL), iz1 = Math.floor(Math.max(az, bz) / CELL);
@@ -140,6 +140,7 @@ export class WallGrid {
       const arr = this.grid.get(this.key(ix, iz));
       if (!arr) continue;
       for (const s of arr) {
+        if (s.top < minTop) continue;
         const sx = s.bx - s.ax, sz = s.bz - s.az;
         const den = rx * sz - rz * sx;
         if (Math.abs(den) < 1e-9) continue;

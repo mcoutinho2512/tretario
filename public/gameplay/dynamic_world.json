@@ -1,0 +1,93 @@
+{
+  "version": 1,
+  "_doc": "rodada 12 — MUNDO DINÂMICO (docs/DYNAMIC_WORLD.md). Lido por server/src/world/dynamicConfig.ts (valores fora da faixa são presos; ausentes = padrão). Tempos em segundos.",
+  "director": {
+    "probesPerS": 2,
+    "probeRadiusM": 22,
+    "probeNearHumanShare": 0.75,
+    "probeHumanOffsetM": 70,
+    "eventEvalMs": 1000,
+    "conflictEvalMs": 800,
+    "maxNearSample": 160,
+    "sendMinMs": 1000
+  },
+  "regions": { "sizeM": 80 },
+  "budget": {
+    "gathering": { "maxConcurrent": 4, "perHour": 14, "regionCooldownS": 240, "minSpacingM": 55 },
+    "race": { "maxConcurrent": 1, "perHour": 3, "regionCooldownS": 600 },
+    "conflict": {
+      "maxConcurrent": 2,
+      "globalCooldownS": 150,
+      "regionCooldownS": 600,
+      "minSpacingM": 40,
+      "perHour": { "DISCUSSAO": 10, "BRIGA": 4, "BRIGA_GENERALIZADA": 1 }
+    }
+  },
+  "gathering": {
+    "seedChance": 0.12,
+    "coreMin": 3,
+    "coreRadiusM": 10,
+    "attractRadiusM": 45,
+    "radiusM": 14,
+    "maxRadiusM": 30,
+    "invitePerEval": 2,
+    "maxSize": 60,
+    "growS": [90, 240],
+    "peakS": [60, 180],
+    "drainS": [60, 150],
+    "leaveShare": 0.12,
+    "endBelow": 2,
+    "attract": { "SOCIAL": 0.6, "OBSERVADOR": 0.35, "AGITADO": 0.3, "TORCEDOR": 0.55, "MANIFESTANTE": 0.6, "EXPLORADOR": 0.2, "CURIOSO": 0.5, "CONFRONTADOR": 0.25, "CAUTELOSO": 0.15 },
+    "watchShare": { "SOCIAL": 0.1, "OBSERVADOR": 0.7, "AGITADO": 0.1, "TORCEDOR": 0.1, "MANIFESTANTE": 0.05, "EXPLORADOR": 0.3, "CURIOSO": 0.6, "CONFRONTADOR": 0.2, "CAUTELOSO": 0.5 },
+    "sameSupMult": 1.6,
+    "manifest": { "minSize": 10, "share": 0.35, "walkChance": 0.35, "walkLengthM": [180, 420], "paceMS": 1.1 },
+    "festa": { "minSize": 8, "supShare": 0.6, "socialShare": 0.5 },
+    "torcidas": { "minPerSide": 3, "tensionPerMin": 0.12 }
+  },
+  "race": {
+    "seedChance": 0.04,
+    "racersMin": 2,
+    "racersMax": 4,
+    "lengthM": [150, 260],
+    "maxS": 120,
+    "watchPerEval": 2,
+    "racer": { "SOCIAL": 0.2, "OBSERVADOR": 0.05, "AGITADO": 0.7, "TORCEDOR": 0.3, "MANIFESTANTE": 0.1, "EXPLORADOR": 0.8, "CURIOSO": 0.3, "CONFRONTADOR": 0.5, "CAUTELOSO": 0.05 }
+  },
+  "conflict": {
+    "seedChance": 0.01,
+    "pairRadiusM": 6,
+    "temper": { "SOCIAL": 0.3, "OBSERVADOR": 0.15, "AGITADO": 0.9, "TORCEDOR": 0.6, "MANIFESTANTE": 0.4, "EXPLORADOR": 0.25, "CURIOSO": 0.2, "CONFRONTADOR": 1.0, "CAUTELOSO": 0.05 },
+    "differentSupMult": 1.8,
+    "heatMult": 1.5,
+    "tension": { "minS": 6, "maxS": 25, "escalateChance": 0.18, "calmChance": 0.1, "watchersPerEval": 1, "reactRadiusM": 12 },
+    "fight": { "minS": 8, "maxS": 50, "pushFirstS": 3, "reactRadiusM": 18, "decisionsPerEval": 3, "maxJoinPerEval": 1, "generalizeAt": 6 },
+    "general": { "minS": 10, "maxS": 120, "reactRadiusM": 28, "decisionsPerEval": 4, "maxJoinPerEval": 2, "maxFighters": 30, "stepDownBelow": 3 },
+    "dispersal": { "perEval": 3, "stepS": 4 },
+    "friendJoinMult": 2.5,
+    "strangerJoinMult": 0.35,
+    "reactions": {
+      "SOCIAL":       { "join": 0.10, "watch": 0.45, "flee": 0.25, "ignore": 0.20 },
+      "OBSERVADOR":   { "join": 0.03, "watch": 0.75, "flee": 0.12, "ignore": 0.10 },
+      "AGITADO":      { "join": 0.45, "watch": 0.35, "flee": 0.05, "ignore": 0.15 },
+      "TORCEDOR":     { "join": 0.30, "watch": 0.45, "flee": 0.10, "ignore": 0.15 },
+      "MANIFESTANTE": { "join": 0.12, "watch": 0.40, "flee": 0.25, "ignore": 0.23 },
+      "EXPLORADOR":   { "join": 0.08, "watch": 0.30, "flee": 0.12, "ignore": 0.50 },
+      "CURIOSO":      { "join": 0.05, "watch": 0.70, "flee": 0.10, "ignore": 0.15 },
+      "CONFRONTADOR": { "join": 0.65, "watch": 0.25, "flee": 0.02, "ignore": 0.08 },
+      "CAUTELOSO":    { "join": 0.00, "watch": 0.10, "flee": 0.75, "ignore": 0.15 }
+    },
+    "provocation": { "cooldownPerHumanS": 20 }
+  },
+  "signals": {
+    "crowdFull": 40,
+    "cheer": { "CONCENTRACAO": 0.35, "CAMINHADA": 0.6, "MANIFESTACAO": 0.7, "ENCONTRO_TORCIDAS": 0.8, "DISCUSSAO": 0.1, "BRIGA": 0.3, "BRIGA_GENERALIZADA": 0.45, "CORRIDA_IMPROVISADA": 0.7, "FESTA": 1.0 },
+    "combatFloor": { "CALMO": 0, "TENSAO": 0.15, "CONFRONTO": 0.45, "GENERALIZADO": 0.75 }
+  },
+  "presentation": {
+    "agendaMin": 6,
+    "labels": { "CONCENTRACAO": "Concentração", "CAMINHADA": "Caminhada", "MANIFESTACAO": "Manifestação", "ENCONTRO_TORCIDAS": "Encontro de torcidas", "DISCUSSAO": "Discussão", "BRIGA": "Briga", "BRIGA_GENERALIZADA": "Briga generalizada", "CORRIDA_IMPROVISADA": "Corrida improvisada", "FESTA": "Festa" },
+    "agenda": ["CONCENTRACAO", "CAMINHADA", "MANIFESTACAO", "ENCONTRO_TORCIDAS", "CORRIDA_IMPROVISADA", "FESTA", "BRIGA_GENERALIZADA"],
+    "rally": ["CONCENTRACAO", "CAMINHADA", "MANIFESTACAO", "ENCONTRO_TORCIDAS", "FESTA"]
+  },
+  "qa": { "forcedMinS": 60, "forcedSpeedup": 3 }
+}

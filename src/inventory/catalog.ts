@@ -17,15 +17,16 @@ import { PROPS, PROP_BY_ID, type PropDefinition } from '../social/props';
 import type { SupporterData } from '../supporters/types';
 import { requirementOf, type ProgressionCatalog } from '../progression/engine';
 import type { EquipSlot, InventoryCategory, InventoryFilter, InventoryItem } from './types';
+import { PERSONAL_KINDS, PERSONAL_LABEL } from '../vehicles/personal'; // rodada 12 — veículo pessoal
 
 /** rótulos dos acessórios (mesmos textos do editor) */
 export const ACCESSORY_LABEL: Record<Accessory, string> = { nenhum: 'Nenhum', bone: 'Boné', chapeu: 'Chapéu', oculos: 'Óculos', mochila: 'Sacola', bolsa: 'Bolsa' };
 
 /** ordem e nomes das categorias na interface */
-export const CATEGORY_ORDER: readonly InventoryCategory[] = ['ROUPAS', 'ACESSORIOS', 'ITENS', 'MANIFESTACAO', 'BANDEIRAS', 'EQUIPAMENTOS', 'TORCIDA', 'TITULOS', 'COSMETICOS'];
+export const CATEGORY_ORDER: readonly InventoryCategory[] = ['ROUPAS', 'ACESSORIOS', 'ITENS', 'MANIFESTACAO', 'BANDEIRAS', 'EQUIPAMENTOS', 'VEICULOS', 'TORCIDA', 'TITULOS', 'COSMETICOS'];
 export const CATEGORY_LABEL: Record<InventoryCategory, string> = {
   ROUPAS: 'Roupas', ACESSORIOS: 'Acessórios', ITENS: 'Itens', MANIFESTACAO: 'Manifestação', BANDEIRAS: 'Bandeiras',
-  EQUIPAMENTOS: 'Equipamentos', TORCIDA: 'Torcida', TITULOS: 'Títulos', COSMETICOS: 'Cosméticos',
+  EQUIPAMENTOS: 'Equipamentos', TORCIDA: 'Torcida', TITULOS: 'Títulos', COSMETICOS: 'Cosméticos', VEICULOS: 'Veículos',
 };
 export const FILTER_LABEL: Record<InventoryFilter, string> = { TODOS: 'Todos', EQUIPADOS: 'Equipados', DESBLOQUEADOS: 'Desbloqueados', NOVOS: 'Novos' };
 
@@ -50,6 +51,8 @@ export interface InventoryContext {
   progression?: ProgressionCatalog | null;
   /** chaves já vistas (marcador NOVO, local) */
   seen?: ReadonlySet<string>;
+  /** rodada 12 — veículo pessoal em que está montado agora (tipo) */
+  vehicle?: string | null;
 }
 
 /** item do inventário com o que a interface precisa para desenhar/agir */
@@ -150,6 +153,11 @@ export function buildInventory(ctx: InventoryContext): InventoryEntry[] {
       const d = DESIGN_BY_ID.get(id);
       if (d && holdable(d)) out.push({ ...designEntry(d, 'TORCIDA', `${targetLabel(d)} da torcida · ${g.shortName}`, ctx, ent, reason, fresh), group: g.id });
     }
+  }
+
+  // ---- VEÍCULOS (rodada 12): veículo pessoal — escolher = aparece junto e monta (o servidor decide o ponto/estado)
+  for (const k of PERSONAL_KINDS) {
+    out.push({ key: `veh:${k}`, category: 'VEICULOS', slot: 'VEHICLE', label: PERSONAL_LABEL[k], kind: 'Veículo pessoal', state: ctx.vehicle === k ? 'equipped' : 'available', quickbar: true, preview3d: false, removable: true });
   }
 
   // ---- TÍTULOS (recompensas `title` das missões/conquistas; ganhos pelo servidor)

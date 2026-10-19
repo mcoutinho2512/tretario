@@ -1,0 +1,162 @@
+{
+  "date": "2026-10-19T22:20:15.256Z",
+  "port": 4560,
+  "scenes": {
+    "Q": {
+      "sig": {
+        "id": "dyn1",
+        "k": "CONCENTRACAO",
+        "x": -780,
+        "z": 351,
+        "r": 14,
+        "e": 0,
+        "n": 0,
+        "w": 0,
+        "ci": 0,
+        "ch": 0.18,
+        "cb": 0
+      },
+      "agenda": [
+        {
+          "name": "Concentração",
+          "state": "ACTIVE"
+        }
+      ],
+      "pts": [
+        {
+          "id": "dyn_dyn1",
+          "crowd": 0,
+          "label": "Concentração"
+        }
+      ]
+    },
+    "R": {
+      "r0": {
+        "id": "dyn2",
+        "k": "CAMINHADA",
+        "x": -803,
+        "z": 351,
+        "r": 14,
+        "e": 0,
+        "n": 0,
+        "w": 0,
+        "ci": 0,
+        "ch": 0.3,
+        "cb": 0
+      },
+      "r1": {
+        "id": "dyn2",
+        "k": "CAMINHADA",
+        "x": -809,
+        "z": 353,
+        "r": 14,
+        "e": 0,
+        "n": 0,
+        "w": 0,
+        "ci": 0,
+        "ch": 0.3,
+        "cb": 0
+      }
+    },
+    "fight": {
+      "levels": [
+        1,
+        2,
+        3
+      ],
+      "seen": {
+        "1": {
+          "id": "dyn3",
+          "k": "DISCUSSAO",
+          "x": -765,
+          "z": 341,
+          "r": 8,
+          "e": 1,
+          "n": 0,
+          "w": 0,
+          "ci": 0,
+          "ch": 0.05,
+          "cb": 0.15
+        },
+        "2": {
+          "id": "dyn3",
+          "k": "BRIGA",
+          "x": -765,
+          "z": 341,
+          "r": 8,
+          "e": 2,
+          "n": 0,
+          "w": 0,
+          "ci": 0,
+          "ch": 0.15,
+          "cb": 0.45
+        },
+        "3": {
+          "id": "dyn3",
+          "k": "BRIGA_GENERALIZADA",
+          "x": -765,
+          "z": 341,
+          "r": 8,
+          "e": 3,
+          "n": 0,
+          "w": 0,
+          "ci": 0,
+          "ch": 0.23,
+          "cb": 0.75
+        }
+      }
+    }
+  },
+  "participants": {
+    "Q": 0,
+    "V": 0,
+    "nota": "n = 0 antes da WorldView do AGENTE C (focos fantasmas)"
+  },
+  "results": [
+    {
+      "name": "Q: concentração chega pelo `dyn`",
+      "ok": true,
+      "detail": "{\"id\":\"dyn1\",\"k\":\"CONCENTRACAO\",\"x\":-780,\"z\":351,\"r\":14,\"e\":0,\"n\":0,\"w\":0,\"ci\":0,\"ch\":0.18,\"cb\":0}"
+    },
+    {
+      "name": "Q: aparece em \"Acontecendo agora\" (agenda, formato dinamico)",
+      "ok": true,
+      "detail": "[{\"name\":\"Concentração\",\"state\":\"ACTIVE\"}]"
+    },
+    {
+      "name": "Q: ponto no evt_pts (minimapa) sem NPC reservado",
+      "ok": true,
+      "detail": "[{\"id\":\"dyn_dyn1\",\"crowd\":0,\"label\":\"Concentração\"}]"
+    },
+    {
+      "name": "R: caminhada anda (centro muda de lugar)",
+      "ok": true,
+      "detail": "{\"r0\":{\"id\":\"dyn2\",\"k\":\"CAMINHADA\",\"x\":-803,\"z\":351,\"r\":14,\"e\":0,\"n\":0,\"w\":0,\"ci\":0,\"ch\":0.3,\"cb\":0},\"r1\":{\"id\":\"dyn2\",\"k\":\"CAMINHADA\",\"x\":-809,\"z\":353,\"r\":14,\"e\":0,\"n\":0,\"w\":0,\"ci\":0,\"ch\":0.3,\"cb\":0}}"
+    },
+    {
+      "name": "S→T→V: níveis TENSÃO → CONFRONTO → GENERALIZADO em ordem",
+      "ok": true,
+      "detail": "[1,2,3]"
+    },
+    {
+      "name": "V: intensidade de confronto no sinal",
+      "ok": true,
+      "detail": "{\"id\":\"dyn3\",\"k\":\"BRIGA_GENERALIZADA\",\"x\":-765,\"z\":341,\"r\":8,\"e\":3,\"n\":0,\"w\":0,\"ci\":0,\"ch\":0.23,\"cb\":0.75}"
+    },
+    {
+      "name": "W: foco se dispersa e termina",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "sem erros de página",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "sem mensagem sem ouvinte no cliente",
+      "ok": true,
+      "detail": ""
+    }
+  ]
+}

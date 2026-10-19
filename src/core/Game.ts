@@ -110,6 +110,8 @@ import { noticeForJoinError } from '../ui/netNotice'; // rodada 9.1 — versão 
 import { ProgressionUI } from '../ui/progress/ProgressionUI'; // rodada 9 — progressão
 import { InventoryController } from '../inventory/InventoryController'; // rodada 11 — inventário
 import { AudioWorld } from '../audio/AudioWorld'; // rodada 10 — áudio
+import { autonomousTagged, npcRanges } from '../net/nameLod'; // rodada 12 — nomes dos autônomos
+import { dynamicEventMark, normalizeDynamicEvents } from '../events/dynamicPresentation'; // rodada 12 — eventos dinâmicos
 import { mountAgendaDebate, type AgendaDebate } from '../ui/agendaDebateMount'; // rodada 9 — agenda/debate/telões
 // rodada 9 — confronto (src/combat; carregado com o multiplayer)
 import type { CombatClient } from '../combat/CombatClient';
@@ -121,6 +123,7 @@ import { isReduceMotion, setUiPrefs, uiPrefs, type UiPrefs } from '../ui/uiPrefs
 import { openSettings, type SettingsTab } from '../ui/settingsApi';
 import { notifyBlocked } from '../ui/notify';
 import { LocalBodies } from '../physics/LocalBodies'; // rodada 12 — colisão
+import { PersonalVehicleClient } from '../vehicles/PersonalVehicleClient'; // rodada 12 — veículo pessoal
 
 export { DEFAULT_PLAYER_APPEARANCE } from '../characters/bodyTypes';
 
@@ -379,7 +382,7 @@ export class Game {
     this.scenery.applyEvent(this.events.current);
     for (const it of this.rideables.eventItems()) this.scenery.addScreens(it.model, it.state.id);
     this.scene.add(this.scenery.group);
-    screenFeed().info = () => ({ time: this.simTime.toTimeString().slice(0, 5), players: (this.spectator ? 0 : 1) + (this.net?.remoteCount ?? 0) + (this.net?.farCount ?? 0) });
+    screenFeed().info = () => ({ time: this.simTime.toTimeString().slice(0, 5), players: this.net ? this.net.humanCount(!this.spectator) : this.spectator ? 0 : 1 }); // rodada 12 — só HUMANOS (autônomos/bots nunca somam)
     this.cam = new ThirdPersonCamera(this.camera, this.collision);
     // intro: começa olhando a Central, depois gira para a avenida (direção da Candelária)
     const central = this.manifest.landmarks.find((l) => l.key === 'LANDMARK_CENTRAL')!;
@@ -494,6 +497,7 @@ export class Game {
     this.mountActionBar(shell); // rodada 9.1 — barra de ações (só jogador)
     this.r10Mount(shell, relock); // rodada 10 — interação
     this.r11Mount(shell, relock); // rodada 11 — inventário
+    this.r12Mount(shell); // rodada 12 — veículo pessoal
     if (this.spec) {
       // seletor de câmeras no encaixe do HUD (HudShell.mountSpectator); zona/minimapa seguem o foco da câmera
       const spec = this.spec;
@@ -519,6 +523,8 @@ export class Game {
       // o texto da ação contextual já calculado em updateMovement (E — USAR…, SUBIR NO TRIO, DESCER…)
       vehiclePrompt: () => (near() && !this.pendingEnter && !this.pendingBoard ? shell.prompt : ''),
       vehicles: () => nearbyVehicles(this.rideables.items.map((i) => ({ id: i.state.id, kind: i.def.kind, x: i.state.x, z: i.state.z, free: i.netState !== 2 && (i.def.kind === 'trio' || !i.state.occupant) })), this.player.x, this.player.z),
+      personal: () => (this.r12pv ? this.r12pv.kinds().map((k) => ({ kind: k, label: this.r12pv!.label(k), active: this.r12pv!.ridingKind() === k })) : []), // rodada 12
+      requestVehicle: (k) => this.r12pv?.toggle(k),
       vehicleLabel: (k) => (k === 'trio' ? 'Trio elétrico (escada)' : RIDEABLE_DEFS[k as RideableKind]?.label ?? k),
       use: () => this.input.queueToggle('use'),
       showTarget: (x, z, label, d) => {
@@ -753,6 +759,7 @@ export class Game {
       this.cam.update(this.avatar.root.position, dt);
       this.r10Frame(dt); // rodada 10 — interação (alvo contextual, realce, painel, HUD de veículo)
       this.r11Frame(dt); // rodada 11 — inventário (I, acesso rápido 1–5)
+      this.r12pv?.frame(); // rodada 12 — veículo pessoal (offline: ociosidade)
     }
     mark('movimento');
     const ppos = this.avatar.root.position;
@@ -875,6 +882,7 @@ export class Game {
     this.r9?.attach(this.net); // rodada 9 — agenda/debate/telões
     // quem fala ganha prioridade de nome acima da cabeça por alguns segundos (LOD de nomes)
     this.net.on('chat', (m: { nid: number }) => { const id = this.net?.idByNid(m.nid); if (id) this.net!.markSpeaking(id); });
+    this.r12Net(this.net); // rodada 12 — apresentação da população (nomes, olhar, eventos dinâmicos)
     this.scene.add(this.net.group);
     (window as any).__pvRemotes = () => this.net?.remotesInfo();
     // rodada 9 — eventos: agenda, concentrações (NPCs simulados), corrida/caminhada/confronto (src/events/EventClient.ts)
@@ -882,6 +890,9 @@ export class Game {
       const { EventClient } = await import('../events/EventClient');
       const evc = new EventClient(this.net, this.scene, this.hud, (m) => this.flash(m), this.hudShell.minimap);
       (window as any).__pvEvents = evc;
+      // rodada 12 — sinais do mundo dinâmico (`dyn`): focos agregados no minimapa + intensidades no áudio
+      evc.onDyn = (l) => { this.r12Dyn?.(l); };
+      if (evc.dyn.length) this.r12Dyn?.(evc.dyn);
       evc.groupName = (k) => this.events.current?.groups?.find((g) => g.id === k)?.name ?? k;
       // QA (tools/qa/events_mp.mjs): aponta o veículo em uso para (x,z); o roteiro dirige com W (o servidor valida o resto)
       (evc as unknown as { qaAim: (x: number, z: number) => boolean }).qaAim = (x, z) => { const v = this.riding; if (!v) return false; v.state.heading = Math.atan2(x - v.state.x, z - v.state.z); return true; };
@@ -897,7 +908,9 @@ export class Game {
       if (this.riding) { this.riding.state.x = this.player.x; this.riding.state.z = this.player.z; if (reason === 'collision') this.riding.state.speed = 0; }
       this.player.y = Math.max(abs.y, this.collision.groundHeight(this.player.x, this.player.z));
     };
-    this.net.onVehicle = (id, v) => this.rideables.applyServer(id, v.x, v.y, v.z, v.heading, v.occupant, this.net!.sessionId, v.state, v.design);
+    this.net.onVehicle = (id, v) => { this.r12pv?.onVehicle(id, v); this.rideables.applyServer(id, v.x, v.y, v.z, v.heading, v.occupant, this.net!.sessionId, v.state, v.design); }; // rodada 12 — veículo pessoal surge
+    this.net.onVehicleGone = (id) => this.r12pv?.onGone(id); // rodada 12
+    this.net.onPersonal = (ok, m) => this.r12pv?.onServer(ok, m); // rodada 12
     // trio elétrico: passageiros presos à pose do trio COMO ESTE CLIENTE O DESENHA
     this.net.platformPose = (id) => { const it = this.rideables.byId.get(id); return it ? it.state : null; };
     this.net.vehicleSource = (id) => this.rideables.byId.get(id) ?? null; // rodada 10 — montagem
@@ -1078,6 +1091,7 @@ export class Game {
       items: () => this.rideables.items, riding: () => this.riding, platform: () => this.trio.state?.id ?? null,
       pending: () => !!this.pendingEnter || this.pendingBoard,
       enter: (it) => this.r10Enter(it), board: (it) => this.r10Board(it), exit: () => this.r10Exit(),
+      self: () => this.net?.sessionId ?? '', // rodada 12 — veículo pessoal de outro não é alvo
     }));
     ix.register(new ItemProvider({
       forEach: (fn) => this.items?.view.forEach(fn),
@@ -1128,6 +1142,62 @@ export class Game {
     void fetch(`${import.meta.env.BASE_URL}gameplay/supporters.json`).then((r) => (r.ok ? r.json() : null)).then((d: { groups?: { displayName?: string }[] } | null) => {
       this.supporterNames = (d?.groups ?? []).map((g) => String(g.displayName ?? ''));
     }).catch(() => { /* sem dados: o painel mostra "sem torcida" */ });
+  }
+
+  // ------------------------------------------------------------------ rodada 12 — apresentação da população (agente D)
+  /**
+   * nomes: foco (hover do cursor / pessoa no painel), oclusão pelo mundo de colisão, regras dos autônomos
+   * (public/gameplay/autonomous.json `nametag`); eventos dinâmicos (`dyn` → EventClient.onDyn) → minimapa agregado e áudio.
+   */
+  private r12Dyn: ((m: unknown) => number) | null = null;
+  private r12Net(net: NetworkClient) {
+    net.nameFocus = () => {
+      const h = this.ix?.hover;
+      return { hover: h && h.key.startsWith('person:') ? h.key.slice(7) : null, selected: this.personPanel?.selectedId ?? null };
+    };
+    net.occluder = (ax, ay, az, bx, by, bz) => this.collision.raycast(ax, ay, az, bx, by, bz, 3); // só prédio (≥ 3 m) esconde nome
+    void fetch(`${import.meta.env.BASE_URL}gameplay/autonomous.json`).then((r) => (r.ok ? r.json() : null)).then((j: { nametag?: { share?: number; nearM?: number; midM?: number } } | null) => {
+      const t = j?.nametag;
+      if (!t) return;
+      const share = Number(t.share), near = Number(t.nearM), mid = Number(t.midM);
+      net.npcNames = {
+        share: Number.isFinite(share) ? Math.max(0, Math.min(1, share)) : net.npcNames.share,
+        ranges: npcRanges(Number.isFinite(near) && near > 0 ? near : undefined, Number.isFinite(mid) && mid > 0 ? mid : undefined),
+      };
+    }).catch(() => { /* sem dados: padrão do código */ });
+    const applyDyn = (m: unknown) => {
+      const list = normalizeDynamicEvents(m);
+      this.hudShell.minimap.dynamicMarks = list.map(dynamicEventMark);
+      this.audioWorld.setDynamicEvents(list);
+      return list.length;
+    };
+    this.r12Dyn = applyDyn; // ligado ao `EventClient.onDyn` (mensagem `dyn` do AGENTE E) quando ele existe
+    // QA: injeta focos dinâmicos sem servidor (minimapa + áudio) e força o olhar dos remotos
+    (window as any).__pvR12 = {
+      dyn: applyDyn,
+      look: (fn: ((nid: number) => number) | null) => { net.qaLook = fn; },
+      lookAtMe: (on = true) => { net.qaLook = on ? () => net.selfNid : null; },
+      labels: () => ({ ...net.labelStats, inUse: net.tags.inUse, pool: net.tags.nodes, domNodes: document.querySelectorAll('.name-label').length, shownNames: [...document.querySelectorAll('.name-label')].filter((e) => !(e as HTMLElement).hidden).map((e) => (e as HTMLElement).textContent) }),
+      lookStats: () => ({ ...net.lookStats }),
+      netMs: () => +net.updateMs.toFixed(3),
+      sample: () => net.humanizationSample(),
+      labelDebug: () => net.labelDebug(),
+      /** QA (capturas C_com_e_sem_nomes): pessoas à vista em px, tipo, se tem nome pela regra e se o rótulo aparece */
+      people: () => {
+        const out: { name: string; kind: number; tagged: boolean; shown: boolean; px: number; py: number; d: number }[] = [];
+        const shown = new Set([...document.querySelectorAll('.name-label')].filter((e) => !(e as HTMLElement).hidden).map((e) => (e as HTMLElement).textContent ?? ''));
+        const v = new THREE.Vector3(), w = this.canvas.clientWidth, h = this.canvas.clientHeight;
+        net.forEachPerson((id, nid, name, x, y, z) => {
+          v.set(x, y + 1.0, z).project(this.camera);
+          if (v.z >= 1 || Math.abs(v.x) > 1 || Math.abs(v.y) > 1) return;
+          const kind = net.kindOf(id);
+          const tagged = kind !== 1 || autonomousTagged(nid, net.npcNames.share);
+          out.push({ name, kind, tagged, shown: [...shown].some((t) => t === name || name.startsWith(t.replace('…', ''))), px: Math.round(((v.x + 1) / 2) * w), py: Math.round(((1 - v.y) / 2) * h), d: +Math.hypot(x - this.camera.position.x, z - this.camera.position.z).toFixed(1) });
+        });
+        return out;
+      },
+      humans: () => net.humanCount(!this.spectator),
+    };
   }
 
   private r10Net(net: NetworkClient) {
@@ -1201,6 +1271,8 @@ export class Game {
       notify: (m) => this.flash(m),
       onModal: (open) => { shell.poke(); relock(open); },
       setMoveBlocked: (on) => this.input.setMoveBlocked(on),
+      requestVehicle: (k) => (k ? this.r12pv?.toggle(k) : this.r10Exit()), // rodada 12 — veículo pessoal
+      personalVehicle: () => this.r12pv?.ridingKind() ?? null,
     }));
     shell.mountOverlay({ el: inv.quickbar.el });
     shell.mountOverlay(inv.panel);
@@ -1231,6 +1303,37 @@ export class Game {
     inv.frame(dt);
   }
   // fim rodada 11 — inventário ---------------------------------------------------------------------------------------
+
+  // rodada 12 — veículo pessoal: "selecionou → aparece" (src/vehicles/PersonalVehicleClient.ts) ------------------------
+  r12pv: PersonalVehicleClient | null = null;
+  private r12Mount(shell: HudShell) {
+    if (this.spectator) return;
+    const pv = (this.r12pv = new PersonalVehicleClient({
+      online: () => this.mpOnline,
+      send: (k) => this.net?.requestPersonal(k),
+      selfId: () => (this.rideables.selfId = this.net?.sessionId || this.player.id),
+      rideables: this.rideables,
+      player: () => ({ x: this.player.x, z: this.player.z, heading: this.player.heading }),
+      riding: () => this.riding,
+      busy: () => (this.trio.active ? 'Desça do trio primeiro' : this.avatar.isDown ? 'Levante-se primeiro' : this.graffiti.editing ? 'Termine o grafite primeiro' : this.pendingEnter ? 'Aguardando o servidor…' : null),
+      mountLocal: (it) => this.mountLocal(it),
+      dismountLocal: () => this.dismountLocal(),
+      exit: () => this.r10Exit(),
+      world: () => ({ bounds: this.manifest.bounds as [number, number, number, number], clear: (ax, az, bx, bz) => this.collision.raycast(ax, 0.6, az, bx, 0.6, bz) >= 1, surface: (x, z) => (this.collision.isRoad(x, z) ? 'road' : this.collision.isPedestrianWalkable(x, z) ? 'walk' : 'blocked') }),
+      obstacles: (x, z) => ({ vehicles: this.rideables.items.filter((o) => Math.hypot(o.state.x - x, o.state.z - z) < 24).map((o) => ({ x: o.state.x, z: o.state.z, heading: o.state.heading, kind: o.def.kind })), people: this.peds.nearby(x, z, 16) }),
+      flash: (m) => this.flash(m),
+      showTarget: (x, z, label) => shell.minimap.setTarget({ x, z, label }),
+    }));
+    // QA (tools/qa/personal_vehicles_mp.mjs)
+    (window as any).__pvPveh = {
+      request: (k: string) => pv.request(k), toggle: (k: string) => pv.toggle(k), stats: () => pv.stats, active: () => pv.active,
+      riding: () => (this.riding ? { id: this.riding.state.id, kind: this.riding.def.kind, owner: this.riding.owner ?? '' } : null),
+      mount: () => this.avatar.mountInfo,
+      dynamic: () => this.rideables.items.filter((i) => i.owner).map((i) => ({ id: i.state.id, kind: i.def.kind, owner: i.owner, x: +i.state.x.toFixed(2), z: +i.state.z.toFixed(2), occupant: i.state.occupant })),
+      raw: (m: unknown) => this.net?.send('pveh_req', m),
+    };
+  }
+  // fim rodada 12 — veículo pessoal ----------------------------------------------------------------------------------
 
   /** QA (tools/qa/interaction_mp.mjs) */
   private r10Qa() {

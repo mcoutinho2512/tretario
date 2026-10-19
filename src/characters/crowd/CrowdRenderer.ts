@@ -20,6 +20,7 @@ import { measureNatural, groundOffsets } from '../human/HumanAnimator';
 import { clipFloor, proceduralClip, withBase } from '../human/proceduralClips';
 import { ACTIONS, ACTION_BY_ID } from '../../social/actions';
 import type { CrowdAgent } from './crowdBudget';
+import { loopPhase } from './animVariety';
 import { addRestAttributes, patchLookShader, shirtSlot } from '../human/garmentShader';
 
 /** pé mais baixo na pose atual (repouso), no espaço do esqueleto */
@@ -296,7 +297,8 @@ vTint = li == 0 ? aSkin : li == 1 ? aHair : li == 2 ? aTop : li == 3 ? aBottom :
         // animação: ciclo pela velocidade, cadência casada com o deslocamento (como o HumanAnimator)
         const clip = a.speed < 0.15 ? s.clips.idle : a.speed < 2.2 ? s.clips.walk : s.clips.jog;
         const nat = clip === s.clips.walk ? s.natural.walk : clip === s.clips.jog ? s.natural.jog : 0;
-        const rate = nat > 0 ? Math.min(2.2, Math.max(0.35, a.speed / (nat * (a.scale || 1)))) / clip.dur : 1 / clip.dur;
+        // rodada 12 — cadência própria (passada ±6 %) e andamento próprio do parado (animVariety.ts)
+        const rate = nat > 0 ? Math.min(2.2, Math.max(0.35, a.speed / (nat * (a.scale || 1) * (a.stride || 1)))) / clip.dur : (a.idleRate || 1) / clip.dur;
         a.phase = (a.phase + dt * rate) % 1;
         const f = a.phase * clip.n, f0 = Math.floor(f);
         const an = s.aAnim.array as Float32Array;
@@ -322,7 +324,8 @@ vTint = li == 0 ? aSkin : li == 1 ? aHair : li == 2 ? aTop : li == 3 ? aBottom :
           if (t >= 0 && (!act.once || t < act.dur)) {
             let g: number, g1: number;
             if (act.once) { const x = (t / act.dur) * (act.n - 1); g = Math.floor(x); g1 = Math.min(g + 1, act.n - 1); g = x; }
-            else { const x = (((t + ((a.id * 0.618034) % 1) * act.dur) / act.dur) % 1) * act.n; g = x; g1 = (Math.floor(x) + 1) % act.n; }
+            // rodada 12 — laço: deslocamento e andamento POR PESSOA (semente estável; 100 palmas não saem em uníssono)
+            else { const x = loopPhase(t, act.dur, { actOffset: a.actOff, actRate: a.actRate }) * act.n; g = x; g1 = (Math.floor(x) + 1) % act.n; }
             const g0 = Math.floor(g), k = g - g0;
             const fade = Math.min(1, t / 0.3, act.once ? (act.dur - t) / 0.3 : 1);
             if (fade >= 1) { an[i * 3] = act.row0 + g0; an[i * 3 + 1] = act.row0 + g1; an[i * 3 + 2] = k; }

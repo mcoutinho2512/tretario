@@ -150,8 +150,9 @@ export class CollisionWorld {
     return this.walls.resolveCircle(pos, radius, height);
   }
 
-  /** Primeira interseção do segmento 3D a→b com paredes (fração 0–1), ou 1 se livre. */
-  raycast(ax: number, ay: number, az: number, bx: number, by: number, bz: number): number {
-    return this.walls.raycast(ax, ay, az, bx, by, bz);
+  /** Primeira interseção do segmento 3D a→b com paredes (fração 0–1), ou 1 se livre. `minTop` (rodada 12): ignora
+   * paredes mais baixas que isto (gradil/mureta não esconde ninguém — oclusão dos nomes só por prédio) */
+  raycast(ax: number, ay: number, az: number, bx: number, by: number, bz: number, minTop?: number): number {
+    return this.walls.raycast(ax, ay, az, bx, by, bz, minTop);
   }
 }
