@@ -11,7 +11,7 @@
   "nametag": { "share": 0.6, "nearM": 18, "midM": 35 },
   "supporters": { "neutro": 0.4, "flamengo": 0.18, "vasco": 0.14, "fluminense": 0.14, "botafogo": 0.14 },
   "personalities": { "SOCIAL": 0.2, "OBSERVADOR": 0.14, "AGITADO": 0.06, "TORCEDOR": 0.14, "MANIFESTANTE": 0.12, "EXPLORADOR": 0.12, "CURIOSO": 0.1, "CONFRONTADOR": 0.04, "CAUTELOSO": 0.08 },
-  "vehicles": { "share": 0.08, "kinds": { "bicycle": 0.45, "scooter": 0.35, "moto": 0.15, "car": 0.05 } },
+  "vehicles": { "share": 0.12, "kinds": { "bicycle": 0.45, "scooter": 0.35, "moto": 0.15, "car": 0.05 } },
   "names": {
     "words": ["Carioca", "Mengao", "Vascaino", "Tricolor", "Fogao", "Central", "Gema", "PVargas", "Niteroi", "ZonaNorte", "Suburbio", "Lapa", "Saara", "Candelaria", "Maracana", "Engenhao", "Madureira", "Meier", "Tijuca", "Penha", "Bonsucesso", "Rocinha", "Grajau", "Catete", "Gloria", "Urca", "Leme", "Botafoguense", "Flu", "Cruzmaltino", "Rubronegro", "Alvinegro", "Sambista", "Bamba", "Chopp", "Mate", "Biscoito", "Feirante", "Trem", "Metro", "Barca", "Brisa", "Sol", "Marola", "Vascao", "Torcedor", "Morador", "Passista", "Ritmista", "Malandro", "Cria"],
     "suffixWords": ["RJ", "Rio", "DaGema", "DoCentro", "Raiz", "Real", "Oficial", "Original", "DaLapa", "DoSuburbio", "Carioca", "021", "Zn", "Zs", "Zo"],

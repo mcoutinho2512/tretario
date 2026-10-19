@@ -102,6 +102,8 @@ interface Agent {
   stowed: { prop: number; design: number } | null;
   /** a última ameaça já teve reação */
   threatHandled: boolean;
+  /** correções de parede seguidas no alvo atual */
+  stuck: number;
 }
 
 export interface AutonomousOptions {
@@ -129,7 +131,7 @@ export class HumanizationStats {
   sameActSameTick = 0;
   speedSum = 0; speedN = 0; movingMs = 0; stoppedMs = 0; dirChanges = 0;
   paths: number[] = [];
-  avoidInterventions = 0; waits = 0; decisions = 0; wallRepaths = 0;
+  avoidInterventions = 0; waits = 0; decisions = 0; wallRepaths = 0; giveUps = 0;
   attacks = 0; attacksDenied = 0; vehicleRides = 0; groupsFormed = 0; groupHeadingSpread: number[] = [];
   perAgentWalk: number[] = [];
   correctionsBy: Record<string, number> = {};
@@ -256,7 +258,7 @@ export class AutonomousSystem implements AutonomousWorldView {
       group: null, slot: 0, vehicleId: '', fight: null, stamina: this.moves.staminaMax, condition: 100,
       bornAt: now, leaveAt: now + stay, downSince: 0,
       st: { activity: 'idle', moving: false, pathStart: null, pathLen: 0, hSample: 0, hAt: 0, avoiding: false, waiting: false }, seq: 0, vx: 0, vz: 0,
-      sent: { speed: -1, h: 0 }, vehKind: '', stowed: null, threatHandled: false,
+      sent: { speed: -1, h: 0 }, vehKind: '', stowed: null, threatHandled: false, stuck: 0,
     };
   }
 
@@ -585,7 +587,23 @@ export class AutonomousSystem implements AutonomousWorldView {
         s = Math.max(10, Math.min(this.axis.len - 10, s));
         a.plan = { ...this.walkPlan(x, z, kind === 'LEAVE_AREA' ? 1.04 : 1.06), axisS: s, lane: r.range(-20, 20), run: r.chance(a.prof.run * 0.5) };
         // viagem longa e veículo livre perto: vai de veículo (mesmo caminho dos jogadores)
-        if (a.vehicleAffinity && kind === 'TRAVEL') { const v = this.freeVehicle(a, 30); if (v) { a.goal.kind = 'USE_VEHICLE'; a.plan = { ...this.walkPlan(v.x, v.z, 1.05), mode: 'board', vehicle: v.id, axisS: s, lane: a.plan.lane, arriveR: 1.0 }; } }
+        // quem gosta de veículo procura um a ≤ 30 m; qualquer um, às vezes, pega um que está bem do lado (≤ 12 m)
+        const casual = !a.vehicleAffinity && kind === 'TRAVEL' && r.chance(0.2);
+        if (casual) { const v = this.freeVehicle(a, 12); if (v) { a.goal.kind = 'USE_VEHICLE'; a.plan = { ...this.walkPlan(v.x, v.z, 1.05), mode: 'board', vehicle: v.id, axisS: s, lane: a.plan.lane, arriveR: 1.0 }; } }
+        if (a.vehicleAffinity && kind === 'TRAVEL') {
+          const v = this.freeVehicle(a, 30);
+          if (v) { a.goal.kind = 'USE_VEHICLE'; a.plan = { ...this.walkPlan(v.x, v.z, 1.05), mode: 'board', vehicle: v.id, axisS: s, lane: a.plan.lane, arriveR: 1.0 }; }
+          // sem veículo do mundo por perto: às vezes o PRÓPRIO (gancho do veículo pessoal — mesmas validações; só o dono usa)
+          else if (this.host.personalVehicle && r.chance(0.5)) {
+            const id = this.host.personalVehicle(a.id, a.vehicleAffinity, { x, z });
+            const st = id ? this.host.state(a.id) : undefined;
+            if (id && st?.vehicle === id) {
+              a.vehicleId = id; a.mem.vehicle = id; a.vehKind = a.vehicleAffinity; a.sent.speed = -1; a.k.speed = 0; this.stats.vehicleRides++;
+              a.goal.kind = 'USE_VEHICLE'; a.goal.until = Math.max(a.goal.until, now + 60_000);
+              a.plan = { ...this.walkPlan(x, z, 1), mode: 'drive', axisS: s, lane: a.plan.lane, vehicle: id };
+            }
+          }
+        }
         break;
       }
       case 'USE_VEHICLE': {
@@ -686,7 +704,7 @@ export class AutonomousSystem implements AutonomousWorldView {
       if (v.occupant || v.state !== 0 || v.owner || !PERSONAL_KINDS.includes(v.kind as VehicleUseKind)) continue;
       // ninguém já indo até ele
       if (this.agents.some((o) => o !== a && o.plan.vehicle === v.id && o.plan.mode === 'board')) continue;
-      const pref = v.kind === a.vehicleAffinity ? 2 : (this.cfg.vehicles.kinds[v.kind as VehicleUseKind] ?? 0.1);
+      const pref = a.vehicleAffinity && v.kind === a.vehicleAffinity ? 2 : (this.cfg.vehicles.kinds[v.kind as VehicleUseKind] ?? 0.1);
       const s = pref - Math.hypot(v.x - a.k.x, v.z - a.k.z) / 20;
       if (s > bestS) { bestS = s; best = v; }
     }
@@ -855,6 +873,16 @@ export class AutonomousSystem implements AutonomousWorldView {
     else p.pauseUntil = Infinity;
   }
 
+  private giveUp(a: Agent, now: number) {
+    this.stats.giveUps++;
+    const p = a.plan;
+    if (p.mode === 'board') { p.vehicle = undefined; p.mode = 'walk'; a.goal.until = Math.min(a.goal.until, now + 500); }
+    // fica onde está (de pé, encarando o foco) e decide de novo daqui a pouco
+    a.plan = { ...this.standPlan(a.k.x, a.k.z), fx: p.fx, fz: p.fz };
+    a.nextThink = Math.min(a.nextThink, now + this.rng.range(1500, 5000));
+    if (p.axisS !== undefined || a.goal.kind === 'WANDER') a.goal.until = Math.min(a.goal.until, now + 1000);
+  }
+
   private repath(a: Agent, now: number) {
     this.stats.wallRepaths++;
     const p = a.plan;
@@ -885,7 +913,11 @@ export class AutonomousSystem implements AutonomousWorldView {
     a.k.x = r.x; a.k.z = r.z;
     a.vx = Math.sin(a.k.heading) * speed; a.vz = Math.cos(a.k.heading) * speed;
     if (!r.ok) { const k = `${a.goal.kind}:${a.plan.mode}:${a.lod}:${speed > 0.3 ? 'mov' : 'parado'}`; this.stats.correctionsBy[k] = (this.stats.correctionsBy[k] ?? 0) + 1; }
-    if (!r.ok && a.plan.mode !== 'stand') { this.repath(a, now); a.k.speed *= 0.5; }
+    if (!r.ok && a.plan.mode !== 'stand') {
+      // empacado (várias correções seguidas): desiste deste alvo em vez de esfregar na parede
+      if (++a.stuck >= 4) { a.stuck = 0; this.giveUp(a, now); } else this.repath(a, now);
+      a.k.speed *= 0.5;
+    } else if (r.ok && d > 0.05) a.stuck = 0;
     // humanização: inícios de caminhada, trajetos, mudanças de direção
     const movingNow = speed > 0.3;
     if (movingNow && !a.st.moving) { this.stats.walkStart(); a.st.pathStart = { x: px, z: pz }; a.st.pathLen = 0; }
