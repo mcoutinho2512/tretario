@@ -18,6 +18,9 @@
  *              `recentMs` da agenda (ENCERRADOS RECENTEMENTE) e depois some. XP/progressão já foi gravado pelo
  *              ProgressionService via gameplay (event_complete/race_finish) — nada aqui é persistido
  *  mensagens   `agenda {list}` a todos ao entrar e quando muda (≤ 1 Hz) · `evt_pts` (concentrações) idem · `evt_res`
+ *  rodada 12   eventos DINÂMICOS (server/src/world/DynamicWorldDirector.ts) entram pela MESMA agenda (host.extraAgenda,
+ *              formato 'dinamico', "acontecendo agora") e pelos MESMOS pontos (host.extraRallies → evt_pts) — sem agenda
+ *              paralela; os sinais de áudio/HUD vão na mensagem leve `dyn` (docs/DYNAMIC_WORLD.md)
  *  gameplay    event_join ao inscrever; event_complete (ctx.complete) e race_finish (runner de corrida)
  *  confronto   combatEventFor(sid) → CombatEventRules da instância ATIVA de confronto em que está inscrito;
  *              zonePolicy(zone) → política do evento ATIVO nas suas zonas (ScheduledEventDef.combatPolicy)
@@ -368,6 +371,7 @@ export class EventRuntime {
   rallies(): EventRallyPoint[] {
     const out: EventRallyPoint[] = [];
     for (const L of this.live.values()) if (L.runner?.rally && LIVE.has(L.inst.state)) out.push(...L.runner.rally(L.ctx));
+    for (const p of this.host.extraRallies?.(this.lastNow) ?? []) out.push(p); // rodada 12 — mundo dinâmico
     return out;
   }
 
@@ -432,6 +436,8 @@ export class EventRuntime {
       if (!L.runner?.rally || !LIVE.has(L.inst.state)) continue;
       for (const p of L.runner.rally(L.ctx)) list.push({ id: p.id, inst: L.inst.inst, x: Math.round(p.x), z: Math.round(p.z), inner: p.inner, radius: p.radius, strength: p.strength, crowd: p.crowd, label: p.label ?? L.inst.def.name, ...(p.sup ? { sup: p.sup } : {}) }); // rodada 10 — torcida
     }
+    // rodada 12 — concentrações do mundo dinâmico (mesma mensagem; `inst` = id do ponto, sem inscrição)
+    for (const p of this.host.extraRallies?.(now) ?? []) list.push({ id: p.id, inst: p.id, x: Math.round(p.x), z: Math.round(p.z), inner: p.inner, radius: p.radius, strength: p.strength, crowd: p.crowd, label: p.label ?? '', ...(p.sup ? { sup: p.sup } : {}) });
     const sig = JSON.stringify(list);
     if (sig === this.ptsSig) return;
     this.ptsSig = sig;
