@@ -401,9 +401,20 @@ caso) e multidão de bots: **17/17 sem sobreposição, sem corte e com o centro 
   mureta não escondem). `OcclusionCache`: ≤ 8 raios novos por decisão (5 Hz), resultado válido 400 ms, ocluir exige 2
   bloqueios seguidos (sem piscar na quina), desocluir é imediato. Ocluído não gasta vaga do teto.
 
-| Medição (Chrome + Metal, M-series, preset ALTO, `tools/qa/nametag_bench.mjs`) | 50 | 250 | 500 |
+Medição (`tools/qa/nametag_bench.mjs`, Chrome + Metal, M-series, preset ALTO com até 64 remotos detalhados — o resto
+vira multidão distante, sem nome; dados completos em docs/bench/round12_nametags.json). "antes" = master df8028f.
+
+| pessoas na área | 50 | 250 | 500 |
 |---|---|---|---|
-| ver tabela em docs/bench/round12_nametags.json | | | |
+| nós `.name-label` antes → depois | 50 → **18** | 64 → **18** | 64 → **18** |
+| rótulos visíveis (autônomos) | 2,6 | 14 | 14 |
+| decisão (5 Hz), ms antes → depois | 0,014 → 0,025 | 0,037 → 0,056 | 0,035 → 0,044 |
+| transform por quadro, ms | 0,010 | 0,034 | 0,028 |
+| raios de oclusão por decisão | ≤ 8 | ≤ 8 | ≤ 8 |
+| update dos remotos (interp. + esqueletos + olhar + rótulos), ms: sem variedade/olhar → com (32 olhando) | 0,34 → 0,42 | 0,79 → 1,12 | 1,05 → 1,05 |
+
+Sintético (`tools/qa/nametag_synth.ts`, só a decisão com 50/250/500 candidatos + oclusão): 0,012 / 0,017 / 0,028 ms.
+CPU do quadro inteiro variou ±3 ms entre execuções (máquina compartilhada) — sem diferença atribuível.
 
 ### Minimapa
 

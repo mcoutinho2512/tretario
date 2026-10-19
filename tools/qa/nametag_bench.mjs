@@ -5,6 +5,7 @@
  * (até 64 detalhados: o cliente pede aoiMax = 2 × esqueletos do preset; o resto vem como multidão distante, sem nome),
  * ms do update dos remotos (interpolação + esqueletos + olhar + rótulos; só no cliente novo), rótulos visíveis,
  * decisão (ms), transform por quadro (ms), nós DOM `.name-label`, raios de oclusão.
+ * A/B no mesmo bundle: PV_BENCH_EXTRA=r12var=0 PV_BENCH_NOLOOK=1 (sem individualidade nem olhar).
  * uso: node tools/qa/nametag_bench.mjs <baseUrl> <rótulo> [kind=1|2] [Ns=50,250,500]
  *      (Vite: npx vite --port 5214 --strictPort; "antes" = bundle do master servido noutra porta)
  * saída: docs/bench/round12_nametags_<rótulo>.json (o agregado vai para docs/bench/round12_nametags.json)
@@ -34,7 +35,7 @@ for (const N of ns.split(',').map(Number)) {
   try {
     browser = await puppeteer.launch({ executablePath: chrome, headless: 'new', protocolTimeout: 600000, args: ['--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist'], defaultViewport: { width: 1280, height: 720 } });
     const p = await browser.newPage();
-    await p.goto(`${base}/?autostart=1&welcome=0&quality=high&crowdSkinned=32&time=10:30&mp=ws://127.0.0.1:${port}&name=Medidor&spawn=${cx.toFixed(1)},${cz.toFixed(1)}`);
+    await p.goto(`${base}/?autostart=1&welcome=0&quality=high&crowdSkinned=32&time=10:30&mp=ws://127.0.0.1:${port}&name=Medidor&spawn=${cx.toFixed(1)},${cz.toFixed(1)}${process.env.PV_BENCH_EXTRA ? `&${process.env.PV_BENCH_EXTRA}` : ''}`);
     await p.waitForFunction('window.__pvReady === true && window.__pv.mp()?.session', { timeout: 240000 });
     await p.evaluate((x, z) => { window.__pvProg?.tp(x, z); window.__pv.teleport(x, z, 0); }, cx, cz);
     let st = null;
@@ -45,7 +46,7 @@ for (const N of ns.split(',').map(Number)) {
     }
     await p.evaluate(() => window.__pv.camera(0.3, 0.32, 7));
     // cliente novo: pior caso do olhar — todos os remotos perto olham para o medidor
-    await p.evaluate(() => window.__pvR12?.lookAtMe(true));
+    if (!process.env.PV_BENCH_NOLOOK) await p.evaluate(() => window.__pvR12?.lookAtMe(true));
     await w(4000);
     await p.evaluate(() => window.__pv.takeFrames());
     const samples = [];

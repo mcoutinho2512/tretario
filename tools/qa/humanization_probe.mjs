@@ -69,7 +69,7 @@ try {
     for (const r of s) {
       const q = prev.get(r.nid);
       if (q) {
-        if (!q.act && r.act) actStarts++;
+        if (r.act && (!q.act || r.actAt !== q.actAt)) actStarts++; // começou (ou recomeçou) uma ação
         if (q.speed < 0.15 && r.speed > 0.3) walkStarts++;
         let dh = (((r.heading - q.heading) % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI); if (dh > Math.PI) dh = 2 * Math.PI - dh;
         if (dh > 0.52) turns++;

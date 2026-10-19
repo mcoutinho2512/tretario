@@ -46,7 +46,11 @@ Semente estável por pessoa (`personSeed(nid)`) → fase inicial dos ciclos, pas
 - **Instanciado (VAT)**: `CrowdAgent.seed` → fase, cadência e deslocamento das ações por instância
   (`CrowdRenderer`), sem custo de GPU extra.
 
-100 pessoas que recebem "bater palmas" no mesmo tick (e com a mesma variação) ficam espalhadas pelo ciclo.
+100 pessoas que recebem "bater palmas" no mesmo tick (e com a mesma variação) ficam espalhadas pelo ciclo. Sonda
+(`tools/qa/humanization_probe.mjs`, 5 min, 120 pessoas, `--sync-clap=20`: até 48 inícios no MESMO instante do
+servidor): entre quem toca a mesma ação em laço, vetor médio circular **R 0,994 → 0,138** e maior fração "no mesmo
+quadro" (1/30 do ciclo) **97,6 % → 14 %** (pior amostra 100 % → 23 %); viradas > 30° na mesma amostra de 200 ms: máx.
+3 (antes 5). GIF/quadros em docs/screenshots/round12/qa_video/.
 
 ### Olhar (HumanAnimator.setLook / lookAngles)
 

@@ -1061,11 +1061,11 @@ export class NetworkClient {
    * esqueleto, fases normalizadas (caminhada, parado, ação em laço; instanciado: fase do VAT) e o olhar
    */
   humanizationSample() {
-    const out: { nid: number; kind: number; act: number; speed: number; heading: number; skinned: boolean; walk: number | null; idle: number | null; actPhase: number | null; vat: number; look: number }[] = [];
+    const out: { nid: number; kind: number; act: number; actAt: number; speed: number; heading: number; skinned: boolean; walk: number | null; idle: number | null; actPhase: number | null; vat: number; look: number }[] = [];
     for (const r of this.remotes.values()) {
       if (!r.buf.length) continue;
       const ph = r.visual?.phaseDebug ?? null;
-      out.push({ nid: r.nid, kind: r.kind, act: r.soc.act, speed: +r.state.speed.toFixed(2), heading: +r.state.heading.toFixed(3), skinned: !!r.visual, walk: ph?.walk ?? null, idle: ph?.idle ?? null, actPhase: ph?.actPhase ?? null, vat: +r.agent.phase.toFixed(3), look: r.visual?.lookDebug?.w ?? 0 });
+      out.push({ nid: r.nid, kind: r.kind, act: r.soc.act, actAt: r.soc.actAt, speed: +r.state.speed.toFixed(2), heading: +r.state.heading.toFixed(3), skinned: !!r.visual, walk: ph?.walk ?? null, idle: ph?.idle ?? null, actPhase: ph?.actPhase ?? null, vat: +r.agent.phase.toFixed(3), look: r.visual?.lookDebug?.w ?? 0 });
     }
     return out;
   }
