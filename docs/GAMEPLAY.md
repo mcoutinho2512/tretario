@@ -58,6 +58,11 @@ volta pelos mesmos campos:
 - **Servidor decide tudo** (alvo, alcance, arco, janela, estado, zona/evento, fôlego, recarga). Detalhes:
   [COMBAT.md](COMBAT.md).
 - **Sem farm**: nenhum XP por golpe; recompensa de confronto só por objetivo/evento concluído.
+- **Rodada 9.1** (testes do dono em produção): golpe **só acerta de perto** (soco 1,2 · chute 1,5 · empurrão 1,5 ·
+  taco 1,7 m, folga 0,25 m) com mira assistida e avanço curto no cliente; chute, taco e barra derrubam; NPC derrubado
+  cai sentado e levanta pela animação. Itens e gestos também na **barra de ações** do centro inferior (Veículos,
+  Itens, Pichar, Confronto, Gestos, Personagem, Mapa — [HUD.md](HUD.md)); o item escolhido pode ser largado (Z/X,
+  roda G ou barra). Tabela completa em [COMBAT.md](COMBAT.md#ações-dados).
 
 ## Neutralidade
 

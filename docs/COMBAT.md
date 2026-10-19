@@ -46,15 +46,22 @@ dados religarem essas opções (os testes mantêm a regra antiga por parâmetro)
 
 | id | chave | tipo | prep → ativa → recup. (ms) | alcance · arco | fôlego | cooldown | impacto |
 |---|---|---|---|---|---|---|---|
-| 1 | soco | golpe | 120 → 100 → 230 | 1,35 m · 70° | 8 | 380 | −12 condição, empurra 0,35 m, cambaleia 380 ms |
-| 2 | soco_2 (combo de 1) | golpe | 100 → 100 → 260 | 1,35 m · 70° | 8 | 350 | −12, 0,4 m, cambaleia 420 ms |
-| 3 | chute | golpe | 220 → 120 → 380 | 1,6 m · 60° | 16 | 800 | −20, 0,9 m, cambaleia 600 ms |
-| 4 | chute_final (combo de 2) | golpe | 200 → 140 → 450 | 1,65 m · 64° | 18 | 900 | −28, 1,6 m, **queda** |
-| 5 | empurrao | empurrão | 150 → 120 → 350 | 1,9 m · 150° | 14 | 1000 | −10, 1,8 m, **queda** |
+| 1 | soco | golpe | 120 → 100 → 230 | 1,2 m · 80° | 8 | 380 | −12 condição, empurra 0,35 m, cambaleia 380 ms |
+| 2 | soco_2 (combo de 1) | golpe | 100 → 100 → 260 | 1,2 m · 80° | 8 | 350 | −12, 0,4 m, cambaleia 420 ms |
+| 3 | chute | golpe | 220 → 120 → 380 | 1,5 m · 70° | 16 | 800 | −20, 1,2 m, **queda** |
+| 4 | chute_final (combo de 2) | golpe | 200 → 140 → 450 | 1,55 m · 70° | 18 | 900 | −28, 1,6 m, **queda** |
+| 5 | empurrao | empurrão | 150 → 120 → 350 | 1,5 m · 150° | 14 | 1000 | −10, 1,8 m, **queda** |
 | 6 | esquiva | esquiva | 0 → 320 → 180 | — | 20 | 900 | invulnerável 320 ms, desloca 2,2 m |
-| 10 | golpe_taco (`bat`, prop 11) | golpe | 260 → 120 → 420 | 1,9 m · 90° | 18 | 900 | −26, 1,1 m, cambaleia 650 ms |
-| 11 | golpe_barra (`bar`) | golpe | 300 → 120 → 480 | 1,8 m · 80° | 22 | 1100 | −32, 1,3 m, cambaleia 700 ms |
+| 10 | golpe_taco (`bat`, prop 11) | golpe | 260 → 120 → 420 | 1,7 m · 90° | 18 | 900 | −26, 1,1 m, **queda** |
+| 11 | golpe_barra (`bar`) | golpe | 300 → 120 → 480 | 1,65 m · 80° | 22 | 1100 | −32, 1,3 m, **queda** |
 | 12 | spray (`spray`) | spray | 120 → 500 → 300 | 3 m · 40°, até 3 alvos | 10 | 2500 | desorientado 2,5 s (fx), sem perda de condição |
+
+Rodada 9.1 (2026-10-18, pedido do dono "golpe só acerta de perto"): alcances realistas (antes soco 1,35 · chute 1,6 ·
+empurrão 1,9 · taco 1,9 · barra 1,8 m, folga 0,45 m); o empurrão F antigo (`src/net/rules.ts` `pushRange`) caiu de
+1,9 para 1,6 m. Para não ficar difícil acertar, o cliente tem **mira assistida** (`AIM_ASSIST` em
+`src/combat/CombatClient.ts`: vira o golpe para o alvo mais perto até alcance + 1,2 m num meio-arco de 80°, jogadores,
+NPCs e boneco de treino) e **avanço curto**: alvo até 0,7 m além do alcance → passo rápido de no máximo 0,6 m na
+preparação. O servidor continua validando alcance e arco pela posição dos movimentos — o avanço não estica o alcance.
 
 - **Combo** soco → soco → chute: o cliente pede sempre a ação BASE; o servidor troca pela variante (`comboFrom` +
   `comboOf`) se o pedido cai na janela (`comboWindowMs`) depois do fim da janela ativa da anterior. A variante pode
@@ -64,7 +71,7 @@ dados religarem essas opções (os testes mantêm a regra antiga por parâmetro)
   Com item de confronto na mão o botão de soco vira o golpe do item; soco e empurrão exigem mãos livres
   (`bareHanded`), chute não.
 - **Ajustes** (`tuning`): fôlego 100, +22/s depois de 0,7 s; condição 100, +4/s depois de 4 s sem levar golpe;
-  queda 2,6 s + levantar 1,4 s (os mesmos da queda antiga); proteção de retorno 5 s; folga de alcance 0,45 m e de
+  queda 2,6 s + levantar 1,4 s (os mesmos da queda antiga); proteção de retorno 5 s; folga de alcance 0,25 m (rodada 9.1; era 0,45) e de
   arco 15°; 5 pedidos/s; buffer de entrada 180 ms.
 
 ## Fluxo no servidor (`cbt {a, h, seq}`)
@@ -153,8 +160,8 @@ porque não afetam ninguém mais. `src/combat/npcHits.ts`:
   entregam só os NPCs numa caixa de alcance + folga em volta do jogador e a escolha usa a MESMA definição de
   `combat.json` (alcance + `rangeSlackM`, arco + `arcSlackDeg`, `maxTargets`), mais perto primeiro, teto 3 por golpe;
 - reação (`npcReaction` da ação ou derivada do impacto): **cambaleio** (soco, chute: recua o empurrão do golpe, clipe
-  `stagger`), **queda** (chute final, empurrão, taco, barra: cai de costas, ~3,4 s deitado, levanta em 0,8 s e volta a
-  andar) e **mãos nos olhos** (spray: clipe `disoriented`, curva-se). Sem ragdoll (um mundo Rapier por NPC não é
+  `stagger`), **queda** (chute, chute final, empurrão, taco, barra: ~3,4 s no chão e volta a andar; com esqueleto, desde a
+  rodada 9.1, cai sentado pelo clipe `npc_down` e levanta pelo clipe `getup` em vez de girar rígido) e **mãos nos olhos** (spray: clipe `disoriented`, curva-se). Sem ragdoll (um mundo Rapier por NPC não é
   barato): pose deitada pela inclinação do corpo — `rotation.x` no esqueleto e `CrowdAgent.tilt` na matriz do
   instanciado (o item some do instanciado enquanto reage). Prioridade 0,5 na disputa de esqueleto (como jogador caído);
 - F sem jogador ao alcance: a definição EMPURRÃO nos NPCs à frente (offline, `pushNear` derruba igual).
@@ -174,7 +181,8 @@ servidor), espectador golpeando, pulo no ar / em cooldown / `y` forjado — todo
 `tests/combatLatency.test.ts` (servidor real com `COLYSEUS_LATENCY` + `PV_JITTER`): o soco continua acertando e o
 resultado chega em pedido → `cbt_hit` = **187 ms (RTT 30) · 219 ms (RTT 80) · 279 ms (RTT 150)** ≈ RTT + preparação
 (120 ms): nada é decidido no cliente. A animação local não espera o servidor; o resultado chega ~RTT depois do fim da
-preparação. Folgas de alcance (0,45 m) e arco (15°) cobrem o atraso de posição de ~150 ms.
+preparação. Folgas de alcance (0,25 m desde a rodada 9.1) e arco (15°) cobrem o atraso de posição de ~150 ms; o teste
+continua passando com os alcances novos (3/3 também com a CPU da máquina saturada, 2026-10-18).
 
 ## QA e medições
 

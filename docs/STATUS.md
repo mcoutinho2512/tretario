@@ -1,6 +1,28 @@
 # STATUS — Presidente Vargas 3D
 
-_Atualizado em 2026-10-17 (rodada 8: identidade, grupos, chat, espectador e mundo persistente)._
+_Atualizado em 2026-10-18 (rodada 9.1: produção BETA em https://tretario.com.br e ajustes de jogabilidade pelos testes do dono)._
+
+## Rodada 9.1 — produção BETA ([PRODUCTION.md](PRODUCTION.md), [DEPLOYMENT.md](DEPLOYMENT.md), [OPERATIONS.md](OPERATIONS.md))
+
+- **No ar**: https://tretario.com.br (selo BETA, cadastro com aprovação manual), HTTPS Let's Encrypt, multiplayer por
+  WSS, nginx com CSP/HSTS/noindex, PostgreSQL só local, backup diário com restauração de teste, `/health` e
+  `/metrics` com verificação periódica, deploy com ~1,5 s fora do ar, rollback e página de manutenção
+  ([BACKUP_RESTORE.md](BACKUP_RESTORE.md), [MONITORING.md](MONITORING.md), [SECURITY_PRODUCTION.md](SECURITY_PRODUCTION.md),
+  [INCIDENT_RESPONSE.md](INCIDENT_RESPONSE.md)).
+- **Verificado em produção**: progresso do jogador sobrevive a logout/login, deploy, reinício do serviço e reboot da
+  VPS; soak de 62 min sem vazamento estrutural (texturas de billboard corrigidas); capacidade medida 50/100/250/500
+  jogadores (500 bots: tick 13,5 ms, CPU 56 %) → limite beta 250 por sala, 300 espectadores.
+- **Agenda** só do servidor; inscrição em evento sobrevive a reconexão/takeover; limites do grafite limpos.
+- **Confronto** (decisão do dono): avenida toda COMBAT, sem áreas de paz, contra todos (jogadores e NPCs), itens de
+  confronto direto da roda; golpe só de perto, com mira assistida e avanço curto ([COMBAT.md](COMBAT.md)).
+- **Home/telões/espectador** sem rótulo de simulação; contador sem número inventado ("Alguns jogadores na avenida" com
+  gente real, "Avenida movimentada agora" sem ninguém).
+- **Barra de ações** inferior ([HUD.md](HUD.md)); itens podem ser largados.
+- **QA** (2026-10-18, depois do último ajuste de alcance): `npm run verify` OK (655 testes); walkthrough 36/36 sem
+  latência e com RTT 150 ms + jitter 30 (o empurrão continua acertando com o alcance de 1,6 m); `action_bar` 38/38;
+  `tests/combatLatency.test.ts` 3/3 também com a CPU saturada (a instabilidade vista antes sob carga não se repetiu).
+- **Limitações**: VPS compartilhada com outros sistemas; backup só na própria VPS (sem cópia externa); monitoramento
+  sem alerta externo; ainda sem teste em aparelho físico (iPhone fora do Wi-Fi, Windows, Firefox).
 
 ## Personagens (rodada 9.1) — de perto, sem buracos e menos "robô"
 
