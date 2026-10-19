@@ -209,6 +209,7 @@ export class SettingsPanel {
   /** abre direto numa aba (contrato `openSettings`) */
   openTab(t: SettingsTab) {
     this.show(parseTab(t));
+    if (this.open) this.tabs.get(this.tab)!.btn.focus({ preventScroll: true });
     this.toggle(true);
   }
 

@@ -10,15 +10,15 @@
           "name": "hud-tl",
           "l": 11,
           "t": 11,
-          "r": 299,
-          "b": 241
+          "r": 269,
+          "b": 145
         },
         {
           "name": "hud-tc",
           "l": 560,
           "t": 8,
           "r": 806,
-          "b": 149
+          "b": 138
         },
         {
           "name": "hud-tr",
@@ -61,6 +61,13 @@
           "t": 691,
           "r": 893,
           "b": 758
+        },
+        {
+          "name": "inv-quick",
+          "l": 520,
+          "t": 653,
+          "r": 846,
+          "b": 688
         }
       ]
     },
@@ -74,15 +81,15 @@
           "name": "hud-tl",
           "l": 14,
           "t": 14,
-          "r": 374,
-          "b": 298
+          "r": 336,
+          "b": 182
         },
         {
           "name": "hud-tc",
           "l": 529,
           "t": 10,
           "r": 837,
-          "b": 185
+          "b": 171
         },
         {
           "name": "hud-tr",
@@ -125,31 +132,35 @@
           "t": 673,
           "r": 945,
           "b": 756
+        },
+        {
+          "name": "inv-quick",
+          "l": 479,
+          "t": 624,
+          "r": 887,
+          "b": 668
         }
       ]
     },
     {
       "res": "1366x768@1x",
       "scale": 125,
-      "ok": false,
-      "problems": [
-        "hud-tl invade o centro",
-        "hud-tc invade o centro"
-      ],
+      "ok": true,
+      "problems": [],
       "blocks": [
         {
           "name": "hud-tl",
           "l": 18,
           "t": 18,
-          "r": 468,
-          "b": 374
+          "r": 400,
+          "b": 246
         },
         {
           "name": "hud-tc",
           "l": 491,
           "t": 13,
           "r": 875,
-          "b": 229
+          "b": 212
         },
         {
           "name": "hud-tr",
@@ -192,6 +203,13 @@
           "t": 649,
           "r": 1010,
           "b": 753
+        },
+        {
+          "name": "inv-quick",
+          "l": 429,
+          "t": 588,
+          "r": 937,
+          "b": 643
         }
       ]
     },
@@ -205,8 +223,8 @@
           "name": "hud-tl",
           "l": 11,
           "t": 11,
-          "r": 299,
-          "b": 241
+          "r": 275,
+          "b": 212
         },
         {
           "name": "hud-tc",
@@ -256,6 +274,13 @@
           "t": 823,
           "r": 930,
           "b": 890
+        },
+        {
+          "name": "inv-quick",
+          "l": 557,
+          "t": 785,
+          "r": 883,
+          "b": 820
         }
       ]
     },
@@ -269,8 +294,8 @@
           "name": "hud-tl",
           "l": 14,
           "t": 14,
-          "r": 374,
-          "b": 298
+          "r": 344,
+          "b": 266
         },
         {
           "name": "hud-tc",
@@ -320,23 +345,28 @@
           "t": 805,
           "r": 982,
           "b": 888
+        },
+        {
+          "name": "inv-quick",
+          "l": 516,
+          "t": 756,
+          "r": 924,
+          "b": 800
         }
       ]
     },
     {
       "res": "1440x900@1x",
       "scale": 125,
-      "ok": false,
-      "problems": [
-        "hud-tl invade o centro"
-      ],
+      "ok": true,
+      "problems": [],
       "blocks": [
         {
           "name": "hud-tl",
           "l": 18,
           "t": 18,
-          "r": 468,
-          "b": 374
+          "r": 421,
+          "b": 333
         },
         {
           "name": "hud-tc",
@@ -386,6 +416,13 @@
           "t": 781,
           "r": 1047,
           "b": 885
+        },
+        {
+          "name": "inv-quick",
+          "l": 466,
+          "t": 720,
+          "r": 974,
+          "b": 775
         }
       ]
     },
@@ -399,8 +436,8 @@
           "name": "hud-tl",
           "l": 11,
           "t": 11,
-          "r": 299,
-          "b": 241
+          "r": 275,
+          "b": 212
         },
         {
           "name": "hud-tc",
@@ -450,6 +487,13 @@
           "t": 823,
           "r": 930,
           "b": 890
+        },
+        {
+          "name": "inv-quick",
+          "l": 557,
+          "t": 785,
+          "r": 883,
+          "b": 820
         }
       ]
     },
@@ -463,8 +507,8 @@
           "name": "hud-tl",
           "l": 14,
           "t": 14,
-          "r": 374,
-          "b": 298
+          "r": 344,
+          "b": 266
         },
         {
           "name": "hud-tc",
@@ -514,23 +558,28 @@
           "t": 805,
           "r": 982,
           "b": 888
+        },
+        {
+          "name": "inv-quick",
+          "l": 516,
+          "t": 756,
+          "r": 924,
+          "b": 800
         }
       ]
     },
     {
       "res": "1440x900@2x",
       "scale": 125,
-      "ok": false,
-      "problems": [
-        "hud-tl invade o centro"
-      ],
+      "ok": true,
+      "problems": [],
       "blocks": [
         {
           "name": "hud-tl",
           "l": 18,
           "t": 18,
-          "r": 468,
-          "b": 374
+          "r": 421,
+          "b": 333
         },
         {
           "name": "hud-tc",
@@ -580,6 +629,13 @@
           "t": 781,
           "r": 1047,
           "b": 885
+        },
+        {
+          "name": "inv-quick",
+          "l": 466,
+          "t": 720,
+          "r": 974,
+          "b": 775
         }
       ]
     },
@@ -593,8 +649,8 @@
           "name": "hud-tl",
           "l": 11,
           "t": 11,
-          "r": 299,
-          "b": 241
+          "r": 275,
+          "b": 200
         },
         {
           "name": "hud-tc",
@@ -632,6 +688,13 @@
           "b": 1053
         },
         {
+          "name": "hud-hint",
+          "l": 11,
+          "t": 1051,
+          "r": 388,
+          "b": 1069
+        },
+        {
           "name": "attribution",
           "l": 1587,
           "t": 1058,
@@ -644,6 +707,13 @@
           "t": 1003,
           "r": 1170,
           "b": 1070
+        },
+        {
+          "name": "inv-quick",
+          "l": 797,
+          "t": 965,
+          "r": 1123,
+          "b": 1000
         }
       ]
     },
@@ -657,8 +727,8 @@
           "name": "hud-tl",
           "l": 13,
           "t": 13,
-          "r": 337,
-          "b": 271
+          "r": 310,
+          "b": 224
         },
         {
           "name": "hud-tc",
@@ -696,6 +766,13 @@
           "b": 1049
         },
         {
+          "name": "hud-hint",
+          "l": 13,
+          "t": 1048,
+          "r": 436,
+          "b": 1067
+        },
+        {
           "name": "attribution",
           "l": 1587,
           "t": 1058,
@@ -708,6 +785,13 @@
           "t": 994,
           "r": 1196,
           "b": 1069
+        },
+        {
+          "name": "inv-quick",
+          "l": 777,
+          "t": 950,
+          "r": 1143,
+          "b": 990
         }
       ]
     },
@@ -721,8 +805,8 @@
           "name": "hud-tl",
           "l": 14,
           "t": 14,
-          "r": 374,
-          "b": 298
+          "r": 344,
+          "b": 251
         },
         {
           "name": "hud-tc",
@@ -760,6 +844,13 @@
           "b": 1046
         },
         {
+          "name": "hud-hint",
+          "l": 14,
+          "t": 1043,
+          "r": 484,
+          "b": 1066
+        },
+        {
           "name": "attribution",
           "l": 1587,
           "t": 1058,
@@ -772,6 +863,13 @@
           "t": 985,
           "r": 1222,
           "b": 1068
+        },
+        {
+          "name": "inv-quick",
+          "l": 756,
+          "t": 936,
+          "r": 1164,
+          "b": 980
         }
       ]
     },
@@ -785,8 +883,8 @@
           "name": "hud-tl",
           "l": 15,
           "t": 15,
-          "r": 411,
-          "b": 333
+          "r": 378,
+          "b": 275
         },
         {
           "name": "hud-tc",
@@ -824,6 +922,13 @@
           "b": 1043
         },
         {
+          "name": "hud-hint",
+          "l": 15,
+          "t": 1040,
+          "r": 533,
+          "b": 1065
+        },
+        {
           "name": "attribution",
           "l": 1587,
           "t": 1058,
@@ -836,6 +941,13 @@
           "t": 975,
           "r": 1248,
           "b": 1067
+        },
+        {
+          "name": "inv-quick",
+          "l": 736,
+          "t": 922,
+          "r": 1184,
+          "b": 970
         }
       ]
     },
@@ -849,8 +961,8 @@
           "name": "hud-tl",
           "l": 18,
           "t": 18,
-          "r": 468,
-          "b": 374
+          "r": 430,
+          "b": 314
         },
         {
           "name": "hud-tc",
@@ -888,6 +1000,13 @@
           "b": 1038
         },
         {
+          "name": "hud-hint",
+          "l": 18,
+          "t": 1035,
+          "r": 606,
+          "b": 1063
+        },
+        {
           "name": "attribution",
           "l": 1587,
           "t": 1058,
@@ -900,6 +1019,13 @@
           "t": 961,
           "r": 1287,
           "b": 1065
+        },
+        {
+          "name": "inv-quick",
+          "l": 706,
+          "t": 900,
+          "r": 1214,
+          "b": 955
         }
       ]
     },
@@ -913,8 +1039,8 @@
           "name": "hud-tl",
           "l": 11,
           "t": 11,
-          "r": 299,
-          "b": 241
+          "r": 275,
+          "b": 200
         },
         {
           "name": "hud-tc",
@@ -952,6 +1078,13 @@
           "b": 1413
         },
         {
+          "name": "hud-hint",
+          "l": 11,
+          "t": 1411,
+          "r": 388,
+          "b": 1429
+        },
+        {
           "name": "attribution",
           "l": 2227,
           "t": 1418,
@@ -964,6 +1097,13 @@
           "t": 1363,
           "r": 1490,
           "b": 1430
+        },
+        {
+          "name": "inv-quick",
+          "l": 1117,
+          "t": 1325,
+          "r": 1443,
+          "b": 1360
         }
       ]
     },
@@ -977,8 +1117,8 @@
           "name": "hud-tl",
           "l": 14,
           "t": 14,
-          "r": 374,
-          "b": 298
+          "r": 344,
+          "b": 251
         },
         {
           "name": "hud-tc",
@@ -1016,6 +1156,13 @@
           "b": 1406
         },
         {
+          "name": "hud-hint",
+          "l": 14,
+          "t": 1403,
+          "r": 484,
+          "b": 1426
+        },
+        {
           "name": "attribution",
           "l": 2227,
           "t": 1418,
@@ -1028,6 +1175,13 @@
           "t": 1345,
           "r": 1542,
           "b": 1428
+        },
+        {
+          "name": "inv-quick",
+          "l": 1076,
+          "t": 1296,
+          "r": 1484,
+          "b": 1340
         }
       ]
     },
@@ -1041,15 +1195,15 @@
           "name": "hud-tl",
           "l": 18,
           "t": 18,
-          "r": 468,
-          "b": 374
+          "r": 430,
+          "b": 314
         },
         {
           "name": "hud-tc",
           "l": 1088,
           "t": 13,
           "r": 1472,
-          "b": 135
+          "b": 229
         },
         {
           "name": "hud-tr",
@@ -1080,6 +1234,13 @@
           "b": 1398
         },
         {
+          "name": "hud-hint",
+          "l": 18,
+          "t": 1395,
+          "r": 606,
+          "b": 1423
+        },
+        {
           "name": "attribution",
           "l": 2227,
           "t": 1418,
@@ -1092,6 +1253,13 @@
           "t": 1321,
           "r": 1607,
           "b": 1425
+        },
+        {
+          "name": "inv-quick",
+          "l": 1026,
+          "t": 1260,
+          "r": 1534,
+          "b": 1315
         }
       ]
     }
@@ -1104,14 +1272,14 @@
       "far": 1800,
       "anisotropy": 2,
       "reloadFor": [
-        "suavização nativa (MSAA do canvas)",
+        "desligar a suavização nativa (economia de GPU)",
         "detalhe das fachadas já carregadas"
       ],
-      "fps": 32.733224222585925,
-      "calls": 316,
-      "trianglesK": 538,
+      "fps": 59.99999999999999,
+      "calls": 323,
+      "trianglesK": 600,
       "applied": "Em uso: Baixa",
-      "note": "Aplicado na hora, exceto suavização nativa (MSAA do canvas), detalhe das fachadas já carregadas: vale ao recarregar. Recarregar agora",
+      "note": "Aplicado na hora, exceto desligar a suavização nativa (economia de GPU), detalhe das fachadas já carregadas: vale ao recarregar. Recarregar agora",
       "sameDocument": true
     },
     {
@@ -1121,9 +1289,9 @@
       "far": 2600,
       "anisotropy": 4,
       "reloadFor": [],
-      "fps": 59.9760095958042,
-      "calls": 619,
-      "trianglesK": 1282,
+      "fps": 59.99999999999999,
+      "calls": 618,
+      "trianglesK": 1317,
       "applied": "Em uso: Média · aplicado na hora, sem recarregar",
       "note": "",
       "sameDocument": true
@@ -1131,18 +1299,17 @@
     {
       "preset": "high",
       "level": "high",
-      "applyMs": 6,
+      "applyMs": 12,
       "far": 3400,
       "anisotropy": 8,
       "reloadFor": [
-        "suavização nativa (MSAA do canvas)",
         "multidão completa"
       ],
-      "fps": 60.171488742557635,
-      "calls": 1389,
-      "trianglesK": 3335,
+      "fps": 60.01800540054696,
+      "calls": 1423,
+      "trianglesK": 3468,
       "applied": "Em uso: Alta",
-      "note": "Aplicado na hora, exceto suavização nativa (MSAA do canvas), multidão completa: vale ao recarregar. Recarregar agora",
+      "note": "Aplicado na hora, exceto multidão completa: vale ao recarregar. Recarregar agora",
       "sameDocument": true
     },
     {
@@ -1152,62 +1319,88 @@
       "far": 3800,
       "anisotropy": 16,
       "reloadFor": [
-        "suavização nativa (MSAA do canvas)",
         "multidão completa"
       ],
-      "fps": 32.56533420195295,
-      "calls": 1519,
-      "trianglesK": 3744,
+      "fps": 60.02400960419945,
+      "calls": 1548,
+      "trianglesK": 3885,
       "applied": "Em uso: Ultra",
-      "note": "Aplicado na hora, exceto suavização nativa (MSAA do canvas), multidão completa: vale ao recarregar. Recarregar agora",
+      "note": "Aplicado na hora, exceto multidão completa: vale ao recarregar. Recarregar agora",
       "sameDocument": true
     },
     {
       "preset": "high",
       "level": "high",
-      "applyMs": 4,
+      "applyMs": 6,
       "far": 3400,
       "anisotropy": 8,
       "reloadFor": [
-        "suavização nativa (MSAA do canvas)",
         "multidão completa"
       ],
-      "fps": 59.97001499250374,
-      "calls": 1337,
-      "trianglesK": 3265,
+      "fps": 60.02701215475406,
+      "calls": 1395,
+      "trianglesK": 3440,
       "applied": "Em uso: Alta",
-      "note": "Aplicado na hora, exceto suavização nativa (MSAA do canvas), multidão completa: vale ao recarregar. Recarregar agora",
+      "note": "Aplicado na hora, exceto multidão completa: vale ao recarregar. Recarregar agora",
       "sameDocument": true
     }
   ],
   "fps": [
     {
+      "vsync": true,
       "choice": "30",
       "limit": 30,
-      "frames": 75,
-      "meanMs": 39.89,
-      "fps": 25.1
+      "frames": 90,
+      "meanMs": 33.33,
+      "fps": 30
     },
     {
+      "vsync": true,
+      "choice": "60",
+      "limit": 60,
+      "frames": 180,
+      "meanMs": 16.67,
+      "fps": 60
+    },
+    {
+      "vsync": true,
+      "choice": "unlimited",
+      "limit": 0,
+      "frames": 180,
+      "meanMs": 16.67,
+      "fps": 60
+    },
+    {
+      "vsync": true,
+      "choice": "30",
+      "limit": 30,
+      "frames": 90,
+      "meanMs": 33.33,
+      "fps": 30
+    },
+    {
+      "vsync": true,
+      "choice": "60",
+      "limit": 60,
+      "frames": 180,
+      "meanMs": 16.67,
+      "fps": 60
+    },
+    {
+      "vsync": false,
+      "choice": "unlimited",
+      "limit": 0,
+      "frames": 1328,
+      "meanMs": 2.26,
+      "fps": 441.8
+    },
+    {
+      "vsync": false,
       "choice": "60",
       "limit": 60,
       "frames": 174,
-      "meanMs": 17.27,
-      "fps": 57.9
-    },
-    {
-      "choice": "unlimited",
-      "limit": 0,
-      "frames": 1690,
-      "meanMs": 1.78,
-      "fps": 563.1
-    },
-    {
-      "choice": "60",
-      "limit": 60,
-      "frames": 142,
-      "meanMs": 21.19,
-      "fps": 47.2
+      "meanMs": 17.34,
+      "fps": 57.7
     }
   ],
   "persist": {
@@ -1245,9 +1438,9 @@
   ],
   "summary": {
     "layoutCases": 17,
-    "layoutOk": 14,
+    "layoutOk": 17,
     "liveOk": true,
-    "fpsOk": false,
+    "fpsOk": true,
     "persistOk": true,
     "errors": 0
   }

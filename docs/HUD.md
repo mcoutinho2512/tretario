@@ -355,7 +355,7 @@ tela de controles — a aba Controles delega para ela (sem registro: mostra a aj
 1366 × 768, 1440 × 900, 1440 × 900 @2x (Retina), 1920 × 1080 e 2560 × 1440 × escalas 80/100/125 % (e 90/110 % no
 1920), com a coluna do alto ao centro CHEIA (indicador + aviso de zona + aviso + ação bloqueada ao mesmo tempo, pior
 caso) e multidão de bots: **17/17 sem sobreposição, sem corte e com o centro livre**. Resultado:
-`docs/screenshots/round11/desktop_graphics_layout.json`. Capturas em `docs/screenshots/round11/`: `W_1366x768`,
+`docs/screenshots/round11/desktop_graphics.json`. Capturas em `docs/screenshots/round11/`: `W_1366x768`,
 `X_1920x1080`, `Y_2560x1440`, `A_hud_desktop_d` (HUD reorganizado), `U_evento` (HUD num evento), `Q_configuracoes`
 (painel, aba Interface), `S_graficos` (aba Gráficos depois de trocar o preset ao vivo).
 
