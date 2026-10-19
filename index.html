@@ -101,14 +101,102 @@
           <h1 id="editor-title">CRIE SEU PERSONAGEM</h1>
         </div>
 
+        <!-- rodada 11 — editor: painel com abas (src/ui/editor/CharacterEditor.ts) + avatar grande (src/ui/preview/sharedPreview.ts) -->
         <main class="stage">
+          <aside class="builder" aria-label="Montar personagem">
+            <nav class="ed-tabs" id="ed-tabs" role="tablist" aria-label="Categorias" aria-orientation="vertical">
+              <button type="button" class="ed-tab" role="tab" data-tab="CORPO" aria-selected="true" aria-controls="ed-p-corpo"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5.5" r="2.6"/><path d="M8 21v-6l-2-1 1.5-5.5h9L18 14l-2 1v6"/></svg><span>Corpo</span></button>
+              <button type="button" class="ed-tab" role="tab" data-tab="CABELO" aria-selected="false" aria-controls="ed-p-cabelo" tabindex="-1"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 13c0-5 3-8 7-8s7 3 7 8"/><path d="M7 12c2-3 7-3 10-1"/><path d="M8 13v4c1 2 3 3 4 3s3-1 4-3v-4"/></svg><span>Cabelo</span></button>
+              <button type="button" class="ed-tab" role="tab" data-tab="CAMISA" aria-selected="false" aria-controls="ed-p-camisa" tabindex="-1"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4l3 2 3-2 5 3-2 4-2-1v10H8V10l-2 1-2-4z"/></svg><span>Camisa</span></button>
+              <button type="button" class="ed-tab" role="tab" data-tab="CALCA" aria-selected="false" aria-controls="ed-p-calca" tabindex="-1"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h10l1 16h-4l-2-10-2 10H6z"/></svg><span>Calça / short</span></button>
+              <button type="button" class="ed-tab" role="tab" data-tab="CALCADO" aria-selected="false" aria-controls="ed-p-calcado" tabindex="-1"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 16V9h5l2 3 7 1.5c1.5.4 2 1.4 2 2.5v1z"/><path d="M4 19h16"/></svg><span>Calçado</span></button>
+              <button type="button" class="ed-tab" role="tab" data-tab="ACESSORIOS" aria-selected="false" aria-controls="ed-p-acessorios" tabindex="-1"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 14c0-4 3.5-7 8-7s8 3 8 7"/><path d="M2.5 14h19"/></svg><span>Acessórios</span></button>
+              <button type="button" class="ed-tab" role="tab" data-tab="TORCIDA" id="ed-tab-sup" aria-selected="false" aria-controls="ed-p-torcida" tabindex="-1"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 21V4"/><path d="M6 5h11l-2.5 3.5L17 12H6"/></svg><span>Torcida</span></button>
+            </nav>
+            <div class="ed-body">
+              <div class="builder-scroll">
+                <section class="ed-panel" id="ed-p-corpo" data-tab="CORPO" role="tabpanel" aria-label="Corpo">
+                  <h2>Corpo</h2>
+                  <p class="lead" id="editor-lead">Escolha corpo, cabelo, roupas e acessórios. Fica salvo na sua conta e aparece para os outros jogadores.</p>
+                  <h3 class="label">ESCOLHA SEU PERSONAGEM</h3>
+                  <div class="char-grid" role="radiogroup" aria-label="Personagem">
+                    <label class="char"><input type="radio" name="av" value="homem" checked /><span class="thumb"><img alt="" data-portrait="homem" /></span><b>Homem</b></label>
+                    <label class="char"><input type="radio" name="av" value="mulher" /><span class="thumb"><img alt="" data-portrait="mulher" /></span><b>Mulher</b></label>
+                    <label class="char"><input type="radio" name="av" value="idoso" /><span class="thumb"><img alt="" data-portrait="idoso" /></span><b>Idoso</b></label>
+                    <label class="char"><input type="radio" name="av" value="idosa" /><span class="thumb"><img alt="" data-portrait="idosa" /></span><b>Idosa</b></label>
+                  </div>
+                  <div id="name-field">
+                    <h3 class="label"><label for="player-name">SEU NOME</label> <small>aparece para outros jogadores</small></h3>
+                    <input id="player-name" class="name-input" maxlength="20" autocomplete="nickname" placeholder="Visitante" />
+                  </div>
+                  <p class="account-nick hidden" id="account-nick"></p>
+                  <h3 class="label">TOM DE PELE</h3><div class="swatches" data-key="skin"></div>
+                </section>
+                <section class="ed-panel" id="ed-p-cabelo" data-tab="CABELO" role="tabpanel" aria-label="Cabelo" hidden>
+                  <h2>Cabelo</h2>
+                  <h3 class="label">CORTE</h3><div class="chips style-chips" data-slot="HAIR"></div>
+                  <h3 class="label">COR</h3><div class="swatches" data-key="hair"></div>
+                </section>
+                <section class="ed-panel" id="ed-p-camisa" data-tab="CAMISA" role="tabpanel" aria-label="Camisa" hidden>
+                  <h2>Camisa</h2>
+                  <h3 class="label">PARTE DE CIMA <small>camiseta, regata, polo, camisa</small></h3><div class="chips style-chips" data-slot="SHIRT"></div>
+                  <h3 class="label">COR LISA</h3><div class="swatches" data-key="top"></div>
+                  <h3 class="label">CAMISA DE FUTEBOL <small>inspirada nas cores, sem escudos</small></h3><div class="chips design-chips" id="shirt-designs"></div>
+                </section>
+                <section class="ed-panel" id="ed-p-calca" data-tab="CALCA" role="tabpanel" aria-label="Calça ou short" hidden>
+                  <h2>Calça / short</h2>
+                  <h3 class="label">MODELO</h3><div class="chips style-chips" data-slot="PANTS"></div>
+                  <h3 class="label">COR</h3><div class="swatches" data-key="bottom"></div>
+                </section>
+                <section class="ed-panel" id="ed-p-calcado" data-tab="CALCADO" role="tabpanel" aria-label="Calçado" hidden>
+                  <h2>Calçado</h2>
+                  <h3 class="label">MODELO</h3><div class="chips style-chips" data-slot="SHOES"></div>
+                  <h3 class="label">COR</h3><div class="swatches" data-key="shoes"></div>
+                </section>
+                <section class="ed-panel" id="ed-p-acessorios" data-tab="ACESSORIOS" role="tabpanel" aria-label="Acessórios" hidden>
+                  <h2>Acessórios</h2>
+                  <h3 class="label">ACESSÓRIO</h3><div class="chips" id="acc-chips"></div>
+                  <div id="acc-color-wrap"><h3 class="label">COR DO ACESSÓRIO</h3><div class="swatches acc-colors" data-key="acc"></div></div>
+                </section>
+                <section class="ed-panel" id="ed-p-torcida" data-tab="TORCIDA" role="tabpanel" aria-label="Torcida" hidden>
+                  <h2>Torcida</h2>
+                  <p class="lead">Opcional. Muda só o visual (camisa, bandeira e faixa nas cores do time) e aparece no seu perfil. Não tem relação com grupos políticos ou do evento; todas as torcidas têm as mesmas regras.</p>
+                  <div class="group-list sup-list ed-sup" id="ed-sup" role="radiogroup" aria-label="Torcidas"></div>
+                  <button type="button" class="chip ed-wear" id="ed-wear" aria-pressed="false" disabled>Vestir as cores</button>
+                  <p class="ed-sup-note" id="ed-sup-note"></p>
+                </section>
+              </div>
+              <footer class="builder-foot">
+                <div class="ed-history" role="group" aria-label="Histórico">
+                  <button type="button" class="ed-hbtn" id="ed-undo" title="Desfazer (Ctrl+Z)" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 7H4V2"/><path d="M4.5 7A8 8 0 1 1 4 13"/></svg><span>Desfazer</span></button>
+                  <button type="button" class="ed-hbtn" id="ed-redo" title="Refazer (Ctrl+Shift+Z)" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 7h5V2"/><path d="M19.5 7A8 8 0 1 0 20 13"/></svg><span>Refazer</span></button>
+                  <button type="button" class="ed-hbtn" id="ed-restore" title="Voltar ao visual salvo" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.3-5.6L4 8.7"/><path d="M4 3v5.7h5.7"/><path d="M12 8v4l3 2"/></svg><span>Restaurar</span></button>
+                  <button type="button" id="randomize" class="ed-hbtn" aria-label="Surpreenda-me: visual aleatório" title="Surpreenda-me: visual aleatório"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3"/><circle cx="9" cy="9" r="1.2" fill="currentColor"/><circle cx="15" cy="15" r="1.2" fill="currentColor"/><circle cx="15" cy="9" r="1.2" fill="currentColor"/><circle cx="9" cy="15" r="1.2" fill="currentColor"/></svg><span>Surpreenda-me</span></button>
+                </div>
+                <div class="ed-actions">
+                  <button type="button" id="ed-cancel" class="btn-ghost">Cancelar</button>
+                  <button id="explore" class="btn-primary" disabled><span>Salvar</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg></button>
+                </div>
+                <p class="foot-note" id="editor-note" role="status"></p>
+              </footer>
+            </div>
+          </aside>
+
           <section class="preview-card" aria-label="Prévia do personagem">
             <div class="preview-meta">
               <span class="eyebrow">RIO DE JANEIRO / AV. PRESIDENTE VARGAS</span>
               <p class="slogan">A AVENIDA.<br />DO SEU JEITO.</p>
             </div>
-            <canvas id="avatar-canvas" aria-label="Personagem em 3D — arraste para girar"></canvas>
+            <div class="avatar-stage" id="avatar-stage"></div>
             <div class="preview-loading" id="preview-loading">Montando personagem…</div>
+            <div class="view-bar" role="group" aria-label="Lado">
+              <button type="button" class="pose-btn view" data-view="front" aria-pressed="true">Frente</button>
+              <button type="button" class="pose-btn view" data-view="back" aria-pressed="false">Costas</button>
+            </div>
+            <div class="zoom-bar" role="group" aria-label="Aproximar">
+              <button type="button" class="pose-btn zoom" data-zoom="1" aria-label="Aproximar do rosto">+</button>
+              <button type="button" class="pose-btn zoom" data-zoom="-1" aria-label="Afastar (corpo inteiro)">−</button>
+            </div>
             <div class="pose-bar">
               <button type="button" class="pose-btn rot" data-rot="1" aria-label="Girar para a esquerda">↶</button>
               <div class="poses" role="radiogroup" aria-label="Pose">
@@ -119,51 +207,8 @@
               </div>
               <button type="button" class="pose-btn rot" data-rot="-1" aria-label="Girar para a direita">↷</button>
             </div>
-            <div class="zoom-bar" role="group" aria-label="Aproximar">
-              <button type="button" class="pose-btn zoom" data-zoom="1" aria-label="Aproximar do rosto">+</button>
-              <button type="button" class="pose-btn zoom" data-zoom="-1" aria-label="Afastar (corpo inteiro)">−</button>
-            </div>
             <p class="hint">ARRASTE PARA GIRAR <i>·</i> ROLE OU PINCE PARA APROXIMAR</p>
           </section>
-
-          <aside class="builder" aria-label="Montar personagem">
-            <div class="builder-scroll">
-              <span class="eyebrow">01 / MONTE SEU VISUAL</span>
-              <h2>Seu visual na avenida</h2>
-              <p class="lead" id="editor-lead">Escolha corpo, cabelo, roupas e acessórios. Fica salvo na sua conta e aparece para os outros jogadores.</p>
-
-              <h3 class="label">ESCOLHA SEU PERSONAGEM</h3>
-              <div class="char-grid" role="radiogroup" aria-label="Personagem">
-                <label class="char"><input type="radio" name="av" value="homem" checked /><span class="thumb"><img alt="" data-portrait="homem" /></span><b>Homem</b></label>
-                <label class="char"><input type="radio" name="av" value="mulher" /><span class="thumb"><img alt="" data-portrait="mulher" /></span><b>Mulher</b></label>
-                <label class="char"><input type="radio" name="av" value="idoso" /><span class="thumb"><img alt="" data-portrait="idoso" /></span><b>Idoso</b></label>
-                <label class="char"><input type="radio" name="av" value="idosa" /><span class="thumb"><img alt="" data-portrait="idosa" /></span><b>Idosa</b></label>
-              </div>
-
-              <div id="name-field">
-                <h3 class="label"><label for="player-name">SEU NOME</label> <small>aparece para outros jogadores</small></h3>
-                <input id="player-name" class="name-input" maxlength="20" autocomplete="nickname" placeholder="Visitante" />
-              </div>
-              <p class="account-nick hidden" id="account-nick"></p>
-
-              <h3 class="label">TOM DE PELE</h3><div class="swatches" data-key="skin"></div>
-              <h3 class="label">CABELO</h3><div class="chips style-chips" data-slot="HAIR"></div><div class="swatches" data-key="hair"></div>
-              <h3 class="label">PARTE DE CIMA <small>camiseta, regata, polo, camisa</small></h3><div class="chips style-chips" data-slot="SHIRT"></div><div class="swatches" data-key="top"></div>
-              <h3 class="label">CAMISA DE FUTEBOL <small>inspirada nas cores, sem escudos</small></h3><div class="chips design-chips" id="shirt-designs"></div>
-              <h3 class="label">CALÇA / BERMUDA</h3><div class="chips style-chips" data-slot="PANTS"></div><div class="swatches" data-key="bottom"></div>
-              <h3 class="label">CALÇADO</h3><div class="chips style-chips" data-slot="SHOES"></div><div class="swatches" data-key="shoes"></div>
-              <h3 class="label">ACESSÓRIO</h3><div class="chips" id="acc-chips"></div>
-              <div class="swatches acc-colors" data-key="acc"></div>
-            </div>
-            <footer class="builder-foot">
-              <button id="explore" class="btn-primary" disabled><span>Salvar personagem</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
-              <button type="button" id="randomize" class="btn-ghost" aria-label="Surpreenda-me: visual aleatório">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3"/><circle cx="9" cy="9" r="1.2" fill="currentColor"/><circle cx="15" cy="15" r="1.2" fill="currentColor"/><circle cx="15" cy="9" r="1.2" fill="currentColor"/><circle cx="9" cy="15" r="1.2" fill="currentColor"/></svg>
-                Surpreenda-me
-              </button>
-              <p class="foot-note" id="editor-note" role="status">Horário e iluminação reais do Rio, agora.</p>
-            </footer>
-          </aside>
         </main>
 
         <footer class="page-foot">

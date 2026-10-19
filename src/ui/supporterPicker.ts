@@ -29,6 +29,19 @@ export function shirtSwatch(d: Design | undefined): string {
   }
 }
 
+/** cartão de uma torcida (ou do neutro) — também usado pela aba TORCIDA do editor (rodada 11) */
+export function supporterCard(g: SupporterGroupDefinition | null, neutralId: string): string {
+  const id = g?.id ?? neutralId;
+  const shirt = g ? DESIGN_BY_ID.get(g.clothingSet.shirtDesign) : undefined;
+  const flags = g ? [...g.flagSet, ...g.bannerSet].map((x) => DESIGN_BY_ID.get(x)).filter((x): x is Design => !!x) : [];
+  return `<button type="button" class="group-card sup-card" role="radio" aria-checked="false" data-key="${esc(id)}">
+    <span class="sup-shirt" aria-hidden="true"><i style="${shirtSwatch(shirt)}"></i></span>
+    <b>${esc(g ? g.displayName : 'Nenhuma / Neutro')}</b>
+    <span class="gdesc">${g ? esc(shirt?.label ?? '') : 'Sem torcida: nada muda no seu visual.'}</span>
+    <span class="group-designs" aria-label="Bandeira e faixa">${flags.map((d) => `<span class="design-tile" title="${esc(d.label)}" style="${shirtSwatch(d)}"></span>`).join('')}</span>
+  </button>`;
+}
+
 export class SupporterPicker {
   readonly root: HTMLElement;
   private selected: string | null = null;
@@ -41,18 +54,6 @@ export class SupporterPicker {
     parent.appendChild(this.root);
   }
 
-  private card(g: SupporterGroupDefinition | null, neutralId: string): string {
-    const id = g?.id ?? neutralId;
-    const shirt = g ? DESIGN_BY_ID.get(g.clothingSet.shirtDesign) : undefined;
-    const flags = g ? [...g.flagSet, ...g.bannerSet].map((x) => DESIGN_BY_ID.get(x)).filter((x): x is Design => !!x) : [];
-    return `<button type="button" class="group-card sup-card" role="radio" aria-checked="false" data-key="${esc(id)}">
-      <span class="sup-shirt" aria-hidden="true"><i style="${shirtSwatch(shirt)}"></i></span>
-      <b>${esc(g ? g.displayName : 'Nenhuma / Neutro')}</b>
-      <span class="gdesc">${g ? esc(shirt?.label ?? '') : 'Sem torcida: nada muda no seu visual.'}</span>
-      <span class="group-designs" aria-label="Bandeira e faixa">${flags.map((d) => `<span class="design-tile" title="${esc(d.label)}" style="${shirtSwatch(d)}"></span>`).join('')}</span>
-    </button>`;
-  }
-
   /** abre; resolve com a escolha (null = voltar sem mudar). `current` = id atual (ou null) */
   open(data: SupporterData, current: string | null, opts: { account: boolean; pending?: string | null } = { account: false }): Promise<SupporterPick | null> {
     this.selected = current ?? null;
@@ -62,8 +63,8 @@ export class SupporterPicker {
       <h2 id="sup-title">Para qual time você torce?</h2>
       <p class="lead">Escolha sua torcida ou fique sem nenhuma. A torcida muda só o visual (camisa, bandeira e faixa nas cores do time) e aparece no seu perfil. Ela não tem relação com grupos políticos ou do evento.</p>
       <div class="group-list sup-list" role="radiogroup" aria-label="Torcidas">
-        ${data.groups.map((g) => this.card(g, data.neutralId)).join('')}
-        ${this.card(null, data.neutralId)}
+        ${data.groups.map((g) => supporterCard(g, data.neutralId)).join('')}
+        ${supporterCard(null, data.neutralId)}
       </div>
       <div class="groups-opts">
         <label><input type="checkbox" id="s-wear" checked /> <span>Vestir as cores <small>(camisa da torcida e cores sugeridas; dá para trocar depois no editor)</small></span></label>
