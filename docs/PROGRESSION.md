@@ -103,3 +103,13 @@ rodada 9 é bloqueado — quem já usava uma peça não perde a aparência salva
   para métricas de retenção). Nada de userId, sessionId, apelido, posição ou texto.
 - Cada linha traz os contadores do período (deltas); somar as linhas dá o total, inclusive entre reinícios.
 - `npm run dev:telemetry [-- --since=24] [-- --json] [-- --file=…]` imprime os agregados (CLI do operador).
+
+## Rodada 11 — títulos equipáveis e nível público
+
+Títulos (recompensa `title`) continuam ganhos só pelo servidor; agora a pessoa EQUIPA um deles no inventário
+(categoria TÍTULOS) — `PUT /api/me/title` ou mensagem `title {t}`, validados contra os grants; persistido em
+`Profile.titleKey`. O título equipado e o nível vão para a rede (`NetPlayer.title`, `NetPlayer.lvl`, nível copiado do
+ProgressionService a 1 Hz) e para o perfil público. Missões e XP não mudaram; equipar bandeira/cartaz pelo
+inventário/acesso rápido manda o mesmo `prop` (emissor `prop {slot}`), então ENTRE NO CLIMA/VOZ NA AVENIDA contam
+igual (tests/inventoryServer.test.ts). Ver docs/INVENTORY.md e docs/EQUIPMENT_SYSTEM.md.
+

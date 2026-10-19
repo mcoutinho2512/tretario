@@ -278,3 +278,16 @@ painel do debate só escreve quando chega `dbt` (≤ 2 Hz) ou no relógio (1 Hz)
   painéis — cada um uma camada; ninguém mais tem listener próprio de Esc.
 - Dica inicial: "Clique interage · botão direito + arrastar gira a câmera · F1 controles · Esc menu".
 - `anyModal` inclui o menu do jogo e a tela de controles; `onModal` só avisa (nada a capturar/soltar).
+
+## Rodada 11 — inventário e acesso rápido (docs/INVENTORY.md)
+
+- **Acesso rápido** (`src/inventory/QuickbarView.ts`, `mountOverlay`): centro inferior, acima da barra de ações —
+  botão **INVENTÁRIO (I)** + 5 slots (teclas 1–5 ou clique; o cursor continua visível). Slot aceso = item NA MÃO (a
+  mesma fonte do indicador MÃOS e do avatar — `__pvInv.handSync()`). Esmaece com o HUD; some no toque (lá o
+  inventário fica no ☰ → "Inventário"). Escreve no DOM só quando a assinatura muda (4 Hz).
+- Com o acesso rápido, a ação contextual/HUD de confronto (`.hud-bc`) sobem para 154 px (`.hud.has-quick`).
+- **Painel do inventário** (`InventoryPanel`, `mountOverlay`): centralizado, camada 100 da pilha do Esc
+  (`EscSlot('inventory', 100)`); não pausa o mundo; enquanto aberto, as teclas de andar/correr/pular não movem o
+  personagem (`input.setMoveBlocked`) e o clique no cenário não interage.
+- Avisos curtos (sem modal) pelo canal de sempre (`flash`): "Você não possui este item.", "<item>: bloqueado — Nível 3",
+  "Taco não pode ser usado nesta zona." (zona de paz), "Título: …", "Torcida atualizada.".

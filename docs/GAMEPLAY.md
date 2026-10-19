@@ -80,6 +80,16 @@ volta pelos mesmos campos:
 - **Confronto**: golpes e transições refinados (sem mudar dano, alcance, fôlego ou recarga). [COMBAT.md](COMBAT.md).
 - Regra de zonas inalterada (decisão do dono de 2026-10-18: avenida toda em confronto, só a proteção de 5 s).
 
+## Rodada 11 — inventário, equipamentos e acesso rápido
+
+- **INVENTÁRIO** (tecla I ou botão no HUD): tudo que o personagem pode usar, por categoria — roupas, acessórios,
+  itens, manifestação, bandeiras, equipamentos (taco/barra/spray), torcida e títulos. Bloqueados mostram o motivo
+  (nível, missão, conquista); nada se compra. Prévia 3D para roupas e acessórios. [INVENTORY.md](INVENTORY.md)
+- **Acesso rápido 1–5**: bandeira, cartaz, megafone, taco… na mão com uma tecla ou um clique; de novo guarda.
+  Equipar bandeira/cartaz por ali conta nas missões como antes (o servidor recebe o mesmo pedido `prop`).
+- **Título e nível públicos**: o título ganho que a pessoa escolhe e o nível aparecem no painel da pessoa.
+  Regras de slot e de servidor: [EQUIPMENT_SYSTEM.md](EQUIPMENT_SYSTEM.md).
+
 ## Neutralidade
 
 Grupos políticos, torcidas (nomes fictícios, só cores/padrões, sem escudos) e NEUTRO têm a MESMA mecânica: força,

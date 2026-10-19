@@ -94,8 +94,8 @@ Clique/toque em outro jogador abre um painel compacto (`src/ui/PersonPanel.ts`, 
 - **Mostra só o que já é público no mundo**: apelido (`NetPlayer.name`) e a torcida pelo `displayName` dos dados
   (`public/gameplay/supporters.json`, índice público `NetPlayer.sup`). O painel não recebe — e portanto não pode exibir —
   e-mail, userId, sessionId, IP, papel, estado de acesso, grupo do evento, posição real ou qualquer dado administrativo.
-  O id interno da entidade fica só na memória do cliente para reencontrá-la (nunca aparece na tela). Nível/progressão
-  não são públicos hoje e não aparecem.
+  O id interno da entidade fica só na memória do cliente para reencontrá-la (nunca aparece na tela). Desde a rodada 11
+  o painel mostra também o **nível** (`NetPlayer.lvl`) e o **título equipado** (`NetPlayer.title`) — ver abaixo.
 - **Silenciar** usa o mute por identidade do chat (`chat_mute {nid}`): o servidor resolve a conta; o cliente nunca vê nem
   manda userId.
 - **Denunciar** (`user_report {nid, category}`): o servidor resolve o alvo pelo nid da entidade (qualquer userId/sessionId
@@ -125,6 +125,16 @@ Clique/toque em outro jogador abre um painel compacto (`src/ui/PersonPanel.ts`, 
   usa a torcida (testes de neutralidade). Métricas públicas não contam torcidas.
 - Visitante sem conta: escolha só na memória da aba (nada gravado). Retenção da conta: até a conta ser apagada
   (colunas do `Profile`, somem em cascata).
+
+## Nível e título equipado (rodada 11 — PÚBLICOS)
+- **Nível** da progressão e o **título equipado** passam a ser públicos: na rede (`NetPlayer.lvl` u8, `NetPlayer.title`
+  texto curto, ≤ 48) para quem está na área de interesse, no painel da pessoa e em `GET /api/profile/:nickname`
+  (`level`, `title`). Nada mais da progressão é público: XP exato, missões, conquistas, itens liberados e títulos NÃO
+  equipados continuam só do dono (`prog`, `GET /api/me/progress`, `GET /api/me/title`).
+- O título é escolhido pela pessoa entre os que GANHOU (recompensas `title`); "nenhum" é sempre possível. O servidor
+  valida contra os grants (`RewardGrant` `title:<texto>`); guardado em `Profile.titleKey` (coluna nova, NULLABLE),
+  apagado em cascata com a conta. Visitante sem conta: só na sessão.
+- Nada de e-mail, userId, sessionId, IP ou ids internos vai junto: os campos novos são número e texto dos DADOS do jogo.
 
 ## Perfil e aparência
 - Perfil público mínimo (`PublicProfile`): sem e-mail, ids internos, IP ou datas exatas (só AAAA-MM).

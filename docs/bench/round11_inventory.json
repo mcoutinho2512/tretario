@@ -1,5 +1,5 @@
 {
-  "date": "2026-10-19T04:25:28.767Z",
+  "date": "2026-10-19T04:44:03.679Z",
   "port": 3820,
   "categories": {
     "ROUPAS": {
@@ -54,23 +54,23 @@
   "cycles100": {
     "warmup": {
       "from": {
-        "nodes": 1875,
-        "listeners": 292,
+        "nodes": 1847,
+        "listeners": 318,
         "documents": 1,
-        "heapMB": 141.7,
+        "heapMB": 143.2,
         "game": {
           "renderer": {
-            "textures": 161,
-            "geometries": 618,
-            "programs": 74
+            "textures": 151,
+            "geometries": 617,
+            "programs": 76
           },
-          "materials": 319,
-          "textures": 117,
-          "geometries": 957
+          "materials": 302,
+          "textures": 113,
+          "geometries": 951
         },
         "preview": {
-          "created": 2,
-          "disposed": 2,
+          "created": 3,
+          "disposed": 3,
           "live": 0,
           "has": false,
           "memory": {
@@ -82,26 +82,26 @@
           }
         }
       },
-      "ms": 6745
+      "ms": 6762
     },
     "idleBefore": {
-      "nodes": 1878,
-      "listeners": 292,
+      "nodes": 1847,
+      "listeners": 319,
       "documents": 1,
-      "heapMB": 143.4,
+      "heapMB": 146.3,
       "game": {
         "renderer": {
-          "textures": 161,
-          "geometries": 618,
-          "programs": 74
+          "textures": 179,
+          "geometries": 630,
+          "programs": 76
         },
-        "materials": 320,
-        "textures": 118,
-        "geometries": 959
+        "materials": 343,
+        "textures": 121,
+        "geometries": 971
       },
       "preview": {
-        "created": 102,
-        "disposed": 102,
+        "created": 103,
+        "disposed": 103,
         "live": 0,
         "has": false,
         "memory": {
@@ -114,23 +114,23 @@
       }
     },
     "before": {
-      "nodes": 1878,
-      "listeners": 292,
+      "nodes": 1847,
+      "listeners": 319,
       "documents": 1,
-      "heapMB": 143.9,
+      "heapMB": 148.2,
       "game": {
         "renderer": {
-          "textures": 162,
-          "geometries": 618,
-          "programs": 74
+          "textures": 198,
+          "geometries": 642,
+          "programs": 76
         },
-        "materials": 320,
-        "textures": 118,
-        "geometries": 959
+        "materials": 370,
+        "textures": 124,
+        "geometries": 986
       },
       "preview": {
-        "created": 102,
-        "disposed": 102,
+        "created": 103,
+        "disposed": 103,
         "live": 0,
         "has": false,
         "memory": {
@@ -143,23 +143,23 @@
       }
     },
     "after": {
-      "nodes": 1878,
-      "listeners": 292,
+      "nodes": 1847,
+      "listeners": 319,
       "documents": 1,
-      "heapMB": 145.8,
+      "heapMB": 148.6,
       "game": {
         "renderer": {
-          "textures": 191,
-          "geometries": 631,
-          "programs": 75
+          "textures": 199,
+          "geometries": 642,
+          "programs": 76
         },
-        "materials": 362,
+        "materials": 370,
         "textures": 125,
-        "geometries": 975
+        "geometries": 986
       },
       "preview": {
-        "created": 202,
-        "disposed": 202,
+        "created": 203,
+        "disposed": 203,
         "live": 0,
         "has": false,
         "memory": {
@@ -171,25 +171,25 @@
         }
       }
     },
-    "ms": 7016,
+    "ms": 6508,
     "idleAfterSameTime": {
-      "nodes": 1878,
-      "listeners": 292,
+      "nodes": 1847,
+      "listeners": 320,
       "documents": 1,
-      "heapMB": 146.3,
+      "heapMB": 149.2,
       "game": {
         "renderer": {
-          "textures": 192,
-          "geometries": 631,
-          "programs": 75
+          "textures": 212,
+          "geometries": 645,
+          "programs": 77
         },
-        "materials": 362,
-        "textures": 124,
-        "geometries": 975
+        "materials": 385,
+        "textures": 125,
+        "geometries": 986
       },
       "preview": {
-        "created": 202,
-        "disposed": 202,
+        "created": 203,
+        "disposed": 203,
         "live": 0,
         "has": false,
         "memory": {
@@ -202,23 +202,23 @@
       }
     },
     "after3": {
-      "nodes": 1878,
-      "listeners": 292,
+      "nodes": 1851,
+      "listeners": 319,
       "documents": 1,
-      "heapMB": 147,
+      "heapMB": 149.8,
       "game": {
         "renderer": {
-          "textures": 192,
-          "geometries": 631,
-          "programs": 75
+          "textures": 215,
+          "geometries": 648,
+          "programs": 77
         },
-        "materials": 376,
+        "materials": 386,
         "textures": 126,
-        "geometries": 976
+        "geometries": 986
       },
       "preview": {
-        "created": 302,
-        "disposed": 302,
+        "created": 303,
+        "disposed": 303,
         "live": 0,
         "has": false,
         "memory": {
@@ -236,23 +236,23 @@
     "acessorios": 20,
     "distinctAccessories": 5,
     "before": {
-      "nodes": 1879,
-      "listeners": 297,
+      "nodes": 1850,
+      "listeners": 323,
       "documents": 1,
-      "heapMB": 147.4,
+      "heapMB": 150.2,
       "game": {
         "renderer": {
-          "textures": 201,
-          "geometries": 635,
-          "programs": 75
+          "textures": 215,
+          "geometries": 648,
+          "programs": 77
         },
-        "materials": 376,
-        "textures": 127,
-        "geometries": 978
+        "materials": 386,
+        "textures": 126,
+        "geometries": 986
       },
       "preview": {
-        "created": 303,
-        "disposed": 302,
+        "created": 304,
+        "disposed": 303,
         "live": 1,
         "has": true,
         "memory": {
@@ -265,23 +265,23 @@
       }
     },
     "after": {
-      "nodes": 1743,
-      "listeners": 297,
+      "nodes": 1714,
+      "listeners": 324,
       "documents": 1,
-      "heapMB": 151.6,
+      "heapMB": 155.2,
       "game": {
         "renderer": {
-          "textures": 212,
-          "geometries": 639,
-          "programs": 75
+          "textures": 244,
+          "geometries": 663,
+          "programs": 78
         },
-        "materials": 400,
-        "textures": 137,
-        "geometries": 991
+        "materials": 436,
+        "textures": 143,
+        "geometries": 1013
       },
       "preview": {
-        "created": 303,
-        "disposed": 302,
+        "created": 304,
+        "disposed": 303,
         "live": 1,
         "has": true,
         "memory": {
@@ -320,8 +320,8 @@
   "slot2Target": "ok",
   "afterClick": {
     "stats": {
-      "opens": 305,
-      "closes": 305,
+      "opens": 306,
+      "closes": 306,
       "equips": 5,
       "refused": 1,
       "quick": 2
@@ -375,14 +375,19 @@
       "detail": "61 quadros em 1 s"
     },
     {
+      "name": "I abre e Esc fecha o inventário",
+      "ok": true,
+      "detail": ""
+    },
+    {
       "name": "100× abrir/fechar: ouvintes JS estáveis",
       "ok": true,
-      "detail": "292 → 292"
+      "detail": "319 → 319"
     },
     {
       "name": "100× abrir/fechar: nós DOM estáveis (sem órfãos)",
       "ok": true,
-      "detail": "1878 → 1878"
+      "detail": "1847 → 1847"
     },
     {
       "name": "100× abrir/fechar: nenhum handle vivo; renderer da prévia reutilizado (≤ 1)",
@@ -392,17 +397,17 @@
     {
       "name": "100× abrir/fechar: renderer do jogo sem programas novos (texturas: ver sonda)",
       "ok": true,
-      "detail": "3ª leva {\"textures\":192,\"geometries\":631,\"programs\":75} → {\"textures\":192,\"geometries\":631,\"programs\":75}; deriva do mundo parado 1; aquecimento {\"textures\":161,\"geometries\":618,\"programs\":74} → {\"textures\":162,\"geometries\":618,\"programs\":74}; medida → {\"textures\":191,\"geometries\":631,\"programs\":75}"
+      "detail": "3ª leva {\"textures\":212,\"geometries\":645,\"programs\":77} → {\"textures\":215,\"geometries\":648,\"programs\":77}; deriva do mundo parado 46; aquecimento {\"textures\":151,\"geometries\":617,\"programs\":76} → {\"textures\":198,\"geometries\":642,\"programs\":76}; medida → {\"textures\":199,\"geometries\":642,\"programs\":76}"
     },
     {
       "name": "100× abrir/fechar: materiais/texturas da cena (informativo)",
       "ok": true,
-      "detail": "mat 320→362 tex 118→125 (aquecimento mat 319→320)"
+      "detail": "mat 370→370 tex 124→125 (aquecimento mat 302→370)"
     },
     {
       "name": "100× abrir/fechar: heap estável",
       "ok": true,
-      "detail": "143.9 → 145.8 MB"
+      "detail": "148.2 → 148.6 MB"
     },
     {
       "name": "40 prévias (×2): um renderer só, um handle",
@@ -417,7 +422,7 @@
     {
       "name": "40 prévias: ouvintes/nós estáveis",
       "ok": true,
-      "detail": "ouvintes 297→297, nós 1879→1743"
+      "detail": "ouvintes 323→324, nós 1850→1714"
     },
     {
       "name": "fechar descarta o handle da prévia",
@@ -432,7 +437,7 @@
     {
       "name": "B vê em A a parte de cima trocada",
       "ok": true,
-      "detail": "{\"sid\":\"r_YAKv-yS\",\"self\":false,\"name\":\"Ana\",\"topStyle\":\"polo\",\"accessory\":\"oculos\",\"shirtDesign\":0,\"prop\":0,\"design\":0,\"sup\":2,\"lvl\":1,\"title\":\"\"}"
+      "detail": "{\"sid\":\"3Ig6cnjIc\",\"self\":false,\"name\":\"Ana\",\"topStyle\":\"polo\",\"accessory\":\"oculos\",\"shirtDesign\":0,\"prop\":0,\"design\":0,\"sup\":2,\"lvl\":1,\"title\":\"\"}"
     },
     {
       "name": "B vê em A o acessório trocado",

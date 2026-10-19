@@ -82,6 +82,13 @@ try {
   const fr = await E(A, async () => { let n = 0; const t0 = performance.now(); await new Promise((r) => { const f = () => { n++; if (performance.now() - t0 < 1000) requestAnimationFrame(f); else r(); }; requestAnimationFrame(f); }); return n; });
   check('o mundo não pausa com o inventário aberto', fr > 10, `${fr} quadros em 1 s`);
   await E(A, () => window.__pvInv.inv.close());
+  // tecla I abre, Esc (pilha única) fecha
+  await A.keyboard.press('KeyI');
+  await w(500);
+  const byKey = await E(A, () => window.__pvInv.inv.open);
+  await A.keyboard.press('Escape');
+  await w(400);
+  check('I abre e Esc fecha o inventário', byKey && !(await E(A, () => window.__pvInv.inv.open)));
 
   // ---------------------------------------------------------------- 100 ciclos abrir/fechar
   await E(A, () => { window.__pvInv.inv.openPanel(); window.__pvInv.inv.close(); }); // aquece (chunk/CSS/GLB)

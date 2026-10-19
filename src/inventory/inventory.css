@@ -2,7 +2,7 @@
    linhas finas, texto claro); desktop primeiro, mouse. Nada animado por quadro. */
 
 /* ---------------------------------------------------------------- acesso rápido (HUD, centro inferior) */
-.inv-quick { position: absolute; left: 50%; bottom: calc(var(--sab) + 80px); transform: translateX(-50%); display: flex; gap: 6px; align-items: stretch; pointer-events: auto; }
+.inv-quick { position: absolute; left: 50%; bottom: calc(var(--sab) + 100px); transform: translateX(-50%); display: flex; gap: 6px; align-items: stretch; pointer-events: auto; }
 .inv-open, .inv-q { font: 600 12px/1 system-ui, sans-serif; color: var(--hud-text); background: var(--hud-bg); border: 1px solid var(--hud-line); border-radius: 10px; cursor: pointer; }
 .inv-open { position: relative; display: flex; align-items: center; gap: 6px; padding: 0 10px 0 8px; height: 44px; letter-spacing: 0.03em; text-transform: uppercase; }
 .inv-open svg { width: 20px; height: 20px; }
@@ -23,7 +23,9 @@
 .hud.dim .inv-quick.hud-fadeable { opacity: 0.55; }
 .hud.touch .inv-quick { display: none; }
 /* a dica "clique para controlar a câmera" sobe acima do acesso rápido */
-.hud.has-quick .lock-hint { bottom: calc(var(--sab) + 134px); }
+.hud.has-quick .lock-hint { bottom: calc(var(--sab) + 152px); }
+/* a ação contextual (E — USAR…) e o HUD de confronto sobem acima do acesso rápido */
+.hud.has-quick.has-bar .hud-bc { bottom: calc(var(--sab) + 154px); }
 
 /* `hidden` vence os `display` abaixo (o painel fechado não pode ficar por cima do HUD) */
 .inv-root[hidden], .inv-root [hidden], .inv-quick [hidden] { display: none !important; }
