@@ -96,6 +96,16 @@ clientId, e-mail, IP) a outros clientes. Identidade: `docs/IDENTITY.md`.
 - Nenhuma regra de jogo usa o grupo (ver `docs/IDENTITY.md`, seção Grupos), então não há incentivo nem penalidade por lado.
 - Retenção: memberships de eventos encerrados podem ser apagadas junto com o evento (política operacional; sem uso analítico).
 
+## Torcida (rodada 10)
+- A torcida (Flamengo, Vasco, Fluminense, Botafogo ou nenhuma) é **dado PÚBLICO do perfil**, escolhido pela pessoa e
+  nunca obrigatório: aparece em `GET /api/profile/:nickname` (`supporter`) e no mundo como `NetPlayer.sup` (índice,
+  visto por quem está na área de interesse), como a aparência. A troca pendente (`supporterPending`) e a data da troca
+  NÃO são públicas.
+- É separada de grupo político e de grupo de evento: nenhum código lê uma para inferir a outra, e nenhuma regra de jogo
+  usa a torcida (testes de neutralidade). Métricas públicas não contam torcidas.
+- Visitante sem conta: escolha só na memória da aba (nada gravado). Retenção da conta: até a conta ser apagada
+  (colunas do `Profile`, somem em cascata).
+
 ## Perfil e aparência
 - Perfil público mínimo (`PublicProfile`): sem e-mail, ids internos, IP ou datas exatas (só AAAA-MM).
 - Sessão em cookie HttpOnly; o banco guarda só o hash do token. Nenhum token em localStorage.

@@ -69,6 +69,19 @@ Progressão de missões/XP (docs/PROGRESSION.md, docs/MISSIONS.md):
   `PV_PROG_FLUSH_S`, padrão 15 s, e na queda/saída/fim da graça/desligamento) — nunca por evento nem por tick.
 - Testes: `server/test/progression.dbtest.ts` (pares únicos recusam duplicata no PostgreSQL, cascata, reinício).
 
+## Mudanças da rodada 10 (migration `20261018220000_round10_supporter_profile`)
+
+Torcida no perfil (docs/SUPPORTER_GROUPS.md). **Expand-first**: só colunas novas NULLABLE em `Profile`, nada existente
+muda ou é apagado; código antigo continua funcionando com o banco novo.
+
+- `Profile.supporterGroup String?` — id da torcida (dados `public/gameplay/supporters.json`) ou o id neutro; NULL =
+  nunca escolheu.
+- `Profile.supporterPending String?` — troca pedida durante evento competitivo, aplicada no fim/saída do evento.
+- `Profile.supporterChangedAt DateTime?` — última troca aplicada (cooldown da `changePolicy`).
+- **DataStore**: `supporters.{get, set}` (memória e Prisma; contrato em `tests/dataStoreContract.ts`). A migration foi
+  escrita no formato do `prisma migrate` e conferida com `prisma generate`; o banco local estava fora do ar nesta rodada
+  (`npm run test:db` não rodou — rodar antes do deploy).
+
 ## Registros efêmeros e limpeza (rodada 8.1)
 
 Inventário de tudo que vence/expira no servidor e o destino de cada item. **Auditoria nunca é apagada.**
