@@ -10,6 +10,7 @@
  * Custo: nada por quadro. `update()` passa por um RateGate (4 Hz) e só escreve no DOM quando algo muda (TextSlot,
  * setClass, assinatura do popover aberto). Celular: fileira compacta só de ícones (44 px) acima dos controles de toque.
  */
+import { keyLabel, keysFor, type GameAction } from '../../input/keymap'; // rodada 11 — entrada
 import { ACTION_CATEGORIES } from '../../social/actions';
 import { PROP_BY_ID } from '../../social/props';
 import { DESIGN_BY_ID } from '../../social/designs';
@@ -18,6 +19,8 @@ import { BAR_CATS, PopoverState, distLabel, hintText, hintVisible, type BarCat, 
 import { RateGate, TextSlot, setClass } from './throttle';
 import type { CombatHudState } from '../../combat/CombatHud';
 import { uiZoom } from '../uiPrefs'; // rodada 11 — escala da interface
+/** rótulo da tecla efetiva (remapeamentos locais valem) */
+const kk = (a: GameAction) => keyLabel(keysFor(a)[0] ?? '') || '—';
 
 export interface ActionBarDeps {
   touch: boolean;
@@ -68,7 +71,7 @@ type Section = { title?: string; entries: Entry[]; extra?: HTMLElement };
 export class ActionBar {
   readonly el: HTMLDivElement;
   readonly state = new PopoverState();
-  /** a casca solta/recaptura o mouse quando o popover abre/fecha */
+  /** a casca registra a camada do Esc quando o popover abre/fecha */
   onModal?: (open: boolean) => void;
   /** a casca tira o esmaecimento */
   onPoke?: () => void;
@@ -220,10 +223,10 @@ export class ActionBar {
         const extra = new Set(d.extraProps());
         return [
           { title: 'Golpes', entries: [
-            { label: 'Soco', kbd: d.touch ? undefined : 'R / clique', id: 'cbt_punch', pick: () => d.press('cbt_punch') },
-            { label: 'Chute', kbd: d.touch ? undefined : 'Q', id: 'cbt_kick', pick: () => d.press('cbt_kick') },
-            { label: 'Esquiva', kbd: d.touch ? undefined : 'C', id: 'cbt_dodge', pick: () => d.press('cbt_dodge') },
-            { label: 'Empurrão', kbd: d.touch ? undefined : 'F', id: 'action', pick: () => d.press('action') },
+            { label: 'Soco', kbd: d.touch ? undefined : kk('punch'), id: 'cbt_punch', pick: () => d.press('cbt_punch') },
+            { label: 'Chute', kbd: d.touch ? undefined : kk('kick'), id: 'cbt_kick', pick: () => d.press('cbt_kick') },
+            { label: 'Esquiva', kbd: d.touch ? undefined : kk('dodge'), id: 'cbt_dodge', pick: () => d.press('cbt_dodge') },
+            { label: 'Empurrão', kbd: d.touch ? undefined : kk('push'), id: 'action', pick: () => d.press('action') },
           ] },
           { title: 'Pegar rápido', entries: COMBAT_QUICK.map((q) => ({
             label: q.label, id: `p${q.id}`, active: s.prop === q.id, disabled: !extra.has(q.id),

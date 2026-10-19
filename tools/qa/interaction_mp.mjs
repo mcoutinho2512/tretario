@@ -300,7 +300,8 @@ try {
     const st = (await ix(M)).state;
     check('celular: toque parado (no vazio) não gira a câmera e não interage', Math.abs(cam0 - cam1) < 1e-6 && st === 'foot', `yaw ${cam0.toFixed(4)} → ${cam1.toFixed(4)} · ${st}`);
   }
-  await M.keyboard.press('Escape'); // fecha qualquer painel aberto por engano
+  // fecha qualquer painel aberto por engano (rodada 11: Esc sem nada aberto abre o menu do jogo — só se houver camada)
+  if ((await ev(M, () => window.__pv.input?.().esc ?? [])).length) await M.keyboard.press('Escape');
   await ev(M, () => window.__pv.hudSet({ map: false, poke: true }));
   // toque na pessoa (A está perto de B em pa): M vai até lá
   await ev(M, (a, b) => { window.__pvProg?.tp(a, b); window.__pv.teleport(a, b, 0); }, pa.x + 1, pa.z - 3.2);

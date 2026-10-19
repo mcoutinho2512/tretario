@@ -144,13 +144,14 @@ pacote de ícones). Botões com `^` abrem um popover para cima; Esc, clique/toqu
 | **Veículos ^** | "USAR BICICLETA / SUBIR NO TRIO / descer…" quando há algo ao alcance (o texto da ação contextual do HUD; clique = tecla **E**) + o veículo livre mais perto de cada tipo com a distância (bicicleta, patinete, carro, moto, carro de som, trio pela escada). Clique na lista = alvo no minimapa + mapa expandido + aviso de distância; **sem teleporte**. Ponto amarelo no botão quando há veículo usável perto |
 | **Itens ^** | as mesmas opções da categoria ITENS da roda (`itemOptions`): Mãos vazias, bandeiras/cartazes/faixa/…, e os itens de confronto oferecidos (`ItemsClient.wheelExtra`); ◀ design ▶ para o item na mão; tocar no item na mão de novo o larga |
 | **Pichar** | abre o editor de grafite se houver tapume/parede liberada perto (`graffiti.tryOpen`, o mesmo do **E**); senão aviso "Aproxime-se de um tapume ou parede liberada para pichar" |
-| **Confronto ^** | Soco (R/clique), Chute (Q), Esquiva (C), Empurrão (F) — entram como as teclas (`input.queueToggle`); "Pegar rápido" Taco/Barra/Spray (`requestProp`, apagado se o servidor não oferece). No botão, duas linhas finas de condição/fôlego enquanto o HUD de confronto está à vista (lidas de `CombatHud.state`, nada recalculado) |
+| **Confronto ^** | Soco (R), Chute (Q), Esquiva (C), Empurrão (F) — entram como as teclas (`input.queueToggle`); "Pegar rápido" Taco/Barra/Spray (`requestProp`, apagado se o servidor não oferece). No botão, duas linhas finas de condição/fôlego enquanto o HUD de confronto está à vista (lidas de `CombatHud.state`, nada recalculado) |
 | **Gestos ^** | gestos, manifestação e dança da roda (`actionOptions`), por seção; os que pedem item aparecem apagados |
 | **Personagem** | `hudShell.openCharacterEditor()` — o mesmo do ☰ (sem conta: login) |
 | **Mapa** | `hudShell.toggleMap()` |
 
-- **Dica acima da barra** (`hud-fadeable`): desktop "W A S D mover · mouse olhar · Shift correr · G roda · Esc solta o
-  mouse" (o olhar no desktop é com o mouse capturado, não arrastando); toque "joystick mover · arraste para olhar".
+- **Dica acima da barra** (`hud-fadeable`): desktop "W A S D mover · clique interage · botão direito + arrastar câmera ·
+  G roda · Esc menu" (rodada 11: cursor sempre visível, sem pointer lock); toque "joystick mover · arraste para olhar".
+  Os atalhos mostrados no popover de Confronto vêm do mapa de teclas efetivo (remapeamentos valem).
   Fica até 6 s depois do 1º movimento ou no máximo 3 min (`hintVisible`).
 - **Auto-ocultar / HUD limpo**: a fileira esmaece com o HUD (e deixa de receber cliques enquanto invisível); volta com
   o mouse/toque como o resto. Popover aberto não deixa esmaecer. **H/P** esconde tudo.
@@ -182,7 +183,7 @@ Detalhes em [INTERACTION_SYSTEM.md](INTERACTION_SYSTEM.md). No HUD:
 - **A pé**: a ação contextual (`hudShell.setPrompt`) vem do alvo do `InteractionSystem` — "E — ENTRAR NO CARRO",
   "E — MONTAR NA BICICLETA", "E — USAR O PATINETE", "E — SUBIR NO TRIO", "E — PEGAR TACO", "E — PICHAR A PAREDE" (no toque
   sem o "E —"; o botão USAR aparece com ela). Realce **só no alvo**: anel leve no chão + rótulo curto ("CARRO · Entrar",
-  desktop "E · CARRO · Entrar"); no desktop com o mouse solto, o objeto sob o cursor (com cursor de clique). Pessoas
+  desktop "E · CARRO · Entrar"); no desktop, o objeto sob o cursor (mão em objeto, cursor de interação em pessoa). Pessoas
   não ganham realce sozinhas (só ao passar o mouse/clicar). HUD limpo (H/P) esconde o rótulo.
 - **Em veículo** (`src/ui/hud/VehicleHud.ts`, `mountOverlay`): velocidade ("CARRO · 23 km/h", ≤ 5 Hz, só escreve quando
   muda) + **SAIR**/**DESCER**. Desktop: centro inferior, acima da barra; a ação contextual mostra as teclas do veículo.
@@ -336,7 +337,7 @@ escala válida mais próxima).
 ### Painel de AJUSTES com abas
 
 Folha lateral de 440 px (desktop), abas **Geral · Áudio · Gráficos · Interface · Controles** (`role=tablist`, setas
-←/→, Home/End; foco na aba ativa ao abrir). Esc pela pilha única (`pushEsc({id:'settings', priority:100})`), sem
+←/→, Home/End; foco na aba ativa ao abrir). Esc pela pilha única (`EscSlot('ajustes', 100)`), sem
 listener próprio. `openSettings(tab)` abre direto numa aba (menu do jogo do Esc); `setControlsOpener(fn)` registra a
 tela de controles — a aba Controles delega para ela (sem registro: mostra a ajuda de teclas do HUD).
 
@@ -357,3 +358,28 @@ caso) e multidão de bots: **17/17 sem sobreposição, sem corte e com o centro 
 `docs/screenshots/round11/desktop_graphics_layout.json`. Capturas em `docs/screenshots/round11/`: `W_1366x768`,
 `X_1920x1080`, `Y_2560x1440`, `A_hud_desktop_d` (HUD reorganizado), `U_evento` (HUD num evento), `Q_configuracoes`
 (painel, aba Interface), `S_graficos` (aba Gráficos depois de trocar o preset ao vivo).
+
+## Rodada 11 — desktop first (docs/DESKTOP_CONTROLS.md)
+
+- **Cursor sempre visível**, sem pointer lock: o aviso "Clique para controlar a câmera" saiu; o mouse é interface.
+- **F1 / ☰ Controles / menu → CONTROLES**: `ControlsScreen` (`src/ui/hud/ControlsScreen.ts`) gerada do mapa único,
+  agrupada, com remapeamento local; substitui a antiga caixa de ajuda fixa.
+- **Esc sem nada aberto → menu do jogo** (`GameMenu`): CONTINUAR · CONFIGURAÇÕES · CONTROLES · ÁUDIO · GRÁFICOS · SAIR
+  (confirmação); o mundo não pausa. `HudShell.openSettings(tab)` abre os ajustes na aba (painel com abas: agente D).
+- **Esc fecha só o topo** (pilha única `src/ui/escStack.ts`): ☰, popover da barra, HUD limpo, ajustes, controles, menu,
+  painéis — cada um uma camada; ninguém mais tem listener próprio de Esc.
+- Dica inicial: "Clique interage · botão direito + arrastar gira a câmera · F1 controles · Esc menu".
+- `anyModal` inclui o menu do jogo e a tela de controles; `onModal` só avisa (nada a capturar/soltar).
+
+## Rodada 11 — inventário e acesso rápido (docs/INVENTORY.md)
+
+- **Acesso rápido** (`src/inventory/QuickbarView.ts`, `mountOverlay`): centro inferior, acima da barra de ações —
+  botão **INVENTÁRIO (I)** + 5 slots (teclas 1–5 ou clique; o cursor continua visível). Slot aceso = item NA MÃO (a
+  mesma fonte do indicador MÃOS e do avatar — `__pvInv.handSync()`). Esmaece com o HUD; some no toque (lá o
+  inventário fica no ☰ → "Inventário"). Escreve no DOM só quando a assinatura muda (4 Hz).
+- Com o acesso rápido, a ação contextual/HUD de confronto (`.hud-bc`) sobem para 154 px (`.hud.has-quick`).
+- **Painel do inventário** (`InventoryPanel`, `mountOverlay`): centralizado, camada 100 da pilha do Esc
+  (`EscSlot('inventory', 100)`); não pausa o mundo; enquanto aberto, as teclas de andar/correr/pular não movem o
+  personagem (`input.setMoveBlocked`) e o clique no cenário não interage.
+- Avisos curtos (sem modal) pelo canal de sempre (`flash`): "Você não possui este item.", "<item>: bloqueado — Nível 3",
+  "Taco não pode ser usado nesta zona." (zona de paz), "Título: …", "Torcida atualizada.".

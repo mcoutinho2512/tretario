@@ -5,6 +5,7 @@
  * (src/ui/AvatarPreview) só carrega quando o editor abre. A identidade vem do servidor (cookie HttpOnly + GET /api/me);
  * o localStorage guarda só o visual de VISITANTE (sem conta/sem servidor) e a qualidade gráfica.
  */
+import { EscSlot, installEscKey } from './ui/escStack'; // rodada 11 — entrada
 import './debug/memProbe'; // sondas de memória (WASM; GPU com ?mem=1) — antes de qualquer módulo WASM/WebGL
 performance.mark('pv:script');
 import './ui/style.css';
@@ -12,14 +13,12 @@ import './ui/start.css';
 import './ui/home.css';
 import { deviceProfile } from './core/settings';
 import { loadQualityChoice, saveQualityChoice, resolveQualityChoice, type QualityChoice } from './core/qualityChoice';
-import {
-  ACCESSORIES, BOTTOMS, DEFAULT_PLAYER_APPEARANCE, HAIR_OLD, HAIR_YOUNG, SHOES, SKIN_TONES, TOPS, randomAppearance,
-  type Accessory, type BodyType, type CharacterAppearance,
-} from './characters/bodyTypes';
-import { SLOT_FIELD, STYLE_LABELS, resolveStyle, stylesFor, type GarmentSlot } from './characters/garments';
-import { validateAppearance, sameAppearance } from './characters/validateAppearance';
-import { DESIGNS, DESIGN_BY_ID, registerCampaigns } from './social/designs';
-import type { AvatarPreview, PreviewPose } from './ui/AvatarPreview';
+import { DEFAULT_PLAYER_APPEARANCE, type Accessory, type BodyType, type CharacterAppearance } from './characters/bodyTypes';
+import { validateAppearance } from './characters/validateAppearance';
+import { DESIGN_BY_ID, registerCampaigns } from './social/designs';
+// rodada 11 — editor: painel com abas + prévia 3D compartilhada (src/ui/editor, src/ui/preview/sharedPreview.ts)
+import { ACC_COLORS, CharacterEditor, type SaveResult } from './ui/editor/CharacterEditor';
+import type { EditorSnapshot } from './ui/editor/editorState';
 import type { Game, GameStartOptions } from './core/Game';
 import type { MeResponse, WorldRole } from './identity/types';
 import { can } from './access/policy';
@@ -32,9 +31,10 @@ import { loadSupporterData, supporterGroup, supporterOutfit } from './supporters
 import { localSupporter, setLocalSupporter } from './supporters/session'; // rodada 10 — torcida sem conta (só a sessão)
 import { metricsLine } from './ui/metricsText';
 import { openCharacterEditor, registerCharacterEditor } from './ui/editorBridge';
+import { registerInventoryAccount } from './inventory/accountBridge'; // rodada 11 — inventário
 import type { EventDef } from './events/types';
 // rodada 9 — recompensas: itens bloqueados no editor (cadeado + requisito); direitos vêm do servidor (GET /api/me/progress)
-import { isAvailable, localEntitlements, setLocalEntitlements, type ItemKey } from './characters/unlocks';
+import { localEntitlements, setLocalEntitlements } from './characters/unlocks';
 import { parseCatalog, requirementOf, type ProgressionCatalog } from './progression/engine';
 import { gameEndpoint } from './net/endpoint'; // rodada 9.1 — produção: wss://<host>/game (mesma origem)
 import './ui/beta.css';
@@ -64,15 +64,6 @@ const nick = () => me?.user?.nickname ?? '';
 
 // ------------------------------------------------------------------ aparência
 const BODIES: BodyType[] = ['homem', 'mulher', 'idoso', 'idosa'];
-const ACC_COLORS = [0x1f1f1f, 0x2b4a7a, 0x8a2a2a, 0xd8d0c0, 0x3d6b3d, 0x6b4a2a, 0xe0b030];
-const ACC_LABEL: Record<Accessory, string> = { nenhum: 'Nenhum', bone: 'Boné', chapeu: 'Chapéu', oculos: 'Óculos', mochila: 'Sacola', bolsa: 'Bolsa' };
-const PALETTES = { skin: SKIN_TONES, hair: [...HAIR_YOUNG, ...HAIR_OLD], top: TOPS, bottom: BOTTOMS, shoes: SHOES, acc: ACC_COLORS };
-type ColorKey = keyof typeof PALETTES;
-const isOld = (b: BodyType) => b === 'idoso' || b === 'idosa';
-/** camada da peça → prefixo do ItemKey (src/characters/unlocks.ts) */
-const STYLE_ITEM: Record<GarmentSlot, string> = { SHIRT: 'top', PANTS: 'bottom', SHOES: 'shoes', HAIR: 'hair' };
-/** camisas de futebol: só cores/padrões (designs.ts, alvo 'shirt') */
-const SHIRT_DESIGNS = DESIGNS.filter((d) => d.targets.includes('shirt'));
 
 const store = {
   get(k: string) { try { return localStorage.getItem(k); } catch { return null; } },
@@ -94,21 +85,6 @@ async function refreshUnlocks() {
   const r = await fetch('/api/me/progress', { credentials: 'same-origin' }).then((x) => (x.ok ? x.json() : null)).catch(() => null);
   if (r && Array.isArray(r.unlocks)) setLocalEntitlements(r.unlocks);
 }
-/** item bloqueado: marca o botão (cadeado + requisito); devolve o requisito ou '' */
-function lockState(b: HTMLElement, item: string): string {
-  const locked = !isAvailable(item as ItemKey, localEntitlements);
-  const req = locked ? (progCat ? requirementOf(progCat, item) : 'Bloqueado') : '';
-  b.classList.toggle('locked', locked);
-  if (locked) b.title = `Bloqueado — ${req}`; else b.removeAttribute('title');
-  return req;
-}
-/** clique num item bloqueado: explica o requisito e não troca */
-function blocked(item: string): boolean {
-  if (isAvailable(item as ItemKey, localEntitlements)) return false;
-  setNote(`Bloqueado — ${progCat ? requirementOf(progCat, item) : 'liberado por progressão'}. Veja em ☰ → Progresso, na avenida.`, 'bad');
-  return true;
-}
-
 /** visual de VISITANTE guardado no navegador (fallback sem conta/sem servidor) */
 function loadLocalLook(): CharacterAppearance {
   let body = (store.get('pv3d.avatar') as BodyType) || 'homem';
@@ -154,240 +130,64 @@ for (const [b, pop] of pops) {
   });
   pop.addEventListener('click', (e) => e.stopPropagation());
 }
-const closePops = () => pops.forEach(([b, p]) => { p.classList.add('hidden'); b.setAttribute('aria-expanded', 'false'); });
+const closePops = () => { popEsc.set(false); pops.forEach(([b, p]) => { p.classList.add('hidden'); b.setAttribute('aria-expanded', 'false'); }); };
 document.addEventListener('click', closePops);
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closePops(); });
+// rodada 11 — entrada: Esc pela pilha única (popover aberto = camada; fecha só ele)
+const popEsc = new EscSlot('home-popover', 50, () => closePops());
+installEscKey();
+for (const [b, pop] of pops) b.addEventListener('click', () => popEsc.set(!pop.classList.contains('hidden')));
 
-// ------------------------------------------------------------------ editor de personagem
-let preview: AvatarPreview | null = null;
-const avatarRadios = Array.from(document.querySelectorAll<HTMLInputElement>('input[name=av]'));
+// ------------------------------------------------------------------ rodada 11 — editor (src/ui/editor/CharacterEditor.ts)
 const nameInput = $<HTMLInputElement>('player-name');
-const note = $('editor-note');
 nameInput.value = params.get('name') ?? store.get('pv3d.name') ?? '';
 nameInput.addEventListener('input', () => {
   nameInput.value = nameInput.value.replace(/[^\p{L}\p{N} ._-]/gu, '').slice(0, 20);
   store.set('pv3d.name', nameInput.value.trim());
 });
-
-function renderSwatches() {
-  for (const el of document.querySelectorAll<HTMLElement>('.swatches[data-key]')) {
-    const key = el.dataset.key as ColorKey;
-    if (!el.childElementCount) {
-      for (const c of PALETTES[key]) {
-        const b = document.createElement('button');
-        b.type = 'button';
-        b.className = 'swatch';
-        b.style.background = `#${c.toString(16).padStart(6, '0')}`;
-        b.dataset.color = String(c);
-        b.setAttribute('aria-label', `cor #${c.toString(16).padStart(6, '0')}`);
-        b.addEventListener('click', () => {
-          look = { ...look, [key]: c };
-          if (key === 'top') look.shirtDesign = 0; // cor lisa escolhida: sai da camisa de time
-          changed(key !== 'acc');
-        });
-        el.appendChild(b);
-      }
-    }
-    for (const b of el.children as HTMLCollectionOf<HTMLElement>) b.setAttribute('aria-pressed', String(Number(b.dataset.color) === look[key]));
-  }
-  const chips = $('acc-chips');
-  if (!chips.childElementCount) {
-    for (const a of ACCESSORIES) {
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.className = 'chip';
-      b.dataset.acc = a;
-      b.textContent = ACC_LABEL[a];
-      b.addEventListener('click', () => { if (blocked(`acc:${a}`)) return; look = { ...look, accessory: a }; changed(false); });
-      chips.appendChild(b);
-    }
-  }
-  for (const b of chips.children as HTMLCollectionOf<HTMLElement>) { b.setAttribute('aria-pressed', String(b.dataset.acc === (look.accessory ?? 'nenhum'))); lockState(b, `acc:${b.dataset.acc}`); }
-  // modelo de cada peça (depende do corpo: só o que ele veste)
-  for (const el of document.querySelectorAll<HTMLElement>('.style-chips[data-slot]')) {
-    const slot = el.dataset.slot as GarmentSlot, field = SLOT_FIELD[slot];
-    const styles = stylesFor(look.body, slot);
-    if (el.dataset.body !== look.body) {
-      el.dataset.body = look.body;
-      el.replaceChildren(...styles.map((st) => {
-        const b = document.createElement('button');
-        b.type = 'button';
-        b.className = 'chip';
-        b.dataset.style = st;
-        b.textContent = STYLE_LABELS[st as keyof typeof STYLE_LABELS] ?? st;
-        b.addEventListener('click', () => {
-          if (blocked(`${STYLE_ITEM[slot]}:${st}`)) return;
-          look = { ...look, [field]: st };
-          if (slot === 'SHIRT' && st !== 'camiseta') look.shirtDesign = 0; // camisa de time é modelo camiseta
-          changed(false);
-        });
-        return b;
-      }));
-    }
-    const cur = resolveStyle(look.body, slot, look[field]);
-    for (const b of el.children as HTMLCollectionOf<HTMLElement>) { b.setAttribute('aria-pressed', String(b.dataset.style === cur)); lockState(b, `${STYLE_ITEM[slot]}:${b.dataset.style}`); }
-  }
-  const des = $('shirt-designs');
-  if (!des.childElementCount) {
-    for (const d of [null, ...SHIRT_DESIGNS]) {
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.className = 'chip';
-      b.dataset.design = String(d?.id ?? 0);
-      const dot = document.createElement('i');
-      dot.className = 'dot';
-      const p = d?.palette;
-      dot.style.background = p ? `linear-gradient(90deg, ${p.bg} 0 50%, ${p.accent ?? p.fg} 50% 100%)` : 'transparent';
-      b.append(dot, d ? d.label : 'Nenhuma');
-      b.addEventListener('click', () => {
-        if (d && blocked(`shirt:${d.id}`)) return;
-        look = { ...look, shirtDesign: d?.id ?? 0 };
-        if (d) { look.topStyle = 'camiseta'; look.top = parseInt(d.palette.bg.slice(1), 16); }
-        changed(false);
-      });
-      des.appendChild(b);
-    }
-  }
-  for (const b of des.children as HTMLCollectionOf<HTMLElement>) { b.setAttribute('aria-pressed', String(Number(b.dataset.design) === (DESIGN_BY_ID.has(look.shirtDesign ?? 0) ? look.shirtDesign : 0))); if (b.dataset.design !== '0') lockState(b, `shirt:${b.dataset.design}`); }
-  document.querySelector('.acc-colors')!.classList.toggle('hidden', (look.accessory ?? 'nenhum') === 'nenhum');
-  avatarRadios.forEach((r) => { r.checked = r.value === look.body; });
-}
-
-/** aparência que cada retrato mostra: as cores atuais, com cabelo coerente com a idade do corpo */
-const lookFor = (body: BodyType): CharacterAppearance =>
-  ({ ...look, body, hair: isOld(body) === HAIR_OLD.includes(look.hair) ? look.hair : DEFAULT_PLAYER_APPEARANCE[body].hair });
-
-let portraitTimer = 0;
-function schedulePortraits() {
-  clearTimeout(portraitTimer);
-  portraitTimer = window.setTimeout(() => {
-    if (!preview) return;
-    void preview.portraits(BODIES.map(lookFor)).then((urls) => {
-      BODIES.forEach((b, i) => { const img = document.querySelector<HTMLImageElement>(`img[data-portrait=${b}]`); if (img && urls[i]) img.src = urls[i]; });
-    });
-  }, 220);
-}
-
-function changed(portraitsToo: boolean) {
-  look = vApp(look) ?? look; // mesmo validador do servidor: o que se vê é o que será salvo
-  saveLocalLook();
-  renderSwatches();
-  preview?.setAppearance(look);
-  if (portraitsToo) schedulePortraits();
-  setNote(authed() && savedLook && !sameAppearance(look, savedLook) ? 'Alterações não salvas.' : '');
-}
-
-avatarRadios.forEach((r) => r.addEventListener('change', () => {
-  if (!r.checked) return;
-  look = lookFor(r.value as BodyType);
-  changed(false);
-}));
-
-/** chapéu/boné sobre cabelo crespo volumoso atravessa a malha: o sorteio evita (escolha manual continua livre) */
-const clashes = (a: CharacterAppearance) => (a.accessory === 'bone' || a.accessory === 'chapeu') && a.hairStyle === 'afro';
-$('randomize').addEventListener('click', () => {
-  // SURPREENDA-ME: corpo, peças e cores pelas mesmas regras da multidão (randomAppearance), validado e sem repetir
-  let r = look;
-  for (let i = 0; i < 20 && (sameAppearance(r, look) || clashes(r)); i++) {
-    const body = BODIES[Math.floor(Math.random() * BODIES.length)];
-    const a = randomAppearance((Math.random() * 2 ** 32) >>> 0, body, { football: 0.2 });
-    r = vApp({ ...a, accessory: a.accessory ?? 'nenhum', acc: a.acc ?? ACC_COLORS[0] }) ?? r;
-  }
-  look = r;
-  changed(true);
-});
-
-for (const b of document.querySelectorAll<HTMLButtonElement>('.pose-btn[data-pose]')) {
-  b.addEventListener('click', () => {
-    preview?.setPose(b.dataset.pose as PreviewPose);
-    for (const o of document.querySelectorAll('.pose-btn[data-pose]')) o.setAttribute('aria-pressed', String(o === b));
-  });
-}
-for (const b of document.querySelectorAll<HTMLButtonElement>('.pose-btn[data-rot]')) b.addEventListener('click', () => preview?.rotate(Number(b.dataset.rot) * Math.PI / 4));
-for (const b of document.querySelectorAll<HTMLButtonElement>('.pose-btn[data-zoom]')) b.addEventListener('click', () => preview?.zoom(Number(b.dataset.zoom) * 0.5));
-
 // retratos estáticos (gerados por tools/qa/make_portraits.mjs): nada de baixar 4 personagens só para abrir o editor
 BODIES.forEach((b) => { const img = document.querySelector<HTMLImageElement>(`img[data-portrait=${b}]`); if (img) img.src = `/ui/portraits/${b}.webp`; });
 
-function setNote(msg: string, kind: '' | 'ok' | 'bad' = '') {
-  note.textContent = msg || 'Horário e iluminação reais do Rio, agora.';
-  note.className = `foot-note ${msg ? kind : ''}`;
-}
+const editor = new CharacterEditor({
+  validate: vApp,
+  entitlements: () => localEntitlements,
+  requirement: (item) => (progCat ? requirementOf(progCat, item) : null),
+  refreshUnlocks,
+  onChange: (s) => { look = s.app; saveLocalLook(); },
+  save: saveEditor,
+});
 
-type EditorDone = (saved: boolean) => void;
-let editorDone: EditorDone | null = null;
-
-/** abre o editor (conta: salva no servidor; sem conta: só no navegador) */
-function openEditor(opts: { first?: boolean; overlay?: boolean } = {}): Promise<boolean> {
-  renderSwatches();
-  void refreshUnlocks().then(() => { if (!start.classList.contains('hidden')) renderSwatches(); }); // rodada 9 — cadeados
-  const acc = authed();
-  $('name-field').classList.toggle('hidden', acc);
-  const an = $('account-nick');
-  an.classList.toggle('hidden', !acc);
-  an.innerHTML = acc ? `Seu apelido na avenida: <b></b>` : '';
-  if (acc) an.querySelector('b')!.textContent = nick();
-  $('editor-title').textContent = opts.first ? 'CRIE SEU PERSONAGEM' : 'PERSONAGEM';
-  $('editor-eyebrow').textContent = opts.first ? 'PASSO 2 DE 3 · DEPOIS: GRUPO E AVENIDA' : 'PERSONAGEM · CUSTOMIZAR';
-  btn.querySelector('span')!.textContent = acc ? (opts.first ? 'Salvar e continuar' : 'Salvar personagem') : 'Salvar neste aparelho';
-  btn.disabled = false;
-  setNote('');
-  start.classList.toggle('overlay', !!opts.overlay);
-  home.classList.add('hidden');
-  start.classList.remove('hidden');
-  start.scrollTop = 0;
-  if (!preview) {
-    $('preview-loading').classList.remove('hidden');
-    void import('./ui/AvatarPreview')
-      .then(({ AvatarPreview }) => {
-        if (start.classList.contains('hidden')) return;
-        preview = new AvatarPreview($<HTMLCanvasElement>('avatar-canvas'), look);
-        void preview.ready.then(() => $('preview-loading').classList.add('hidden'));
-        (window as any).__pvStart = { preview, look: () => look };
-      })
-      .catch((e) => { console.warn('[prévia] indisponível', e); $('preview-loading').textContent = 'Prévia 3D indisponível neste navegador'; });
-  } else preview.setAppearance(look);
-  requestAnimationFrame(() => document.querySelector<HTMLInputElement>('input[name=av]:checked')?.focus({ preventScroll: true }));
-  return new Promise((res) => { editorDone = res; });
-}
-
-function closeEditor(saved: boolean) {
-  // libera o contexto WebGL da prévia (o jogo usa o seu)
-  preview?.dispose();
-  preview = null;
-  start.classList.add('hidden');
-  start.classList.remove('overlay');
-  const d = editorDone;
-  editorDone = null;
-  d?.(saved);
-}
-
-btn.addEventListener('click', async () => {
-  look = vApp(look) ?? look;
-  if (!authed()) { saveLocalLook(); closeEditor(true); return; }
-  btn.disabled = true;
-  setNote('Salvando…');
-  const r = await accountApi.putAppearance(look);
-  btn.disabled = false;
+/** salvar do editor: torcida (se mudou; mesma regra da tela TORCIDA) e aparência (o SERVIDOR valida e devolve) */
+async function saveEditor(s: EditorSnapshot, prev: EditorSnapshot): Promise<SaveResult> {
+  let msg = '';
+  if ((s.sup ?? null) !== (prev.sup ?? null)) {
+    const r = await saveSupporter(s.sup);
+    if (!r.ok) return { ok: false, error: r.error };
+    msg = r.msg;
+  }
+  const sup = mySupporter.current;
+  if (!authed()) { look = s.app; saveLocalLook(); return { ok: true, accepted: { app: look, sup }, msg: msg || 'Salvo neste aparelho.' }; }
+  const r = await accountApi.putAppearance(s.app);
   if (!r.ok || !r.data) {
-    setNote(errorText(r.error), 'bad');
     if (r.status === 401) { me = null; renderHome(); dialog.open('login'); }
-    return;
+    return { ok: false, error: errorText(r.error), status: r.status };
   }
   look = r.data.appearance; // o que o SERVIDOR aceitou
   savedLook = look;
   if (me) me.appearance = look;
-  game?.setAppearance(look);
-  setNote('Personagem salvo.', 'ok');
-  closeEditor(true);
-});
+  game?.setAppearance(look); // também avisa a sala para reler a torcida
+  return { ok: true, accepted: { app: look, sup }, msg: msg || 'Personagem salvo.' };
+}
 
-$('btn-back').addEventListener('click', () => {
-  if (authed() && savedLook && !sameAppearance(look, savedLook)) look = { ...savedLook }; // descarta o não salvo
-  const inGame = start.classList.contains('overlay');
-  closeEditor(false);
-  if (!inGame) showHome();
-});
+/** abre o editor (conta: salva no servidor; sem conta: só no navegador). Cancelar fora do jogo volta à home */
+async function openEditor(opts: { first?: boolean; overlay?: boolean } = {}): Promise<boolean> {
+  home.classList.add('hidden');
+  const cur: EditorSnapshot = { app: vApp(look) ?? look, sup: mySupporter.current };
+  const saved: EditorSnapshot = authed() && savedLook ? { app: savedLook, sup: mySupporter.current } : cur;
+  const ok = await editor.open({ ...opts, account: authed(), nick: nick(), initial: cur, saved });
+  if (!ok) { if (authed() && savedLook) look = { ...savedLook }; if (!opts.overlay) showHome(); }
+  return ok;
+}
+$('btn-back').addEventListener('click', () => editor.cancel());
 
 // ------------------------------------------------------------------ início
 const dialog = new AccountDialog(appEl);
@@ -411,20 +211,31 @@ async function refreshSupporter() {
   else mySupporter = { current: localSupporter(), pending: null };
   renderSupporterChip();
 }
+/** rodada 11 — grava a torcida (conta: servidor com cooldown/pendência; sem conta: só a sessão). null = sem torcida */
+async function saveSupporter(group: string | null): Promise<{ ok: true; msg: string } | { ok: false; error: string }> {
+  const data = await loadSupporterData();
+  if (!data) return { ok: false, error: 'Torcidas indisponíveis agora.' };
+  const id = group ?? data.neutralId;
+  let msg = '';
+  if (authed()) {
+    const r = await accountApi.putSupporter(id);
+    if (!r.ok || !r.data) return { ok: false, error: errorText(r.error) };
+    mySupporter = { current: r.data.current, pending: r.data.pending };
+    if (r.data.deferred) msg = 'Troca de torcida pendente: vale quando você sair do evento em andamento.';
+  } else { setLocalSupporter(id === data.neutralId ? null : id); mySupporter = { current: localSupporter(), pending: null }; }
+  renderSupporterChip();
+  return { ok: true, msg };
+}
 async function pickSupporter(): Promise<void> {
   const data = await loadSupporterData();
   if (!data) return;
   home.classList.add('hidden');
   const choice = await supPicker.open(data, mySupporter.current, { account: authed(), pending: mySupporter.pending });
   if (!choice) { supPicker.root.classList.add('hidden'); showHome(); return; }
-  let msg = '';
-  if (authed()) {
-    supPicker.status('Salvando…');
-    const r = await accountApi.putSupporter(choice.group);
-    if (!r.ok || !r.data) { supPicker.status(errorText(r.error)); return pickSupporter(); }
-    mySupporter = { current: r.data.current, pending: r.data.pending };
-    if (r.data.deferred) msg = 'Troca de torcida pendente: vale quando você sair do evento em andamento.';
-  } else { setLocalSupporter(choice.group === data.neutralId ? null : choice.group); mySupporter = { current: localSupporter(), pending: null }; }
+  if (authed()) supPicker.status('Salvando…');
+  const saved = await saveSupporter(choice.group);
+  if (!saved.ok) { supPicker.status(saved.error); return pickSupporter(); }
+  const msg = saved.msg;
   // "vestir as cores": camisa da torcida + cores sugeridas (o resto do visual fica igual)
   const g = supporterGroup(data, choice.group);
   if (g && choice.wearColors) {
@@ -607,8 +418,7 @@ async function launch(choice: QualityChoice, role?: WorldRole) {
   ticketNote = '';
   saveQualityChoice(choice);
   saveLocalLook();
-  preview?.dispose();
-  preview = null;
+  editor.releasePreview(); // rodada 11 — editor: libera o renderer da prévia (o jogo usa o seu)
   clearTimeout(metricsTimer);
   home.classList.add('hidden');
   start.classList.add('hidden');
@@ -664,9 +474,15 @@ function applyGroupDesigns() {
 registerCharacterEditor(() => {
   if (!authed()) { dialog.open('login'); return; }
   if (savedLook) look = { ...savedLook };
-  void openEditor({ overlay: !!game });
+  void openEditor({ overlay: !!game }); // rodada 11 — editor: overlay com Esc pela pilha única (escStack)
 });
 (window as any).pvOpenCharacterEditor = openCharacterEditor;
+// rodada 11 — inventário: o que o SERVIDOR aceitou pelo inventário volta para o visual salvo / rótulo da torcida
+registerInventoryAccount({
+  authed,
+  onLook: (a) => { look = a; savedLook = a; if (me) me.appearance = a; },
+  saveSupporter,
+});
 
 // automação/validação: ?autostart=1&quality=high (jogo local, como antes) · __pvLaunch({ role }) = mesmo caminho dos botões
 (window as any).__pvLaunch = (o: { role?: WorldRole } = {}) => launch((radios.find((r) => r.checked)?.value ?? 'auto') as QualityChoice, o.role);
@@ -675,7 +491,6 @@ if (autostart) {
   home.classList.add('hidden');
   enginePromise.then(() => launch(q, params.get('spectate') === '1' ? 'spectator' : undefined)); // &spectate=1 = assistir
 } else {
-  renderSwatches();
   void loadEvent().then(() => refreshMe());
   void pollMetrics();
   if (params.get('watch') === '1') enginePromise.then(() => watchBtn.click());

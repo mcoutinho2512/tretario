@@ -7,8 +7,9 @@
 .hud > :not(.name-labels):not(.ix-label):not(.fx-disorient):not(.touch-layer):not(.attribution) { zoom: var(--ui-scale, 1); }
 /* o aviso antigo de zona de paz do confronto virou toast de ação bloqueada (notifyBlocked) */
 .hud .cbt-peace { display: none; }
-/* com a barra de ações, a dica de teclas do canto já está na barra (e não disputa o rodapé com ela) */
-.hud.has-bar:not(.touch) .hud-hint { display: none; }
+/* telas estreitas com a barra de ações: a dica de teclas do canto (9 s) disputava o rodapé com a barra — some (a dica
+ * de interação/câmera reaparece no 1º alvo, `ix.onFirstTarget`) */
+@media (max-width: 1500px) { .hud.has-bar:not(.touch) .hud-hint { display: none; } }
 
 /* ---- alto ao centro: indicador de zona → aviso de zona → avisos → ação bloqueada (um fluxo só, sem sobreposição) */
 .hud-tc {

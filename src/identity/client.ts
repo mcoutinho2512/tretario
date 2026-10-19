@@ -49,6 +49,10 @@ export const accountApi = {
   // rodada 10 — torcida da própria conta (src/supporters; visitante sem conta escolhe só na sessão)
   getSupporter: () => call<{ current: string | null; pending: string | null; sup: number; cooldownS: number }>('GET', '/api/me/supporter'),
   putSupporter: (group: string) => call<{ current: string | null; pending: string | null; sup: number; deferred: boolean }>('PUT', '/api/me/supporter', { group }),
+  // rodada 11 — inventário: aparência ESTRITA (item bloqueado → 403 `bloqueado` em vez de cair no padrão) e título
+  putAppearanceStrict: (appearance: CharacterAppearance) => call<{ appearance: CharacterAppearance }>('PUT', API.appearance, { appearance, strict: true }),
+  getTitle: () => call<{ title: string | null; titles: string[] }>('GET', '/api/me/title'),
+  putTitle: (title: string | null) => call<{ title: string | null }>('PUT', '/api/me/title', { title }),
 };
 
 /** mensagens de erro (códigos da API → texto para a pessoa) */
@@ -76,6 +80,8 @@ const ERRORS: Record<string, string> = {
   grupo_invalido: 'Grupo indisponível neste evento.',
   perfil_inexistente: 'Perfil ainda não criado.',
   torcida_invalida: 'Torcida indisponível.',
+  bloqueado: 'Item bloqueado — veja os requisitos em PROGRESSO.', // rodada 11 — inventário
+  titulo_invalido: 'Título indisponível.',
   cooldown: 'Você trocou de torcida há pouco. Aguarde um minuto para trocar de novo.',
   // rodada 9.1 — produção beta
   aguardando_liberacao: 'Cadastro recebido — o acesso beta é liberado pela equipe.',

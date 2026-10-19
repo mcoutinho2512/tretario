@@ -82,6 +82,20 @@ muda ou é apagado; código antigo continua funcionando com o banco novo.
   escrita no formato do `prisma migrate` e conferida com `prisma generate`; o banco local estava fora do ar nesta rodada
   (`npm run test:db` não rodou — rodar antes do deploy).
 
+## Mudanças da rodada 11 (migration `20261019120000_round11_profile_title`)
+
+Expand-first: **uma coluna nova NULLABLE** em `Profile`; nada existente muda ou é apagado.
+
+| coluna | tipo | uso |
+|---|---|---|
+| `Profile.titleKey` | `TEXT NULL` | título EQUIPADO (texto de uma recompensa `title` que a conta ganhou — `RewardGrant.item = 'title:<texto>'`); `NULL` = nenhum |
+
+- Gravado por `PUT /api/me/title` e pela mensagem de sala `title {t}` (server/src/progression/titles.ts), sempre
+  validado contra os grants da conta; relido e revalidado na entrada (grant inexistente → nenhum).
+- `DataStore.titles.get/set` (memória e Prisma); contrato em `tests/dataStoreContract.ts` (`npm run test:db`).
+- Público (NetPlayer.title, perfil público) — docs/PRIVACY_ARCHITECTURE.md. Some em cascata com a conta.
+- Rollback: o código anterior ignora a coluna (nenhum NOT NULL, nenhum índice).
+
 ## Registros efêmeros e limpeza (rodada 8.1)
 
 Inventário de tudo que vence/expira no servidor e o destino de cada item. **Auditoria nunca é apagada.**

@@ -11,7 +11,7 @@
 /* montado sozinho (sem o encaixe do HUD geral): flutua embaixo, ao centro */
 .spec-cams.floating { position: absolute; left: 50%; bottom: 48px; transform: translateX(-50%); }
 /* espectador: sem dica de travar o mouse (arrastar já gira) e sem selo de modo de interação */
-.hud.spectating .lock-hint, .hud.spectating .mode-badge:empty { display: none; }
+.hud.spectating .mode-badge:empty { display: none; }
 /* reconexão: selo discreto (jogador e espectador) */
 .net-link { position: absolute; left: 50%; top: 12px; transform: translateX(-50%); z-index: 25; padding: 5px 10px; border-radius: 12px; background: rgba(14, 18, 24, 0.7); color: #ffd98a; font: 700 11px/1 system-ui, sans-serif; letter-spacing: 0.05em; pointer-events: none; opacity: 0; transition: opacity 0.25s; }
 .net-link.show { opacity: 1; }

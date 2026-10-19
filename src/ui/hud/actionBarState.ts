@@ -37,7 +37,7 @@ export type KeyResult =
 
 /**
  * Estado do popover: qual categoria está aberta e qual opção tem o foco (navegação por teclado). Abrir outra categoria
- * troca; abrir a mesma fecha (alternar). `onChange` avisa a casca (soltar/recapturar o mouse).
+ * troca; abrir a mesma fecha (alternar). `onChange` avisa a casca (camada do Esc).
  */
 export class PopoverState {
   open: BarCat | null = null;
@@ -144,5 +144,6 @@ export function hintVisible(sinceStartMs: number, sinceFirstMoveMs: number | nul
 }
 
 export function hintText(touch: boolean): string {
-  return touch ? 'joystick mover · arraste para olhar' : 'W A S D mover · mouse olhar · Shift correr · G roda · Esc solta o mouse';
+  // rodada 11 — cursor sempre visível: clique interage, botão direito + arrastar gira a câmera
+  return touch ? 'joystick mover · arraste para olhar' : 'W A S D mover · clique interage · botão direito + arrastar câmera · G roda · Esc menu';
 }

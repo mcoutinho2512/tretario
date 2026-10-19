@@ -31,3 +31,37 @@ export function handleEsc(): 'closed' | 'menu' | 'none' {
   return 'none';
 }
 export function escLayers(): readonly string[] { return stack.map((l) => l.id); }
+
+// ---------------------------------------------------------------- rodada 11 (agente A) — acréscimos
+let installed = false;
+/** QA: o que o último Esc fez */
+export const escLog: { t: number; did: 'closed' | 'menu' | 'none'; top: string | null }[] = [];
+
+/**
+ * o ÚNICO listener de Escape (fase de captura na janela: roda antes de qualquer componente, inclusive com o foco
+ * num campo de texto — o chat sai, o editor fecha). Idempotente.
+ */
+export function installEscKey(target: Pick<Window, 'addEventListener'> = window) {
+  if (installed) return;
+  installed = true;
+  target.addEventListener('keydown', (e: Event) => {
+    const k = e as KeyboardEvent;
+    if (k.key !== 'Escape' && k.code !== 'Escape') return;
+    if (k.repeat) { k.preventDefault(); k.stopImmediatePropagation(); return; }
+    const top = escTop()?.id ?? null;
+    const did = handleEsc();
+    escLog.push({ t: Date.now(), did, top });
+    if (escLog.length > 30) escLog.shift();
+    if (did !== 'none') { k.preventDefault(); k.stopImmediatePropagation(); }
+  }, true);
+}
+
+/** ajuda para componentes: liga/desliga a camada conforme abre/fecha (sem duplicar) */
+export class EscSlot {
+  private off: (() => void) | null = null;
+  constructor(private id: string, private priority: number, private close: () => void) {}
+  set(open: boolean) {
+    if (open && !this.off) this.off = pushEsc({ id: this.id, priority: this.priority, close: () => { this.off = null; this.close(); } });
+    else if (!open && this.off) { const f = this.off; this.off = null; f(); }
+  }
+}

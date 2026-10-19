@@ -23,6 +23,10 @@ import type { PlayerPreferences, PublicProfile } from '../../../src/identity/typ
 import { textModeration } from '../../../src/moderation/text';
 import { entitlementsFor } from '../progression/entitlements'; // rodada 9 — itens liberados por progressão
 import { groupLocked } from '../supporters/service'; // rodada 10 — troca de grupo adiada durante confronto
+import { lockedAppearanceItems } from '../../../src/inventory/equipRules'; // rodada 11 — inventário (pedido estrito)
+import { equippedTitle } from '../progression/titles'; // rodada 11 — título equipado (público)
+import { levelForXp } from '../../../src/progression/engine'; // rodada 11 — nível (público)
+import { loadCatalog } from '../progression/catalog';
 
 const PUBLIC = resolve(dirname(fileURLToPath(import.meta.url)), '../../../public');
 
@@ -119,7 +123,10 @@ router.add('GET', '/api/me/appearance', (req) => withUser(req, null, async ({ us
 router.add('PUT', '/api/me/appearance', (req) => withUser(req, 'profile.edit', async ({ user, store }) => {
   if (rateLimited(`ap:${user.id}`)) return err(429, 'muitas_alteracoes');
   const raw = req.body?.appearance ?? req.body;
-  const app = validateAppearance(raw, null, await entitlementsFor(store, user.id));
+  const ent = await entitlementsFor(store, user.id);
+  // rodada 11 — inventário: pedido ESTRITO recusa item bloqueado (403) em vez de trocar em silêncio pelo padrão
+  if (req.body?.strict === true) { const locked = lockedAppearanceItems(raw, ent); if (locked.length) return { status: 403, body: { error: 'bloqueado', items: locked } }; }
+  const app = validateAppearance(raw, null, ent);
   if (!app) return err(400, 'aparencia_invalida');
   await store.appearances.put(user.id, app);
   const rec = await store.appearances.get(user.id);
@@ -155,6 +162,9 @@ router.add('GET', '/api/profile/:nickname', async (req) => {
     appearance: await savedAppearance(store, p.userId),
     since: new Date(p.createdAt).toISOString().slice(0, 7),
     supporter: (await store.supporters.get(p.userId))?.group ?? null, // rodada 10 — torcida (pública; nunca a pendente)
+    // rodada 11 — nível e título equipado são públicos (os mesmos de NetPlayer.lvl/title)
+    level: levelForXp(loadCatalog().levels, (await store.progression.load(p.userId).catch(() => null))?.xp ?? 0),
+    title: await equippedTitle(store, p.userId),
   };
   return { body: out };
 });

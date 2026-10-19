@@ -126,6 +126,9 @@ model Profile {
   /// troca pedida durante evento competitivo, aplicada no fim/saída do evento (changePolicy)
   supporterPending   String?
   supporterChangedAt DateTime?
+  /// rodada 11 — título EQUIPADO (texto de uma recompensa `title` que a conta ganhou: RewardGrant item "title:<texto>");
+  /// null = nenhum. Dado PÚBLICO (vai para NetPlayer.title). Expand-first: coluna nova opcional
+  titleKey           String?
 }
 
 model CharacterAppearance {

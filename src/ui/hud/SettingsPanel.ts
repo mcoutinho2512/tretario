@@ -13,11 +13,12 @@ import { loadQualityChoice, saveQualityChoice, type QualityChoice, type QualityL
 import type { HudPrefsStore } from './hudPrefs';
 import { audioSettings, type VolumeKey } from '../../audio/settings'; // rodada 10 — áudio
 import { audioActive, sfx } from '../../audio/bus'; // rodada 10 — áudio
-import { pushEsc } from '../escStack';
 import { FPS_LABEL, loadFpsChoice, saveFpsChoice, type FpsChoice } from '../../core/fpsChoice';
 import type { FpsLimit } from '../../core/frameGovernor';
 import { UI_SCALES, onUiPrefs, setUiPrefs, uiPrefs } from '../uiPrefs';
 import { SETTINGS_TABS, TAB_LABEL, nextTab, openControls, parseTab, registerSettingsOpener, type SettingsTab } from '../settingsApi';
+import { EscSlot } from '../escStack'; // rodada 11 — entrada (Esc pela pilha única)
+import { inputPrefs } from '../../input/inputPrefs'; // rodada 11 — sensibilidade / eixo Y
 
 const QUALITY: [QualityChoice, string][] = [['auto', 'Automática'], ['low', 'Baixa'], ['medium', 'Média'], ['high', 'Alta'], ['ultra', 'Ultra']];
 const NAMES: [string, string][] = [['TODOS', 'Todos'], ['PROXIMOS', 'Próximos'], ['NENHUM', 'Nenhum']];
@@ -51,8 +52,8 @@ export class SettingsPanel {
   private fpsHint: HTMLElement;
   private level: QualityLevel;
   private tabs = new Map<SettingsTab, { btn: HTMLButtonElement; panel: HTMLDivElement }>();
-  private escOff: (() => void) | null = null;
   private liveTimer = 0;
+  private esc = new EscSlot('ajustes', 100, () => this.toggle(false));
 
   constructor(prefs: HudPrefsStore, currentLevel: QualityLevel) {
     this.level = currentLevel;
@@ -116,7 +117,7 @@ export class SettingsPanel {
       this.segment('Nomes dos jogadores', 'names', NAMES, prefs.value.names, (v) => prefs.set({ names: v as never })),
       this.check('Esconder o HUD sozinho', 'Some quando você anda; volta ao mexer no mouse, tocar ou abrir algo', prefs.value.hudAutoHide, (v) => prefs.set({ hudAutoHide: v })),
       this.check('Chat recolhido ao entrar', '', prefs.value.chatCollapsed, (v) => prefs.set({ chatCollapsed: v })),
-      this.foot('H ou P: HUD limpo · M: mapa · G: ações · F1: controles'),
+      this.foot('O cursor fica sempre visível · botão direito + arrastar: câmera · F1: controles · Esc: fecha / menu · H: HUD limpo'),
     );
 
     // ---- ÁUDIO (rodada 10, sem mudanças)
@@ -177,7 +178,22 @@ export class SettingsPanel {
     cb.dataset.act = 'controls';
     cb.textContent = 'Abrir controles e teclas';
     cb.addEventListener('click', () => { if (!openControls()) { this.toggle(false); this.onShowHelp?.(); } });
-    c.append(cp, cb, this.foot('WASD andar · Shift correr · Espaço pular · E usar · G ações · M mapa · F1 controles · Esc menu'));
+    // sensibilidade e eixo Y (src/input/inputPrefs.ts — o InputManager aplica na hora)
+    const sens = document.createElement('label');
+    sens.className = 'sheet-range';
+    const st = document.createElement('span');
+    st.textContent = 'Sensibilidade da câmera';
+    const si = document.createElement('input');
+    si.type = 'range'; si.min = '25'; si.max = '300'; si.step = '5'; si.value = String(Math.round(inputPrefs.value.sensitivity * 100));
+    si.dataset.input = 'sensitivity';
+    si.setAttribute('aria-label', 'Sensibilidade da câmera');
+    const so = document.createElement('output');
+    so.textContent = `${si.value}%`;
+    si.addEventListener('input', () => { so.textContent = `${si.value}%`; inputPrefs.set({ sensitivity: Number(si.value) / 100 }); });
+    sens.append(st, si, so);
+    const inv = this.check('Inverter o eixo Y', 'Arrastar para cima olha para baixo', inputPrefs.value.invertY, (v) => inputPrefs.set({ invertY: v }));
+    inv.querySelector('input')!.dataset.input = 'invertY';
+    c.append(cp, cb, sens, inv, this.foot('WASD andar · Shift correr · Espaço pular · E usar · G ações · M mapa · F1 controles · Esc menu'));
 
     this.show('geral');
     registerSettingsOpener((t) => this.openTab(t));
@@ -213,12 +229,13 @@ export class SettingsPanel {
     if (v === this.open) return;
     this.open = v;
     this.el.hidden = !v;
+    this.esc.set(v); // rodada 11 — entrada
     sfx(v ? 'ui_open' : 'ui_close'); // rodada 10 — áudio
+    this.esc.set(v); // rodada 11 — Esc pela pilha única (camada 'ajustes', 100)
     if (v) {
-      this.escOff = pushEsc({ id: 'settings', priority: 100, close: () => this.toggle(false) });
       this.refreshAudio?.();
       this.tabs.get(this.tab)!.btn.focus({ preventScroll: true });
-    } else { this.escOff?.(); this.escOff = null; }
+    }
     this.syncLive();
     this.onToggle?.(v);
   }

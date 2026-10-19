@@ -51,6 +51,13 @@ foi corrigido, nada foi renomeado).
 
 Celular (ponteiro grosso): a câmera fica 10 % mais longe montado — corpo e veículo não somem atrás dos controles.
 
+**Rodada 11 — câmera ao dirigir no desktop (cursor sempre visível; `src/camera/vehicleCam.ts`, docs/DESKTOP_CONTROLS.md):**
+dirige-se com W/S/A/D e o cursor continua na tela. A câmera acompanha o rumo suavemente (carro 2,2/s; moto, bicicleta,
+patinete, carro de som e trio 1,5/s; parado sem olhar em volta, fica onde está). **Botão direito arrastando = olhar em
+volta**: enquanto segura, nada puxa a câmera; ao soltar, espera 1 s (`RETURN_DELAY_MS`) e volta para trás do veículo
+com suavização — mesmo parado. Chrome: 0,5 s depois de soltar ainda 1,26 rad fora do rumo; 2,4 s depois, 0,04 rad.
+SAIR: botão do HUD do veículo (clicável) ou **E**. Testes: `tests/desktopInput.test.ts` (câmera de veículo).
+
 ### Carro visível
 O sedan do trânsito tem vidros opacos e nenhum interior. O carro **dirigível** agora usa a carroceria sem os vidros
 (`getVehicleSplit`) + vidro translúcido (opacidade 0,3, reflexo, duas faces) + interior simples: "banheira" escura

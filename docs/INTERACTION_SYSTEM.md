@@ -43,17 +43,23 @@ alocado por quadro). Dois usos:
 O verbo por tipo de veículo é **dado** (`VERB` em `providers.ts`), não um ramo por veículo. Textos do HUD:
 "E — ENTRAR NO CARRO", "E — MONTAR NA BICICLETA", "E — USAR O PATINETE", "E — SUBIR NO TRIO", "E — PEGAR TACO"
 (no toque sem o "E —"). Realce: rótulo curto "CARRO · Entrar" (desktop "E · CARRO · Entrar" quando é o alvo da
-tecla), "CARRO · Em uso", "CARRO · chegue mais perto".
+tecla), "CARRO · Em uso", "CARRO · chegue mais perto" e, além do dobro do alcance + 4 m (`farFor`), "CARRO · longe" —
+o objeto distante é **identificado**, não usado (o servidor valida o alcance de qualquer forma).
 
 ## Mouse (desktop)
 
-- **Mouse solto** (antes do 1º clique, depois de Esc ou de fechar um painel): passar o cursor sobre um objeto mostra o
-  realce dele e o cursor de clique (`pointer`) quando está ao alcance; **clique no objeto = interagir** e **não**
-  captura o mouse. Clique no vazio continua capturando o mouse para a câmera (como antes).
-- **Mouse capturado** (câmera): o clique mira o **centro da tela**. Veículo/item ao alcance ali = interação; senão é o
-  soco de sempre (pessoas nunca contam aqui: clicar perto de alguém continua sendo soco).
-- Projeção barata: um ponto por candidato (`Vector3.project`), sem raycast de malha; o retângulo do canvas é lido só
-  no redimensionamento.
+Rodada 11 — **cursor sempre visível, sem pointer lock** (docs/DESKTOP_CONTROLS.md):
+
+- Passar o cursor sobre um objeto mostra o realce dele; cursor contextual: seta normal; **mão** (`pointer`) em objeto
+  interativo ao alcance; **`context-menu`** (cursor de interação) em outra pessoa ao alcance; fora do alcance, seta.
+- **Clique esquerdo** (solto dentro de 6 px / 400 ms) = `pointAt(x, y, 'click')` no ponto do cursor. Passou do limiar =
+  arrasto de câmera, **não** clique (arrastar sobre um jogador não abre o painel). Não existe mais o modo "mira no
+  centro da tela" (`'aim'` ficou na API, sem uso) e o clique **nunca** é soco.
+- **Botão direito arrastando** gira a câmera: durante o arrasto não há hover/realce pelo cursor (`host.looking()`);
+  soltou, volta na hora.
+- HUD por cima (rótulo do realce, painéis, chat…) consome o clique antes do mundo.
+- Projeção barata: um ponto por candidato (`Vector3.project`), sem raycast de malha; **uma** atualização de matriz da
+  câmera por quadro (antes era uma por candidato); o retângulo do canvas é lido só no redimensionamento.
 - Teclas: **E** = alvo contextual; **T** = o melhor item ao alcance (sem item, larga como antes); **Z/X** inalterados.
 
 ## Toque (celular)
@@ -121,7 +127,8 @@ os quatro (`__pv.handSync()`) ao pegar e ao largar.
 
 ## Onboarding
 
-Na primeira vez que aparece algo interativo: "Toque ou clique nos objetos para interagir." (5 s), uma vez por
+Na primeira vez que aparece algo interativo: "Toque ou clique nos objetos para interagir." (no desktop, mais "Botão
+direito + arrastar gira a câmera."; 6 s), uma vez por
 aparelho (`localStorage['pv.ix.hint']`, com try/catch — sem armazenamento, mostra mesmo assim).
 
 ## Como acrescentar um provedor
@@ -159,8 +166,30 @@ toque na pessoa abre o painel (botões ≥ 44 px) e toque fora fecha. Resultado 
 `docs/screenshots/round10/interaction_qa.json`; capturas `G_interacao_carro`, `N_item_contextual`,
 `O_interacao_jogador`, `T_mobile`, `X_hud_veiculo`, `X_hud_veiculo_celular`.
 
-QA no console: `__pv.ix()` (candidatos com posição na tela, alvo, hover, estatísticas), `__pv.ixPoint(x, y, via)`,
+QA no console: `__pv.ix()` (candidatos com posição na tela, alvo, hover, estatísticas, `perf`), `__pv.ixPoint(x, y, via)`,
+`__pv.ixPick(x, y)`, `__pv.ixPerfReset()`, `__pv.input()` (gesto do mouse, camadas do Esc, yaw),
 `__pv.person()`, `__pv.vehHud()`, `__pv.touchTaps()`, `__pv.handSync()`.
+
+## Custo da seleção (rodada 11)
+
+Medido por quadro no `InteractionSystem.update` (`perf`, `__pv.ix().perf`; zerar com `__pv.ixPerfReset()`):
+coleta (provedores + alvo contextual), hover (projeção dos candidatos + `pickScreen`), candidatos e projeções.
+
+**500 entidades** (`node tools/qa/selection_500.mjs`: 500 bots `dense` — elipse de ~60 × 20 m — num servidor de teste,
+cliente no meio deles, mouse passeando pelo canvas, 640 quadros; `docs/screenshots/round11/selection_500.json`):
+
+| medida | valor |
+|---|---|
+| entidades no cliente | 16 com corpo (área de interesse do servidor) + 476 na multidão distante (impostores, não selecionáveis) |
+| candidatos por quadro | 16 (máx. 16) — só os provedores perto do jogador (≤ 30 m), nunca as 500 |
+| projeções por quadro | 15,6 |
+| hover (projeção + escolha) | **0,0125 ms/quadro** em média (máx. 0,5 ms num quadro) |
+| coleta + alvo contextual | 0,027 ms/quadro |
+| um clique (`pick`) | 0,003 ms |
+| quadros | 60 fps |
+
+Pior caso sintético (500 candidatos projetados de uma vez, `pickScreen` + `Vector3.project` no Node): 0,028 ms por
+escolha. Nada de raycast contra malhas: a seleção é aritmética sobre os candidatos já filtrados por distância.
 
 ## Fora do escopo desta parte
 

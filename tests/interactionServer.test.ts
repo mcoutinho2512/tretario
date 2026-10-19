@@ -150,6 +150,8 @@ describe.skipIf(skip)('interação — servidor real decide (cliente forjado)', 
     expect(nidB).toBeGreaterThan(0);
     const nidA = playerOf(A, A.sid)?.nid ?? 0;
     A.room.send('user_report', { nid: nidB, category: 'ASSEDIO', userId: 'forjado', sessionId: B.sid });
+    // a 1ª só responde depois de gravar (assíncrono); a repetida é recusada na hora — espera a 1ª para a ordem valer
+    expect(await until(() => of(A, 'user_report_res').length >= 1)).toBe(true);
     A.room.send('user_report', { nid: nidB, category: 'SPAM' });
     A.room.send('user_report', { nid: nidA });
     A.room.send('user_report', { nid: 65000 });

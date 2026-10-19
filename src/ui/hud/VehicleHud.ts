@@ -28,6 +28,7 @@ export class VehicleHud {
     b.className = 'veh-exit';
     b.textContent = 'SAIR';
     b.setAttribute('aria-label', 'Sair do veículo');
+    if (!touch) b.title = 'Sair do veículo (tecla E)'; // rodada 11 — entrada
     b.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); onExit(); b.blur(); });
     // no toque, touchstart: resposta imediata (sem atraso do clique) e sem virar arrasto de câmera
     b.addEventListener('touchstart', (e) => { e.preventDefault(); e.stopPropagation(); onExit(); }, { passive: false });

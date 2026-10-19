@@ -1,0 +1,18 @@
+{
+  "bots": 500,
+  "remotes": 16,
+  "far": 476,
+  "personCandsNow": 16,
+  "frames": 640,
+  "hoverMsAvg": 0.0125,
+  "hoverMsMax": 0.5,
+  "collectMsAvg": 0.0273,
+  "candsAvg": 16,
+  "candsMax": 16,
+  "projectedPerFrame": 15.6,
+  "picks": 624,
+  "pickMsPerClick": 0.0031,
+  "pickHits": 780,
+  "fps": 60,
+  "when": "2026-10-19T04:07:04.287Z"
+}

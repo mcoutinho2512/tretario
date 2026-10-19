@@ -1,0 +1,513 @@
+{
+  "date": "2026-10-19T04:44:03.679Z",
+  "port": 3820,
+  "categories": {
+    "ROUPAS": {
+      "total": 26,
+      "available": 18,
+      "locked": 4,
+      "equipped": 4
+    },
+    "ACESSORIOS": {
+      "total": 5,
+      "available": 5,
+      "locked": 0,
+      "equipped": 0
+    },
+    "MANIFESTACAO": {
+      "total": 6,
+      "available": 6,
+      "locked": 0,
+      "equipped": 0
+    },
+    "ITENS": {
+      "total": 4,
+      "available": 4,
+      "locked": 0,
+      "equipped": 0
+    },
+    "EQUIPAMENTOS": {
+      "total": 3,
+      "available": 3,
+      "locked": 0,
+      "equipped": 0
+    },
+    "BANDEIRAS": {
+      "total": 24,
+      "available": 20,
+      "locked": 4,
+      "equipped": 0
+    },
+    "TORCIDA": {
+      "total": 16,
+      "available": 16,
+      "locked": 0,
+      "equipped": 0
+    },
+    "TITULOS": {
+      "total": 3,
+      "available": 0,
+      "locked": 3,
+      "equipped": 0
+    }
+  },
+  "cycles100": {
+    "warmup": {
+      "from": {
+        "nodes": 1847,
+        "listeners": 318,
+        "documents": 1,
+        "heapMB": 143.2,
+        "game": {
+          "renderer": {
+            "textures": 151,
+            "geometries": 617,
+            "programs": 76
+          },
+          "materials": 302,
+          "textures": 113,
+          "geometries": 951
+        },
+        "preview": {
+          "created": 3,
+          "disposed": 3,
+          "live": 0,
+          "has": false,
+          "memory": {
+            "renderersLive": 1,
+            "renderersCreated": 1,
+            "textures": 11,
+            "geometries": 10,
+            "programs": 5
+          }
+        }
+      },
+      "ms": 6762
+    },
+    "idleBefore": {
+      "nodes": 1847,
+      "listeners": 319,
+      "documents": 1,
+      "heapMB": 146.3,
+      "game": {
+        "renderer": {
+          "textures": 179,
+          "geometries": 630,
+          "programs": 76
+        },
+        "materials": 343,
+        "textures": 121,
+        "geometries": 971
+      },
+      "preview": {
+        "created": 103,
+        "disposed": 103,
+        "live": 0,
+        "has": false,
+        "memory": {
+          "renderersLive": 1,
+          "renderersCreated": 1,
+          "textures": 11,
+          "geometries": 10,
+          "programs": 5
+        }
+      }
+    },
+    "before": {
+      "nodes": 1847,
+      "listeners": 319,
+      "documents": 1,
+      "heapMB": 148.2,
+      "game": {
+        "renderer": {
+          "textures": 198,
+          "geometries": 642,
+          "programs": 76
+        },
+        "materials": 370,
+        "textures": 124,
+        "geometries": 986
+      },
+      "preview": {
+        "created": 103,
+        "disposed": 103,
+        "live": 0,
+        "has": false,
+        "memory": {
+          "renderersLive": 1,
+          "renderersCreated": 1,
+          "textures": 11,
+          "geometries": 10,
+          "programs": 5
+        }
+      }
+    },
+    "after": {
+      "nodes": 1847,
+      "listeners": 319,
+      "documents": 1,
+      "heapMB": 148.6,
+      "game": {
+        "renderer": {
+          "textures": 199,
+          "geometries": 642,
+          "programs": 76
+        },
+        "materials": 370,
+        "textures": 125,
+        "geometries": 986
+      },
+      "preview": {
+        "created": 203,
+        "disposed": 203,
+        "live": 0,
+        "has": false,
+        "memory": {
+          "renderersLive": 1,
+          "renderersCreated": 1,
+          "textures": 11,
+          "geometries": 10,
+          "programs": 5
+        }
+      }
+    },
+    "ms": 6508,
+    "idleAfterSameTime": {
+      "nodes": 1847,
+      "listeners": 320,
+      "documents": 1,
+      "heapMB": 149.2,
+      "game": {
+        "renderer": {
+          "textures": 212,
+          "geometries": 645,
+          "programs": 77
+        },
+        "materials": 385,
+        "textures": 125,
+        "geometries": 986
+      },
+      "preview": {
+        "created": 203,
+        "disposed": 203,
+        "live": 0,
+        "has": false,
+        "memory": {
+          "renderersLive": 1,
+          "renderersCreated": 1,
+          "textures": 11,
+          "geometries": 10,
+          "programs": 5
+        }
+      }
+    },
+    "after3": {
+      "nodes": 1851,
+      "listeners": 319,
+      "documents": 1,
+      "heapMB": 149.8,
+      "game": {
+        "renderer": {
+          "textures": 215,
+          "geometries": 648,
+          "programs": 77
+        },
+        "materials": 386,
+        "textures": 126,
+        "geometries": 986
+      },
+      "preview": {
+        "created": 303,
+        "disposed": 303,
+        "live": 0,
+        "has": false,
+        "memory": {
+          "renderersLive": 1,
+          "renderersCreated": 1,
+          "textures": 11,
+          "geometries": 10,
+          "programs": 5
+        }
+      }
+    }
+  },
+  "previews40": {
+    "roupas": 20,
+    "acessorios": 20,
+    "distinctAccessories": 5,
+    "before": {
+      "nodes": 1850,
+      "listeners": 323,
+      "documents": 1,
+      "heapMB": 150.2,
+      "game": {
+        "renderer": {
+          "textures": 215,
+          "geometries": 648,
+          "programs": 77
+        },
+        "materials": 386,
+        "textures": 126,
+        "geometries": 986
+      },
+      "preview": {
+        "created": 304,
+        "disposed": 303,
+        "live": 1,
+        "has": true,
+        "memory": {
+          "renderersLive": 1,
+          "renderersCreated": 1,
+          "textures": 19,
+          "geometries": 10,
+          "programs": 11
+        }
+      }
+    },
+    "after": {
+      "nodes": 1714,
+      "listeners": 324,
+      "documents": 1,
+      "heapMB": 155.2,
+      "game": {
+        "renderer": {
+          "textures": 244,
+          "geometries": 663,
+          "programs": 78
+        },
+        "materials": 436,
+        "textures": 143,
+        "geometries": 1013
+      },
+      "preview": {
+        "created": 304,
+        "disposed": 303,
+        "live": 1,
+        "has": true,
+        "memory": {
+          "renderersLive": 1,
+          "renderersCreated": 1,
+          "textures": 39,
+          "geometries": 22,
+          "programs": 11
+        }
+      }
+    },
+    "previewMemory": {
+      "first": {
+        "renderersLive": 1,
+        "renderersCreated": 1,
+        "textures": 19,
+        "geometries": 10,
+        "programs": 11
+      },
+      "afterRound1": {
+        "renderersLive": 1,
+        "renderersCreated": 1,
+        "textures": 39,
+        "geometries": 22,
+        "programs": 11
+      },
+      "afterRound2": {
+        "renderersLive": 1,
+        "renderersCreated": 1,
+        "textures": 39,
+        "geometries": 22,
+        "programs": 11
+      }
+    }
+  },
+  "slot2Target": "ok",
+  "afterClick": {
+    "stats": {
+      "opens": 306,
+      "closes": 306,
+      "equips": 5,
+      "refused": 1,
+      "quick": 2
+    },
+    "log": [
+      "appearance:top:polo",
+      "appearance:acc:oculos",
+      "supporter:sup:vasco",
+      "close",
+      "prop:prop:1",
+      "prop:prop:3"
+    ],
+    "layout": [
+      "prop:1",
+      "prop:3",
+      "prop:7",
+      null,
+      null
+    ],
+    "status": "Confronto liberado"
+  },
+  "person": {
+    "pp": {
+      "open": true,
+      "view": "main",
+      "name": "Ana",
+      "title": "Boa de papo",
+      "lvl": 1,
+      "text": "Ana\nBoa de papo · Nível 1 · Torcida: Vasco\n×\nVER PERFIL\nINTERAGIR\nSILENCIAR\nDENUNCIAR",
+      "log": [
+        "open:Ana"
+      ]
+    },
+    "header": "Ana\nBoa de papo · Nível 1 · Torcida: Vasco\n×\nVER PERFIL\nINTERAGIR\nSILENCIAR\nDENUNCIAR",
+    "profile": "Ana\nBoa de papo · Nível 1 · Torcida: Vasco\n×\nApelido\nAna\nTítulo\nBoa de papo\nNível\n1\nTorcida\nVasco\nSó dados públicos. Conta, e-mail e localização real nunca aparecem.\nVoltar"
+  },
+  "results": [
+    {
+      "name": "B vê A na rede",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "categorias só com conteúdo",
+      "ok": true,
+      "detail": "ROUPAS,ACESSORIOS,ITENS,MANIFESTACAO,BANDEIRAS,EQUIPAMENTOS,TORCIDA,TITULOS"
+    },
+    {
+      "name": "o mundo não pausa com o inventário aberto",
+      "ok": true,
+      "detail": "61 quadros em 1 s"
+    },
+    {
+      "name": "I abre e Esc fecha o inventário",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "100× abrir/fechar: ouvintes JS estáveis",
+      "ok": true,
+      "detail": "319 → 319"
+    },
+    {
+      "name": "100× abrir/fechar: nós DOM estáveis (sem órfãos)",
+      "ok": true,
+      "detail": "1847 → 1847"
+    },
+    {
+      "name": "100× abrir/fechar: nenhum handle vivo; renderer da prévia reutilizado (≤ 1)",
+      "ok": true,
+      "detail": "handles 100, vivos 0, renderers criados 1→1"
+    },
+    {
+      "name": "100× abrir/fechar: renderer do jogo sem programas novos (texturas: ver sonda)",
+      "ok": true,
+      "detail": "3ª leva {\"textures\":212,\"geometries\":645,\"programs\":77} → {\"textures\":215,\"geometries\":648,\"programs\":77}; deriva do mundo parado 46; aquecimento {\"textures\":151,\"geometries\":617,\"programs\":76} → {\"textures\":198,\"geometries\":642,\"programs\":76}; medida → {\"textures\":199,\"geometries\":642,\"programs\":76}"
+    },
+    {
+      "name": "100× abrir/fechar: materiais/texturas da cena (informativo)",
+      "ok": true,
+      "detail": "mat 370→370 tex 124→125 (aquecimento mat 302→370)"
+    },
+    {
+      "name": "100× abrir/fechar: heap estável",
+      "ok": true,
+      "detail": "148.2 → 148.6 MB"
+    },
+    {
+      "name": "40 prévias (×2): um renderer só, um handle",
+      "ok": true,
+      "detail": "handles criados 0, vivos 1, renderers 1"
+    },
+    {
+      "name": "40 prévias: 2ª rodada sem crescer texturas/geometrias/programas",
+      "ok": true,
+      "detail": "{\"renderersLive\":1,\"renderersCreated\":1,\"textures\":19,\"geometries\":10,\"programs\":11} → 1ª {\"renderersLive\":1,\"renderersCreated\":1,\"textures\":39,\"geometries\":22,\"programs\":11} → 2ª {\"renderersLive\":1,\"renderersCreated\":1,\"textures\":39,\"geometries\":22,\"programs\":11}"
+    },
+    {
+      "name": "40 prévias: ouvintes/nós estáveis",
+      "ok": true,
+      "detail": "ouvintes 323→324, nós 1850→1714"
+    },
+    {
+      "name": "fechar descarta o handle da prévia",
+      "ok": true,
+      "detail": "vivos 0"
+    },
+    {
+      "name": "item bloqueado: aviso curto com o motivo",
+      "ok": true,
+      "detail": "Azul petróleo da avenida: bloqueado — Nível 3"
+    },
+    {
+      "name": "B vê em A a parte de cima trocada",
+      "ok": true,
+      "detail": "{\"sid\":\"3Ig6cnjIc\",\"self\":false,\"name\":\"Ana\",\"topStyle\":\"polo\",\"accessory\":\"oculos\",\"shirtDesign\":0,\"prop\":0,\"design\":0,\"sup\":2,\"lvl\":1,\"title\":\"\"}"
+    },
+    {
+      "name": "B vê em A o acessório trocado",
+      "ok": true,
+      "detail": "oculos"
+    },
+    {
+      "name": "B vê em A a torcida trocada",
+      "ok": true,
+      "detail": "sup 2 (esperado 2)"
+    },
+    {
+      "name": "tecla 1: bandeira na mão (HUD = social = servidor = avatar)",
+      "ok": true,
+      "detail": "{\"hud\":\"Bandeira pequena\",\"social\":1,\"server\":1,\"visible\":1,\"label\":\"Bandeira pequena\"}"
+    },
+    {
+      "name": "B vê o item na mão de A",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "slot 1 aceso",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "clique no slot 2: cartaz substitui a bandeira",
+      "ok": true,
+      "detail": "{\"hud\":\"Cartaz\",\"social\":3,\"server\":3,\"visible\":3,\"label\":\"Cartaz\"}"
+    },
+    {
+      "name": "tecla 4: taco na mão (posse do servidor/livre pelos dados)",
+      "ok": true,
+      "detail": "{\"hud\":\"Taco\",\"social\":11,\"server\":11,\"visible\":11,\"label\":\"Taco\"}"
+    },
+    {
+      "name": "tecla 4 de novo: mão livre",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "conquista BOA CONVERSA → título ganho",
+      "ok": true,
+      "detail": "Boa de papo"
+    },
+    {
+      "name": "B vê o título e o nível de A (públicos)",
+      "ok": true,
+      "detail": "{\"title\":\"Boa de papo\",\"lvl\":1}"
+    },
+    {
+      "name": "B abre o painel de A",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "painel da pessoa: título e nível no cabeçalho",
+      "ok": true,
+      "detail": "Ana | Boa de papo · Nível 1 · Torcida: Vasco | × | VER PERFIL | INTERAGIR | SILENCIAR | DENUNCIAR"
+    },
+    {
+      "name": "VER PERFIL: apelido, título, nível, torcida",
+      "ok": true,
+      "detail": "Ana | Boa de papo · Nível 1 · Torcida: Vasco | × | Apelido | Ana | Título | Boa de papo | Nível | 1 | Torcida | Vasco | Só dados públicos. Conta, e-mail e localização real nunca aparecem. | Voltar"
+    },
+    {
+      "name": "navegadores sem erros",
+      "ok": true,
+      "detail": ""
+    }
+  ]
+}

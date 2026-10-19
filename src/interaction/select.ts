@@ -77,12 +77,20 @@ export function pickScreen(
   return best;
 }
 
-/** texto curto do realce: "CARRO · Entrar" (indisponível: "CARRO · Em uso") */
-export function highlightText(c: Interactable, reach: boolean): string {
+/**
+ * rodada 11: a partir daqui (m) o objeto é só IDENTIFICADO ("CARRO · longe") — o dobro do alcance + 4 m; ilimitado
+ * para alcance infinito. Usar continua exigindo o alcance (e o servidor revalida).
+ */
+export function farFor(c: Interactable): number {
+  return Number.isFinite(c.maxDistance) ? c.maxDistance * 2 + 4 : Infinity;
+}
+
+/** texto curto do realce: "CARRO · Entrar" (indisponível: "CARRO · Em uso"; distante: "CARRO · longe") */
+export function highlightText(c: Interactable, reach: boolean, far = false): string {
   const t = c.targetLabel.toUpperCase();
   if (c.availability === 'busy') return `${t} · Em uso`;
   if (c.availability === 'cooldown') return `${t} · Aguarde…`;
-  return reach ? `${t} · ${c.interactionLabel}` : `${t} · chegue mais perto`;
+  return reach ? `${t} · ${c.interactionLabel}` : far ? `${t} · longe` : `${t} · chegue mais perto`;
 }
 
 /** ação contextual do HUD ("E — ENTRAR NO CARRO") */

@@ -56,6 +56,16 @@ export class MemoryDataStore implements DataStore {
     },
   };
 
+  /** rodada 11 — título equipado (coluna nova do perfil): mesma vida do perfil */
+  private titleOf = new Map<string, string | null>();
+  titles = {
+    get: async (userId: string): Promise<string | null> => (this.p.has(userId) ? this.titleOf.get(userId) ?? null : null),
+    set: async (userId: string, title: string | null) => {
+      if (!this.p.has(userId)) throw new Error('perfil inexistente');
+      this.titleOf.set(userId, title);
+    },
+  };
+
   profiles = {
     create: async (d: { userId: string; nickname: string; nicknameKey: string }) => {
       if ([...this.p.values()].some((x) => x.nicknameKey === d.nicknameKey)) throw Object.assign(new Error('apelido em uso'), { code: 'P2002' });

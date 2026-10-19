@@ -42,6 +42,9 @@ export interface PublicProfile {
   since: string;
   /** rodada 10 — torcida escolhida (id dos dados public/gameplay/supporters.json; null/neutro = nenhuma). Dado público */
   supporter?: string | null;
+  /** rodada 11 — nível da progressão e título equipado (texto de um título ganho; null = nenhum). Dados públicos */
+  level?: number;
+  title?: string | null;
 }
 
 /** preferências do jogador (perfil; sem dado sensível) */

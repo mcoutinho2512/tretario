@@ -1,0 +1,300 @@
+{
+ "parado": {
+  "renderer": [
+   {
+    "textures": 158,
+    "geometries": 613,
+    "programs": 74
+   },
+   {
+    "textures": 158,
+    "geometries": 613,
+    "programs": 74
+   }
+  ],
+  "cats": {
+   "characters/npc": {
+    "from": {
+     "textures": 17,
+     "texGpuMB": 20.5,
+     "texCpuMB": 14.4,
+     "geometries": 40,
+     "geoMB": 1.9,
+     "geoCpuMB": 1.9,
+     "materials": 72,
+     "skeletons": 65,
+     "boneTexMB": 0.4,
+     "objects": 80
+    },
+    "to": {
+     "textures": 18,
+     "texGpuMB": 21.6,
+     "texCpuMB": 15.2,
+     "geometries": 42,
+     "geoMB": 1.9,
+     "geoCpuMB": 1.9,
+     "materials": 73,
+     "skeletons": 65,
+     "boneTexMB": 0.4,
+     "objects": 84
+    }
+   },
+   "events": {
+    "from": {
+     "textures": 8,
+     "texGpuMB": 21.5,
+     "texCpuMB": 16.1,
+     "geometries": 56,
+     "geoMB": 0,
+     "geoCpuMB": 0,
+     "materials": 29,
+     "skeletons": 0,
+     "boneTexMB": 0,
+     "objects": 56
+    },
+    "to": {
+     "textures": 9,
+     "texGpuMB": 24.5,
+     "texCpuMB": 18.4,
+     "geometries": 56,
+     "geoMB": 0,
+     "geoCpuMB": 0,
+     "materials": 29,
+     "skeletons": 0,
+     "boneTexMB": 0,
+     "objects": 56
+    }
+   }
+  }
+ },
+ "roupas": {
+  "renderer": [
+   {
+    "textures": 158,
+    "geometries": 613,
+    "programs": 74
+   },
+   {
+    "textures": 159,
+    "geometries": 613,
+    "programs": 74
+   }
+  ],
+  "cats": {
+   "events": {
+    "from": {
+     "textures": 9,
+     "texGpuMB": 24.5,
+     "texCpuMB": 18.4,
+     "geometries": 56,
+     "geoMB": 0,
+     "geoCpuMB": 0,
+     "materials": 29,
+     "skeletons": 0,
+     "boneTexMB": 0,
+     "objects": 56
+    },
+    "to": {
+     "textures": 8,
+     "texGpuMB": 21.5,
+     "texCpuMB": 16.1,
+     "geometries": 56,
+     "geoMB": 0,
+     "geoCpuMB": 0,
+     "materials": 29,
+     "skeletons": 0,
+     "boneTexMB": 0,
+     "objects": 56
+    }
+   }
+  }
+ },
+ "itens": {
+  "renderer": [
+   {
+    "textures": 159,
+    "geometries": 613,
+    "programs": 74
+   },
+   {
+    "textures": 167,
+    "geometries": 614,
+    "programs": 74
+   }
+  ],
+  "cats": {
+   "characters/npc": {
+    "from": {
+     "textures": 18,
+     "texGpuMB": 21.6,
+     "texCpuMB": 15.2,
+     "geometries": 42,
+     "geoMB": 1.9,
+     "geoCpuMB": 1.9,
+     "materials": 73,
+     "skeletons": 65,
+     "boneTexMB": 0.4,
+     "objects": 84
+    },
+    "to": {
+     "textures": 19,
+     "texGpuMB": 22.9,
+     "texCpuMB": 15.2,
+     "geometries": 43,
+     "geoMB": 1.9,
+     "geoCpuMB": 1.9,
+     "materials": 86,
+     "skeletons": 78,
+     "boneTexMB": 0.5,
+     "objects": 97
+    }
+   },
+   "characters/assets": {
+    "from": {
+     "textures": 0,
+     "texGpuMB": 0,
+     "texCpuMB": 0,
+     "geometries": 6,
+     "geoMB": 0.3,
+     "geoCpuMB": 0.3,
+     "materials": 46,
+     "skeletons": 46,
+     "boneTexMB": 0.1,
+     "objects": 46
+    },
+    "to": {
+     "textures": 0,
+     "texGpuMB": 0,
+     "texCpuMB": 0,
+     "geometries": 6,
+     "geoMB": 0.3,
+     "geoCpuMB": 0.3,
+     "materials": 47,
+     "skeletons": 47,
+     "boneTexMB": 0.2,
+     "objects": 47
+    }
+   }
+  }
+ },
+ "parado2": {
+  "renderer": [
+   {
+    "textures": 167,
+    "geometries": 614,
+    "programs": 74
+   },
+   {
+    "textures": 184,
+    "geometries": 626,
+    "programs": 75
+   }
+  ],
+  "cats": {
+   "chunks/ground": {
+    "from": {
+     "textures": 27,
+     "texGpuMB": 65.8,
+     "texCpuMB": 0,
+     "geometries": 405,
+     "geoMB": 5.1,
+     "geoCpuMB": 0.9,
+     "materials": 14,
+     "skeletons": 0,
+     "boneTexMB": 0,
+     "objects": 408
+    },
+    "to": {
+     "textures": 28,
+     "texGpuMB": 71.8,
+     "texCpuMB": 0,
+     "geometries": 405,
+     "geoMB": 5.1,
+     "geoCpuMB": 0.9,
+     "materials": 14,
+     "skeletons": 0,
+     "boneTexMB": 0,
+     "objects": 408
+    }
+   },
+   "characters/npc": {
+    "from": {
+     "textures": 19,
+     "texGpuMB": 22.9,
+     "texCpuMB": 15.2,
+     "geometries": 43,
+     "geoMB": 1.9,
+     "geoCpuMB": 1.9,
+     "materials": 86,
+     "skeletons": 78,
+     "boneTexMB": 0.5,
+     "objects": 97
+    },
+    "to": {
+     "textures": 24,
+     "texGpuMB": 29.6,
+     "texCpuMB": 19.2,
+     "geometries": 56,
+     "geoMB": 2.3,
+     "geoCpuMB": 2.3,
+     "materials": 99,
+     "skeletons": 91,
+     "boneTexMB": 0.6,
+     "objects": 110
+    }
+   },
+   "events": {
+    "from": {
+     "textures": 8,
+     "texGpuMB": 21.5,
+     "texCpuMB": 16.1,
+     "geometries": 56,
+     "geoMB": 0,
+     "geoCpuMB": 0,
+     "materials": 29,
+     "skeletons": 0,
+     "boneTexMB": 0,
+     "objects": 56
+    },
+    "to": {
+     "textures": 9,
+     "texGpuMB": 24.5,
+     "texCpuMB": 18.4,
+     "geometries": 56,
+     "geoMB": 0,
+     "geoCpuMB": 0,
+     "materials": 29,
+     "skeletons": 0,
+     "boneTexMB": 0,
+     "objects": 56
+    }
+   },
+   "characters/assets": {
+    "from": {
+     "textures": 0,
+     "texGpuMB": 0,
+     "texCpuMB": 0,
+     "geometries": 6,
+     "geoMB": 0.3,
+     "geoCpuMB": 0.3,
+     "materials": 47,
+     "skeletons": 47,
+     "boneTexMB": 0.2,
+     "objects": 47
+    },
+    "to": {
+     "textures": 0,
+     "texGpuMB": 0,
+     "texCpuMB": 0,
+     "geometries": 8,
+     "geoMB": 0.4,
+     "geoCpuMB": 0.4,
+     "materials": 60,
+     "skeletons": 60,
+     "boneTexMB": 0.2,
+     "objects": 60
+    }
+   }
+  }
+ }
+}

@@ -82,6 +82,14 @@ export class PrismaDataStore implements DataStore {
     },
   };
 
+  // rodada 11 — título equipado (Profile.titleKey, coluna nova NULLABLE)
+  titles = {
+    get: async (userId: string): Promise<string | null> => (await this.db.profile.findUnique({ where: { userId }, select: { titleKey: true } }))?.titleKey ?? null,
+    set: async (userId: string, title: string | null) => {
+      await q(this.db.profile.update({ where: { userId }, data: { titleKey: title } }));
+    },
+  };
+
   appearances = {
     get: async (userId: string) => {
       const r = await this.db.characterAppearance.findUnique({ where: { userId } });

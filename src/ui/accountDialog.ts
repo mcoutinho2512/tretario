@@ -3,6 +3,7 @@
  * senha). Só chama a API (src/identity/client.ts); a autenticação é do servidor. Acessível: rótulos, foco no
  * primeiro campo, Enter envia, Esc fecha, mensagens em região aria-live. Nada de token no navegador: cookie HttpOnly.
  */
+import { EscSlot } from './escStack'; // rodada 11 — entrada
 import { accountApi, errorText } from '../identity/client';
 import { textModeration, TEXT_LIMITS, type TextRejection } from '../moderation/text';
 
@@ -29,6 +30,7 @@ export class AccountDialog {
   private pendingPassword = '';
   private lastFocus: Element | null = null;
   private nickTimer = 0;
+  private esc = new EscSlot('conta', 200, () => this.close());
   private nickSeq = 0;
   private resendAt = 0;
   /** chamado quando a pessoa entrou (sessão criada no servidor) */
@@ -44,8 +46,7 @@ export class AccountDialog {
     parent.appendChild(this.root);
     this.root.addEventListener('mousedown', (e) => { if (e.target === this.root) this.close(); });
     this.root.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') { e.preventDefault(); this.close(); }
-      if (e.key === 'Tab') this.trapTab(e);
+      if (e.key === 'Tab') this.trapTab(e); // Esc: pilha única (rodada 11)
     });
   }
 
@@ -55,11 +56,13 @@ export class AccountDialog {
     if (!this.isOpen) this.lastFocus = document.activeElement;
     if (email !== undefined) this.email = email;
     this.root.classList.remove('hidden');
+    this.esc.set(true);
     this.show(view);
   }
 
   close() {
     this.root.classList.add('hidden');
+    this.esc.set(false);
     this.pendingPassword = '';
     (this.lastFocus as HTMLElement | null)?.focus?.();
   }
