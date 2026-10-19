@@ -430,7 +430,7 @@ export class EventRuntime {
     const list: EventPointWire[] = [];
     for (const L of this.live.values()) {
       if (!L.runner?.rally || !LIVE.has(L.inst.state)) continue;
-      for (const p of L.runner.rally(L.ctx)) list.push({ id: p.id, inst: L.inst.inst, x: Math.round(p.x), z: Math.round(p.z), inner: p.inner, radius: p.radius, strength: p.strength, crowd: p.crowd, label: L.inst.def.name });
+      for (const p of L.runner.rally(L.ctx)) list.push({ id: p.id, inst: L.inst.inst, x: Math.round(p.x), z: Math.round(p.z), inner: p.inner, radius: p.radius, strength: p.strength, crowd: p.crowd, label: p.label ?? L.inst.def.name, ...(p.sup ? { sup: p.sup } : {}) }); // rodada 10 — torcida
     }
     const sig = JSON.stringify(list);
     if (sig === this.ptsSig) return;

@@ -66,6 +66,9 @@ export interface ProgressionSave {
   grants: { item: string; source: string; at: Date }[];
 }
 
+/** rodada 10 — torcida do perfil (colunas novas de Profile; ids dos DADOS public/gameplay/supporters.json) */
+export interface SupporterRecord { group: string | null; pending: string | null; changedAt: Date | null }
+
 export interface AuditRecord { id: string; actor: string; action: string; targetType: string | null; targetId: string | null; meta: Record<string, unknown>; createdAt: Date }
 
 export interface DataStore {
@@ -142,6 +145,11 @@ export interface DataStore {
     load(userId: string): Promise<ProgressionRecord | null>;
     /** upsert de PlayerProgress + inserção idempotente (pares únicos) de conclusões/conquistas/recompensas, numa transação */
     save(userId: string, d: ProgressionSave): Promise<void>;
+  };
+  /** rodada 10 — torcida (Profile.supporterGroup/supporterPending/supporterChangedAt); conta sem perfil → null / erro */
+  supporters: {
+    get(userId: string): Promise<SupporterRecord | null>;
+    set(userId: string, rec: SupporterRecord): Promise<void>;
   };
   audit: {
     append(d: Omit<AuditRecord, 'id' | 'createdAt'>): Promise<void>;

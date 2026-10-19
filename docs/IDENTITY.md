@@ -61,3 +61,9 @@ Contratos ÚNICOS — nenhum módulo redefine usuário, sessão, identidade de j
   bandeira/cartaz/faixa — `SocialController.preferredDesigns`, nunca obrigatórias). Capacidades, papel, velocidade,
   veículos, AOI/interesse, prioridade e qualidade são idênticos — `tests/groupNeutrality.test.ts` prova e também falha
   se algum código ganhar ramo por grupo específico.
+
+## Torcida (rodada 10)
+- Escolha de PERFIL, separada do grupo do evento e de grupo político: `GET/PUT /api/me/supporter`
+  (`server/src/http/supporter.ts`), colunas `Profile.supporter*`, campo de rede `NetPlayer.sup` (0 = neutro, i+1 =
+  índice em `public/gameplay/supporters.json`). Carregada no `onAuth`/`reloadLook`; troca pendente durante evento
+  competitivo; troca de grupo do evento adiada durante confronto. Detalhes: `docs/SUPPORTER_GROUPS.md`.

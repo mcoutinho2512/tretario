@@ -137,3 +137,25 @@ describe('grupos do evento: só aparência', () => {
     expect(run([g[0], g[1]])).toEqual(run([g[1], g[0]]));
   });
 });
+
+describe('rodada 10 — torcidas: só identidade/visual, nenhuma vantagem', () => {
+  it('contas com torcidas diferentes (e neutro) têm exatamente a mesma identidade de jogo, capacidades e grupo', async () => {
+    const sup = JSON.parse(readFileSync('public/gameplay/supporters.json', 'utf8')) as { neutralId: string; groups: { id: string }[] };
+    const store = new MemoryDataStore();
+    const tickets = new TicketService();
+    const out: Awaited<ReturnType<typeof resolveIdentity>>[] = [];
+    for (const [i, choice] of [...sup.groups.map((g) => g.id), sup.neutralId, null].entries()) {
+      const u = await store.users.create({ email: `sup${i}@t.test`, passwordHash: 'x' });
+      await store.profiles.create({ userId: u.id, nickname: `Sup${i}`, nicknameKey: `sup${i}` });
+      await store.access.grant({ userId: u.id, grant: 'DEV_GRANTED', eventId: null, source: 'teste' });
+      if (choice) await store.supporters.set(u.id, { group: choice, pending: null, changedAt: new Date() });
+      out.push(await resolveIdentity({ store, tickets }, { ticket: tickets.issue({ userId: u.id, authSessionId: 's', role: 'player' }) }, ev.id));
+      expect((await loadPlayerLook(store, u.id, ev.id)).groupKey).toBeNull(); // torcida não vira grupo do evento
+    }
+    const ref = out[out.length - 1];
+    for (const id of out) {
+      expect({ ...id, nickname: '', userId: '' }).toEqual({ ...ref, nickname: '', userId: '' });
+      for (const cap of CAPS) expect(can(id.state, cap, 'player')).toBe(can(ref.state, cap, 'player'));
+    }
+  });
+});

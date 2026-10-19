@@ -75,6 +75,32 @@ function paintPattern(ctx: Ctx, d: Design, x: number, y: number, w: number, h: n
       ctx.restore();
       break;
     }
+    // rodada 10 — torcidas (só cores/padrões; sem escudo nem texto próprio)
+    case 'hoops_top': {
+      const n = 7; // começa e termina em `bg`
+      ctx.fillStyle = acc;
+      for (let i = 1; i < n; i += 2) ctx.fillRect(x, y + (h * i) / n, w, h / n + 0.5);
+      break;
+    }
+    case 'sash_l': {
+      ctx.save();
+      ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
+      ctx.strokeStyle = acc; ctx.lineWidth = Math.min(w, h) * 0.26;
+      ctx.beginPath(); ctx.moveTo(x + w * 1.1, y - h * 0.05); ctx.lineTo(x - w * 0.1, y + h * 1.05); ctx.stroke();
+      ctx.restore();
+      break;
+    }
+    case 'stripes_pin':
+    case 'stripes_eq': {
+      const n = 9, sw = w / n;
+      for (let i = 0; i < n; i++) { ctx.fillStyle = i % 2 ? acc : p.bg; ctx.fillRect(x + sw * i, y, sw + 0.5, h); }
+      if (d.pattern === 'stripes_pin') {
+        ctx.fillStyle = p.third ?? '#ffffff';
+        const pw = Math.max(1, sw * 0.1);
+        for (let i = 1; i < n; i++) ctx.fillRect(x + sw * i - pw / 2, y, pw, h);
+      }
+      break;
+    }
     case 'split_v':
       ctx.fillStyle = acc; ctx.fillRect(x + w / 2, y, w / 2, h);
       break;

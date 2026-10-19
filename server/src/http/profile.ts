@@ -22,6 +22,7 @@ import { groupRecordId, groupKeyOf, joinableGroups, type CurrentEventResponse } 
 import type { PlayerPreferences, PublicProfile } from '../../../src/identity/types';
 import { textModeration } from '../../../src/moderation/text';
 import { entitlementsFor } from '../progression/entitlements'; // rodada 9 — itens liberados por progressão
+import { groupLocked } from '../supporters/service'; // rodada 10 — troca de grupo adiada durante confronto
 
 const PUBLIC = resolve(dirname(fileURLToPath(import.meta.url)), '../../../public');
 
@@ -54,7 +55,7 @@ const err = (status: number, error: string): ApiResponse => ({ status, body: { e
 
 /** limite simples por usuário e rota (memória): evita gravação em rajada */
 const hits = new Map<string, number[]>();
-function rateLimited(key: string, max = 20, windowMs = 60_000, now = Date.now()): boolean {
+export function rateLimited(key: string, max = 20, windowMs = 60_000, now = Date.now()): boolean {
   const list = (hits.get(key) ?? []).filter((t) => now - t < windowMs);
   list.push(now);
   hits.set(key, list);
@@ -70,7 +71,7 @@ export function sweepProfileLimits(now = Date.now(), windowMs = 60_000): number 
 }
 
 type Authed = AuthedUser & { store: DataStore };
-async function withUser(req: ApiRequest, cap: Capability | null, fn: (a: Authed) => Promise<ApiResponse>): Promise<ApiResponse> {
+export async function withUser(req: ApiRequest, cap: Capability | null, fn: (a: Authed) => Promise<ApiResponse>): Promise<ApiResponse> {
   const store = services().store;
   const a = await requireUser(req, store);
   if (!a) return err(401, 'sem_sessao');
@@ -153,6 +154,7 @@ router.add('GET', '/api/profile/:nickname', async (req) => {
     nickname: p.nickname, displayName: p.displayName,
     appearance: await savedAppearance(store, p.userId),
     since: new Date(p.createdAt).toISOString().slice(0, 7),
+    supporter: (await store.supporters.get(p.userId))?.group ?? null, // rodada 10 — torcida (pública; nunca a pendente)
   };
   return { body: out };
 });
@@ -179,10 +181,11 @@ router.add('PUT', '/api/events/current/membership', (req) => withUser(req, 'grou
   if (!joinableGroups(ev).some((g) => g.key === key)) return err(400, 'grupo_invalido');
   await ensureEventGroups(store);
   await store.events.setMembership(user.id, ev.id, groupRecordId(ev.id, key));
-  return { body: { membership: { eventId: ev.id, groupKey: key } } };
+  // rodada 10 — inscrito num evento ativo que usa o grupo (confronto): a sala só aplica no fim/saída (placar e fogo amigo coerentes)
+  return { body: { membership: { eventId: ev.id, groupKey: key }, ...(groupLocked(user.id) ? { deferred: true } : {}) } };
 }));
 
 router.add('DELETE', '/api/events/current/membership', (req) => withUser(req, null, async ({ user, store }) => {
   await store.events.clearMembership(user.id, currentEvent().id);
-  return { body: { membership: null } };
+  return { body: { membership: null, ...(groupLocked(user.id) ? { deferred: true } : {}) } };
 }));

@@ -12,27 +12,34 @@ import * as THREE from 'three';
 import { DESIGNS, DESIGN_BY_ID, type Design } from '../../social/designs';
 import { boundaryVerts } from './hideCovered';
 
-export const PATTERN_CODE: Record<string, number> = { solid: 1, hoops: 2, v_stripes: 3, tricolor_v: 4, sash: 5, border: 6, h_stripes: 7, split_v: 8, split_h: 9 };
-const MAX_SLOTS = 16;
+export const PATTERN_CODE: Record<string, number> = { solid: 1, hoops: 2, v_stripes: 3, tricolor_v: 4, sash: 5, border: 6, h_stripes: 7, split_v: 8, split_h: 9,
+  // rodada 10 — torcidas (designs 212–215): padrões com cor de ACABAMENTO (gola/punhos) tirada da própria paleta
+  hoops_top: 10, sash_l: 11, stripes_pin: 12, stripes_eq: 13 };
+/**
+ * slots de design de camisa (0 = lisa). Rodada 10: 16 → 20 (camisas das torcidas), sem aumentar os registradores de
+ * uniforme: o código do padrão vai no `w` da cor de fundo (`uDesBg` vec4) em vez de um array de float à parte
+ * (antes 3×16 vec3 + 16 float = 64 vetores; agora 20 vec4 + 2×20 vec3 = 60)
+ */
+const MAX_SLOTS = 20;
 
 /** paletas dos designs de camisa (uniformes compartilhados por TODOS os materiais de personagem) */
 export const designUniforms = {
-  uDesBg: { value: Array.from({ length: MAX_SLOTS }, () => new THREE.Color()) },
+  uDesBg: { value: Array.from({ length: MAX_SLOTS }, () => new THREE.Vector4()) },
   uDesAcc: { value: Array.from({ length: MAX_SLOTS }, () => new THREE.Color()) },
   uDesThird: { value: Array.from({ length: MAX_SLOTS }, () => new THREE.Color()) },
-  uDesPat: { value: new Array<number>(MAX_SLOTS).fill(0) },
 };
 let slots: Design[] | null = null;
+const tmp = new THREE.Color();
 /** designs de camisa em ordem de id (slot = posição + 1; 0 = camisa lisa) */
 export function shirtDesigns(): Design[] {
   if (!slots) {
     slots = DESIGNS.filter((d) => d.targets.includes('shirt')).sort((a, b) => a.id - b.id).slice(0, MAX_SLOTS - 1);
     slots.forEach((d, i) => {
       const p = d.palette;
-      designUniforms.uDesBg.value[i + 1].set(p.bg);
+      tmp.set(p.bg);
+      designUniforms.uDesBg.value[i + 1].set(tmp.r, tmp.g, tmp.b, PATTERN_CODE[d.pattern] ?? 1);
       designUniforms.uDesAcc.value[i + 1].set(p.accent ?? p.fg);
       designUniforms.uDesThird.value[i + 1].set(p.third ?? p.fg);
-      designUniforms.uDesPat.value[i + 1] = PATTERN_CODE[d.pattern] ?? 1;
     });
   }
   return slots;
@@ -49,24 +56,75 @@ export function shirtDesign(id: number | undefined): Design | undefined {
   return d && d.targets.includes('shirt') ? d : undefined;
 }
 
-/** padrão da camisa: `r` = (x lateral, y relativo ao peito, z, distância à borda da peça) em m */
+/**
+ * padrão da camisa: `r` = (x lateral, y relativo ao peito, z, distância à borda da peça) em m. +x = lado ESQUERDO de
+ * quem veste (o personagem olha para +z), +z = frente. Bordas: gola (alto, perto do centro), punho (braço), barra.
+ * Rodada 10: filetes/frisos finos somem por `fwidth` quando ficam menores que ~1 px (LOD/multidão distante: só as
+ * listras largas) — o mesmo código serve LOD0/1 (camada SHIRT) e a malha única LOD2/3 / multidão VAT.
+ */
 export const PATTERN_GLSL = /* glsl */ `
-uniform vec3 uDesBg[${MAX_SLOTS}];
+uniform vec4 uDesBg[${MAX_SLOTS}];
 uniform vec3 uDesAcc[${MAX_SLOTS}];
 uniform vec3 uDesThird[${MAX_SLOTS}];
-uniform float uDesPat[${MAX_SLOTS}];
+/* linha fina de largura w (m) centrada em 0: cobertura suavizada; some (0) quando w < 1 px */
+float pvLine(float d, float w, float px) { return w < px ? 0.0 : 1.0 - smoothstep(w * 0.5 - px * 0.5, w * 0.5 + px * 0.5, abs(d)); }
 vec3 pvPattern(int slot, vec4 r) {
-  vec3 bg = uDesBg[slot], ac = uDesAcc[slot];
-  int p = int(uDesPat[slot] + 0.5);
+  vec4 b4 = uDesBg[slot];
+  vec3 bg = b4.rgb, ac = uDesAcc[slot], th = uDesThird[slot];
+  int p = int(b4.w + 0.5);
+  float px = max(fwidth(r.x), fwidth(r.y)) + 1e-4;
   if (p == 2) return mod(floor(r.y / 0.075), 2.0) > 0.5 ? ac : bg;
   if (p == 3) return mod(floor(r.x / 0.07 + 0.5), 2.0) > 0.5 ? ac : bg;
-  if (p == 4) { float k = mod(floor(r.x / 0.06 + 0.5), 3.0); return k < 0.5 ? bg : k < 1.5 ? uDesThird[slot] : ac; }
+  if (p == 4) { float k = mod(floor(r.x / 0.06 + 0.5), 3.0); return k < 0.5 ? bg : k < 1.5 ? th : ac; }
   if (p == 5) return abs(r.x + r.y * 1.1) * 0.67 < 0.05 ? ac : bg;
   if (p == 6) return r.w < 0.028 ? ac : bg;
   if (p == 7) return mod(floor(r.y / 0.12), 2.0) > 0.5 ? ac : bg;
   if (p == 8) return r.x > 0.0 ? ac : bg;
   if (p == 9) return r.y > 0.0 ? ac : bg;
-  return bg;
+  if (p < 10) return bg;
+  // ---- rodada 10: torcidas. Regiões de acabamento (rest space)
+  float ax = abs(r.x);
+  bool arm = ax > 0.2;
+  bool collar = !arm && r.y > 0.12 && r.w < 0.05;
+  bool cuff = arm && r.w < 0.05;
+  if (p == 10) {
+    // faixas horizontais largas começando em bg (preto) no topo; gola polo bg; frisos accent nos ombros
+    float k = floor((0.27 - r.y) / 0.085);
+    vec3 c = mod(max(k, 0.0), 2.0) > 0.5 ? ac : bg;
+    if (collar && r.w < 0.035) return bg;
+    float sh = smoothstep(0.13, 0.17, r.y) * step(0.075, ax);
+    float lines = max(pvLine(r.z - 0.012, 0.009, px), pvLine(r.z + 0.008, 0.009, px));
+    return mix(c, ac, sh * lines);
+  }
+  if (p == 11) {
+    // preta; faixa diagonal do ombro esquerdo (+x, alto) ao quadril direito (-x, baixo); só no tronco
+    float d = (r.x - 0.03 - r.y * 0.62) * 0.85;
+    float tor = 1.0 - smoothstep(0.2, 0.23, ax);
+    float s = (1.0 - smoothstep(0.052 - px, 0.052 + px, abs(d))) * tor;
+    // "mapa topográfico" sutil: curvas de nível de um relevo suave, só dentro da faixa
+    float h = sin(r.x * 23.0 + sin(r.y * 17.0) * 1.3) + sin(r.y * 29.0 - r.z * 11.0 + 1.7) * 0.8 + sin((r.x + r.y) * 41.0) * 0.25;
+    float iso = pvLine(fract(h * 1.6) - 0.5, 0.06, fwidth(h * 1.6) + 1e-4);
+    vec3 sash = mix(ac, th, iso * 0.55);
+    return mix(bg, sash, s);
+  }
+  if (p == 12) {
+    // listras verticais bg/ac (5,5 cm) com filete th entre elas; gola V e punhos th
+    if (collar && r.w < 0.02) return th;
+    if (cuff && r.w < 0.03) return th;
+    float u = r.x / 0.055 + 0.5;
+    vec3 c = mod(floor(u), 2.0) > 0.5 ? ac : bg;
+    float f = (fract(u) - 0.5) * 0.055;
+    c = mix(c, th, pvLine(abs(f) - 0.0275, 0.006, px));
+    // V da gola RASO, ancorado na borda do decote (r.w = distância à borda; vale para os 4 corpos): acabamento estreito
+    // (~1,8 cm) que sai da gola e desce até ~9 cm abaixo dela no centro, só na frente; de longe some (pvLine)
+    float v = pvLine(ax - (0.09 - r.w) * 0.75, 0.018, px) * step(r.w, 0.09) * step(0.12, r.y) * step(ax, 0.075) * step(0.0, r.z);
+    return mix(c, th, v);
+  }
+  // p == 13: listras verticais iguais; gola e punhos ac com frisos bg
+  vec3 c = mod(floor(r.x / 0.065 + 0.5), 2.0) > 0.5 ? ac : bg;
+  if (collar && r.w < 0.035) return mix(ac, bg, pvLine(r.w - 0.02, 0.006, px));
+  if (cuff && r.w < 0.045) return mix(ac, bg, max(pvLine(r.w - 0.018, 0.005, px), pvLine(r.w - 0.03, 0.005, px)));
+  return c;
 }`;
 
 /** camada SHIRT dos LODs 0/1: textura (detalhe/dobras) × padrão. `mat.color` deve levar a média da textura a branco */

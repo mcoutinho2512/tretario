@@ -120,6 +120,12 @@ model Profile {
   preferences Json     @default("{}")
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  /// rodada 10 — torcida (public/gameplay/supporters.json): id do grupo ou o id neutro; null = nunca escolheu.
+  /// Dado PÚBLICO do perfil (docs/PRIVACY_ARCHITECTURE.md). Expand-first: colunas novas opcionais
+  supporterGroup     String?
+  /// troca pedida durante evento competitivo, aplicada no fim/saída do evento (changePolicy)
+  supporterPending   String?
+  supporterChangedAt DateTime?
 }
 
 model CharacterAppearance {

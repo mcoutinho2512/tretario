@@ -111,6 +111,15 @@ ativo nas suas zonas (ex.: `CONTESTED`); `room.evt.protectedUntil(sid)` → prot
 `EventHost`, mensagens) e ganchos de uma linha em `tick`, `onMove` (posição ACEITA), `onJoin` (`hello`), `onLeave`
 (`gone`), `knockdown` e `environment()` (células do espectador).
 
+**Eventos SUPPORTERS (rodada 10)** — formato `torcida` (`SupportersRunner`, `ScheduledEventDef.supporters`): encontro
+de torcidas sem confronto. `points[]` = uma concentração por torcida (`group` = id de `public/gameplay/supporters.json`),
+`meet` = encontro comum, `presence` (fração do tempo ativo para concluir), `npcPerPoint`. As concentrações saem em
+`evt_pts` com `sup` (NetPlayer.sup da torcida) e sigla: o cliente veste os NPCs simulados com a camisa/bandeiras da
+torcida e mostra marcadores agregados no minimapa. Sem placar entre torcidas. A troca de torcida fica PENDENTE durante
+`torcida` e `confronto_grupos` (`changePolicy.deferDuringEventKinds`); a troca de GRUPO do evento fica adiada durante
+evento vivo com regras de grupo (confronto) — placar e fogo amigo usam sempre o mesmo grupo. Agenda incluída:
+"Encontro das torcidas" (CENTRO, a cada 60 min) em `manifestacao` e `classico-exemplo`. Detalhes: docs/SUPPORTER_GROUPS.md.
+
 **Teste/QA**: com `PV_TEST=1`, `PV_AGENDA_FILE=<json>` troca a agenda por um arquivo; `PV_AGENDA_EPOCH=<ms|now>`
 desloca a origem (ocorrência 0 no horário pedido). `tools/qa/events_mp.mjs` usa a agenda DOS DADOS com horários
 encurtados.

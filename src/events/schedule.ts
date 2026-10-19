@@ -115,6 +115,23 @@ export interface ScheduledEventDef {
   clash?: GroupClashSpec;
   /** NPCs de ambiente participam (caminhar, assistir, reagir) — nunca contados como jogadores */
   npcCrowd?: number;
+  /** rodada 10 — encontro/concentração de TORCIDAS (formato `torcida`, server/src/events/SupportersRunner.ts) */
+  supporters?: SupportersMeetSpec;
+}
+
+/**
+ * rodada 10 — encontro de torcidas (sem confronto): uma concentração por torcida (ids dos DADOS
+ * public/gameplay/supporters.json) e um ponto de encontro comum. Participação = ficar perto da concentração da sua
+ * torcida (ou do encontro comum, para neutros/sem torcida) por `presence` do tempo ativo. Nenhuma torcida pontua
+ * sobre outra; NPCs simulados da concentração vestem as cores (nunca contam como jogadores).
+ */
+export interface SupportersMeetSpec {
+  points: { group: string; at: WorldPoint; radius: number }[];
+  meet?: Checkpoint;
+  /** fração do tempo ativo na concentração para concluir (padrão 0,5) */
+  presence?: number;
+  /** NPCs simulados por concentração (escalados pelo preset no cliente) */
+  npcPerPoint?: number;
 }
 
 /* ── protocolo ─────────────────────────────────────────────────────────────────────────────────────────────────── */
@@ -161,7 +178,9 @@ export type DebateReaction = 'aplauso' | 'positiva' | 'negativa';
 /** concentração de evento (líder da caminhada, largada da corrida…): RallyPoint kind 'event' no cliente */
 export interface EventPointWire { id: string; inst: string; x: number; z: number; inner: number; radius: number; strength: number;
   /** NPCs de ambiente reservados (simulados; nunca contados como jogadores) */
-  crowd: number; label: string }
+  crowd: number; label: string;
+  /** rodada 10 — concentração de torcida: NetPlayer.sup do grupo (i+1; ausente/0 = não é de torcida) */
+  sup?: number }
 /** `evt_pts {list}` a todos: ≤ 1 Hz e só quando muda (posições arredondadas) */
 export interface EventPointsMessage { list: EventPointWire[] }
 /** `race_def` aos inscritos e a quem acompanha (evt_watch): geometria (marcadores no cliente) */

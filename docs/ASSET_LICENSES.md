@@ -90,6 +90,12 @@ apesar de estarem num pacote rotulado CC0) e `toigo_maga_hat` (conteúdo políti
 
 ### Gerados por código (procedurais, deste projeto)
 
+- **Rodada 10 — camisas, bandeiras e faixas das torcidas** (designs 212–223, `src/social/designs.ts`): geradas por código
+  (padrão no shader `garmentShader.ts`; bandeiras/faixas em canvas por `designPainter.ts`). Só combinações de cores e
+  padrões; nenhum escudo, cruz, monograma, estrela, marca de fabricante, patrocinador, selo, número ou textura oficial.
+  As fotos de referência fornecidas pelo dono NÃO estão no repositório (contêm marcas) — inventário descritivo em
+  `docs/SUPPORTER_GROUPS.md`.
+
 | Asset | Origem | Uso |
 |---|---|---|
 | Texturas de asfalto, pedra portuguesa, concreto, grama, brita, dormentes, desgaste de pintura | `src/renderer/textures.ts` | chão |

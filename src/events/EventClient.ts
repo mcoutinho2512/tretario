@@ -12,10 +12,11 @@ import * as THREE from 'three';
 import type { AgendaEntry, AgendaMessage, ClashStateMessage, EventPointsMessage, EventResultMessage, RaceDefMessage, RaceProgress, WalkStateMessage } from './schedule';
 import { rallyPoints, RALLY_DEFAULT_WEIGHTS } from '../social/rally';
 import { worldClock } from '../net/clock';
+import { loadSupporterData, supAt, supporterData } from '../supporters/data'; // rodada 10 — concentrações de torcida
 import './events.css';
 
 interface NetLike { on(type: string, fn: (m: any) => void): () => void; send(type: string, payload?: unknown): void; sessionId: string }
-interface MapLike { eventMarks: { x: number; z: number; color: string; label?: string; r?: number }[] }
+interface MapLike { eventMarks: { x: number; z: number; color: string; label?: string; r?: number; ring?: string }[] }
 
 const DENIAL: Record<string, string> = {
   inexistente: 'Evento não encontrado', fechado: 'Inscrições fechadas', lotado: 'Evento lotado', grupo: 'Seu grupo não participa deste evento',
@@ -46,6 +47,7 @@ export class EventClient {
 
   constructor(private net: NetLike, scene: THREE.Scene, hud: HTMLElement, private flash: (m: string) => void, private map: MapLike | null) {
     this.marks.name = 'event-markers';
+    void loadSupporterData().then(() => this.syncMap()); // rodada 10 — cores/siglas das concentrações de torcida
     scene.add(this.marks);
     this.panel.className = 'evt-panel';
     this.panel.hidden = true;
@@ -76,8 +78,10 @@ export class EventClient {
       ids.add(id);
       const cur = rallyPoints.get(id);
       // andar (caminhada) só atualiza a posição; o RallyCrowd faz cada NPC caminhar até o novo lugar
-      if (cur && cur.radius === p.radius) { cur.x = p.x; cur.z = p.z; continue; }
-      rallyPoints.upsert({ id, kind: 'event', x: p.x, z: p.z, inner: p.inner, radius: p.radius, strength: p.strength, crowd: p.crowd, label: p.label, actionWeights: { ...RALLY_DEFAULT_WEIGHTS.event, clap: 4, cheer: 3, flag_wave: 4 } });
+      if (cur && cur.radius === p.radius && (cur.sup ?? 0) === (p.sup ?? 0)) { cur.x = p.x; cur.z = p.z; continue; }
+      // rodada 10 — concentração de torcida: mais bandeira/palmas/percussão corporal (sem cantos), NPCs nas cores (RallyCrowd)
+      const sw: Record<string, number> = p.sup ? { flag_wave: 7, rhythm_clap: 5, arms_up: 4, jump_cheer: 2, banner_hold: 3 } : {};
+      rallyPoints.upsert({ id, kind: 'event', x: p.x, z: p.z, inner: p.inner, radius: p.radius, strength: p.strength, crowd: p.crowd, label: p.label, ...(p.sup ? { sup: p.sup } : {}), actionWeights: { ...RALLY_DEFAULT_WEIGHTS.event, clap: 4, cheer: 3, flag_wave: 4, ...sw } });
     }
     for (const id of this.pointIds) if (!ids.has(id)) rallyPoints.remove(id);
     this.pointIds = ids;
@@ -86,7 +90,8 @@ export class EventClient {
 
   private syncMap() {
     if (!this.map) return;
-    const marks: MapLike['eventMarks'] = this.points.map((p) => ({ x: p.x, z: p.z, color: '#ffd23f', label: p.label.toUpperCase(), r: 5 }));
+    // rodada 10 — concentração de torcida: cor principal e sigla da torcida (marcador AGREGADO do ponto, nunca de jogador)
+    const marks: MapLike['eventMarks'] = this.points.map((p) => { const g = p.sup ? supAt(supporterData(), p.sup) : null; return { x: p.x, z: p.z, color: g?.primaryColors[0] ?? '#ffd23f', label: (g?.shortName ?? p.label).toUpperCase(), r: g ? 4 : 5, ...(g ? { ring: g.primaryColors[1] ?? '#ffffff' } : {}) }; });
     if (this.raceDef) {
       const nx = this.nextTarget();
       for (const c of this.raceDef.cps) marks.push({ x: c.x, z: c.z, color: nx && nx.x === c.x && nx.z === c.z ? '#3dffa2' : 'rgba(61, 255, 162, 0.45)', r: nx && nx.x === c.x && nx.z === c.z ? 4 : 2.5 });

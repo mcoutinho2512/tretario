@@ -88,6 +88,8 @@ export interface JoinOptions extends IdentityJoinOptions {
   testGroup?: string;
   /** espectador: posição inicial da câmera (centro da área de interesse; o servidor prende aos limites) */
   specCam?: { x: number; z: number };
+  /** rodada 10 — torcida escolhida por quem NÃO tem conta (só vale na sessão; contas usam o perfil no banco) */
+  sup?: string;
   /** SOMENTE servidor de teste: bot de carga (métricas: testBots, nunca jogador) e conta fictícia de QA */
   bot?: boolean;
   testUser?: string;

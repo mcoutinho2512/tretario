@@ -2,7 +2,7 @@
 import { randomUUID } from 'node:crypto';
 import type {
   MuteRecord, AccessRecord, AuditRecord, CodeRecord, DataStore, EventGroupRecord, MembershipRecord, ModerationActionRecord, PaymentRecord,
-  ProfileRecord, ProgressionRecord, ProgressionSave, ReportRecord, SessionRecord, UserRecord,
+  ProfileRecord, ProgressionRecord, ProgressionSave, ReportRecord, SessionRecord, SupporterRecord, UserRecord,
 } from './types';
 
 const clone = <T>(x: T): T => (x === null || x === undefined ? x : structuredClone(x));
@@ -40,6 +40,19 @@ export class MemoryDataStore implements DataStore {
       if (!rec) throw new Error('usuário inexistente');
       Object.assign(rec, patch, { updatedAt: new Date() });
       return clone(rec);
+    },
+  };
+
+  /** rodada 10 — torcida (colunas novas do perfil): guardada à parte do ProfileRecord, mesma vida do perfil */
+  private sup = new Map<string, SupporterRecord>();
+  supporters = {
+    get: async (userId: string): Promise<SupporterRecord | null> => {
+      if (!this.p.has(userId)) return null;
+      return clone(this.sup.get(userId) ?? { group: null, pending: null, changedAt: null });
+    },
+    set: async (userId: string, rec: SupporterRecord) => {
+      if (!this.p.has(userId)) throw new Error('perfil inexistente');
+      this.sup.set(userId, clone(rec));
     },
   };
 
