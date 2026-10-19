@@ -193,15 +193,8 @@ try {
   await hit(A, '.ab-btn[data-cat=veiculos]');
   q = await bar(A);
   const useIt = q.items.find((i) => i.id === 'use');
-  check('Veículos: ponto no botão e "E — USAR …" quando há veículo perto; lista com distância', ready && useIt && /USAR|MONTAR|ENTRAR|DIRIGIR/.test(useIt.label) && q.items.some((i) => i.id === 'v_bicycle'), q.items.map((i) => i.label).join(' | '));
-  const far = q.items.find((i) => i.id.startsWith('v_') && i.id !== 'v_bicycle') ?? q.items.find((i) => i.id === 'v_bicycle');
-  if (far) {
-    await hit(A, `.ab-pop [data-id=${far.id}]`);
-    const hi = await ev(A, () => window.__pv.hudInfo());
-    check('entrada da lista → alvo no minimapa + mapa expandido (sem teleporte)', hi.target && hi.expanded, `${far.label} → alvo ${hi.target?.label}`);
-    await ev(A, () => window.__pv.toggleMap());
-  }
-  await hit(A, '.ab-btn[data-cat=veiculos]');
+  // rodada 12 — a lista agora é do veículo PESSOAL (selecionou → aparece; tools/qa/personal_vehicles_mp.mjs), sem distância
+  check('Veículos: ponto no botão e "E — USAR …" quando há veículo perto; veículos pessoais na lista', ready && useIt && /USAR|MONTAR|ENTRAR|DIRIGIR/.test(useIt.label) && ['v_scooter', 'v_bicycle', 'v_moto', 'v_car'].every((k) => q.items.some((i) => i.id === k)) && !q.items.some((i) => /\d+ m\b/.test(i.label)), q.items.map((i) => i.label).join(' | '));
   await hit(A, '.ab-pop [data-id=use]');
   const rode = await until(async () => (await ev(A, () => window.__pv.riding())) === 'bicycle', 5000);
   await w(400);

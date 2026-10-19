@@ -33,6 +33,13 @@ const SLOT: Record<string, string> = {
   title: svg('<path d="M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M7 6H4a3 3 0 0 0 3 4M17 6h3a3 3 0 0 1-3 4M12 14v4M8 21h8"/>'),
   sup: svg('<circle cx="12" cy="12" r="9"/><path d="M12 3v18M3 12h18"/>'),
 };
+/** rodada 12 — veículos pessoais */
+const VEH: Record<string, string> = {
+  scooter: svg('<circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M8.5 18h7M15 4h3l-1.5 14"/>'),
+  bicycle: svg('<circle cx="6" cy="16" r="3.5"/><circle cx="18" cy="16" r="3.5"/><path d="M6 16l4-7h5l3 7M10 9l2 7h-6M13 6h3"/>'),
+  moto: svg('<circle cx="5.5" cy="16" r="3"/><circle cx="18.5" cy="16" r="3"/><path d="M5.5 16h6l3-5h4l-2-3h-3M9 11h5"/>'),
+  car: svg('<path d="M3 15l2-5a2 2 0 0 1 2-1.5h10A2 2 0 0 1 19 10l2 5v3H3z"/><circle cx="7.5" cy="18" r="1.8"/><circle cx="16.5" cy="18" r="1.8"/><path d="M6 11.5h12"/>'),
+};
 export const LOCK = svg('<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>');
 export const BAG = svg('<path d="M5 8h14l-1 13H6z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/>');
 
@@ -40,5 +47,6 @@ export const BAG = svg('<path d="M5 8h14l-1 13H6z"/><path d="M9 8V6a3 3 0 0 1 6 
 export function iconHtml(e: Pick<InventoryEntry, 'key' | 'designId' | 'propId'>): string {
   if (e.designId) return `<span class="inv-sw" style="${shirtSwatch(DESIGN_BY_ID.get(e.designId))}"></span>`;
   if (e.propId) return KIND[PROP_BY_ID.get(e.propId)?.kind ?? ''] ?? BAG;
+  if (e.key.startsWith('veh:')) return VEH[e.key.slice(4)] ?? BAG; // rodada 12
   return SLOT[e.key.split(':')[0]] ?? BAG;
 }

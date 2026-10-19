@@ -22,6 +22,7 @@ bloqueados só enquanto aberto).
 | BANDEIRAS | artes de bandeira/cartaz/faixa (neutras, Brasil, grupos, evento, recompensas, futebol, campanhas dos DADOS) | 24 (4 bloqueadas: recompensas) | HAND |
 | EQUIPAMENTOS | itens de confronto (taco, barra, spray) — posse do servidor (ou `freeCombatProps`) | 3 | HAND |
 | TORCIDA | escolha da torcida + camisa + bandeira + faixa de cada uma (DADOS) | 16 | SUPPORTER/TORSO/HAND |
+| VEÍCULOS (rodada 12) | veículo pessoal: patinete, bicicleta, moto, carro (`veh:<tipo>`) — USAR AGORA = aparece junto e monta (`pveh_req`; o servidor decide ponto/estado/taxa); "equipado" = montado no seu pessoal desse tipo; DESCER desequipa | 4 | VEHICLE |
 | TÍTULOS | recompensas `title` de missões/conquistas | 3 (bloqueados até ganhar) | TITLE |
 | COSMÉTICOS | — sem conteúdo hoje → não aparece | 0 | — |
 
@@ -43,11 +44,13 @@ mão → livre, título → nenhum, torcida → neutro) sem obrigar a escolher o
 | mão (item, arte, equipamento) | `prop {p, d}` pelo `SocialController` (validateProp) |
 | título | `title {t}` (sala; conta grava em `Profile.titleKey`) — ou `PUT /api/me/title` |
 | torcida | conta: `saveSupporter` de main.ts (PUT /api/me/supporter); visitante: `sup {group}` |
+| veículo pessoal (rodada 12) | `pveh_req {kind, seq}` pelo `PersonalVehicleClient` (o painel fecha para ver surgir); `pveh_ok` / `pveh_denied` — docs/PERSONAL_VEHICLES.md |
 
 ## Acesso rápido 1–5
 
-Só itens de gameplay — seguráveis, equipamentos e artes de mão (`prop:<id>`, `design:<key>`); nunca roupa, acessório,
-título ou torcida (`quickbar.ts isQuickKey`). Teclas 1–5 (toggles `quick_1..5` do keymap; com a roda G aberta 1–4 são
+Só itens de gameplay — seguráveis, equipamentos, artes de mão (`prop:<id>`, `design:<key>`) e, rodada 12, veículos
+pessoais (`veh:<tipo>`: a tecla pede o veículo, que aparece e monta; de novo, montado, desce; slot aceso = montado no
+seu pessoal desse tipo); nunca roupa, acessório, título ou torcida (`quickbar.ts isQuickKey`). Teclas 1–5 (toggles `quick_1..5` do keymap; com a roda G aberta 1–4 são
 dela) ou clique no slot; de novo no mesmo = guardar. Troca guarda o anterior (a mão é uma só; o item de confronto
 possuído fica guardado, como no X). "FIXAR NO ACESSO RÁPIDO" no painel (botões 1–5); padrão: bandeira, cartaz,
 megafone. Layout do aparelho: `localStorage pv3d.quickbar` (try/catch; saneado na leitura). Slot aceso = item na mão

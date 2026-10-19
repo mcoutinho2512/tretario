@@ -141,7 +141,7 @@ pacote de ícones). Botões com `^` abrem um popover para cima; Esc, clique/toqu
 
 | Botão | O que faz (sempre pelo caminho de sempre) |
 |---|---|
-| **Veículos ^** | "USAR BICICLETA / SUBIR NO TRIO / descer…" quando há algo ao alcance (o texto da ação contextual do HUD; clique = tecla **E**) + o veículo livre mais perto de cada tipo com a distância (bicicleta, patinete, carro, moto, carro de som, trio pela escada). Clique na lista = alvo no minimapa + mapa expandido + aviso de distância; **sem teleporte**. Ponto amarelo no botão quando há veículo usável perto |
+| **Veículos ^** | "USAR BICICLETA / SUBIR NO TRIO / descer…" quando há algo ao alcance (o texto da ação contextual do HUD; clique = tecla **E**) + **Seu veículo** (rodada 12): Patinete · Bicicleta · Moto · Carro — escolher = o veículo PESSOAL **aparece junto e você já está montado** (`pveh_req`, docs/PERSONAL_VEHICLES.md); o mesmo de novo, montado, = descer. Nada de "o mais próximo está a 83 m". Ponto amarelo no botão quando há veículo usável perto |
 | **Itens ^** | as mesmas opções da categoria ITENS da roda (`itemOptions`): Mãos vazias, bandeiras/cartazes/faixa/…, e os itens de confronto oferecidos (`ItemsClient.wheelExtra`); ◀ design ▶ para o item na mão; tocar no item na mão de novo o larga |
 | **Pichar** | abre o editor de grafite se houver tapume/parede liberada perto (`graffiti.tryOpen`, o mesmo do **E**); senão aviso "Aproxime-se de um tapume ou parede liberada para pichar" |
 | **Confronto ^** | Soco (R), Chute (Q), Esquiva (C), Empurrão (F) — entram como as teclas (`input.queueToggle`); "Pegar rápido" Taco/Barra/Spray (`requestProp`, apagado se o servidor não oferece). No botão, duas linhas finas de condição/fôlego enquanto o HUD de confronto está à vista (lidas de `CombatHud.state`, nada recalculado) |
@@ -171,7 +171,7 @@ pacote de ícones). Botões com `^` abrem um popover para cima; Esc, clique/toqu
 QA `tools/qa/action_bar.mjs` (servidor de teste próprio; desktop 1280×720 + iPhone 14): 38 verificações — barra
 visível/ausente no espectador, cada popover abre e fecha (clique, Esc, fora, teclado), item → `prop` confirmado pelo
 servidor e largado pela barra, design pela barra, gesto confirmado, Soco/Chute sobem `combat().stats.acts`, Taco
-rápido, Mapa, Pichar (dica e editor), Veículos (E — USAR monta/desce, lista → alvo no mapa), Personagem, HUD limpo,
+rápido, Mapa, Pichar (dica e editor), Veículos (E — USAR monta/desce; rodada 12: lista = veículo pessoal, tools/qa/personal_vehicles_mp.mjs), Personagem, HUD limpo,
 esmaecer/voltar, roda G, e no celular ícones ≥ 44 px, AÇÕES oculto e nenhuma sobreposição (caixas) com joystick e
 botões. Capturas: `docs/screenshots/round9_1/menu_barra_desktop.jpg`, `menu_barra_popover.jpg`,
 `menu_barra_celular.jpg`, `menu_barra_celular_popover.jpg`.
@@ -383,3 +383,12 @@ caso) e multidão de bots: **17/17 sem sobreposição, sem corte e com o centro 
   personagem (`input.setMoveBlocked`) e o clique no cenário não interage.
 - Avisos curtos (sem modal) pelo canal de sempre (`flash`): "Você não possui este item.", "<item>: bloqueado — Nível 3",
   "Taco não pode ser usado nesta zona." (zona de paz), "Título: …", "Torcida atualizada.".
+
+## Veículo pessoal no HUD (rodada 12)
+
+Barra (Veículos → Seu veículo), inventário (VEÍCULOS → USAR AGORA) e acesso rápido (`veh:<tipo>` fixado) PEDEM o
+veículo pessoal; o servidor decide o ponto. Aviso curto de uma linha: "Patinete disponível" (montado) · "Carro
+disponível — ali do lado (9 m): E para entrar" (+ alvo "Seu carro" no minimapa) quando a porta ficou longe para montar
+sozinho · recusa: "Devagar — espere um instante…", "Sem lugar seguro aqui…", "Desça do veículo/trio primeiro",
+"Levante-se primeiro", "Este evento não permite esse veículo". O HUD do veículo (velocidade + SAIR/DESCER) é o mesmo
+da rodada 10. Detalhes: docs/PERSONAL_VEHICLES.md.

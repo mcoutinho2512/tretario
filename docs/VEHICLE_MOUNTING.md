@@ -135,6 +135,15 @@ ruído). Corpos longe (LOD ≥ 2) só posicionam a raiz.
 - `src/camera/ThirdPersonCamera.ts`: `setProfile` lê `MOUNT_PROFILES[kind].camera`.
 - Áudio: só `sfx('veh_door' | 'veh_mount')` nas transições; nenhum `audioLoop` (os laços são do AudioWorld do AGENTE D).
 
+## Veículo pessoal (rodada 12)
+O veículo pessoal ("selecionou → aparece", docs/PERSONAL_VEHICLES.md) usa exatamente esta montagem: o servidor monta
+pelo `mountVehicle` (o mesmo do `enter`) e desmonta pelo `dismountVehicle` (o mesmo do `exit`, saída segura) — inclusive
+na troca de tipo (desce com segurança antes de o novo surgir). Como ele nasce a 0,9–1,6 m (patinete/bicicleta/moto) e
+o carro com a porta virada para o avatar, o trecho a pé da entrada é curto; só monta sozinho quando a entrada está a
+≤ 3 m (`PERSONAL_AUTOMOUNT_MAX_M`) — mais longe o corpo deslizaria nos ≤ 45 % do `enterMs`, então o veículo só aparece
+e a entrada é pelo E. Remotos: `RideableSystem.addDynamic` cria a instância (mesmo modelo/cache) e o `MountTracker`
+anima `entering → mounted` como em qualquer veículo.
+
 ## Pendências
 - Passageiros (ver acima). Cabines do trio/carro de som opacas. Porta do carro sem animação de abrir.
 - Remoto que estava fora da vista (corpo instanciado) e volta à vista já montado aparece direto sentado (sem a entrada).

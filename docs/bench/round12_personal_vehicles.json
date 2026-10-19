@@ -1,0 +1,140 @@
+{
+  "date": "2026-10-19T22:16:58.796Z",
+  "port": 4230,
+  "perKind": {
+    "scooter": [
+      {
+        "okMs": 15.3,
+        "d": 0.9,
+        "mounted": true,
+        "bSeesMs": 153
+      }
+    ],
+    "bicycle": [
+      {
+        "okMs": 5.3,
+        "d": 1.1,
+        "mounted": true,
+        "bSeesMs": 66
+      }
+    ],
+    "moto": [
+      {
+        "okMs": 1.9,
+        "d": 1.6,
+        "mounted": true,
+        "bSeesMs": 66
+      }
+    ],
+    "car": [
+      {
+        "okMs": 15.1,
+        "d": 4,
+        "mounted": true,
+        "bSeesMs": 132
+      }
+    ]
+  },
+  "spam": {
+    "maxOwned": 1,
+    "taxa": 99
+  },
+  "results": [
+    {
+      "name": "B vê A na rede",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "barra → Veículos lista os pessoais (sem \"mais próximo: N m\")",
+      "ok": true,
+      "detail": "v_scooter,v_bicycle,v_moto,v_car"
+    },
+    {
+      "name": "scooter: selecionou → aparece (15.3 ms, 0.9 m do avatar) · B vê em 153 ms · A montado",
+      "ok": true,
+      "detail": "{\"last\":{\"kind\":\"scooter\",\"okMs\":15.3,\"mounted\":true,\"d\":0.9,\"id\":\"pveh_1\"},\"seen\":true,\"mountedForB\":true,\"rA\":{\"id\":\"pveh_1\",\"kind\":\"scooter\",\"owner\":\"zdSDLerYR\"}}"
+    },
+    {
+      "name": "HUD: \"Patinete disponível\"",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "bicycle: selecionou → aparece (5.3 ms, 1.1 m do avatar) · B vê em 66 ms · A montado",
+      "ok": true,
+      "detail": "{\"last\":{\"kind\":\"bicycle\",\"okMs\":5.3,\"mounted\":true,\"d\":1.1,\"id\":\"pveh_2\"},\"seen\":true,\"mountedForB\":true,\"rA\":{\"id\":\"pveh_2\",\"kind\":\"bicycle\",\"owner\":\"zdSDLerYR\"}}"
+    },
+    {
+      "name": "acesso rápido 4 aceso montado na bicicleta",
+      "ok": true,
+      "detail": "{\"on\":true,\"title\":\"4 — Bicicleta · Veículo pessoal · Na mão (aperte de novo para guardar)\"}"
+    },
+    {
+      "name": "moto: selecionou → aparece (1.9 ms, 1.6 m do avatar) · B vê em 66 ms · A montado",
+      "ok": true,
+      "detail": "{\"last\":{\"kind\":\"moto\",\"okMs\":1.9,\"mounted\":true,\"d\":1.6,\"id\":\"pveh_3\"},\"seen\":true,\"mountedForB\":true,\"rA\":{\"id\":\"pveh_3\",\"kind\":\"moto\",\"owner\":\"zdSDLerYR\"}}"
+    },
+    {
+      "name": "inventário fecha ao usar o veículo (para ver surgir)",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "troca: só 1 pessoal de A no mundo (patinete e bicicleta sumiram)",
+      "ok": true,
+      "detail": "[{\"id\":\"pveh_3\",\"kind\":\"moto\",\"owner\":\"zdSDLerYR\",\"x\":-792.61,\"z\":341.85,\"occupant\":\"zdSDLerYR\"}]"
+    },
+    {
+      "name": "car: selecionou → aparece (15.1 ms, 4 m do avatar) · B vê em 132 ms · A montado",
+      "ok": true,
+      "detail": "{\"last\":{\"kind\":\"car\",\"okMs\":15.1,\"mounted\":true,\"d\":4,\"id\":\"pveh_4\"},\"seen\":true,\"mountedForB\":true,\"rA\":{\"id\":\"pveh_4\",\"kind\":\"car\",\"owner\":\"zdSDLerYR\"}}"
+    },
+    {
+      "name": "carro: A dirigindo o próprio carro",
+      "ok": true,
+      "detail": "{\"id\":\"pveh_4\",\"kind\":\"car\",\"owner\":\"zdSDLerYR\"}"
+    },
+    {
+      "name": "spam: 100 pedidos forjados → ≤ 1 pessoal ativo, ≥ 95 recusas por taxa",
+      "ok": true,
+      "detail": "máx ativo 1, taxa 99"
+    },
+    {
+      "name": "abandono: some para A e B em 5123 ms (prazo 5000 ms + tick de 1 s)",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "sem erros de página",
+      "ok": true,
+      "detail": ""
+    }
+  ],
+  "summary": {
+    "scooter": {
+      "okMs": 15.3,
+      "d": 0.9,
+      "mounted": true,
+      "bSeesMs": 153
+    },
+    "bicycle": {
+      "okMs": 5.3,
+      "d": 1.1,
+      "mounted": true,
+      "bSeesMs": 66
+    },
+    "moto": {
+      "okMs": 1.9,
+      "d": 1.6,
+      "mounted": true,
+      "bSeesMs": 66
+    },
+    "car": {
+      "okMs": 15.1,
+      "d": 4,
+      "mounted": true,
+      "bSeesMs": 132
+    }
+  }
+}
