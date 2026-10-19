@@ -1,5 +1,5 @@
 {
- "when": "2026-10-19T01:44:07.865Z",
+ "when": "2026-10-19T14:02:33.638Z",
  "ok": 44,
  "total": 44,
  "results": [
@@ -16,7 +16,7 @@
   {
    "name": "onboarding: \"Toque ou clique nos objetos para interagir.\" aparece na 1ª oportunidade",
    "ok": true,
-   "detail": "Confronto liberado / Toque ou clique nos objetos para interagir. / Entrando… (aguardando o servidor) / Você está dirigindo (servidor confirmou)"
+   "detail": "Confronto liberado / Toque ou clique nos objetos para interagir. Botão direito + arrastar gira a câmera. / Entrando… (aguardando o servidor) / Você está dirigindo (servidor confirmou)"
   },
   {
    "name": "desktop car: HUD de veículo (velocidade + SAIR)",
@@ -121,7 +121,7 @@
   {
    "name": "clique em outro jogador → painel compacto com VER PERFIL / INTERAGIR / SILENCIAR / DENUNCIAR",
    "ok": true,
-   "detail": "Pessoa | Sem torcida escolhida | × | VER PERFIL | INTERAGIR | SILENCIAR | DENUNCIAR"
+   "detail": "Pessoa | Nível 1 · Sem torcida escolhida | × | VER PERFIL | INTERAGIR | SILENCIAR | DENUNCIAR"
   },
   {
    "name": "painel só com dados públicos (sem sessão/ids/e-mail)",
@@ -131,7 +131,7 @@
   {
    "name": "VER PERFIL: apelido + torcida pelos dados",
    "ok": true,
-   "detail": "Pessoa | Sem torcida escolhida | × | Apelido | Pessoa | Torcida | Nenhuma | Só dados públicos. Conta, e-mail e localização real nunca aparecem. | Voltar"
+   "detail": "Pessoa | Nível 1 · Sem torcida escolhida | × | Apelido | Pessoa | Título | Nenhum | Nível | 1 | Torcida | Nenhuma | Só dados públicos. Conta, e-mail e localização real nunca aparecem. | Voltar"
   },
   {
    "name": "INTERAGIR → gesto (Acenar) confirmado pelo servidor",

@@ -59,20 +59,20 @@
   },
   "after": {
     "label": "after",
-    "date": "2026-10-19T03:59:53.009Z",
+    "date": "2026-10-19T14:36:48.854Z",
     "warm": {
       "contextsCreated": 2,
       "contextsLive": 1,
-      "listeners": 143,
-      "nodes": 965,
-      "heapMB": 11.8
+      "listeners": 145,
+      "nodes": 988,
+      "heapMB": 12.3
     },
     "openClose30": {
       "contextsCreated": 2,
       "contextsLive": 1,
-      "listeners": 142,
-      "nodes": 966,
-      "heapMB": 13.2
+      "listeners": 144,
+      "nodes": 989,
+      "heapMB": 13.5
     },
     "previewInfoFirstLast": [
       {
@@ -139,15 +139,15 @@
         "calls": 10,
         "triangles": 30092
       },
-      "clothesMs": 5077,
-      "accessoriesMs": 4880
+      "clothesMs": 5062,
+      "accessoriesMs": 4865
     },
     "afterSequence": {
       "contextsCreated": 2,
       "contextsLive": 1,
-      "listeners": 142,
-      "nodes": 966,
-      "heapMB": 13.5
+      "listeners": 144,
+      "nodes": 989,
+      "heapMB": 13.9
     },
     "previewMemoryReport": {
       "renderer": {
@@ -171,12 +171,12 @@
     "cost": {
       "width": 1056,
       "height": 859,
-      "directMs": 1.85,
-      "renderTargetReadbackMs": 15.76
+      "directMs": 1.21,
+      "renderTargetReadbackMs": 6.2
     },
     "contextLoss": {
       "recovered": true,
-      "ms": 292,
+      "ms": 284,
       "info": {
         "renderersCreated": 2,
         "renderersLive": 1,
@@ -191,7 +191,7 @@
       }
     },
     "coldOpenMs": 244,
-    "warmOpenMs": 217,
+    "warmOpenMs": 208,
     "idle": {
       "afterClose": {
         "renderersCreated": 3,
@@ -209,62 +209,76 @@
     "pageErrors": [],
     "inGame": {
       "before": {
-        "geometries": 1191,
-        "textures": 182,
-        "materials": 1149,
-        "gpuEstMB": 632.1,
-        "rendererGeometries": 880,
-        "rendererTextures": 676,
+        "geometries": 1025,
+        "textures": 141,
+        "materials": 464,
+        "gpuEstMB": 510.9,
+        "rendererGeometries": 688,
+        "rendererTextures": 255,
         "programs": 136,
         "contextsCreated": 5,
         "contextsLive": 1,
-        "listeners": 293,
-        "nodes": 1686,
-        "heapMB": 91.4
+        "listeners": 341,
+        "nodes": 1834,
+        "heapMB": 70.3
+      },
+      "afterFirstOpen": {
+        "geometries": 1048,
+        "textures": 148,
+        "materials": 537,
+        "gpuEstMB": 521.4,
+        "rendererGeometries": 708,
+        "rendererTextures": 301,
+        "programs": 138,
+        "contextsCreated": 6,
+        "contextsLive": 2,
+        "listeners": 346,
+        "nodes": 1835,
+        "heapMB": 72.9
       },
       "after10": {
-        "geometries": 1174,
-        "textures": 183,
-        "materials": 954,
-        "gpuEstMB": 630.1,
-        "rendererGeometries": 863,
-        "rendererTextures": 548,
-        "programs": 135,
+        "geometries": 1052,
+        "textures": 150,
+        "materials": 567,
+        "gpuEstMB": 526,
+        "rendererGeometries": 714,
+        "rendererTextures": 322,
+        "programs": 138,
         "contextsCreated": 6,
         "contextsLive": 2,
-        "listeners": 298,
-        "nodes": 1692,
-        "heapMB": 90.7
+        "listeners": 346,
+        "nodes": 1837,
+        "heapMB": 73.6
       },
       "controlSameTimeNoEditor": {
-        "geometries": 1176,
-        "textures": 184,
-        "materials": 970,
-        "gpuEstMB": 638.8,
-        "rendererGeometries": 865,
-        "rendererTextures": 559,
-        "programs": 135,
+        "geometries": 1055,
+        "textures": 150,
+        "materials": 584,
+        "gpuEstMB": 529.2,
+        "rendererGeometries": 716,
+        "rendererTextures": 336,
+        "programs": 138,
         "contextsCreated": 6,
         "contextsLive": 2,
-        "listeners": 298,
-        "nodes": 1693,
-        "heapMB": 91.5
+        "listeners": 346,
+        "nodes": 1836,
+        "heapMB": 74.4
       },
-      "cycleMs": 6548,
+      "cycleMs": 5617,
       "framesClosed": {
-        "frames": 181,
-        "avgMs": 16.65,
-        "p95Ms": 17.9
+        "frames": 180,
+        "avgMs": 16.72,
+        "p95Ms": 18.6
       },
       "framesOpen": {
-        "frames": 181,
-        "avgMs": 16.67,
-        "p95Ms": 17.8
+        "frames": 180,
+        "avgMs": 16.66,
+        "p95Ms": 18.7
       }
     }
   },
   "qa": {
-    "date": "2026-10-19T04:01:02.540Z",
+    "date": "2026-10-19T14:37:57.469Z",
     "pass": 32,
     "total": 32,
     "results": [
@@ -341,7 +355,7 @@
       {
         "name": "prévia: gira com arrasto e aproxima com a roda",
         "ok": true,
-        "detail": "yaw -0.35→3.11, zoom 0.60"
+        "detail": "yaw -0.35→3.10, zoom 0.60"
       },
       {
         "name": "prévia: costas",
@@ -396,7 +410,7 @@
       {
         "name": "30× abrir/fechar: ouvintes e nós estáveis",
         "ok": true,
-        "detail": "ouvintes 143→142, nós 965→966, heap 11.8→13.2 MB"
+        "detail": "ouvintes 145→144, nós 988→989, heap 12.3→13.5 MB"
       },
       {
         "name": "20 roupas + 20 acessórios (2 rodadas): só o cache de peças da 1ª; a 2ª não cresce",
@@ -406,12 +420,12 @@
       {
         "name": "depois da sequência: ouvintes estáveis",
         "ok": true,
-        "detail": "143→142"
+        "detail": "145→144"
       },
       {
         "name": "perda de contexto: renderer recriado e volta a desenhar",
         "ok": true,
-        "detail": "{\"recovered\":true,\"ms\":292,\"info\":{\"renderersCreated\":2,\"renderersLive\":1,\"contextsLost\":1,\"handlesLive\":1,\"handlesCreated\":33,\"geometries\":11,\"textures\":20,\"programs\":10,\"calls\":10,\"triangles\":31474}}"
+        "detail": "{\"recovered\":true,\"ms\":284,\"info\":{\"renderersCreated\":2,\"renderersLive\":1,\"contextsLost\":1,\"handlesLive\":1,\"handlesCreated\":33,\"geometries\":11,\"textures\":20,\"programs\":10,\"calls\":10,\"triangles\":31474}}"
       },
       {
         "name": "sem erros na página (editor)",
@@ -421,12 +435,12 @@
       {
         "name": "no jogo: editor abre como overlay (o jogo segue por baixo)",
         "ok": true,
-        "detail": "quadros do jogo com o editor aberto: {\"frames\":181,\"avgMs\":16.67,\"p95Ms\":17.8}; fechado {\"frames\":181,\"avgMs\":16.65,\"p95Ms\":17.9}"
+        "detail": "quadros do jogo com o editor aberto: {\"frames\":180,\"avgMs\":16.66,\"p95Ms\":18.7}; fechado {\"frames\":180,\"avgMs\":16.72,\"p95Ms\":18.6}"
       },
       {
         "name": "no jogo: 10× abrir/fechar — só 1 contexto de prévia (reutilizado), renderer do jogo sem crescer além do controle",
         "ok": true,
-        "detail": "Δ editor: contextos +1, geo -17, tex -128, prog -1, ouvintes 5 · Δ controle: geo 2, tex 11"
+        "detail": "Δ editor: contextos +0, geo 6, tex 21, prog 0, ouvintes 0 · Δ controle: geo 2, tex 14"
       }
     ]
   }

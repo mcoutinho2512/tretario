@@ -1,6 +1,74 @@
 # STATUS — Presidente Vargas 3D
 
-_Atualizado em 2026-10-19 (rodada 10: torcidas, clique/toque, avatar nos veículos, áudio espacial, animações de combate)._
+_Atualizado em 2026-10-19 (rodada 11: desktop first — cursor sempre visível, inventário, editor, gráficos)._
+
+## Rodada 11 — desktop first, cursor sempre visível, inventário, editor e gráficos
+
+Quatro frentes sobre contratos comuns (`src/input/keymap.ts`, `src/ui/escStack.ts`, `src/inventory/types.ts`):
+[DESKTOP_CONTROLS.md](DESKTOP_CONTROLS.md), [INVENTORY.md](INVENTORY.md), [EQUIPMENT_SYSTEM.md](EQUIPMENT_SYSTEM.md),
+[INTERACTION_SYSTEM.md](INTERACTION_SYSTEM.md), [HUD.md](HUD.md), [PERFORMANCE.md](PERFORMANCE.md), [CHARACTERS.md](CHARACTERS.md).
+
+- **Controles**: nenhum `requestPointerLock` no código; cursor sempre visível. Clique esquerdo (≤ 6 px / 400 ms) =
+  selecionar/interagir; botão direito segurado + arrastar = câmera (esquerdo arrastando também, para trackpad); roda =
+  zoom. Dirigindo, a câmera segue o rumo e volta atrás do veículo 1 s depois de soltar o botão direito. Teclas:
+  WASD, Shift, Espaço, E usar, R/Q/C/F confronto (clique nunca soca), T/Z/X itens, **I inventário**, **1–5 acesso
+  rápido**, G roda, Enter chat, M mapa, H/P HUD limpo, F1 controles, F3 desempenho. Esc com pilha única (modal →
+  inventário → painel → menu do jogo: Continuar, Configurações, Controles, Áudio, Gráficos, Sair; o mundo não pausa).
+  Tela de controles com remapeamento local. Campos de texto (inclusive SELECT) bloqueiam atalhos.
+- **Seleção**: sem raycast contra malhas; com 500 bots em cena, 16 candidatos por quadro (nunca 500), hover
+  0,009–0,013 ms/quadro, clique 0,003 ms; objeto distante é identificado ("CARRO · longe") mas não usado.
+- **Inventário** (I ou botão no HUD): só categorias com conteúdo real — Roupas 26, Acessórios 5, Itens 4,
+  Manifestação 6, Bandeiras 24, Equipamentos 3, Torcida 16, Títulos 3; filtros Todos/Equipados/Desbloqueados/Novos;
+  slots HEAD/TORSO/LEGS/FEET/ACCESSORY/HAND/TITLE/SUPPORTER; equipar/desequipar com prévia 3D; acesso rápido 1–5 por
+  tecla e clique; o servidor recusa item bloqueado/não possuído mesmo com DevTools (aparência estrita, arte, confronto,
+  título). Título equipado persistido (migration expand `Profile.titleKey`); **nível e título públicos** no painel da
+  pessoa (`NetPlayer.lvl`, `NetPlayer.title`).
+- **Editor de personagem** de jogo (abas Corpo, Cabelo, Camisa, Calça/short, Calçado, Acessórios, Torcida; cadeados
+  com motivo; desfazer/refazer/restaurar) e **prévia 3D compartilhada** (um 2º contexto WebGL reutilizado: 1,85 ms por
+  quadro × 15,8 ms se desenhada no renderer do jogo). Corrigido defeito antigo: a prévia ficava "indisponível" ao
+  reabrir o editor na mesma página.
+- **Gráficos e interface**: preset e limite de FPS (30 / 60 / sem limite) aplicados ao vivo; ULTRA com MSAA 4× e
+  anisotropia 16× (o automático nunca escolhe ULTRA); detecção por capacidades reais (sem penalizar o Safari); ajustes
+  com abas (Geral, Áudio, Gráficos, Interface, Controles); escala da interface 80–125 %; reduzir movimento; indicador
+  de zona permanente; avisos curtos de ação bloqueada; HUD sem sobreposição em 1366×768, 1440×900, 1920×1080,
+  2560×1440 (17/17 layouts).
+
+**QA de integração (master integrado, 2026-10-19)**: `npm run verify` 837/837; `test:db` 22/22; 18 roteiros verdes —
+os 13 da rodada 10 (walkthrough 36/36, vehicles 24/24, vehicle_mount 26/26, interaction 44/44, supporters 10/10,
+audio 27/27, combat 37/37, action_bar 38/38, social 12/12, trio 24/24, reconnect 18/18, items_zones 35/35, events
+32/32) e os 5 da 11 (desktop_input 46/46 — `pointerLockElement` nulo em 14 situações; inventory 30/30; editor_preview
+32/32; desktop_graphics 17/17; selection_500). Corrigidos na integração: popover da barra de ações escondido pelo
+botão INVENTÁRIO; foco perdido ao fechar a barra com Esc; testes de servidor com portas sobrepostas (portas livres de
+verdade em `tests/fixtures/freePort.ts`); teste de denúncia dependente de ordem assíncrona.
+
+**Desempenho 10 × 11** (mesma máquina, `docs/bench/round11_compare_*.json`): servidor 500 densos tick 7,5 → 7,6 ms,
+CPU 32 → 30 %; 50 veículos 0,41 → 0,38 ms; banda igual. Cliente (M5 Pro, sem vsync) FPS 10 → 11:
+
+| bots | LOW | MEDIUM | HIGH | ULTRA |
+|---|---|---|---|---|
+| 50 | 464 → 481 | 237 → 242 | 94 → 94 | 76 → 77 |
+| 250 | 427 → 430 | 222 → 232 | 80 → 81 | 63 → 63 |
+| 500 | 410 → 459 | 219 → 212 | 78 → 77 | 63 → 60 |
+
+Sem regressão (diferenças no ruído). Draw calls e triângulos iguais (HIGH 500 bots: 1525 → 1513 chamadas).
+
+**Soak de 48 min** (build de produção, `SOAK_R11=1`: mouse e teclado reais — botão direito girando a câmera,
+varredura de hover, inventário com seleção/prévia/equipar/desequipar, acesso rápido 1–3, menu do jogo e ajustes pelo
+Esc — mais tudo da rodada 10: 60 bots sociais/confronto + 10 dirigindo, torcida, veículos, áudio, espectador, chat,
+eventos; `screenshots/soak/round11b.json`): **estabilizou**. Heap pós-GC 71 → 93 MB no aquecimento e 94–102 MB depois
+(+0,19 MB/min nos últimos 28 min, ruído de GC); GPU sem pós-processamento 534 → ~690 MB e plana (690–714 MB,
++0,4 MB/min); listeners 339–351; intervals 1–2; AudioNodes vivos 115–118; FPS 57–58; **`pointerLock` = 0 em todas as
+amostras**. DOM 2027 → 2198: histórico do chat (limitado a 200 linhas). Um 1º soak (`round11.json`) acusou +10 MB/min
+de GPU: era o medidor — a prévia 3D descarta o 2º contexto WebGL após 15 s ocioso e o navegador libera ~51 MB por
+abertura sem `deleteTexture`; o livro-razão de QA agora tira da conta os objetos de contextos perdidos (sonda de 6
+ciclos: total real plano, +51 MB/ciclo expurgados).
+
+**Limites conhecidos (rodada 11)**: sem menu contextual no botão direito curto (a câmera tem prioridade); sem modo
+opcional "capturar mouse"; botões do mouse não são remapeáveis; não há arrastar do inventário para o acesso rápido
+(fixa-se pelos botões 1–5); a prévia 3D custa ~93 MB de GPU enquanto aberta (2º contexto); aviso "Taco não pode ser
+usado nesta zona" só aparece em zona de paz (hoje a avenida toda é confronto); navegadores reais nesta máquina: só
+Chrome e Safari — Firefox/Edge não testados de verdade (ver smoke por motor abaixo).
+
 
 ## Rodada 10 — torcidas, interação direta, veículos montáveis, áudio e animação
 

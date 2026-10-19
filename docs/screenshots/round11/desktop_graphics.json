@@ -10,7 +10,7 @@
           "name": "hud-tl",
           "l": 11,
           "t": 11,
-          "r": 269,
+          "r": 258,
           "b": 145
         },
         {
@@ -81,7 +81,7 @@
           "name": "hud-tl",
           "l": 14,
           "t": 14,
-          "r": 336,
+          "r": 323,
           "b": 182
         },
         {
@@ -373,7 +373,7 @@
           "l": 528,
           "t": 13,
           "r": 912,
-          "b": 135
+          "b": 229
         },
         {
           "name": "hud-tr",
@@ -586,7 +586,7 @@
           "l": 528,
           "t": 13,
           "r": 912,
-          "b": 135
+          "b": 229
         },
         {
           "name": "hud-tr",
@@ -650,7 +650,7 @@
           "l": 11,
           "t": 11,
           "r": 275,
-          "b": 200
+          "b": 212
         },
         {
           "name": "hud-tc",
@@ -728,7 +728,7 @@
           "l": 13,
           "t": 13,
           "r": 310,
-          "b": 224
+          "b": 238
         },
         {
           "name": "hud-tc",
@@ -806,7 +806,7 @@
           "l": 14,
           "t": 14,
           "r": 344,
-          "b": 251
+          "b": 266
         },
         {
           "name": "hud-tc",
@@ -884,7 +884,7 @@
           "l": 15,
           "t": 15,
           "r": 378,
-          "b": 275
+          "b": 292
         },
         {
           "name": "hud-tc",
@@ -962,7 +962,7 @@
           "l": 18,
           "t": 18,
           "r": 430,
-          "b": 314
+          "b": 333
         },
         {
           "name": "hud-tc",
@@ -1040,7 +1040,7 @@
           "l": 11,
           "t": 11,
           "r": 275,
-          "b": 200
+          "b": 212
         },
         {
           "name": "hud-tc",
@@ -1118,7 +1118,7 @@
           "l": 14,
           "t": 14,
           "r": 344,
-          "b": 251
+          "b": 266
         },
         {
           "name": "hud-tc",
@@ -1196,7 +1196,7 @@
           "l": 18,
           "t": 18,
           "r": 430,
-          "b": 314
+          "b": 333
         },
         {
           "name": "hud-tc",
@@ -1275,9 +1275,9 @@
         "desligar a suavização nativa (economia de GPU)",
         "detalhe das fachadas já carregadas"
       ],
-      "fps": 59.99999999999999,
-      "calls": 323,
-      "trianglesK": 600,
+      "fps": 59.50609937624125,
+      "calls": 317,
+      "trianglesK": 539,
       "applied": "Em uso: Baixa",
       "note": "Aplicado na hora, exceto desligar a suavização nativa (economia de GPU), detalhe das fachadas já carregadas: vale ao recarregar. Recarregar agora",
       "sameDocument": true
@@ -1289,9 +1289,9 @@
       "far": 2600,
       "anisotropy": 4,
       "reloadFor": [],
-      "fps": 59.99999999999999,
+      "fps": 59.99700014927731,
       "calls": 618,
-      "trianglesK": 1317,
+      "trianglesK": 1315,
       "applied": "Em uso: Média · aplicado na hora, sem recarregar",
       "note": "",
       "sameDocument": true
@@ -1299,15 +1299,15 @@
     {
       "preset": "high",
       "level": "high",
-      "applyMs": 12,
+      "applyMs": 6,
       "far": 3400,
       "anisotropy": 8,
       "reloadFor": [
         "multidão completa"
       ],
-      "fps": 60.01800540054696,
-      "calls": 1423,
-      "trianglesK": 3468,
+      "fps": 59.99999999999999,
+      "calls": 1437,
+      "trianglesK": 3477,
       "applied": "Em uso: Alta",
       "note": "Aplicado na hora, exceto multidão completa: vale ao recarregar. Recarregar agora",
       "sameDocument": true
@@ -1315,15 +1315,15 @@
     {
       "preset": "ultra",
       "level": "ultra",
-      "applyMs": 5,
+      "applyMs": 4,
       "far": 3800,
       "anisotropy": 16,
       "reloadFor": [
         "multidão completa"
       ],
-      "fps": 60.02400960419945,
-      "calls": 1548,
-      "trianglesK": 3885,
+      "fps": 59.97900734778578,
+      "calls": 1530,
+      "trianglesK": 3843,
       "applied": "Em uso: Ultra",
       "note": "Aplicado na hora, exceto multidão completa: vale ao recarregar. Recarregar agora",
       "sameDocument": true
@@ -1337,9 +1337,9 @@
       "reloadFor": [
         "multidão completa"
       ],
-      "fps": 60.02701215475406,
-      "calls": 1395,
-      "trianglesK": 3440,
+      "fps": 59.99100134944001,
+      "calls": 1387,
+      "trianglesK": 3408,
       "applied": "Em uso: Alta",
       "note": "Aplicado na hora, exceto multidão completa: vale ao recarregar. Recarregar agora",
       "sameDocument": true
@@ -1366,8 +1366,8 @@
       "vsync": true,
       "choice": "unlimited",
       "limit": 0,
-      "frames": 180,
-      "meanMs": 16.67,
+      "frames": 181,
+      "meanMs": 16.66,
       "fps": 60
     },
     {
@@ -1375,7 +1375,7 @@
       "choice": "30",
       "limit": 30,
       "frames": 90,
-      "meanMs": 33.33,
+      "meanMs": 33.34,
       "fps": 30
     },
     {
@@ -1390,16 +1390,16 @@
       "vsync": false,
       "choice": "unlimited",
       "limit": 0,
-      "frames": 1328,
-      "meanMs": 2.26,
-      "fps": 441.8
+      "frames": 1388,
+      "meanMs": 2.16,
+      "fps": 462.1
     },
     {
       "vsync": false,
       "choice": "60",
       "limit": 60,
-      "frames": 174,
-      "meanMs": 17.34,
+      "frames": 173,
+      "meanMs": 17.32,
       "fps": 57.7
     }
   ],
