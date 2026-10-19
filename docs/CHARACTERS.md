@@ -153,6 +153,40 @@ osso. Verificado numericamente: direção dos ossos dos membros idêntica à ori
 5. `sh tools/character/pack.sh <saida>` → `public/characters/`.
 Página de teste (só desenvolvimento): `/dev/human.html?body=mulher&cam=lods`.
 
+## Editor de personagem (rodada 11)
+Tela "de jogo" para o DESKTOP (mouse, cursor livre): painel lateral com abas e o avatar grande ao lado. A mesma tela
+abre na home (antes de entrar; passo 2 do cadastro) e como overlay no jogo (o mundo segue por baixo; o pointer lock é
+solto ao abrir). No celular as abas viram uma faixa rolável e o avatar fica em cima (secundário, continua usável).
+
+- **Abas** (`EDITOR_TABS` em `src/ui/editor/editorState.ts`): CORPO (corpo, nome/apelido, pele) · CABELO (corte, cor) ·
+  CAMISA (modelo, cor lisa, camisas de futebol/designs) · CALÇA/SHORT · CALÇADO · ACESSÓRIOS (acessório + cor) ·
+  TORCIDA. A aba com alteração não salva ganha um ponto; trocar de aba aproxima a câmera quando faz sentido (cabelo,
+  acessório de cabeça).
+- **Torcida** dentro do editor, sem duplicar lógica: os cartões são os da tela TORCIDA (`supporterCard`), "Vestir as
+  cores" é o `supporterOutfit` (camisa da torcida + cores sugeridas) e a gravação é a mesma da tela TORCIDA
+  (`saveSupporter` em `main.ts`: servidor com cooldown/pendência durante evento; sem conta, só a sessão). A escolha de
+  torcida entra no histórico do editor e é salva junto com a aparência.
+- **Cadeados**: item não liberado mostra 🔒 e o motivo da progressão no próprio botão ("Nível 3", "Missão: …";
+  `requirementOf` do catálogo — sem loja). Clicar mostra o item **só na prévia** ("experimentar") e explica o requisito;
+  o visual do editor não muda.
+- **Desfazer / Refazer / Restaurar** (`EditorHistory`): Ctrl/⌘+Z, Ctrl+Shift+Z/Ctrl+Y, botões no rodapé; "Restaurar"
+  volta ao visual salvo e também pode ser desfeito. **Salvar** grava (servidor valida com `validateAppearance` + direitos
+  e devolve o que aceitou) e **Cancelar**/Esc descarta. Esc pela pilha única (`pushEsc({ id: 'editor', priority: 200 })`),
+  sem listener próprio. "Surpreenda-me" continua (mesmas regras da multidão).
+- **Arquivos**: HTML estático em `index.html` (`#start`), lógica de interface em `src/ui/editor/CharacterEditor.ts`,
+  estado puro em `src/ui/editor/editorState.ts` (tests/editorState.test.ts), estilo em `src/ui/editor/editor.css`;
+  `main.ts` só cria o editor e faz a gravação (bloco "rodada 11 — editor").
+- **QA**: `tools/qa/editor_preview.mjs` (32 verificações: cada categoria, bloqueado, desfazer, torcida nos 4 corpos,
+  gira/zoom, salvar → recarregar → persistiu, Esc, 1366×768, celular, vazamento, perda de contexto, overlay no jogo).
+  Capturas em `docs/screenshots/round11/` (L_roupas_editor, M_torcida_editor, P_preview_3d, W_1366x768_editor).
+
+### Prévia 3D
+A prévia do editor é a prévia reutilizável `createSharedPreview` (`src/ui/preview/sharedPreview.ts`; contrato
+`AvatarPreviewHandle`), descrita em `docs/INVENTORY.md` → "Prévia 3D". Ela substitui o `AvatarPreview` da rodada 8
+no editor (o arquivo antigo fica até o inventário migrar do adaptador provisório). A rodada 10 tinha um defeito: ao
+fechar o editor o contexto do canvas era forçado a perder-se e, na reabertura na mesma página, a prévia ficava
+"indisponível" (30 de 30 reaberturas no bench) e cada abertura deixava 3 ouvintes para trás.
+
 ## Limitações conhecidas
 - Sem animação facial (piscar, fala) nesta fase; rosto neutro.
 - O tom de pele é um multiplicador sobre texturas de pele clara: tons muito escuros perdem um pouco de detalhe.
