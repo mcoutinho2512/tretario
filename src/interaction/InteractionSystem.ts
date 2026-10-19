@@ -158,11 +158,16 @@ export class InteractionSystem {
 
   private deny(msg: string) { this.stats.denied++; sfx('ui_denied'); this.host.notify(msg); }
 
-  /** projeção de um candidato (px de cliente) + raio do objeto em px */
-  project(c: Interactable): ScreenHit | null {
+  /**
+   * projeção de um candidato (px de cliente) + raio do objeto em px. `at = 'pick'`: o CENTRO do objeto (entre o chão
+   * e a altura do realce `y`) — é onde o dedo/cursor mira; `'label'`: a altura do realce (o rótulo fica acima do
+   * objeto, sem cobrir o próprio alvo).
+   */
+  project(c: Interactable, at: 'pick' | 'label' = 'pick'): ScreenHit | null {
     const cam = this.host.camera;
     cam.updateMatrixWorld();
-    const v = this.v.set(c.x, c.y, c.z);
+    const g = at === 'pick' ? this.host.ground(c.x, c.z) : 0;
+    const v = this.v.set(c.x, at === 'pick' ? g + (c.y - g) * 0.55 : c.y, c.z);
     const dist = cam.position.distanceTo(v);
     if (dist > COLLECT_RADIUS_M + 15) return null;
     v.project(cam);
@@ -189,7 +194,7 @@ export class InteractionSystem {
     const keyHint = !this.host.touch && c === this.current ? 'E · ' : '';
     if (this.labelText.set(keyHint + highlightText(c, reach))) this.stats.labelWrites++;
     setClass(this.label, 'dim', !reach || c.availability !== 'available');
-    const h = this.project(c);
+    const h = this.project(c, 'label');
     if (!h) { if (!this.label.hidden) this.label.hidden = true; return; }
     const pos = `translate3d(${Math.round(h.sx)}px, ${Math.round(h.sy)}px, 0) translate(-50%, -100%)`;
     if (pos !== this.labelPos) { this.labelPos = pos; this.label.style.transform = pos; }

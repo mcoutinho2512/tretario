@@ -87,12 +87,21 @@ describe('toque × arrasto (TapTracker)', () => {
     const t = new TapTracker();
     t.begin(1, 0, 0, 0);
     expect(t.end(1, 0, 0, TAP_MAX_MS + 1)).toBeNull();
-    t.begin(2, 0, 0, 0); t.begin(3, 50, 50, 0); t.cancelAll();
+    t.begin(2, 0, 0, 0); t.begin(3, 50, 50, 0); // 2º dedo enquanto o 1º está na tela: pinça
     expect(t.end(2, 0, 0, 50)).toBeNull();
     expect(t.end(3, 50, 50, 50)).toBeNull();
     t.begin(4, 0, 0, 0); t.forget(4);
     expect(t.end(4, 0, 0, 10)).toBeNull();
     expect(t.origin(9)).toBeNull();
+    // joystick (solo) segurado + toque com o outro polegar: vale como toque
+    t.begin(7, 20, 300, 0, true);
+    t.begin(8, 300, 300, 10);
+    expect(t.end(8, 301, 300, 100)).toBe('tap');
+    t.forget(7);
+    // dedo "perdido" (sem touchend) há mais de 5 s não trava os toques seguintes
+    t.begin(5, 0, 0, 0);
+    t.begin(6, 10, 10, 6000);
+    expect(t.end(6, 10, 10, 6100)).toBe('tap');
   });
 });
 

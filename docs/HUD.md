@@ -22,6 +22,8 @@ centro inferior (só jogador) — ver [Barra de ações](#barra-de-ações-rodad
 | `tools/qa/hud_shots.mjs` | capturas N–U + custo medido do HUD (`docs/screenshots/round8/hud_metrics.json`) |
 | `tests/hud.test.ts` | LOD dos nomes, zonas com histerese, grade de densidade, portões/AutoHide, preferências |
 | `tests/actionBar.test.ts` | popover (alternar, clique fora, teclado), veículos perto, dica, opções compartilhadas |
+| `src/ui/hud/VehicleHud.ts` | rodada 10: HUD do veículo (velocidade + SAIR) |
+| `src/ui/PersonPanel.ts` | rodada 10: painel compacto da pessoa (clique/toque em outro jogador) |
 
 ## Layout
 
@@ -168,6 +170,27 @@ rápido, Mapa, Pichar (dica e editor), Veículos (E — USAR monta/desce, lista 
 esmaecer/voltar, roda G, e no celular ícones ≥ 44 px, AÇÕES oculto e nenhuma sobreposição (caixas) com joystick e
 botões. Capturas: `docs/screenshots/round9_1/menu_barra_desktop.jpg`, `menu_barra_popover.jpg`,
 `menu_barra_celular.jpg`, `menu_barra_celular_popover.jpg`.
+
+## Interação contextual e HUD de veículo (rodada 10)
+
+Detalhes em [INTERACTION_SYSTEM.md](INTERACTION_SYSTEM.md). No HUD:
+
+- **A pé**: a ação contextual (`hudShell.setPrompt`) vem do alvo do `InteractionSystem` — "E — ENTRAR NO CARRO",
+  "E — MONTAR NA BICICLETA", "E — USAR O PATINETE", "E — SUBIR NO TRIO", "E — PEGAR TACO", "E — PICHAR A PAREDE" (no toque
+  sem o "E —"; o botão USAR aparece com ela). Realce **só no alvo**: anel leve no chão + rótulo curto ("CARRO · Entrar",
+  desktop "E · CARRO · Entrar"); no desktop com o mouse solto, o objeto sob o cursor (com cursor de clique). Pessoas
+  não ganham realce sozinhas (só ao passar o mouse/clicar). HUD limpo (H/P) esconde o rótulo.
+- **Em veículo** (`src/ui/hud/VehicleHud.ts`, `mountOverlay`): velocidade ("CARRO · 23 km/h", ≤ 5 Hz, só escreve quando
+  muda) + **SAIR**/**DESCER**. Desktop: centro inferior, acima da barra; a ação contextual mostra as teclas do veículo.
+  Toque: SAIR grande (84 px) no lugar do PULAR; PULAR, USAR e SOCO/CHUTE/ESQUIVA somem (`TouchControls.setRiding`);
+  velocidade e "joystick ↑ acelera · ↓ freia/ré · ←→ vira" na coluna da direita, acima do SAIR, sem cobrir joystick,
+  CORRER nem CHAT. Controles de veículo no toque: o próprio joystick (decisão documentada em INTERACTION_SYSTEM.md).
+- **Com item**: a pílula MÃOS continua a fonte única do "equipado" (o mesmo `prop` confirmado pelo servidor que o corpo
+  mostra).
+- **Pessoa**: clique/toque em outro jogador abre o `PersonPanel` (centro inferior, acima da barra; no toque um pouco mais
+  alto; botões ≥ 44 px): VER PERFIL, INTERAGIR, SILENCIAR, DENUNCIAR. Abrir solta o mouse; fechar recaptura (como os
+  outros modais).
+- **Onboarding**: "Toque ou clique nos objetos para interagir." uma vez por aparelho.
 
 ## HUD de confronto (rodada 9)
 

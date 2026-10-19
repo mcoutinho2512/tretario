@@ -11,6 +11,8 @@ Mesma separação do jogador: **estado** (`RideableState`, serializável, com `o
 | Automóvel | 🔨 definido (`RIDEABLE_DEFS.car`, pose `drive`) | 14 / 18 m/s | sem spawn/modelo ainda; não pode subir na calçada |
 
 Controles: **E** sobe/desce, **W/S** acelera/freia, **A/D** vira, **Shift** mais rápido. No toque, botão **USAR**.
+Rodada 10: também **clique/toque no veículo** (e SAIR no HUD do veículo) — `InteractionSystem`, ver
+[INTERACTION_SYSTEM.md](INTERACTION_SYSTEM.md).
 O evento ativo decide quais veículos existem (`EventDef.vehicles`). No multiplayer, o modo (`bicycle`/`scooter`)
 altera a velocidade máxima aceita pelo servidor, e os remotos aparecem montados.
 

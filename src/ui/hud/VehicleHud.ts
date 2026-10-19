@@ -35,7 +35,7 @@ export class VehicleHud {
     this.hint = document.createElement('div');
     this.hint.className = 'veh-hint';
     // desktop: a ação contextual do HUD já mostra as teclas do veículo (RIDE_HELP); toque: a dica do joystick
-    this.hint.textContent = 'joystick: ↑ acelerar · ↓ frear/ré · ← → virar · CORRER mais rápido';
+    this.hint.textContent = 'joystick ↑ acelera · ↓ freia/ré · ←→ vira';
     el.append(this.speed, b);
     if (touch) el.append(this.hint);
   }

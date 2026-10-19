@@ -89,6 +89,7 @@ import { PersonPanel } from '../ui/PersonPanel';
 import { VehicleHud } from '../ui/hud/VehicleHud';
 import { PROP_BY_ID } from '../social/props';
 import type { ReportCategory } from '../chat/protocol';
+import { pointOnAxis } from '../world/zones';
 // fim rodada 10 — interação
 
 /** rodada 8: como entrar no mundo compartilhado (tela inicial → jogo). `mp` = endereço do servidor (ws://…) */
@@ -1141,6 +1142,8 @@ export class Game {
         label: PROP_BY_ID.get(this.social.prop)?.label ?? null,
       }),
       personRange: PERSON_RANGE_M,
+      camYaw: () => this.cam.yaw,
+      axisPoint: (t: number, side = 0) => pointOnAxis(this.manifest.pvAxis as [number, number][], t, side),
     };
   }
   // fim rodada 10 — interação ------------------------------------------------------------------------------------------

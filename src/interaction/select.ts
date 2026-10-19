@@ -2,8 +2,8 @@
  * Rodada 10 — escolha do alvo (PURO, sem DOM/Three; tests/interaction.test.ts). docs/INTERACTION_SYSTEM.md
  *
  *  contextual  UM alvo para a tecla E / botão USAR / realce: no alcance (`maxDistance`), no estado certo, disponível;
- *              maior `priority` vence; empate → menor distância, ponderada pela mira (o que está à frente da câmera
- *              ganha de leve). Prioridade ≤ CONTEXT_MIN_PRIORITY (pessoas) só por clique/toque — nada de realce em
+ *              maior `priority` vence; empate → menor distância, com desempate leve pela mira (até 0,15 m a favor
+ *              do que está à frente da câmera). Prioridade ≤ CONTEXT_MIN_PRIORITY (pessoas) só por clique/toque — nada de realce em
  *              cada pessoa que passa.
  *  tela        clique/toque: o candidato cujo ponto projetado está mais perto do dedo/cursor, dentro do raio de
  *              clique em px — nunca menor que o mínimo confortável (toque ≥ 44 px de diâmetro).
@@ -17,6 +17,8 @@ export const TOUCH_MIN_PX = 44;
 export const MOUSE_MIN_PX = 28;
 /** além disso o candidato nem é coletado (clique em algo distante: "chegue mais perto") */
 export const COLLECT_RADIUS_M = 30;
+/** peso da mira no desempate do alvo contextual (m) */
+export const AIM_BONUS_M = 0.15;
 
 export function distOf(c: Interactable, px: number, pz: number): number {
   return c.distance ?? Math.hypot(c.x - px, c.z - pz);
@@ -42,10 +44,10 @@ export function chooseContext(
     if (type && c.interactionType !== type) continue;
     const d = distOf(c, px, pz);
     if (d > c.maxDistance) continue;
-    // mira: cos do ângulo entre a câmera e o alvo (0,75 × d à frente, 1,25 × d atrás)
+    // mira: desempate leve — até AIM_BONUS_M a menos à frente da câmera / a mais atrás (a distância manda)
     const dx = c.x - px, dz = c.z - pz, l = Math.hypot(dx, dz);
     const cos = l > 0.05 ? (dx * aimX + dz * aimZ) / l : 1;
-    const s = Math.max(0, d) * (1 - 0.25 * cos);
+    const s = Math.max(0, d) - AIM_BONUS_M * cos;
     if (c.priority > bp || (c.priority === bp && s < bs)) { best = c; bp = c.priority; bs = s; }
   }
   return best;

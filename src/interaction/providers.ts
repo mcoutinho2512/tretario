@@ -161,7 +161,7 @@ export class PersonProvider implements InteractionProvider {
     const c = this.pool.get(`person:${id}`, () => base(`person:${id}`, 'person', 'panel', ['foot', 'platform'], () => this.d.open(id, nid)));
     c.interactionLabel = 'Interagir'; c.targetLabel = name.length > 18 ? `${name.slice(0, 17)}…` : name || 'Pessoa';
     c.priority = IX_PRIORITY.person; c.maxDistance = PERSON_RANGE_M; c.distance = undefined; c.availability = 'available';
-    c.x = x; c.z = z; c.y = y + 1.05; c.pickRadius = 0.6;
+    c.x = x; c.z = z; c.y = y + 2.05; c.pickRadius = 0.6;
     this.out.push(c);
   };
   constructor(private d: PersonDeps) {}

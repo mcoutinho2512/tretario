@@ -21,7 +21,7 @@ export class TouchControls {
   onTap?: (x: number, y: number) => void;
   /** rodada 10 — toque × arrasto (src/input/tapGesture.ts) e QA */
   private taps = new TapTracker();
-  readonly tapStats = { taps: 0, drags: 0 };
+  readonly tapStats = { taps: 0, drags: 0, ignored: 0 };
 
   constructor(private input: InputManager) {
     this.el = document.createElement('div');
@@ -86,11 +86,11 @@ export class TouchControls {
 
   private onStart = (e: TouchEvent) => {
     e.preventDefault();
-    const now = performance.now();
-    if (e.touches.length >= 2) this.taps.cancelAll(); // pinça / dois dedos: nenhum vira toque
+    const now = e.timeStamp; // quando o toque aconteceu (não quando o quadro ocupado chegou a tratá-lo)
     for (const t of Array.from(e.changedTouches)) {
-      if (e.touches.length < 2) this.taps.begin(t.identifier, t.clientX, t.clientY, now);
-      if (t.clientX < window.innerWidth * 0.45 && this.stickId === null) {
+      const stick = t.clientX < window.innerWidth * 0.45 && this.stickId === null;
+      this.taps.begin(t.identifier, t.clientX, t.clientY, now, stick); // dois dedos de olhar (pinça): nenhum vira toque
+      if (stick) {
         this.stickId = t.identifier;
         this.stickCenter = { x: t.clientX, y: t.clientY };
         this.base.style.left = `${t.clientX - 60}px`;
@@ -134,11 +134,12 @@ export class TouchControls {
   };
 
   private onEnd = (e: TouchEvent) => {
-    const now = performance.now();
+    const now = e.timeStamp;
     for (const t of Array.from(e.changedTouches)) {
       const g = e.type === 'touchcancel' ? (this.taps.forget(t.identifier), null) : this.taps.end(t.identifier, t.clientX, t.clientY, now);
       if (g === 'tap') { this.tapStats.taps++; this.onTap?.(t.clientX, t.clientY); }
       else if (g === 'drag') this.tapStats.drags++;
+      else this.tapStats.ignored++;
       if (t.identifier === this.stickId) {
         this.stickId = null;
         this.input.touchMove.x = this.input.touchMove.y = 0;
