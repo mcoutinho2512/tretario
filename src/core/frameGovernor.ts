@@ -1,10 +1,15 @@
 /**
  * Governador de quadros (puro, testável):
- *  - limita a 30 FPS quando o aparelho pede (celular: estável, menos calor e bateria) e a 60 FPS constantes nas
- *    telas de 120 Hz (ritmo regular em vez de alternar 8/17 ms);
+ *  - LIMITE de FPS: 30 (celular: estável, menos calor e bateria), 60 (constantes também nas telas de 120 Hz: ritmo
+ *    regular em vez de alternar 8/17 ms) ou 0 = SEM LIMITE (rodada 11): renderiza em todo requestAnimationFrame, isto
+ *    é, na taxa do monitor (120/144 Hz) — sem laço ocupado; quem dita o ritmo continua sendo o rAF/vsync.
+ *    Troca ao vivo com `setLimit` (painel de ajustes), sem recarregar.
  *  - resolução dinâmica: reduz a escala quando o intervalo entre quadros renderizados (ou o tempo de GPU,
- *    se o navegador medir) passa do orçamento; volta a subir devagar quando sobra folga.
+ *    se o navegador medir) passa do orçamento; volta a subir devagar quando sobra folga. Sem limite, o orçamento
+ *    é o de 60 FPS (só reduz se cair abaixo de 60).
  */
+export type FpsLimit = 30 | 60 | 0;
+
 export class FrameGovernor {
   scale = 1;
   private lastRender = -Infinity;
@@ -13,21 +18,37 @@ export class FrameGovernor {
   private overFor = 0;
   private underFor = 0;
   private cooldown = 0;
-  readonly budgetMs: number;
+  private _limit: FpsLimit;
 
   /** `uncapped` (só bancada, sem vsync): renderiza em todo requestAnimationFrame para medir a vazão real */
-  constructor(readonly targetFps: 30 | 60, readonly dynamic: boolean, readonly minScale = 0.55, readonly uncapped = false) {
-    this.budgetMs = 1000 / targetFps;
+  constructor(limit: FpsLimit, readonly dynamic: boolean, readonly minScale = 0.55, readonly uncapped = false) {
+    this._limit = limit;
     this.emaInterval = this.budgetMs;
+  }
+
+  /** limite atual (0 = sem limite) */
+  get limit(): FpsLimit { return this.uncapped ? 0 : this._limit; }
+  /** FPS que a resolução dinâmica tenta sustentar */
+  get targetFps(): 30 | 60 { return this._limit === 30 ? 30 : 60; }
+  get budgetMs(): number { return 1000 / this.targetFps; }
+
+  /** troca o limite ao vivo (painel de ajustes) */
+  setLimit(limit: FpsLimit) {
+    if (limit === this._limit) return;
+    this._limit = limit;
+    this.emaInterval = this.budgetMs;
+    this.overFor = this.underFor = 0;
+    this.cooldown = 1;
   }
 
   /** chamado a cada requestAnimationFrame; diz se este quadro deve ser renderizado */
   shouldRender(now: number): boolean {
-    if (this.uncapped) { this.lastRender = now; return true; }
+    if (this.uncapped || this._limit === 0) { this.lastRender = now; return true; }
     // tolerância (≤ 6 ms, ~35 % do orçamento): a 30 FPS numa tela de 60 Hz renderiza um quadro sim, outro não; a 60 FPS numa tela de
     // 120 Hz também — ritmo FIXO de 16,7 ms. Renderizar em todo quadro de 120 Hz alternava 8 e 17 ms (trancos)
     // sempre que um quadro passava de 8,3 ms. Em tela de 60 Hz a 60 FPS, todo quadro passa.
-    if (now - this.lastRender < this.budgetMs - Math.min(6, this.budgetMs * 0.35)) return false;
+    const b = this.budgetMs;
+    if (now - this.lastRender < b - Math.min(6, b * 0.35)) return false;
     this.lastRender = now;
     return true;
   }
@@ -60,5 +81,5 @@ export class FrameGovernor {
     return null;
   }
 
-  get stats() { return { scale: this.scale, intervalMs: +this.emaInterval.toFixed(2), gpuMs: this.emaGpu === null ? null : +this.emaGpu.toFixed(2) }; }
+  get stats() { return { scale: this.scale, limit: this.limit, intervalMs: +this.emaInterval.toFixed(2), gpuMs: this.emaGpu === null ? null : +this.emaGpu.toFixed(2) }; }
 }

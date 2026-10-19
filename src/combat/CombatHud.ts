@@ -6,6 +6,7 @@
  */
 import './combat.css';
 import { TextSlot, setClass } from '../ui/hud/throttle';
+import { notifyBlocked } from '../ui/notify';
 
 export interface CombatHudState {
   stamina: number; staminaMax: number;
@@ -29,7 +30,6 @@ export class CombatHud {
   private cond: HTMLElement;
   private stam: HTMLElement;
   private last = { c: -1, s: -1 };
-  private peaceTimer = 0;
   private pulseTimer = 0;
   /** QA: escritas no DOM */
   writes = 0;
@@ -67,9 +67,8 @@ export class CombatHud {
 
   /** golpe negado por zona de paz: aviso curto e discreto */
   peace() {
-    this.peaceEl.classList.add('show');
-    clearTimeout(this.peaceTimer);
-    this.peaceTimer = window.setTimeout(() => this.peaceEl.classList.remove('show'), 1600);
+    // rodada 11: canal único de ação bloqueada (toast no alto ao centro, src/ui/notify.ts); `peaceEl` fica só por compatibilidade
+    notifyBlocked('Zona de paz: confronto desligado aqui');
   }
 
   /** acertou alguém / foi atingido: contorno rápido */

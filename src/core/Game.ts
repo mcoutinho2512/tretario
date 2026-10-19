@@ -113,6 +113,13 @@ import { AudioWorld } from '../audio/AudioWorld'; // rodada 10 — áudio
 import { mountAgendaDebate, type AgendaDebate } from '../ui/agendaDebateMount'; // rodada 9 — agenda/debate/telões
 // rodada 9 — confronto (src/combat; carregado com o multiplayer)
 import type { CombatClient } from '../combat/CombatClient';
+// rodada 11 — gráficos
+import { resolveQuality, type QualityChoice } from './settings';
+import { applyPresetLive } from './graphicsLive';
+import { loadFpsChoice, resolveFpsLimit, type FpsChoice } from './fpsChoice';
+import { isReduceMotion, setUiPrefs, uiPrefs, type UiPrefs } from '../ui/uiPrefs';
+import { openSettings, type SettingsTab } from '../ui/settingsApi';
+import { notifyBlocked } from '../ui/notify';
 
 export { DEFAULT_PLAYER_APPEARANCE } from '../characters/bodyTypes';
 
@@ -650,7 +657,9 @@ export class Game {
   start() {
     this.running = true;
     this.clock.start();
-    this.governor = new FrameGovernor(this.preset.targetFps ?? 60, this.preset.dynamicResolution ?? false, 0.55, new URLSearchParams(location.search).get('uncapped') === '1');
+    // rodada 11 — gráficos: limite de FPS escolhido no painel (30 / 60 / sem limite), trocado ao vivo depois
+    this.governor = new FrameGovernor(resolveFpsLimit(loadFpsChoice(), this.preset.targetFps ?? 60, new URLSearchParams(location.search).get('fps')), this.preset.dynamicResolution ?? false, 0.55, new URLSearchParams(location.search).get('uncapped') === '1');
+    this.r11Graphics(); // rodada 11 — gráficos
     let last = performance.now(), first = true;
     const loop = () => {
       if (!this.running) return;
@@ -708,6 +717,8 @@ export class Game {
       if (z) this.cam.zoom(z);
 
       // intro (gira da Central para a avenida)
+      // rodada 11 — gráficos: "reduzir movimento" pula o giro de chegada (já olhando a avenida)
+      if (this.intro.active && isReduceMotion()) { this.cam.yaw = this.intro.toYaw; this.cam.pitch = 0.18; this.intro.active = false; }
       if (this.intro.active) {
         this.intro.t += dt;
         if (this.input.hasActivity() || this.intro.t > 6.5) this.intro.active = false;
@@ -1003,7 +1014,7 @@ export class Game {
     this.avatar.setFx(fx);
     if (fx & FX.PROTECTED && this.avatar.fxDebug.aura) this.r9bSeenProtected = true;
     this.avatar.setPhys(net?.self.status ?? 0);
-    this.disorient?.set(!!(fx & FX.DISORIENTED), this.hudShell.prefs.value.reduceEffects);
+    this.disorient?.set(!!(fx & FX.DISORIENTED), this.hudShell.prefs.value.reduceEffects || isReduceMotion()); // rodada 11: reduzir movimento também
   }
 
   // rodada 10 — áudio: o AudioWorld lê o que o jogo já tem (câmera, jogador, veículos, multidão, rede, eventos)
@@ -1432,6 +1443,47 @@ export class Game {
     }
   }
 
+  // rodada 11 — gráficos: preset e limite de FPS AO VIVO pelo painel de ajustes (src/core/graphicsLive.ts) ----------------
+  /** preset com que o jogo carregou (contexto WebGL, quarteirões já construídos) */
+  private r11Built: QualityPreset | null = null;
+  private r11Choice: QualityChoice = 'auto';
+  private r11Reload: string[] = [];
+  private r11Graphics() {
+    this.r11Built = this.preset;
+    const crowdCapacity = this.crowd.budget.total;
+    const host = {
+      gr: this.gr, env: this.env, scene: this.scene, camera: this.camera, chunks: this.chunks, peds: this.peds, crowd: this.crowd, crowdCapacity,
+      billboards: this.billboards, rallyCrowd: this.rallyCrowd,
+      setNpcDetail: (d: 0 | 1) => { this.deferredDetail = d; this.peds.maxDetail = d; AvatarVisual.maxRemoteDetail = d; this.crowd.detailFloor = d; },
+    };
+    const setQuality = (choice: QualityChoice) => {
+      const next = resolveQuality(choice);
+      const r = applyPresetLive(host, this.preset, next, this.r11Built!);
+      this.preset = next; this.r11Choice = choice; this.r11Reload = r.reloadFor;
+      return { level: next.level, reloadFor: r.reloadFor };
+    };
+    const setFps = (c: FpsChoice) => { const l = resolveFpsLimit(c, this.preset.targetFps ?? 60); this.governor.setLimit(l); return l; };
+    const dev = deviceProfile();
+    this.hudShell.settings.setGraphicsHost({
+      setQuality, setFps,
+      stats: () => ({ fps: this.debug.fps, scale: this.governor.scale, limit: this.governor.limit }),
+      device: { label: dev.label, reason: dev.reason, recommended: dev.recommended },
+    });
+    // anisotropia do preset nas texturas já criadas (e de novo quando os quarteirões perto já carregaram)
+    this.gr.applyAnisotropy(this.scene, this.preset.anisotropy);
+    setTimeout(() => this.gr.applyAnisotropy(this.scene, this.preset.anisotropy), 20000);
+    this.r11Api = {
+      state: () => ({ level: this.preset.level, choice: this.r11Choice, reloadFor: this.r11Reload, limit: this.governor.limit, scale: this.governor.scale, ui: { ...uiPrefs() }, anisotropy: this.preset.anisotropy, far: this.camera.far }),
+      quality: (c: QualityChoice) => setQuality(c),
+      fps: (c: FpsChoice) => setFps(c),
+      ui: (patch: Partial<UiPrefs>) => { setUiPrefs(patch); return { ...uiPrefs() }; },
+      open: (tab: SettingsTab) => openSettings(tab),
+      blocked: (t: string) => notifyBlocked(t),
+      hud: () => this.hudShell.info(),
+    };
+  }
+  private r11Api: Record<string, unknown> | null = null;
+
   /** métricas para testes automatizados de performance */
   metrics() {
     const r = this.gr.renderer.info;
@@ -1468,6 +1520,8 @@ export class Game {
       /** QA: número de pedestres (medir o custo dos personagens) */
       peds: (n: number) => this.peds.setMax(n),
       metrics: () => this.metrics(),
+      /** rodada 11 — gráficos (QA): estado, troca de preset e de limite de FPS ao vivo */
+      r11: () => this.r11Api,
       /** QA: relatório de memória por categoria (docs/MEMORY.md); dup=false pula a busca de duplicatas */
       memoryReport: (dup = true) => memoryReport(this.gr.renderer, this.scene, { duplicates: dup }),
       teleport: (x: number, z: number, yaw?: number) => {

@@ -57,13 +57,19 @@ export class GameRenderer {
     this.resize(size.x, size.y);
   }
 
+  private scene: THREE.Scene | null = null;
+  private camera: THREE.PerspectiveCamera | null = null;
+
   setup(scene: THREE.Scene, camera: THREE.PerspectiveCamera) {
+    this.scene = scene; this.camera = camera;
     this.composer?.dispose();
     this.composer = null;
     this.gtao = null;
     if (this.preset.ambientOcclusion || this.preset.postAA) {
       const size = this.renderer.getDrawingBufferSize(new THREE.Vector2());
-      const rt = new THREE.WebGLRenderTarget(size.x, size.y, { type: THREE.HalfFloatType, samples: this.preset.postAA ? 0 : 4 });
+      // MSAA no alvo HDR: explícito no preset (ULTRA) ou 4× quando há AO sem SMAA
+      const samples = this.preset.msaaSamples > 0 ? this.preset.msaaSamples : this.preset.postAA ? 0 : 4;
+      const rt = new THREE.WebGLRenderTarget(size.x, size.y, { type: THREE.HalfFloatType, samples });
       this.composer = new EffectComposer(this.renderer, rt);
       this.composer.addPass(new RenderPass(scene, camera));
       if (this.preset.ambientOcclusion) {
@@ -76,6 +82,59 @@ export class GameRenderer {
       this.composer.addPass(new OutputPass());
       if (this.preset.postAA) this.composer.addPass(new SMAAPass(size.x, size.y));
     }
+  }
+
+  // rodada 11 — gráficos: troca de preset AO VIVO (resolução, pós-processamento, anisotropia) -----------------------
+  /** aplica um preset sem recriar o contexto (o MSAA nativo do canvas, `antialias`, só muda ao recarregar) */
+  applyPreset(p: QualityPreset) {
+    const prev = this.preset;
+    this.preset = p;
+    renderQuality.level = p.level; // quarteirões construídos daqui em diante
+    const size = this.renderer.getSize(new THREE.Vector2());
+    this.resize(size.x, size.y);
+    const post = (q: QualityPreset) => `${q.ambientOcclusion}|${q.postAA}|${q.msaaSamples}`;
+    if (post(prev) !== post(p) && this.scene && this.camera) {
+      for (const ps of this.composer?.passes ?? []) ps.dispose(); // GTAO/SMAA têm alvos próprios
+      this.setup(this.scene, this.camera);
+      this.resize(size.x, size.y);
+    }
+  }
+
+  /**
+   * anisotropia das texturas de superfície (as que os construtores já criam com anisotropia > 1): troca o parâmetro
+   * direto na textura da GPU — sem reenviar a imagem (as cópias na CPU já foram soltas, `assetManager.cpuRelease`).
+   * Devolve quantas texturas mudaram.
+   */
+  applyAnisotropy(scene: THREE.Object3D, level: number): number {
+    const gl = this.renderer.getContext() as WebGL2RenderingContext;
+    const ext = gl.getExtension('EXT_texture_filter_anisotropic');
+    const max = this.renderer.capabilities.getMaxAnisotropy();
+    const target = Math.max(1, Math.min(level, max));
+    const seen = new Set<THREE.Texture>();
+    let changed = 0;
+    const props = this.renderer.properties;
+    const visit = (t: unknown) => {
+      if (!(t instanceof THREE.Texture) || seen.has(t)) return;
+      seen.add(t);
+      const ud = t.userData as { r11BaseAniso?: number };
+      ud.r11BaseAniso ??= t.anisotropy;
+      if (ud.r11BaseAniso <= 1 || t.anisotropy === target || (t as THREE.CubeTexture).isCubeTexture) return;
+      t.anisotropy = target;
+      changed++;
+      const tp = props.get(t) as { __webglTexture?: WebGLTexture; __currentAnisotropy?: number };
+      if (!ext || !tp.__webglTexture) return; // ainda não enviada: vale o novo valor no envio
+      const kind = (t as THREE.DataArrayTexture).isDataArrayTexture || (t as THREE.CompressedArrayTexture).isCompressedArrayTexture ? gl.TEXTURE_2D_ARRAY : gl.TEXTURE_2D;
+      this.renderer.state.bindTexture(kind, tp.__webglTexture);
+      gl.texParameterf(kind, ext.TEXTURE_MAX_ANISOTROPY_EXT, target);
+      tp.__currentAnisotropy = target;
+    };
+    scene.traverse((o) => {
+      const m = (o as THREE.Mesh).material as THREE.Material | THREE.Material[] | undefined;
+      if (!m) return;
+      for (const mat of Array.isArray(m) ? m : [m]) for (const v of Object.values(mat)) visit(v);
+    });
+    this.renderer.state.bindTexture(gl.TEXTURE_2D, null);
+    return changed;
   }
 
   resize(w: number, h: number) {

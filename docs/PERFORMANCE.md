@@ -111,8 +111,110 @@ Bots do SDK enviando movimento a 15 Hz durante 20 s; o servidor simula 220 veíc
 | Neblina / far | 1500 / 1800 m | 2200 / 2600 m | 3000 / 3400 m |
 | Pedestres / veículos | 14 / 24 | 32 / 48 | 56 / 80 |
 
-Detecção automática: dispositivo de toque vira BAIXO; GPU por `WEBGL_debug_renderer_info`
-(Apple M, RTX, RX 6/7 → ALTO; Intel HD/UHD, Mali, Adreno → MÉDIO ou BAIXO); software renderer vira BAIXO.
+Detecção automática: ver "Rodada 11 — … Detecção (regra)" abaixo (substitui a regra antiga).
+
+## Rodada 11 — presets revisados, ULTRA, limite de FPS, troca ao vivo e detecção
+
+Código: `src/core/settings.ts` (presets, `reloadOnlyChanges`), `src/core/graphicsLive.ts` (troca ao vivo),
+`src/renderer/Renderer.ts` (`applyPreset`, `applyAnisotropy`, MSAA no alvo HDR), `src/renderer/Environment.ts`
+(`setFar`, neblina sem perder a cor da hora), `src/core/frameGovernor.ts` (limite 30/60/0), `src/core/fpsChoice.ts`,
+`src/core/device.ts` (capacidades). Testes: `tests/round11Graphics.test.ts`. Bancada: `tools/qa/bench_r11_presets.mjs`
+→ `docs/bench/round11_presets.json`. Capturas: `docs/screenshots/round11/bench/`.
+
+### Presets (rodada 11)
+
+| | BAIXO | MÉDIO | ALTO | ULTRA |
+|---|---|---|---|---|
+| Pixel ratio máx. | 1 | 1,5 | 2 | 2 |
+| Sombra | — | 2048², 110 m | 4096², 170 m | 4096², **260 m** |
+| LOD FULL / MEDIUM / FAR | 220/520/1400 | 330/750/2200 | 450/1000/3000 | **650/1300/3400** |
+| AO (GTAO) | — | — | sim | sim |
+| Anti-aliasing | — | MSAA do canvas | SMAA | **MSAA 4× no alvo HDR** (sem SMAA) |
+| Anisotropia (novo) | 2× | 4× | 8× | **16×** |
+| Pedestres / raio | 14 / 70 m | 32 / 90 m | 56 / 95 m | 90 / 120 m |
+| Multidão (total / esqueletos) | 200 / 8 | 350 / 16 | 600 / 24 | 800 / 32 |
+
+ALTO ≥ MÉDIO em todos os campos (teste): sombra 2× mais resolvida e ~1,5× mais longe, oclusão ambiente, ~1,7× os
+pedestres, personagens LOD0. Mudanças da rodada: **anisotropia por preset** (antes fixa por textura, 4–8×: o BAIXO
+economiza amostragem, o ULTRA ganha nitidez do asfalto/pedra em ângulo raso — trocada direto no parâmetro da textura
+na GPU, sem reenviar imagem) e o **AA do ULTRA**. Celular: anisotropia ≤ 4×, sem MSAA no HDR (`mobileAdjust`).
+Bancada/QA: `?msaa=0|2|4|8` e `?smaa=0|1` trocam o AA para comparar custo.
+
+### ULTRA: avaliado e MANTIDO (opção manual)
+
+Comparação na mesma câmera (`tools/qa/r11_compare_shots.mjs`, `bench/longe_medio_alto_ultra.jpg`, `avenida_*.jpg`):
+o ULTRA mostra (1) **sombra das fachadas ao longe** (260 m de caixa: o prédio da esquerda projeta sombra no vizinho,
+no ALTO não), (2) **bordas limpas** — no ALTO o SMAA deixa listras verticais na fachada branca distante e nos postes;
+o MSAA 4× resolve geometria fina, (3) **multidão distante mais densa** e LOD cheio até o próximo cruzamento. É
+perceptível e o custo é mensurável (abaixo); por isso fica, mas **o automático nunca escolhe ULTRA**.
+MSAA × SMAA medido nesta máquina (ALTO com `?msaa=4&smaa=0` × ALTO normal): em 1080p a diferença de tempo de GPU
+ficou dentro do ruído; em 3840×2160 (1920×1080 @2x, sem resolução dinâmica) ~10 % a menos de FPS (22–23 × 24–25), e
+o ULTRA usa ~165 MB a mais de memória de GPU que o ALTO (livro-razão) — o ALTO continua com SMAA.
+
+### Bancada por preset × multidão (esta máquina)
+
+Máquina: **Apple M5 Pro desta máquina** (24 GB), Chrome 155 headless, ANGLE/Metal, **sem vsync** (`?uncapped=1`:
+vazão), 1920×1080 @1x, **resolução dinâmica desligada** (`&dynres=0`: custo do preset em resolução cheia), jogador no
+meio da concentração densa (40 % dos bots com vida social), câmera em 3ª pessoa olhando a avenida, 16:30. Memória da
+GPU = livro-razão real (`?mem=1`, carga separada). Os números não valem para outro hardware.
+
+| bots | preset | FPS | CPU ms | GPU ms | draw calls | triângulos | heap JS | GPU (MB) |
+|---|---|---|---|---|---|---|---|---|
+| 50 | BAIXO | 415 | 2,3 | 2,6 | 300 | 0,50 M | 167 MB | 334 |
+| 50 | MÉDIO | 221 | 4,4 | 3,4 | 619 | 1,29 M | 191 MB | 412 |
+| 50 | ALTO | 83 | 11,8 | 8,8 | 1480 | 3,75 M | 214 MB | 694 |
+| 50 | ULTRA | 70 | 13,6 | 10,8 | 1495 | 3,85 M | 378 MB | 857 |
+| 250 | BAIXO | 378 | 2,8 | 2,8 | 311 | 0,55 M | 199 MB | 330 |
+| 250 | MÉDIO | 197 | 4,8 | 3,8 | 615 | 1,40 M | 213 MB | 420 |
+| 250 | ALTO | 76 | 12,7 | 12,4 | 1565 | 4,14 M | 240 MB | 685 |
+| 250 | ULTRA | 56 | 17,1 | 16,1 | 1909 | 5,15 M | 314 MB | 858 |
+| 500 | BAIXO | 306 | 3,4 | 4,0 | 313 | 0,58 M | 185 MB | 335 |
+| 500 | MÉDIO | 177 | 5,3 | 6,7 | 616 | 1,44 M | 215 MB | 419 |
+| 500 | ALTO | 72 | 13,3 | 13,0 | 1561 | 4,47 M | 333 MB | 694 |
+| 500 | ULTRA | 53 | 18,1 | 16,4 | 1888 | 5,59 M | 371 MB | 849 |
+
+Antes da rodada (master 077ffb4, mesma cena, 1ª passada com resolução dinâmica ligada — `antes` no JSON): BAIXO
+411/387/373, MÉDIO 231/202/184, ALTO 86/82/73, ULTRA 79/61/60 FPS (50/250/500); GPU 336/420/682/680 MB. BAIXO–ALTO
+ficam iguais dentro do ruído; o ULTRA paga o MSAA (−10 % de FPS com 50 bots, +175 MB de GPU). O ALTO é limitado por
+CPU nesta cena (draw calls/esqueletos); a 60 FPS sobra folga em todas as multidões nesta máquina, o ULTRA fica no
+limite com 250–500 bots. Avenida vazia (câmera livre a 9 m, sem bots): MÉDIO 337, ALTO 161, ULTRA 121 FPS.
+Retina sem resolução dinâmica (1920×1080 @2x = 3840×2160): ALTO ~24 FPS — a resolução dinâmica (0,55–1) é o que
+segura 60 em telas Retina; continua ligada para todos.
+
+### Limite de FPS: 30 / 60 / sem limite (ao vivo)
+
+Ajustes → Gráficos → **Limite de FPS**: Automático (30 no celular, 60 no desktop), 30, 60, **Sem limite**. Troca na
+hora (`FrameGovernor.setLimit`), salvo em `localStorage['pv3d.fps']`; `?fps=30|60|0` sobrepõe (testes). Sem limite =
+renderiza em todo `requestAnimationFrame`, isto é, na **taxa do monitor** (120/144 Hz) — sem laço ocupado; a
+resolução dinâmica defende 60. Medido (QA `desktop_graphics.mjs`, Chrome com vsync 60 Hz): 30 → 30,0 FPS (33,3 ms),
+60 → 60,0, sem limite → 60 (o monitor); sem vsync: sem limite → 442 FPS e 60 → 57,7 — o limite segura e o "sem limite"
+segue o rAF.
+
+### Troca de preset ao vivo
+
+Escolher a qualidade no painel aplica **na hora** (3–12 ms de chamada; o 1º quadro depois recompila sombras/pós):
+pixel ratio, sombra (mapa recriado), AO/SMAA/MSAA do pós, anisotropia, neblina/`far` (o céu acompanha), LOD,
+mobiliário, telões, pedestres, orçamento e detalhe da multidão. Só ao recarregar (o painel diz qual e oferece
+"Recarregar agora"): suavização nativa do canvas (contexto WebGL — só importa quando o preset desenha direto no canvas:
+MÉDIO vindo de ALTO; ou BAIXO vindo de MÉDIO, para economizar), detalhe das fachadas já construídas, e a capacidade
+extra da multidão quando sobe acima da criada na carga. QA: BAIXO→MÉDIO→ALTO→ULTRA→ALTO pelo próprio rádio, sem erro,
+mesmo documento.
+
+### Detecção (regra)
+
+1. **O navegador não entra na decisão.** Nada de "Safari → mais baixo". Safari mascara o nome da GPU ("Apple GPU");
+   Firefox com resistFingerprinting diz "Mozilla" — ambos viram a classe `masked`, decidida pelas **capacidades reais**.
+2. GPU por nome quando disponível (`WEBGL_debug_renderer_info`): software → BAIXO 30 FPS; celular/tablet → MÉDIO/BAIXO
+   a 30 (iPhone: memória por aba); integrada Intel/AMD → BAIXO (UHD antigo) ou MÉDIO (Iris Xe/780M); Apple Silicon
+   (qualquer) e GPU dedicada → ALTO.
+3. `masked`: Mac com `MAX_TEXTURE_SIZE` ≥ 16384 → ALTO (o mesmo que o Chrome dá na mesma máquina); outros sistemas → MÉDIO.
+4. **Tetos pelas capacidades** medidas no contexto: `MAX_TEXTURE_SIZE` < 8192 → no máximo MÉDIO; < 4096 → BAIXO; sem
+   `EXT_color_buffer_float` (alvo HDR do pós) → no máximo MÉDIO. Capacidade não medida não penaliza.
+5. `deviceMemory` (só Chromium) ≤ 4 GB → um nível abaixo; ausente (Safari/Firefox) não penaliza.
+6. **Automático nunca escolhe ULTRA** (opção manual; custo acima). **Resolução dinâmica ligada para todos** (rede de
+   segurança: só reduz quando falta folga).
+O painel mostra o aparelho detectado e o motivo; `tests/device.test.ts` e `tests/round11Graphics.test.ts` fixam:
+Safari e Chrome na mesma máquina → mesmo preset, FPS e resolução dinâmica.
 
 ## Técnicas aplicadas
 - **Poucos materiais**: 1 material para todos os edifícios (variedade no shader) e um por tipo de superfície.

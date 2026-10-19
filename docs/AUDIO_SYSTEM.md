@@ -165,7 +165,13 @@ Nada em `AvatarVisual`, `proceduralClips`, `HumanAnimator` nem `Rideable.ts` (os
 
 ## Configurações
 
-Ajustes → **Som**: Volume geral, Ambiente, Multidão, Veículos, Trio e carro de som, Efeitos, Interface (0–100, passo
+Rodada 11: o painel de ajustes ganhou ABAS (Geral · Áudio · Gráficos · Interface · Controles) e os controles de som
+foram para a aba **Áudio** — os mesmos controles, a mesma chave e o mesmo comportamento, sem nenhuma mudança no
+grafo. Abrir direto nela: `openSettings('audio')` (`src/ui/settingsApi.ts` — o menu do jogo do Esc usa este caminho).
+O painel fecha pela pilha única do Esc (`pushEsc`, prioridade 100). Abrir/fechar o painel continua tocando
+`ui_open`/`ui_close`; mudar de aba não toca som (evita ruído ao navegar com as setas).
+
+Ajustes → **Áudio** (antes "Som"): Volume geral, Ambiente, Multidão, Veículos, Trio e carro de som, Efeitos, Interface (0–100, passo
 5) e **Silenciar tudo**. Salva na hora em `localStorage['pv3d.audio']` (`{master, ambient, crowd, vehicles, events,
 sfx, ui, muted}`), validado campo a campo, try/catch (sem storage: só na sessão). Captura: `docs/screenshots/S_config_audio.png`.
 

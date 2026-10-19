@@ -15,6 +15,9 @@
  * Zonas: `zones` (rastreador com histerese), `onZoneChange`, `setFocusProvider` (câmera de espectador).
  * Rodada 9: `mountTracker` (missão em destaque, abaixo do estado), `addMenuItem` (PROGRESSO) e `notice` — fila curta de
  * avisos (objetivo/missão/conquista/nível/recompensa), um por vez, só DOM na chegada/saída de um aviso.
+ * Rodada 11 (docs/HUD.md "Layout desktop"): coluna do ALTO AO CENTRO (`.hud-tc`) = indicador de zona sempre visível
+ * (PAZ / CONTESTADA / CONFRONTO) → aviso de zona (só na troca) → avisos → toast de AÇÃO BLOQUEADA (`notifyBlocked`,
+ * src/ui/notify.ts). Um fluxo só, sem sobreposição; o centro da tela fica livre. Escala da interface: src/ui/uiPrefs.ts.
  */
 import type { WorldManifest } from '../../world/types';
 import type { ZoneDefinition } from '../../world/zones';
@@ -31,10 +34,16 @@ import { ControlsScreen } from './ControlsScreen'; // rodada 11 — entrada
 import { GameMenu, type SettingsTab } from './GameMenu'; // rodada 11 — entrada
 import { EscSlot, installEscKey, setEscMenu } from '../escStack'; // rodada 11 — entrada
 import './desktop.css';
+import './hud-r11.css'; // rodada 11 — HUD desktop, escala, ajustes com abas
+import { setBlockedSink } from '../notify'; // rodada 11 — HUD
+import { applyUiPrefs, onUiPrefs } from '../uiPrefs'; // rodada 11 — escala da interface
+import { setControlsOpener } from '../settingsApi'; // rodada 11 — ajustes com abas
 
 /** rodada 9 — rótulo discreto da política de confronto da zona (aviso de zona e legenda do minimapa) */
 export const POLICY_LABEL: Record<ZoneCombatPolicy, string> = { PEACE: 'Zona de paz', CONTESTED: 'Disputa', COMBAT: 'Zona de confronto' };
 const POLICY_SHORT: Record<ZoneCombatPolicy, string> = { PEACE: 'paz', CONTESTED: 'disputa', COMBAT: 'confronto' };
+/** rodada 11 — indicador de zona permanente (curto, sempre legível) */
+export const POLICY_CHIP: Record<ZoneCombatPolicy, string> = { PEACE: 'PAZ', CONTESTED: 'CONTESTADA', COMBAT: 'CONFRONTO' };
 
 /** componente montado num encaixe do HUD */
 export interface HudPanel {
@@ -117,6 +126,13 @@ export class HudShell {
   private noticeBusy = false;
   /** QA: avisos já mostrados (texto e tipo) */
   readonly noticeLog: { text: string; kind: string; t: number }[] = [];
+  // rodada 11 — indicador de zona permanente e toast de ação bloqueada
+  private zoneChip: HTMLDivElement;
+  private zoneChipText: TextSlot;
+  private blockedEl: HTMLDivElement;
+  private blockedTimer = 0;
+  /** QA: ações bloqueadas avisadas */
+  readonly blockedLog: { text: string; t: number }[] = [];
 
   constructor(root: HTMLElement, manifest: WorldManifest, zones: readonly ZoneDefinition[], opts: { touch: boolean; level: QualityLevel }) {
     this.root = root;
@@ -136,16 +152,27 @@ export class HudShell {
     this.trackerSlot = div('hud-slot-tracker', tl);
     this.nowSlot = div('hud-slot-now hud-fadeable', tl); // rodada 9: "Acontecendo agora"
 
-    // ---- aviso de zona (centro, alto)
-    this.banner = div('zone-banner');
+    // ---- alto ao centro (rodada 11): indicador de zona → aviso de zona → avisos → ação bloqueada, numa coluna só
+    const tc = div('hud-tc');
+    this.zoneChip = div('zone-chip', tc);
+    this.zoneChip.setAttribute('role', 'status');
+    this.zoneChip.setAttribute('aria-label', 'Zona atual');
+    this.zoneChipText = new TextSlot(this.zoneChip);
+    this.banner = div('zone-banner', tc);
     this.banner.setAttribute('aria-live', 'polite');
     const kicker = div('zb-kicker', this.banner);
     kicker.textContent = 'Presidente Vargas';
     this.bannerName = div('zb-name', this.banner);
-    this.noticeEl = div('hud-notice');
+    this.noticeEl = div('hud-notice', tc);
     this.noticeEl.setAttribute('role', 'status');
     this.noticeEl.setAttribute('aria-live', 'polite');
     this.bannerPolicy = div('zb-policy', this.banner);
+    this.blockedEl = div('hud-blocked', tc);
+    this.blockedEl.setAttribute('role', 'status');
+    this.blockedEl.setAttribute('aria-live', 'assertive');
+    setBlockedSink((t) => this.blocked(t));
+    applyUiPrefs();
+    onUiPrefs(() => { this.minimap.resize(); this.dirtyMap = true; });
 
     // ---- alto à direita: minimapa + botões
     const tr = div('hud-tr');
@@ -190,6 +217,7 @@ export class HudShell {
     this.settings = new SettingsPanel(this.prefs, opts.level);
     root.appendChild(this.settings.el);
     this.settings.onToggle = (open) => { this.poke(); this.onModal?.(open || !this.menu.hidden); };
+    this.settings.onShowHelp = () => this.toggleHelp(true); // rodada 11: aba Controles sem tela registrada
     gear.addEventListener('click', () => this.settings.toggle());
     this.menuBtn.addEventListener('click', () => this.toggleMenu());
     // rodada 11 — entrada: tela de controles gerada do mapa único (F1 / menu) e menu do jogo (Esc sem nada aberto)
@@ -205,6 +233,7 @@ export class HudShell {
     this.gameMenu.onToggle = (open) => { this.poke(); this.onModal?.(open); };
     installEscKey();
     setEscMenu(() => this.gameMenu.toggle(true));
+    setControlsOpener(() => { this.settings.toggle(false); this.toggleHelp(true); }); // rodada 11: aba Controles → tela do F1
     const restore = document.createElement('button');
     restore.type = 'button';
     restore.className = 'hud-restore';
@@ -263,6 +292,21 @@ export class HudShell {
     this.noticeLog.push({ text: n.text, kind: n.kind, t: Date.now() });
     if (this.noticeLog.length > 50) this.noticeLog.shift();
     setTimeout(() => { this.noticeEl.classList.remove('show'); setTimeout(() => this.nextNotice(), 260); }, n.ms);
+  }
+
+  /**
+   * rodada 11 — ação recusada: toast curto (1,8 s) no fim da coluna do alto ao centro; o próximo substitui o atual
+   * (não enfileira — é feedback do agora). Chamado via `notifyBlocked` (src/ui/notify.ts).
+   */
+  blocked(text: string) {
+    this.blockedLog.push({ text, t: Date.now() });
+    if (this.blockedLog.length > 50) this.blockedLog.shift();
+    this.blockedEl.textContent = text;
+    this.blockedEl.classList.remove('show');
+    void this.blockedEl.offsetWidth; // reinicia a animação (só na chegada)
+    this.blockedEl.classList.add('show');
+    clearTimeout(this.blockedTimer);
+    this.blockedTimer = window.setTimeout(() => this.blockedEl.classList.remove('show'), 1800);
   }
 
   /** rodada 9 — HUD de confronto (src/combat/CombatHud) acima do centro inferior + aviso discreto ZONA DE PAZ */
@@ -366,15 +410,8 @@ export class HudShell {
   /** rodada 11: F1 / menu → tela de controles (gerada do mapa de teclas, com remapeamento) */
   toggleHelp(v = !this.controls.open) { this.controls.toggle(v); }
 
-  /**
-   * rodada 11 — abre os ajustes numa aba (menu do jogo: CONFIGURAÇÕES/ÁUDIO/GRÁFICOS).
-   * rodada 11 — integrar aba: o painel com abas é do agente D (`openSettings(tab)`); até lá abre o painel atual.
-   */
-  openSettings(tab: SettingsTab = 'geral') {
-    const s = this.settings as unknown as { openTab?: (t: SettingsTab) => void };
-    if (s.openTab) s.openTab(tab);
-    else this.settings.toggle(true);
-  }
+  /** rodada 11 — abre os ajustes numa aba (menu do jogo: CONFIGURAÇÕES/ÁUDIO/GRÁFICOS; contrato `openSettings` de src/ui/settingsApi.ts) */
+  openSettings(tab: SettingsTab | 'controles' = 'geral') { this.settings.openTab(tab); }
 
   toggleMenu(v = this.menu.hidden) {
     if (v === !this.menu.hidden) return;
@@ -415,6 +452,10 @@ export class HudShell {
     const z = ch.to;
     const pol = z?.combatPolicy ?? 'PEACE';
     this.minimap.setCaption(z ? `${z.name} · ${POLICY_SHORT[pol]}` : '');
+    // rodada 11 — indicador permanente: fora de zona nomeada vale a regra padrão (paz)
+    this.zoneChipText.set(POLICY_CHIP[pol]);
+    this.zoneChip.dataset.policy = pol;
+    this.zoneChip.title = z ? `${z.name} · ${POLICY_LABEL[pol]}` : POLICY_LABEL[pol];
     for (const fn of this.zoneListeners) fn(ch);
     if (!z) return;
     this.bannerName.textContent = z.name;
@@ -468,7 +509,7 @@ export class HudShell {
   info() {
     return {
       clean: this.clean, dim: this.autoHide.faded, expanded: this.minimap.expanded, target: this.minimap.target, zone: this.zones.current?.id ?? null,
-      policy: this.zones.current ? this.zones.current.combatPolicy ?? 'PEACE' : null, banner: { name: this.bannerName.textContent, policy: this.bannerPolicy.textContent, shown: this.banner.classList.contains('show') },
+      policy: this.zones.current ? this.zones.current.combatPolicy ?? 'PEACE' : null, chip: this.zoneChipText.value, blocked: this.blockedLog.slice(-5), banner: { name: this.bannerName.textContent, policy: this.bannerPolicy.textContent, shown: this.banner.classList.contains('show') },
       prefs: { ...this.prefs.value }, minimap: { ...this.minimap.stats, drawMs: +this.minimap.stats.drawMs.toFixed(3), densityMs: +this.minimap.stats.densityMs.toFixed(3) },
       writes: { event: this.eventText.writes, status: this.statusText.writes, prompt: this.promptText.writes },
       focus: { x: Math.round(this.lastFocus.x), z: Math.round(this.lastFocus.z) },

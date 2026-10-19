@@ -1,0 +1,85 @@
+/* ==== rodada 11 — HUD desktop, escala da interface, ajustes com abas. Ver docs/HUD.md ==================================
+ * Importado pelo HudShell (depois de style.css e progress.css: as regras aqui vencem por ordem e especificidade). */
+
+/* ---- escala da interface (src/ui/uiPrefs.ts): `zoom` em cada bloco do HUD e nos painéis — nunca no canvas nem no que
+ * é preso ao mundo por posição de tela em pixels (nomes, realce de interação, véu de efeito, controles de toque).
+ * Novos painéis montados como filhos diretos de .hud escalam sozinhos. */
+.hud > :not(.name-labels):not(.ix-label):not(.fx-disorient):not(.touch-layer):not(.attribution) { zoom: var(--ui-scale, 1); }
+/* o aviso antigo de zona de paz do confronto virou toast de ação bloqueada (notifyBlocked) */
+.hud .cbt-peace { display: none; }
+/* telas estreitas com a barra de ações: a dica de teclas do canto (9 s) disputava o rodapé com a barra — some (a dica
+ * de interação/câmera reaparece no 1º alvo, `ix.onFirstTarget`) */
+@media (max-width: 1500px) { .hud.has-bar:not(.touch) .hud-hint { display: none; } }
+
+/* ---- alto ao centro: indicador de zona → aviso de zona → avisos → ação bloqueada (um fluxo só, sem sobreposição) */
+.hud-tc {
+  position: absolute; top: calc(var(--sat) + 10px); left: 50%; transform: translateX(-50%); z-index: 2;
+  display: flex; flex-direction: column; align-items: center; gap: 6px; width: max-content; max-width: min(560px, 64vw); pointer-events: none;
+}
+.hud .hud-tc > .zone-banner, .hud .hud-tc > .hud-notice, .hud .hud-tc > .hud-blocked { position: static; left: auto; top: auto; transform: none; opacity: 1; transition: none; }
+.hud .hud-tc > :not(.show):not(.zone-chip) { display: none; }
+.hud .hud-tc > .show { animation: hud-r11-in 0.35s ease both; }
+@keyframes hud-r11-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+
+/* indicador de zona: pequeno, sempre visível (não esmaece com o HUD), cor + palavra (não depende só da cor) */
+.zone-chip {
+  display: inline-flex; align-items: center; gap: 7px; padding: 3px 11px 3px 9px; border-radius: 11px;
+  background: rgba(12, 15, 18, 0.62); border: 1px solid rgba(149, 213, 178, 0.38); color: #cdeed8;
+  font: 700 10.5px/1.25 system-ui, sans-serif; letter-spacing: 0.16em; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6); white-space: nowrap;
+}
+.zone-chip::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex: none; }
+.zone-chip:empty { display: none; }
+.zone-chip[data-policy="CONTESTED"] { color: #ffd59a; border-color: rgba(255, 213, 154, 0.45); }
+.zone-chip[data-policy="COMBAT"] { color: #ffb3a8; border-color: rgba(255, 140, 120, 0.55); background: rgba(40, 14, 12, 0.66); }
+
+/* aviso de zona (só na troca): menor que antes, sem fundo, logo abaixo do indicador */
+.hud .hud-tc > .zone-banner { text-align: center; }
+.hud-tc .zb-name { font: 300 clamp(18px, 2.1vw, 26px)/1.05 system-ui, sans-serif; letter-spacing: 0.08em; }
+.hud-tc .zb-name::after { margin-top: 7px; }
+
+/* ação bloqueada: curto, sem modal, sem foco */
+.hud-blocked {
+  display: flex; align-items: center; gap: 7px; padding: 6px 13px; border-radius: 8px; max-width: 100%;
+  background: rgba(46, 16, 12, 0.78); border: 1px solid rgba(255, 140, 120, 0.5); color: #ffe1da;
+  font: 600 13px/1.3 system-ui, sans-serif; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+.hud-blocked::before {
+  content: ''; width: 12px; height: 12px; flex: none; border-radius: 50%; border: 2px solid currentColor;
+  background: linear-gradient(45deg, transparent 44%, currentColor 44% 56%, transparent 56%);
+}
+
+/* ---- ajustes com abas (desktop: folha lateral mais larga, legível com mouse) */
+.settings-sheet { width: min(440px, 100vw); }
+.sheet-tabs { display: flex; gap: 2px; margin: 6px -4px 2px; border-bottom: 1px solid var(--hud-line); }
+.sheet-tab {
+  flex: 1 1 auto; background: none; border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px; padding: 10px 6px 9px;
+  font: 600 12.5px/1 system-ui, sans-serif; color: var(--hud-dim); cursor: pointer; border-radius: 6px 6px 0 0; white-space: nowrap;
+}
+.sheet-tab:hover { color: var(--hud-text); background: rgba(255, 255, 255, 0.05); }
+.sheet-tab.on { color: var(--hud-text); border-bottom-color: var(--accent); }
+.sheet-tab:focus-visible { outline: 2px solid var(--gold); outline-offset: -2px; }
+.sheet-panel[hidden] { display: none; }
+.sheet-panel { padding-bottom: 8px; }
+.sheet-applied { color: var(--hud-text) !important; }
+.sheet-note { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 12px; color: #ffd59a; }
+.sheet-live { margin: 18px 0 0; padding: 8px 10px; border-radius: 6px; background: rgba(255, 255, 255, 0.04); font: 12px/1.4 ui-monospace, Menlo, monospace; color: var(--hud-dim); }
+.sheet-live:empty { display: none; }
+.sheet-text { font-size: 13.5px; line-height: 1.5; margin: 18px 0 12px; }
+.seg-compact .seg-row span { padding: 8px 10px; font-variant-numeric: tabular-nums; }
+.settings-sheet .sheet-audio { margin-top: 12px; }
+.settings-sheet .sheet-range { grid-template-columns: 1fr 160px 34px; }
+.hud.touch .sheet-tab { padding: 13px 4px 12px; font-size: 13px; }
+
+/* ---- reduzir movimento: HUD sem transições/animações (a câmera consulta isReduceMotion()) */
+html.reduce-motion .hud *, html.reduce-motion .hud *::before, html.reduce-motion .hud *::after { transition: none !important; animation: none !important; }
+
+/* ---- "Acontecendo agora" (rodada 9) compacto no desktop: `.hud button { font: inherit }` vencia o tamanho da agenda
+ * (as linhas saíam a 16 px, em negrito, cobrindo a calçada esquerda). Em telas baixas, só o 1º item (o resto na agenda). */
+.hud .nh-row, .hud .ap-row { font: 12px/1.25 system-ui, sans-serif; }
+.hud .now-happening { max-width: min(40vw, 330px); }
+@media (max-height: 820px) { .hud .now-happening .nh-row ~ .nh-row { display: none; } }
+/* telas baixas: o aviso de zona perde a linha "Presidente Vargas" (o indicador já está logo acima) */
+@media (max-height: 820px) { .hud-tc .zb-kicker { display: none; } .hud-tc .zb-name { font-size: clamp(16px, 1.9vw, 22px); } }
+/* alto à esquerda nunca passa de 28 % da largura da TELA (o ÷ escala compensa o zoom: a coluna da avenida fica livre) */
+.hud:not(.touch) .hud-tl { max-width: min(calc(28vw / var(--ui-scale, 1)), 400px); }
+.hud:not(.touch) .hud-tl > * { max-width: 100%; }

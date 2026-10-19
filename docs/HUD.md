@@ -95,8 +95,10 @@ instanciados (antes só com esqueleto), nunca sobre quem está fora do orçament
 
 ## Ajustes
 
-Qualidade gráfica (presets existentes; grava a escolha e oferece "Recarregar para aplicar" — preset, resolução dinâmica
-e LOD continuam decididos na carga), nomes dos jogadores, esconder o HUD sozinho, chat recolhido ao entrar.
+> **Rodada 11:** o painel virou ABAS e os gráficos passaram a valer AO VIVO — ver [Rodada 11](#rodada-11--hud-desktop-escala-da-interface-e-ajustes-com-abas).
+> O texto abaixo descreve as opções que continuam iguais.
+
+Qualidade gráfica (até a rodada 10: grava a escolha e oferece "Recarregar para aplicar"), nomes dos jogadores, esconder o HUD sozinho, chat recolhido ao entrar.
 Rodada 10: seção **Som** (substitui o "Som — Em breve"): Volume geral, Ambiente, Multidão, Veículos, Trio e carro de
 som, Efeitos, Interface (0–100) e **Silenciar tudo** (suspende o áudio); salvo em `pv3d.audio` — `docs/AUDIO_SYSTEM.md`.
 O antigo `HudPrefs.sound` ficou só por compatibilidade. `role=dialog`, foco no controle marcado, Esc fecha, controles nativos (rádio/checkbox) para leitor de tela.
@@ -266,6 +268,96 @@ conectar). Formatação pura: `src/events/agendaFormat.ts` (`tests/agendaFormat.
 
 Custo medido (QA `tools/qa/debate_mp.mjs`): "Acontecendo agora" = 2–3 renderizações em 2,1 s (1 Hz + mudanças); o
 painel do debate só escreve quando chega `dbt` (≤ 2 Hz) ou no relógio (1 Hz).
+
+
+## Rodada 11 — HUD desktop, escala da interface e ajustes com abas
+
+Arquivos: `src/ui/hud/hud-r11.css` (todo o CSS da rodada, importado pelo `HudShell`), `src/ui/uiPrefs.ts` (escala e
+reduzir movimento), `src/ui/notify.ts` (`notifyBlocked`), `src/ui/settingsApi.ts` (`openSettings`, `setControlsOpener`),
+`src/ui/hud/SettingsPanel.ts` (abas), `tools/qa/desktop_graphics.mjs` (QA), `tests/round11Graphics.test.ts`.
+
+### Layout desktop
+
+```
+┌ evento · estado ──────────── ● CONFRONTO ─────────────── minimapa ┐
+│ missão                        (aviso de zona, só na troca)   ⚙ ☰  │
+│ acontecendo agora (1–3)       (aviso de missão/conquista)          │
+│                               (⊘ ação bloqueada, 1,8 s)            │
+│                                                                    │
+│                    ┌───── centro livre ─────┐                      │
+│                    │  (avenida, multidão)   │                      │
+│                    └────────────────────────┘                      │
+│ [chat]              [ação contextual / confronto]        MÃOS     │
+│              [Veículos Itens Pichar Confronto Gestos …]   Ações G │
+└────────────────────────────────────────────────── © OpenStreetMap ┘
+```
+
+- **Centro limpo**: nada persistente invade a área central (x 30–70 %, y 28–66 % da tela). O QA mede as caixas visíveis
+  de cada bloco do HUD e falha se algum bloco sai da tela, invade o centro ou cruza outro bloco.
+- **Alto ao centro, um fluxo só** (`.hud-tc`, coluna flex): indicador de zona → aviso de zona → avisos de progresso →
+  ação bloqueada. Antes, o aviso de zona (9vh) e os avisos (96 px) eram absolutos e se sobrepunham em 1080 p.
+  Entrada suave (0,35 s), saída imediata; com "reduzir movimento", sem animação.
+- **Alto à esquerda** nunca passa de 28 % da largura da tela (o limite é dividido pela escala para compensar o zoom).
+  "Acontecendo agora" ficou compacto: a regra `.hud button { font: inherit }` vencia o tamanho da agenda (as linhas
+  saíam a 16 px em negrito); agora 12 px, e em telas com até 820 px de altura só o 1º item (o resto na agenda do ☰).
+- **Dica de teclas do canto** (9 s) some quando há barra de ações (a barra já mostra a dica, e as duas disputavam o
+  rodapé em 1366 × 768 a 125 %).
+
+### Indicador de zona
+
+Pílula pequena no alto ao centro, **sempre visível** (não esmaece com o HUD, não some no auto-ocultar): ponto colorido
++ palavra — **PAZ** (verde), **CONTESTADA** (âmbar), **CONFRONTO** (vermelho, fundo levemente avermelhado). A palavra
+garante leitura sem depender da cor. Fora de zona nomeada vale a regra padrão (PAZ). `title` com o nome da zona e a
+política por extenso. O aviso grande de zona (nome do lugar) continua aparecendo só na troca (3,4 s), menor (18–26 px)
+e logo abaixo do indicador; em telas baixas perde a linha "PRESIDENTE VARGAS". A legenda do minimapa continua.
+
+### Ação bloqueada — `notifyBlocked(texto)`
+
+Contrato para qualquer sistema (inventário, veículos, confronto, interação): `import { notifyBlocked } from
+'src/ui/notify'`. Toast curto (1,8 s) no fim da coluna do alto ao centro, sem modal, sem roubar o foco nem soltar o
+mouse; o próximo substitui o atual (não enfileira); a mesma frase repetida em < 1,5 s é ignorada; antes do HUD montar,
+guarda a última. Já usam: confronto negado por zona de paz (substitui o antigo selo "ZONA DE PAZ"), sem fôlego, golpe
+sem o item. QA: `__pv.r11().blocked(texto)`; `hudShell.info().blocked`.
+
+### Escala da interface (80 / 90 / 100 / 110 / 125 %)
+
+Ajustes → **Interface**. Variável CSS `--ui-scale` em `<html>`, aplicada com `zoom` a cada filho direto de `.hud`
+(blocos e painéis) — **nunca ao canvas** nem ao que é preso ao mundo por posição de tela em pixels (nomes, realce de
+interação, véu de efeito, controles de toque) nem à atribuição do OSM. Painéis novos montados em `.hud` escalam
+sozinhos. Medidas em JS dentro do HUD dividem por `uiZoom()` (popover da barra de ações, minimapa expandido — que
+também ganha nitidez multiplicando o DPR do canvas pela escala). Navegador sem CSS `zoom` (Firefox < 126): fica em
+100 %, sem quebrar. Persistida em `localStorage['pv3d.ui']` (`{scale, reduceMotion}`, try/catch, valor inválido →
+escala válida mais próxima).
+
+**Reduzir movimento** (padrão: `prefers-reduced-motion` do sistema): sem transições/animações no HUD
+(`html.reduce-motion`), sem o giro de câmera da chegada (já começa olhando a avenida) e véus de tela no modo reduzido
+(desorientação vira só ícone). A câmera não tem balanço; quem mexer nela consulta `isReduceMotion()`.
+**Reduzir efeitos visuais** (rodada 9) continua, na mesma aba.
+
+### Painel de AJUSTES com abas
+
+Folha lateral de 440 px (desktop), abas **Geral · Áudio · Gráficos · Interface · Controles** (`role=tablist`, setas
+←/→, Home/End; foco na aba ativa ao abrir). Esc pela pilha única (`EscSlot('ajustes', 100)`), sem
+listener próprio. `openSettings(tab)` abre direto numa aba (menu do jogo do Esc); `setControlsOpener(fn)` registra a
+tela de controles — a aba Controles delega para ela (sem registro: mostra a ajuda de teclas do HUD).
+
+- **Geral**: nomes dos jogadores, esconder o HUD sozinho, chat recolhido.
+- **Áudio**: a seção Som da rodada 10, igual (ver `docs/AUDIO_SYSTEM.md`).
+- **Gráficos**: qualidade (Automática/Baixa/Média/Alta/Ultra) aplicada **na hora**; quando algo só muda ao recarregar
+  (suavização nativa do canvas, fachadas já construídas, capacidade extra da multidão) o painel diz exatamente o quê e
+  oferece "Recarregar agora". Limite de FPS (Automático/30/60/Sem limite), na hora. Leitura ao vivo (2 Hz, só com a
+  aba aberta): FPS medido, limite, escala da resolução dinâmica. Aparelho detectado e o motivo. Ver `docs/PERFORMANCE.md`.
+- **Interface**: escala, reduzir movimento, reduzir efeitos visuais.
+- **Controles**: botão "Abrir controles e teclas" + resumo.
+
+### Resoluções testadas (QA `tools/qa/desktop_graphics.mjs`)
+
+1366 × 768, 1440 × 900, 1440 × 900 @2x (Retina), 1920 × 1080 e 2560 × 1440 × escalas 80/100/125 % (e 90/110 % no
+1920), com a coluna do alto ao centro CHEIA (indicador + aviso de zona + aviso + ação bloqueada ao mesmo tempo, pior
+caso) e multidão de bots: **17/17 sem sobreposição, sem corte e com o centro livre**. Resultado:
+`docs/screenshots/round11/desktop_graphics.json`. Capturas em `docs/screenshots/round11/`: `W_1366x768`,
+`X_1920x1080`, `Y_2560x1440`, `A_hud_desktop_d` (HUD reorganizado), `U_evento` (HUD num evento), `Q_configuracoes`
+(painel, aba Interface), `S_graficos` (aba Gráficos depois de trocar o preset ao vivo).
 
 ## Rodada 11 — desktop first (docs/DESKTOP_CONTROLS.md)
 
