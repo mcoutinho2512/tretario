@@ -8,9 +8,27 @@ import * as THREE from 'three';
 import { EMPTY_SOCIAL, type SocialState } from '../../social/types';
 import { ACTION_BY_ID, type ActionDefinition } from '../../social/actions';
 import { PROP_BY_ID } from '../../social/props';
+import { animVariant } from '../crowd/animVariety';
 import { MIRROR_SUFFIX, UPPER_BONES, UPPER_MOVING_WEIGHT, clipFloor, clipFades, ease, proceduralClip, specFor } from './proceduralClips';
 
 const UPPER_SET = new Set(UPPER_BONES);
+
+/**
+ * rodada 12 — olhar (puro): direção do alvo no espaço do esqueleto (x = esquerda, y = cima, z = frente) → giro e
+ * inclinação LIMITADOS (±70° / ±25°) e peso. Alvo atrás das costas (> 115°) solta o olhar (ninguém torce o pescoço
+ * 180°); colado (< 0,3 m) também. Positivo em `pitch` = olhar para baixo (convenção do `rot` em torno de +x).
+ */
+export const LOOK_LIMITS = { yaw: 1.22, pitch: 0.44, behind: 2.0, minDist: 0.3 } as const;
+export function lookAngles(x: number, y: number, z: number): { yaw: number; pitch: number; w: number } | null {
+  const hz = Math.hypot(x, z);
+  if (!(hz + Math.abs(y) > LOOK_LIMITS.minDist)) return null;
+  const yaw = Math.atan2(x, z);
+  if (Math.abs(yaw) > LOOK_LIMITS.behind) return { yaw: 0, pitch: 0, w: 0 };
+  const cl = (v: number, m: number) => Math.max(-m, Math.min(m, v));
+  // perto do limite lateral o peso cai (não "trava" no batente)
+  const w = Math.abs(yaw) > LOOK_LIMITS.yaw ? Math.max(0, 1 - (Math.abs(yaw) - LOOK_LIMITS.yaw) / (LOOK_LIMITS.behind - LOOK_LIMITS.yaw)) : 1;
+  return { yaw: cl(yaw, LOOK_LIMITS.yaw), pitch: cl(-Math.atan2(y, hz), LOOK_LIMITS.pitch), w };
+}
 
 const LOCO = ['idle', 'walk', 'jog', 'sprint'] as const;
 type Loco = (typeof LOCO)[number];
@@ -334,8 +352,10 @@ export class HumanAnimator {
     const fades = spec ? clipFades(spec) : { fadeIn: ACT_FADE, fadeOut: ACT_FADE };
     return {
       kind, id, variation, full, loop, dur: onceDur ?? clip.duration, phase: 0,
-      offset: loop && v ? ((v * 0.381966) % 1) * clip.duration : 0,
-      rate: loop && v ? 1 + (((v * 5) % 8) - 3.5) * 0.008 : 1,
+      // rodada 12 — com individualidade (setVariant), a semente da pessoa soma deslocamento e andamento próprios:
+      // 100 pessoas que começam a bater palmas no mesmo tick não ficam em uníssono (animVariety.ts)
+      offset: loop && (v || this.vary.on) ? ((((v * 0.381966) + (this.vary.on ? this.vary.actOff : 0)) % 1) * clip.duration) : 0,
+      rate: loop && (v || this.vary.on) ? (v ? 1 + (((v * 5) % 8) - 3.5) * 0.008 : 1) * (this.vary.on ? this.vary.actRate : 1) : 1,
       w: 0, target: 1, ground, tracks, fadeIn: spec ? fades.fadeIn : ACT_FADE, fadeOut: spec ? fades.fadeOut : ACT_FADE,
       adaptive: !!spec?.adaptive, fw: 0,
     };
@@ -415,11 +435,17 @@ export class HumanAnimator {
       h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35) >>> 0;
       return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
     };
+    const av = animVariant(seed); // rodada 12 — mesma semente da multidão instanciada (fase/cadência/laços)
     this.vary = {
       on: true, t0: r(1) * 60,
       shift: 0.6 + r(2) * 0.6, shiftHz: 0.07 + r(3) * 0.06,
       look: 0.5 + r(4) * 0.7, lookHz: 0.05 + r(5) * 0.05,
       lean: (r(6) - 0.5) * 0.08, bob: 0.6 + r(7) * 0.8,
+      // rodada 12 — parado mais humano: braços (mais junto/afastado do corpo, mão à frente), joelho da perna livre,
+      // olhada de lado de vez em quando (pico curto, lado sorteado), cabeça um pouco inclinada; passada própria
+      arms: (r(11) - 0.5) * 2, armHz: 0.03 + r(12) * 0.04, knee: 0.5 + r(13) * 0.8,
+      glanceHz: 1 / (7 + r(14) * 9), glanceSide: r(15) < 0.5 ? -1 : 1, tilt: (r(16) - 0.5) * 0.08,
+      stride: av.stride, actOff: av.actOffset, actRate: av.actRate,
     };
     const idle = this.act.get('idle');
     if (idle) { idle.timeScale = 0.92 + r(8) * 0.16; idle.time = r(9) * idle.getClip().duration; }
@@ -428,7 +454,9 @@ export class HumanAnimator {
       if (a) a.time = r(10) * a.getClip().duration; // fase comum entre walk/jog/sprint (sincronizadas no update)
     }
   }
-  private vary = { on: false, t0: 0, shift: 1, shiftHz: 0.1, look: 1, lookHz: 0.07, lean: 0, bob: 1 };
+  private vary = { on: false, t0: 0, shift: 1, shiftHz: 0.1, look: 1, lookHz: 0.07, lean: 0, bob: 1, arms: 0, armHz: 0.05, knee: 1, glanceHz: 0.1, glanceSide: 1, tilt: 0, stride: 1, actOff: 0, actRate: 1 };
+  /** QA: parâmetros da individualidade (null = sem semente) */
+  get variantDebug() { return this.vary.on ? { ...this.vary } : null; }
 
   /** parado: troca de peso (pelve inclina, tronco compensa), olhar em volta; andando: postura própria */
   private sway(idleW: number, moveW: number) {
@@ -443,6 +471,21 @@ export class HumanAnimator {
       this.rot('spine_03', 0, 1, 0, 0.05 * lk);
       this.rot('neck_01', 0, 1, 0, 0.12 * lk);
       this.rot('head', 1, 0, 0, 0.04 * Math.sin(t * 0.21 + v.t0) * idleW);
+      // rodada 12 — joelho da perna que alivia o peso (acompanha a troca de peso), braços e olhada de lado
+      this.rot(sh > 0 ? 'calf_l' : 'calf_r', 1, 0, 0, 0.05 * Math.min(1, Math.abs(sh)) * v.knee);
+      const am = (v.arms + 0.5 * Math.sin(t * v.armHz * 6.283 + 2.1)) * idleW;
+      this.rot('upperarm_l', 0, 0, 1, 0.05 * am);
+      this.rot('upperarm_r', 0, 0, 1, -0.05 * am);
+      this.rot('lowerarm_l', 1, 0, 0, -0.06 * Math.max(0, am));
+      this.rot('lowerarm_r', 1, 0, 0, -0.06 * Math.max(0, -am));
+      const gp = Math.sin(t * v.glanceHz * 6.283 + v.t0);
+      const glance = gp > 0 ? gp ** 8 : 0; // pico curto (~1 s) a cada 7–16 s
+      if (glance > 0.01) {
+        const side = v.glanceSide * (Math.floor(t * v.glanceHz) % 2 ? -1 : 1);
+        this.rot('neck_01', 0, 1, 0, 0.35 * glance * side * idleW);
+        this.rot('head', 0, 1, 0, 0.25 * glance * side * idleW);
+      }
+      this.rot('head', 0, 0, 1, v.tilt * idleW);
     }
     if (moveW > 0.01) {
       this.rot('spine_01', 1, 0, 0, v.lean * moveW);
@@ -556,7 +599,7 @@ export class HumanAnimator {
 
   update(speed: number, grounded: boolean, dt: number) {
     this.t += dt;
-    speed /= this.strideScale;
+    speed /= this.strideScale * this.vary.stride; // rodada 12 — passada própria (cadência por pessoa)
     const targets: Record<string, number> = {};
     for (const k of this.act.keys()) targets[k] = 0;
     if (this.show) {
@@ -615,6 +658,48 @@ export class HumanAnimator {
       if (this.show === 'acenando') this.wave();
       if (swayOn) this.sway(idleW, walkW);
     }
+    // rodada 12 — cabeça/tronco olhando para um alvo (NetPlayer.look), só de perto; cede à ação de corpo inteiro
+    if (this.detail && (this.look.w > 0.001 || this.look.on)) this.applyLook(dt, 1 - 0.6 * aw.full);
+  }
+
+  // ------------------------------------------------------------------ rodada 12 — olhar (look-at)
+  private look = { on: false, x: 0, y: 0, z: 0, w: 0, yaw: 0, pitch: 0 };
+  private lookV = new THREE.Vector3();
+  private lookQ = new THREE.Quaternion();
+  /** alvo do olhar em coordenadas de MUNDO (null = olhar livre); a suavização/limites ficam em `lookAngles` */
+  setLook(target: { x: number; y: number; z: number } | null) {
+    const l = this.look;
+    if (!target) { l.on = false; return; }
+    l.on = true; l.x = target.x; l.y = target.y; l.z = target.z;
+  }
+  /** QA */
+  get lookDebug() { const l = this.look; return { on: l.on, w: +l.w.toFixed(3), yaw: +l.yaw.toFixed(3), pitch: +l.pitch.toFixed(3) }; }
+
+  private applyLook(dt: number, scale: number) {
+    const l = this.look, head = this.bones.get('head');
+    if (!head) return;
+    this.root.updateMatrixWorld(true);
+    let want = 0, yaw = l.yaw, pitch = l.pitch;
+    if (l.on) {
+      // direção do alvo no espaço do esqueleto (x = esquerda, y = cima, z = frente), a partir da cabeça
+      head.getWorldPosition(this.lookV);
+      const v = this.lookV.set(l.x - this.lookV.x, l.y - this.lookV.y, l.z - this.lookV.z);
+      this.root.getWorldQuaternion(this.lookQ);
+      v.applyQuaternion(this.lookQ.invert());
+      const a = lookAngles(v.x, v.y, v.z);
+      if (a) { want = a.w; yaw = a.yaw; pitch = a.pitch; }
+    }
+    const k = 1 - Math.exp(-6 * dt);
+    l.yaw += (yaw - l.yaw) * k; l.pitch += (pitch - l.pitch) * k;
+    l.w += (want * scale - l.w) * (1 - Math.exp(-4 * dt));
+    if (l.w < 0.001) return;
+    const y = l.yaw * l.w, p = l.pitch * l.w;
+    // distribuído pela coluna: tronco alto 20 %, pescoço 35 %, cabeça 45 % (giro e inclinação)
+    this.rot('spine_03', 0, 1, 0, y * 0.2);
+    this.rot('neck_01', 0, 1, 0, y * 0.35);
+    this.rot('head', 0, 1, 0, y * 0.45);
+    this.rot('neck_01', 1, 0, 0, p * 0.4);
+    this.rot('head', 1, 0, 0, p * 0.6);
   }
 
   /**

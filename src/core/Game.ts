@@ -110,6 +110,8 @@ import { noticeForJoinError } from '../ui/netNotice'; // rodada 9.1 — versão 
 import { ProgressionUI } from '../ui/progress/ProgressionUI'; // rodada 9 — progressão
 import { InventoryController } from '../inventory/InventoryController'; // rodada 11 — inventário
 import { AudioWorld } from '../audio/AudioWorld'; // rodada 10 — áudio
+import { npcRanges } from '../net/nameLod'; // rodada 12 — nomes dos autônomos
+import { dynamicEventMark, normalizeDynamicEvents } from '../events/dynamicPresentation'; // rodada 12 — eventos dinâmicos
 import { mountAgendaDebate, type AgendaDebate } from '../ui/agendaDebateMount'; // rodada 9 — agenda/debate/telões
 // rodada 9 — confronto (src/combat; carregado com o multiplayer)
 import type { CombatClient } from '../combat/CombatClient';
@@ -378,7 +380,7 @@ export class Game {
     this.scenery.applyEvent(this.events.current);
     for (const it of this.rideables.eventItems()) this.scenery.addScreens(it.model, it.state.id);
     this.scene.add(this.scenery.group);
-    screenFeed().info = () => ({ time: this.simTime.toTimeString().slice(0, 5), players: (this.spectator ? 0 : 1) + (this.net?.remoteCount ?? 0) + (this.net?.farCount ?? 0) });
+    screenFeed().info = () => ({ time: this.simTime.toTimeString().slice(0, 5), players: this.net ? this.net.humanCount(!this.spectator) : this.spectator ? 0 : 1 }); // rodada 12 — só HUMANOS (autônomos/bots nunca somam)
     this.cam = new ThirdPersonCamera(this.camera, this.collision);
     // intro: começa olhando a Central, depois gira para a avenida (direção da Candelária)
     const central = this.manifest.landmarks.find((l) => l.key === 'LANDMARK_CENTRAL')!;
@@ -863,6 +865,7 @@ export class Game {
     this.r9?.attach(this.net); // rodada 9 — agenda/debate/telões
     // quem fala ganha prioridade de nome acima da cabeça por alguns segundos (LOD de nomes)
     this.net.on('chat', (m: { nid: number }) => { const id = this.net?.idByNid(m.nid); if (id) this.net!.markSpeaking(id); });
+    this.r12Net(this.net); // rodada 12 — apresentação da população (nomes, olhar, eventos dinâmicos)
     this.scene.add(this.net.group);
     (window as any).__pvRemotes = () => this.net?.remotesInfo();
     // rodada 9 — eventos: agenda, concentrações (NPCs simulados), corrida/caminhada/confronto (src/events/EventClient.ts)
@@ -1116,6 +1119,44 @@ export class Game {
     void fetch(`${import.meta.env.BASE_URL}gameplay/supporters.json`).then((r) => (r.ok ? r.json() : null)).then((d: { groups?: { displayName?: string }[] } | null) => {
       this.supporterNames = (d?.groups ?? []).map((g) => String(g.displayName ?? ''));
     }).catch(() => { /* sem dados: o painel mostra "sem torcida" */ });
+  }
+
+  // ------------------------------------------------------------------ rodada 12 — apresentação da população (agente D)
+  /**
+   * nomes: foco (hover do cursor / pessoa no painel), oclusão pelo mundo de colisão, regras dos autônomos
+   * (public/gameplay/autonomous.json `nametag`); eventos dinâmicos (`dyn_events`) → minimapa agregado e áudio.
+   */
+  private r12Net(net: NetworkClient) {
+    net.nameFocus = () => {
+      const h = this.ix?.hover;
+      return { hover: h && h.key.startsWith('person:') ? h.key.slice(7) : null, selected: this.personPanel?.selectedId ?? null };
+    };
+    net.occluder = (ax, ay, az, bx, by, bz) => this.collision.raycast(ax, ay, az, bx, by, bz);
+    void fetch(`${import.meta.env.BASE_URL}gameplay/autonomous.json`).then((r) => (r.ok ? r.json() : null)).then((j: { nametag?: { share?: number; nearM?: number; midM?: number } } | null) => {
+      const t = j?.nametag;
+      if (!t) return;
+      const share = Number(t.share), near = Number(t.nearM), mid = Number(t.midM);
+      net.npcNames = {
+        share: Number.isFinite(share) ? Math.max(0, Math.min(1, share)) : net.npcNames.share,
+        ranges: npcRanges(Number.isFinite(near) && near > 0 ? near : undefined, Number.isFinite(mid) && mid > 0 ? mid : undefined),
+      };
+    }).catch(() => { /* sem dados: padrão do código */ });
+    const applyDyn = (m: unknown) => {
+      const list = normalizeDynamicEvents(m);
+      this.hudShell.minimap.dynamicMarks = list.map(dynamicEventMark);
+      this.audioWorld.setDynamicEvents(list);
+      return list.length;
+    };
+    net.on('dyn_events', applyDyn);
+    // QA: injeta focos dinâmicos sem servidor (minimapa + áudio) e força o olhar dos remotos
+    (window as any).__pvR12 = {
+      dyn: applyDyn,
+      look: (fn: ((nid: number) => number) | null) => { net.qaLook = fn; },
+      lookAtMe: (on = true) => { net.qaLook = on ? () => net.selfNid : null; },
+      labels: () => ({ ...net.labelStats, inUse: net.tags.inUse, pool: net.tags.nodes, domNodes: document.querySelectorAll('.name-label').length, shownNames: [...document.querySelectorAll('.name-label')].filter((e) => !(e as HTMLElement).hidden).map((e) => (e as HTMLElement).textContent) }),
+      lookStats: () => ({ ...net.lookStats }),
+      humans: () => net.humanCount(!this.spectator),
+    };
   }
 
   private r10Net(net: NetworkClient) {

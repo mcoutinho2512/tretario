@@ -6,7 +6,8 @@
  * Formato (little-endian):
  *   u8 versão (1) · u16 quantidade
  *   por entrada (11 B): u16 nid · i16 x (dm) · i16 y (dm) · i16 z (dm) · u8 rumo (256 passos) · u8 vel. (×20 m/s, máx 12,75)
- *                       · u8 flags (bits 0–1 corpo, 2–3 status, 4 em veículo, 5 = segue vida social, 7 = segue aparência)
+ *                       · u8 flags (bits 0–1 corpo, 2–3 status, 4 em veículo, 5 = segue vida social,
+ *                         6 = NÃO humano (rodada 12: autônomo/bot — fora da contagem pública), 7 = segue aparência)
  *   vida social (v2, só de quem está fazendo algo, +5 B): u8 ação · u8 idade da ação (¼ s, satura em 63,75 s)
  *                       · u8 item · u16 design — a multidão distante dança/levanta bandeira sem estado completo
  *   aparência (só na 1ª vez que o cliente vê aquele nid, +12 B): pele, cabelo, camisa, calça (RGB 3 B cada)
@@ -23,6 +24,8 @@ export interface CrowdEntry {
   body: number; // índice em BODIES
   status: number;
   vehicle: boolean;
+  /** rodada 12 — não humano (NetPlayer.kind != 0): bit 6 das flags; ausente/falso = humano (servidor antigo) */
+  npc?: boolean;
   /** vida social (ação/item); ausente = nada */
   social?: { act: number; ageS: number; prop: number; design: number };
   app?: { skin: number; hair: number; top: number; bottom: number };
@@ -52,7 +55,7 @@ export function encodeCrowd(entries: readonly CrowdEntry[]): Uint8Array {
     dv.setUint8(o + 8, Math.round((h / (Math.PI * 2)) * 256) & 255);
     dv.setUint8(o + 9, Math.max(0, Math.min(255, Math.round(e.speed * 20))));
     const soc = hasSocial(e.social);
-    dv.setUint8(o + 10, (e.body & 3) | ((crowdStatus(e.status) & 3) << 2) | (e.vehicle ? 16 : 0) | (soc ? 32 : 0) | (e.app ? 128 : 0));
+    dv.setUint8(o + 10, (e.body & 3) | ((crowdStatus(e.status) & 3) << 2) | (e.vehicle ? 16 : 0) | (soc ? 32 : 0) | (e.npc ? 64 : 0) | (e.app ? 128 : 0));
     o += BASE;
     if (soc) {
       const s = e.social!;
@@ -97,7 +100,7 @@ export class CrowdTable {
     r[o + 8] = Math.round((h / (Math.PI * 2)) * 256) & 255;
     r[o + 9] = Math.max(0, Math.min(255, Math.round(e.speed * 20)));
     const hs = hasSocial(e.social);
-    r[o + 10] = (e.body & 3) | ((crowdStatus(e.status) & 3) << 2) | (e.vehicle ? 16 : 0) | (hs ? 32 : 0);
+    r[o + 10] = (e.body & 3) | ((crowdStatus(e.status) & 3) << 2) | (e.vehicle ? 16 : 0) | (hs ? 32 : 0) | (e.npc ? 64 : 0);
     if (hs) {
       const s = e.social!, so = this.soc, q = slot * SOC;
       so[q] = s.act & 255; so[q + 1] = age4(s.ageS); so[q + 2] = s.prop & 255; so[q + 3] = s.design & 255; so[q + 4] = (s.design >> 8) & 255;
@@ -151,6 +154,7 @@ export function decodeCrowd(buf: Uint8Array): CrowdEntry[] {
       heading: h, speed: dv.getUint8(o + 9) / 20,
       body: f & 3, status: (f >> 2) & 3, vehicle: (f & 16) !== 0,
     };
+    if (f & 64) e.npc = true;
     o += BASE;
     if (f & 32) {
       if (o + SOC > buf.byteLength) break;

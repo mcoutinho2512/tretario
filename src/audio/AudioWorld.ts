@@ -24,6 +24,10 @@ import type { PlayerState } from '../player/PlayerState';
 import type { RideableInstance } from '../vehicles/Rideable';
 import type { NetworkClient } from '../net/NetworkClient';
 import type { CrowdCellSnapshot } from '../spectator/tiers';
+import { dynamicEventAudio, type DynamicEventView } from '../events/dynamicPresentation';
+
+/** pessoas "equivalentes" somadas à célula de um foco dinâmico com multidão 1,0 (só reforça o que já se ouve) */
+const DYN_MASS = 24;
 
 export interface AudioWorldDeps {
   camera: THREE.Camera;
@@ -109,9 +113,29 @@ export class AudioWorld {
     net?.forEachRemoteAudio((_n, x, z, _s, _st, sup) => this.agg.addVote(x, z, sup, 2));
     const now = this.manager.time;
     for (const h of this.manager.heatPoints()) this.agg.addHeat(h.x, h.z, h.k * Math.max(0, 1 - (now - h.t) / 6) * 0.4, 0);
-    this.agg.setEventZones(d.eventZones?.() ?? []);
+    // rodada 12 — eventos dinâmicos (diretor do servidor): calor de multidão/comemoração/confronto no foco e o tipo
+    // do evento na célula. A população autônoma já entrou como agente (CrowdDirector.audioTap) — nunca voz por NPC.
+    const zones = d.eventZones?.() ?? [];
+    if (this.dyn.length) {
+      const all = zones.slice();
+      for (const e of this.dyn) {
+        const a = dynamicEventAudio(e);
+        this.agg.addHeat(e.x, e.z, a.combat * 0.8, a.cheer * 0.7);
+        if (a.crowd > 0) this.agg.addMass(e.x, e.z, a.crowd * DYN_MASS, Math.max(a.cheer, a.combat));
+        all.push({ x: e.x, z: e.z, r: e.r, type: e.kind.toLowerCase() });
+      }
+      this.agg.setEventZones(all);
+    } else this.agg.setEventZones(zones);
     audioCrowd(this.agg.end());
   }
+
+  /**
+   * rodada 12 — gancho do DIRETOR DE EVENTOS DINÂMICOS (AGENTE E): lista de focos (src/events/dynamicPresentation.ts;
+   * `crowdIntensity`/`cheering`/`combatIntensity` 0..1 opcionais, senão deduzidos de tipo + escalada). Chamado na
+   * chegada da mensagem; lido a ~4 Hz junto com a multidão agregada.
+   */
+  setDynamicEvents(list: readonly DynamicEventView[]) { this.dyn = list.slice(0, 32); }
+  private dyn: DynamicEventView[] = [];
 
   update(dt: number) {
     const d = this.d;
@@ -271,5 +295,5 @@ export class AudioWorld {
   }
 
   /** QA: estado completo (window.__pvAudio) */
-  qa() { return { ...this.manager.stats(), world: { ms: +this.ms.toFixed(3), vehiclesTracked: this.veh.size, remotesTracked: this.remotes.size, aggAdded: this.agg.lastAdded, profiles: [...this.agg.profiles] } }; }
+  qa() { return { ...this.manager.stats(), world: { ms: +this.ms.toFixed(3), vehiclesTracked: this.veh.size, remotesTracked: this.remotes.size, aggAdded: this.agg.lastAdded, profiles: [...this.agg.profiles], dynamic: this.dyn.length } }; }
 }

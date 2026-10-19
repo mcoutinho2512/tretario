@@ -47,6 +47,7 @@ import { DESIGN_BY_KEY } from '../../src/social/designs.ts';
 import { metrics } from './metrics.ts';
 import { SpatialGrid, selectInterest, selectInterestSlots, InterestScratch, makeSlotView, type SlotView } from '../../src/net/spatialGrid.ts';
 import { CrowdTable } from '../../src/net/crowdCodec.ts';
+import { ENTITY_KIND } from '../../src/world/entityKind.ts';
 import { GraffitiService, sanitizeClientId } from './graffiti/GraffitiService.ts';
 import { JsonFileGraffitiStore, MemoryGraffitiStore } from './graffiti/store.ts';
 import { ChatService, authorKeyOf } from './chat/ChatService.ts';
@@ -764,7 +765,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     const now = Date.now();
     for (const r of this.rt.values()) {
       const p = this.state.players.get(r.actor.id);
-      if (p) this.crowdTable.set(r.slot, { nid: r.nid, x: p.x, y: p.y, z: p.z, heading: p.heading, speed: p.speed, body: BODY_INDEX[p.body] ?? 0, status: p.status, vehicle: !!p.vehicle, social: { act: p.act, ageS: (now - p.actAt) / 1000, prop: p.prop, design: p.design }, app: { skin: p.skin, hair: p.hair, top: p.top, bottom: p.bottom } });
+      if (p) this.crowdTable.set(r.slot, { nid: r.nid, x: p.x, y: p.y, z: p.z, heading: p.heading, speed: p.speed, body: BODY_INDEX[p.body] ?? 0, status: p.status, vehicle: !!p.vehicle, npc: (p.kind ?? 0) !== 0, social: { act: p.act, ageS: (now - p.actAt) / 1000, prop: p.prop, design: p.design }, app: { skin: p.skin, hair: p.hair, top: p.top, bottom: p.bottom } }); // rodada 12: npc = bit 6 (fora da contagem pública no cliente)
     }
     for (const [id, r] of this.rt) {
       if (r.slot % slices !== phase) continue;
@@ -1082,6 +1083,9 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     p.y = 0; p.heading = taken?.heading ?? this.spawn.heading; p.loco = 0; p.vehicle = ''; p.platform = ''; p.interaction = 'pacifico'; p.status = STATUS.OK;
     p.link = LINK_WIRE.CONNECTED;
     p.nid = this.allocNid();
+    // rodada 12 — tipo da entidade: bot de carga = LOAD_BOT. SÓ servidor de teste: PV_QA_BOT_KIND=1 faz os bots se
+    // passarem por AUTÔNOMOS (kind 1) para desenvolver/medir a apresentação no cliente (nomes, painel, olhar)
+    if (id.bot) p.kind = process.env.PV_TEST === '1' && process.env.PV_QA_BOT_KIND === '1' ? ENTITY_KIND.AUTONOMOUS : ENTITY_KIND.LOAD_BOT;
     this.state.players.set(client.sessionId, p);
     const view = new StateView();
     client.view = view;
