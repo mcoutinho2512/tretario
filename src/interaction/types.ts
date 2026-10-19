@@ -35,6 +35,11 @@ export interface Interactable {
   pickRadius: number;
   /** executa o pedido (o provedor chama a mensagem existente) */
   activate(): void;
+  /** rodada 10 (acréscimo): distância já medida pelo provedor com a regra do objeto (ex.: até a lateral da carroceria,
+   *  porta da cabine do trio). Sem ela, o sistema mede do jogador até (x, z). */
+  distance?: number;
+  /** rodada 10 (acréscimo): texto da ação contextual do HUD ("E — ENTRAR NO CARRO"); sem ele, gerado dos rótulos */
+  prompt?: string;
 }
 
 export interface InteractionProvider {

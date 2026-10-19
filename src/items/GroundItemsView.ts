@@ -137,6 +137,8 @@ export class GroundItemsView {
     return best;
   }
 
+  /** rodada 10 — interação: percorre os itens mostrados sem alocar (InteractionSystem, provedor de itens) */
+  forEach(fn: (id: number, prop: number, x: number, z: number, state: number) => void) { for (const [id, s] of this.shown) fn(id, s.prop, s.x, s.z, s.state); }
   get list() { return [...this.shown].map(([id, s]) => ({ id, prop: s.prop, state: s.state, x: s.x, z: s.z })); }
 
   /** limpa tudo (desconectou) */
