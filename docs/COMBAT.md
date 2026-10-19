@@ -3,29 +3,36 @@
 Estilo **arcade**: condição abstrata (0–100), fôlego (stamina), empurrão, cambaleio e queda que levanta sozinha.
 Sem sangue, sem lesão, sem morte, sem armas de fogo/explosivos. Grupos não têm nenhuma diferença mecânica.
 
-## Decisão do dono — 2026-10-18: "Avenida toda, sem nenhuma área de paz" + "bater em todos"
+## Rodada 12 — NÃO EXISTEM ÁREAS DE PAZ (decisão definitiva do dono)
 
-O dono jogou o beta e não conseguiu acertar ninguém (zonas de paz no eixo, NPCs da multidão fora de alcance, taco e
-barra só nos apoios). Desde então, por **dados**:
+Antes (2026-10-18) as áreas de paz estavam só **desligadas pelos dados**; na rodada 12 o **conceito saiu do código**:
 
-| dado | valor | efeito |
-|---|---|---|
-| `public/world/zones.json` `zones[].combatPolicy` | todas `COMBAT`, sem `peaceAreas` | a avenida toda é zona de confronto |
-| `zones.json` `derivedPeaceAreas` | `false` | spawn (40 m), palco, anéis do trio/carro de som e retornos de evento **desligados** (o código fica em `server/src/combat/zonePolicy.ts`; `true` religa) |
-| `zones.json` `combatConsent` | `"none"` | **jogador pacífico também sofre impacto, em qualquer lugar**, sem K: golpes, empurrão F e carro/moto (`"both"` volta à regra antiga: os dois em modo interação) |
-| `public/gameplay/combat_props.json` `freeCombatProps` | `true` | taco, barra e spray direto da roda de ações (ITENS), em qualquer lugar; apoios e chão continuam |
+| o que saiu | onde |
+|---|---|
+| política `PEACE` (tipo `ZoneCombatPolicy` agora é `'COMBAT' \| 'CONTESTED'`) | `src/combat/policy.ts` (`normalizeZonePolicy`: ausente, desconhecido ou o antigo `'PEACE'` → COMBAT) |
+| "fora de qualquer zona = PEACE" → **fora de zona = COMBAT** | `server/src/combat/zonePolicy.ts` (`policyFor`), `CombatClient.policyAt` |
+| áreas de paz (`PeaceArea`, `peaceAreas`, `inPeaceArea`, `peaceAt`, `setEventAreas`, `respawnAreas`) e as derivadas: spawn 40 m, palco, anéis do trio 28 m / carro de som 18 m (`RALLY_SHAPE[].peaceR`), retornos de evento 16 m | `zonePolicy.ts`, `rally.ts`, `CombatSystem` (host sem `peaceAt`) |
+| `zones.json` `derivedPeaceAreas`, `zones[].peaceAreas` | dados (todas as zonas `COMBAT`) |
+| negativa `zona_paz` (`CombatDenial`), aviso "ZONA DE PAZ" (`CombatHud.peaceEl`/`peace()`), "não pode ser usado nesta zona" do inventário | cliente/servidor |
 
-- O que ainda bloqueia impacto: **só a proteção de retorno de 5 s** (entrar, reconectar, levantar, retorno de evento) e
-  as regras de evento (`friendlyFire`). Espectador continua sem golpe e sem item (capacidades).
-- **Golpe sempre anima**: com `combatConsent: "none"` o servidor aceita todo pedido válido (não existe mais negativa
-  `zona_paz` antes de aceitar) — `cbt_act` vai à AOI mesmo quando o impacto é bloqueado na janela ativa (proteção →
-  `cbt_hit r:'blocked'`). O cliente sempre prevê a animação; SOCO/CHUTE/ESQUIVA de toque ficam sempre visíveis para
-  jogador.
+**O que FICOU** (não é zona): a **proteção temporária de retorno de 5 s** (`tuning.protectMs`) ao **entrar**,
+**reconectar** e **levantar** da queda (e no retorno de evento) — `Actor.immuneUntil`/fx PROTECTED, `cbt_hit
+r:'blocked'` com motivo `protegido`; stamina, cooldowns, janelas, alcance, ângulo e a validação no servidor (taxa/spam);
+as regras de EVENTO (`friendlyFire`, inscrição; `CONTESTED` continua como mecânica de evento — nenhuma zona dos dados
+usa); o consentimento `combatConsent` (`"none"` nos dados: qualquer um sofre impacto; `"both"`: regra antiga de modo
+interação). Espectador continua sem golpe e sem item (capacidades).
+
+- **Golpe sempre anima**: o servidor aceita todo pedido válido — `cbt_act` vai à AOI mesmo quando o impacto é
+  bloqueado na janela ativa (proteção → `cbt_hit r:'blocked'`). O cliente sempre prevê a animação; SOCO/CHUTE/ESQUIVA
+  de toque ficam sempre visíveis para jogador.
+- **Corpos sólidos** (rodada 12, docs/CROWD_COLLISION.md): dois corpos encostados ficam a 2 × 0,32 = **0,64 m**, dentro
+  do soco (1,2 m) e do chute (1,5 m); a colisão não impede acerto legítimo, a esquiva nem o avanço curto (lunge para
+  no contato, ainda no alcance) — `tests/combat.test.ts` ("corpos ENCOSTADOS"), `tests/collisionServer.test.ts`.
 - **NPCs de ambiente** (pedestres e multidão de concentração) apanham no cliente — ver "Golpe em NPC" abaixo.
 - **Neutralidade**: nada disso depende de grupo; todos têm a mesma mecânica (`tests/groupNeutrality.test.ts`).
 
-As seções abaixo descrevem o mecanismo; onde falam de PEACE/CONTESTED/áreas de paz/consentimento, vale para quando os
-dados religarem essas opções (os testes mantêm a regra antiga por parâmetro).
+Histórico: em 2026-10-18 ("Avenida toda, sem nenhuma área de paz" + "bater em todos") as zonas viraram COMBAT por dados
+e `derivedPeaceAreas: false` desligou as derivadas; a rodada 12 removeu o caminho de religar.
 
 ## Peças
 
@@ -80,9 +87,8 @@ preparação. O servidor continua validando alcance e arco pela posição dos mo
 2. **capacidade** `combat.act` (src/access/policy.ts; espectador → `denied {cap}`);
 3. ação válida e combo resolvido (`acao_invalida`); **veículo/trio** (`em_veiculo`);
 4. **estado** físico permitido (padrão só NORMAL; esquiva também de CAMBALEANDO) e **não estar no ar** (`estado`);
-5. **zona do atacante** (só com `combatConsent: "both"`): área de paz ou zona PEACE → `zona_paz` (o cliente mostra
-   "ZONA DE PAZ"); CONTESTED passa (só acerta com evento). Com `"none"` (dados atuais) não há negativa aqui: o golpe
-   sai e anima, e o impacto é decidido na janela ativa;
+5. (rodada 12: não há mais negativa por zona — não existem áreas de paz; o golpe sai e anima, e o impacto é decidido
+   na janela ativa);
 6. **item** na mão (`sem_item`), **fôlego** (`stamina`), **recuperação/cooldown** (`cooldown`);
 7. aceito: gasta fôlego, `cbt_act {by, a, h, t}` para a **AOI** (quem tem o atacante no StateView), evento de
    gameplay `combat_action`; agenda a janela ativa no **relógio do servidor** (setTimeout no instante exato; o tick
@@ -91,10 +97,10 @@ preparação. O servidor continua validando alcance e arco pela posição dos mo
    cliente), candidatos SÓ da grade espacial (`grid.forEachInRadius`), alcance + folga, arco + folga, parede
    (`checkPath` de src/net/authority.ts), alvo caído/levantando/em veículo fica de fora; cada alvo decidido uma vez;
 9. alvo **esquivando** (iFrames) → `dodged` (vale até alcance + deslocamento da esquiva) e `combat_dodge` para ele;
-10. `combatAllowed(zona, atacante, alvo, evento, agora, consentimento)` (src/combat/policy.ts): área de paz, PEACE,
-    proteção, evento (provedor injetado `combat.combatEventFor(sid)` — agente D; padrão nenhum), consentimento
-    (`"both"`: os dois em modo interação; `"none"`: ninguém) → senão `cbt_hit r:'blocked'` só para os dois (e
-    `zona_paz` para quem golpeou, se for o caso);
+10. `combatAllowed(zona, atacante, alvo, evento, agora, consentimento)` (src/combat/policy.ts): proteção de retorno,
+    evento (provedor injetado `combat.combatEventFor(sid)` — agente D; padrão nenhum), consentimento
+    (`"both"`: os dois em modo interação; `"none"`: ninguém), CONTESTED de evento → senão `cbt_hit r:'blocked'` só
+    para os dois;
 11. **impacto**: condição, empurrão (contra paredes), CAMBALEANDO (status 3; o servidor ignora movimentos e volta a
     NORMAL sozinho) ou **CAÍDO** (condição 0 sempre derruba) pelo caminho de queda existente (`knock` + ragdoll no
     cliente; levantar no tick da sala; rede de segurança no CombatSystem) → proteção de retorno (`immuneUntil`,
@@ -108,9 +114,9 @@ o modo (`pacifico_alvo`/`pacifico_atacante` só na regra antiga) e a política �
 carro/moto (`checkImpacts`/`vehicleBlockers`: quem está protegido continua bloqueando o carro, que para antes). A queda por veículo não mudou. A queda de golpe ou
 empurrão agora vai só para a AOI do alvo (antes `knock` ia para todos).
 
-**Zonas**: a política é `zoneDef(zoneOf(sid)).combatPolicy ?? 'PEACE'` (dados de zonas/áreas de paz = agente B).
-Bonecos de treino têm uma **área de treino** (raio `areaR`) com política COMBAT onde a zona real é PEACE (áreas de paz
-continuam valendo). Servidor de teste: `PV_COMBAT_ZONES=*|ID,ID` força COMBAT (carga/QA), `PV_PROTECT_MS` encurta
+**Zonas**: a política é `normalizeZonePolicy(zoneDef(zoneOf(sid)).combatPolicy)` — COMBAT em toda parte (fora de zona
+também); CONTESTED só se um dado de evento pedir. Bonecos de treino têm uma **área de treino** (raio `areaR`) que vale
+COMBAT dentro de zona CONTESTED. Servidor de teste: `PV_COMBAT_ZONES=*|ID,ID` força COMBAT (carga/QA), `PV_PROTECT_MS` encurta
 a proteção (testes de rede).
 
 **Eventos de gameplay**: `combat_action {key}` (ação aceita, sem alvo), `combat_dodge` (esquivou de um golpe de
@@ -120,7 +126,7 @@ verdade), `dummy_knockdown` (derrubou o boneco). Nenhum XP por acerto em jogador
 
 Alvo do servidor (não é NetPlayer, não conta como jogador, não entra na AOI nem nas métricas): perto do Campo de
 Santana (`dummies[0]`, gramado do parque, área de treino de 14 m). Aceita golpe de qualquer modo (não precisa de
-consentimento) fora de área de paz; cambaleia, cai com condição 0 (ou golpe de queda), levanta em 0,8 s depois de
+consentimento) em qualquer lugar; cambaleia, cai com condição 0 (ou golpe de queda), levanta em 0,8 s depois de
 `resetMs` e recupera a condição 4 s depois do último golpe. Visível por `cbt_dummy [id, x, z, h, st, condição]` para
 quem está a ≤ 90 m (varredura 1 Hz pela grade + na troca de estado) e `cbt_hit {dummy: 1}`. Usado pela missão
 tutorial (agente C) via `dummy_knockdown`.
@@ -144,7 +150,7 @@ clipes `jump_start`/`jump_land` da biblioteca nas transições (HumanAnimator); 
   (é seleção/interação) e o **botão direito é a câmera** (não chuta mais). Teclas remapeáveis na tela de controles (F1).
 - **Buffer** de 180 ms: o golpe apertado durante a recuperação sai quando ela termina (previsão local da tabela).
 - **Previsão**: só a animação (e o deslocamento da esquiva), com contexto de confronto (com `combatConsent: "none"`,
-  sempre); na regra antiga, em zona de paz nada é previsto e o servidor responde `zona_paz`. O resultado SEMPRE vem do servidor: `cbt_hit` (cambaleio + empurrão no
+  sempre; rodada 12: não existe zona de paz). O resultado SEMPRE vem do servidor: `cbt_hit` (cambaleio + empurrão no
   próprio com o mesmo deslocamento do servidor, bloqueio do movimento durante o cambaleio; clipe `stagger` pela mudança
   de status), `cbt_act` (remotos tocam o mesmo clipe; quem está perto ganha esqueleto na hora, como na queda).
 - **Toque**: SOCO / CHUTE / ESQUIVA aparecem com contexto de confronto — com os dados atuais, **sempre** para
@@ -287,44 +293,33 @@ ou do chão. Cada jogador POSSUI no máximo um item do mundo.
 - Item na mão durante a queda: escondido (`PropAttachment.setVisible(false)`) e volta ao levantar — o de confronto o
   servidor já largou.
 
-### 4. Zonas: política de confronto (dados)
+### 4. Zonas: política de confronto (dados) — rodada 12: não existem áreas de paz
 
-**Desde 2026-10-18 todas as zonas são COMBAT** (decisão do dono, no topo). A tabela abaixo é a regra ANTERIOR (rodada 9),
-mantida como referência para religar pelos dados:
+Todas as zonas de `public/world/zones.json` são **COMBAT**, e **fora de qualquer zona também é COMBAT**. Não há
+`peaceAreas`, `derivedPeaceAreas` nem áreas derivadas (spawn, palco, trio, carro de som, retornos de evento). Valor de
+dados ausente/desconhecido/antigo (`'PEACE'`) é lido como COMBAT (`normalizeZonePolicy`). `CONTESTED` existe só como
+mecânica de evento (impacto apenas entre inscritos num confronto ativo nas zonas do evento).
 
-| zona | política (até 2026-10-18) | por quê |
+| zona | política | até 2026-10-18 (histórico) |
 |---|---|---|
-| Cidade Nova | **COMBAT** | ponta oeste, longe do evento — quem quer confronto vai até lá |
-| Central do Brasil | **PEACE** | entrada/spawn |
-| Campo de Santana | **CONTESTED** | só durante evento de confronto ativo |
-| Centro | **PEACE** | a passeata e o trio |
-| Av. Rio Branco | **CONTESTED** | idem (o palco tem área de paz) |
-| Candelária | **PEACE** | chegada do ato |
+| Cidade Nova | COMBAT | COMBAT |
+| Central do Brasil | COMBAT | PEACE (entrada/spawn) |
+| Campo de Santana | COMBAT | CONTESTED |
+| Centro | COMBAT | PEACE |
+| Av. Rio Branco | COMBAT | CONTESTED (palco com área de paz) |
+| Candelária | COMBAT | PEACE |
 
-Até 2026-10-18 ~60 % do eixo era PAZ, mais as áreas de paz. Fora de qualquer zona = PEACE (continua).
-
-**Áreas de paz** (`PeaceArea`) — hoje desligadas (`peaceAreas` removidas dos dados, `derivedPeaceAreas: false`):
-- fixas, em dados: `peaceAreas` dos telões (Campo de Santana, Centro);
-- fixas, derivadas: spawn (`manifest.spawn`, 40 m), palco (`eventSpots` stage, `RALLY_SHAPE.stage.peaceR` 38 m à
-  frente do palco);
-- de evento: pontos de retorno do confronto (`agenda[].clash.respawn` → 16 m), ou o que um runner registrar
-  (`zonePolicy.setEventAreas(key, areas)`);
-- **móveis**: anel do trio (28 m) e do carro de som (18 m) — `RALLY_SHAPE[kind].peaceR`, lidos das posições dos
-  veículos de evento a cada consulta (a mesma lista que monta a concentração das células do espectador aéreo).
-
-**Servidor** (`server/src/combat/zonePolicy.ts`, instância `room.zonePolicy`):
-`policyFor(zoneId) → ZoneCombatPolicy` e `peaceAt(x, z) → boolean` (também `room.policyFor` / `room.peaceAt`).
-Uso pelo CombatSystem:
+**Servidor** (`server/src/combat/zonePolicy.ts`, instância `room.zonePolicy`): `policyFor(zoneId) → ZoneCombatPolicy`
+(também `room.policyFor`). Uso pelo CombatSystem:
 ```ts
-const party = (sid) => ({ zone: room.zoneOf(sid), inPeaceArea: room.peaceAt(x, z), …, protectedUntil: room.protection.protectedUntil(sid) });
-combatAllowed((z) => room.zonePolicy.policyFor(z), party(a), party(b), eventRules, now);
+const party = (sid) => ({ zone: room.zoneOf(sid), mode, groupKey, combatEventId, protectedUntil: room.protection.protectedUntil(sid) });
+combatAllowed((z) => room.zonePolicy.policyFor(z), party(a), party(b), eventRules, now, consent);
 ```
 
-**Cliente**: o aviso de zona mostra a política discreta ("ZONA DE PAZ" verde, "DISPUTA" âmbar, "ZONA DE CONFRONTO"
-salmão — hoje sempre "Zona de confronto"); a legenda do minimapa diz "· paz / disputa / confronto" (hoje "· confronto");
-o minimapa tinge fraco a faixa das zonas de confronto (vermelho) e disputa (âmbar) — camada estática, custo zero por
-quadro. O cliente lê as mesmas regras da raiz de `zones.json` (`loadZoneFile` → `CombatRules`): `combatConsent` decide
-previsão, botões de toque, F e o bloqueio previsto do carro; as áreas derivadas só existem no servidor.
+**Cliente**: o indicador de zona mostra a **região** (nome da zona; fora dela "CENTRO DO RIO") sem sugerir proibição;
+o aviso ao entrar numa zona diz "Zona de confronto" (ou "Disputa" num evento); a legenda do minimapa "· confronto";
+o minimapa tinge fraco a faixa das zonas (camada estática). O cliente lê `combatConsent` da raiz de `zones.json`
+(`loadZoneFile` → `CombatRules`) para previsão, botões de toque, F e o bloqueio previsto do carro.
 
 ### 5. Proteção de retorno
 - Fonte ÚNICA: `Actor.immuneUntil` no servidor (o empurrão antigo, o atropelamento e o CombatSystem leem daqui); o
@@ -440,10 +435,9 @@ vista do outro jogador (não investigado). Sem som nesta parte (o AGENTE D liga 
 ## Integração (rodada 9)
 
 - **Uma política só** (`src/combat/policy.ts` `combatAllowed`) para golpes, empurrão antigo (tecla F,
-  `CombatSystem.pushPolicy`) e atropelamento por carro/moto (em zona de paz o carro PARA, como diante de quem é
-  pacífico). Áreas de paz: as fixas de `zones.json` + as derivadas/móveis de `server/src/combat/zonePolicy.ts`
-  (`peaceAt`: spawn 40 m, palco, anéis do trio 28 m e dos carros de som 18 m, retornos de evento).
-- **Área de treino** (boneco): vale como COMBAT dentro de zona PEACE ou CONTESTED.
+  `CombatSystem.pushPolicy`) e atropelamento por carro/moto (impacto negado — proteção/evento — o carro PARA, como
+  diante de quem é pacífico na regra antiga). Rodada 12: não existem áreas de paz.
+- **Área de treino** (boneco): vale como COMBAT dentro de zona CONTESTED.
 - **Eventos**: `room.combat.combatEventFor = evt.combatEventFor` (confronto de grupos: inscritos, zonas do evento,
   `friendlyFire` dos dados); derrubadas no evento pontuam pelo runner (`evt.onKnockdown`), nunca dão XP por golpe.
 - **Consentimento**: dado `combatConsent` de `zones.json`. Hoje `"none"` (2026-10-18): pacífico também sofre impacto

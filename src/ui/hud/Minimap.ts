@@ -79,8 +79,7 @@ export class Minimap {
     const toS = (p: XZ): XZ => [(p[0] - x0) * STATIC_PPM, (p[1] - z0) * STATIC_PPM];
     // rodada 9: faixa tingida das zonas de CONFRONTO (vermelho) e DISPUTA (âmbar) ao longo do eixo — fraca, por baixo de tudo
     for (const zn of zones) {
-      const pol = zn.combatPolicy ?? 'PEACE';
-      if (pol === 'PEACE') continue;
+      const pol = zn.combatPolicy === 'CONTESTED' ? 'CONTESTED' : 'COMBAT'; // rodada 12: não há zona de paz
       g.strokeStyle = pol === 'COMBAT' ? 'rgba(224, 70, 56, 0.22)' : 'rgba(240, 170, 60, 0.18)';
       g.lineWidth = Math.min(zn.halfWidth, 120) * 2 * STATIC_PPM;
       g.lineCap = 'butt';

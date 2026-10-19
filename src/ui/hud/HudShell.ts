@@ -28,7 +28,7 @@ import { Minimap } from './Minimap';
 import { SettingsPanel } from './SettingsPanel';
 import { HudPrefsStore } from './hudPrefs';
 import { AutoHide, RateGate, TextSlot, setClass } from './throttle';
-import type { ZoneCombatPolicy } from '../../combat/policy';
+import { normalizeZonePolicy, type ZoneCombatPolicy } from '../../combat/policy';
 import type { ActionBar } from './ActionBar';
 import { ControlsScreen } from './ControlsScreen'; // rodada 11 — entrada
 import { GameMenu, type SettingsTab } from './GameMenu'; // rodada 11 — entrada
@@ -40,10 +40,12 @@ import { applyUiPrefs, onUiPrefs } from '../uiPrefs'; // rodada 11 — escala da
 import { setControlsOpener } from '../settingsApi'; // rodada 11 — ajustes com abas
 
 /** rodada 9 — rótulo discreto da política de confronto da zona (aviso de zona e legenda do minimapa) */
-export const POLICY_LABEL: Record<ZoneCombatPolicy, string> = { PEACE: 'Zona de paz', CONTESTED: 'Disputa', COMBAT: 'Zona de confronto' };
-const POLICY_SHORT: Record<ZoneCombatPolicy, string> = { PEACE: 'paz', CONTESTED: 'disputa', COMBAT: 'confronto' };
+export const POLICY_LABEL: Record<ZoneCombatPolicy, string> = { CONTESTED: 'Disputa', COMBAT: 'Zona de confronto' };
+const POLICY_SHORT: Record<ZoneCombatPolicy, string> = { CONTESTED: 'disputa', COMBAT: 'confronto' };
 /** rodada 11 — indicador de zona permanente (curto, sempre legível) */
-export const POLICY_CHIP: Record<ZoneCombatPolicy, string> = { PEACE: 'PAZ', CONTESTED: 'CONTESTADA', COMBAT: 'CONFRONTO' };
+export const POLICY_CHIP: Record<ZoneCombatPolicy, string> = { CONTESTED: 'DISPUTA', COMBAT: 'CONFRONTO' };
+/** rodada 12 — fora de zona nomeada o indicador mostra a região genérica (não há zona de paz: vale COMBAT) */
+export const REGION_FALLBACK = 'Centro do Rio';
 
 /** componente montado num encaixe do HUD */
 export interface HudPanel {
@@ -309,7 +311,7 @@ export class HudShell {
     this.blockedTimer = window.setTimeout(() => this.blockedEl.classList.remove('show'), 1800);
   }
 
-  /** rodada 9 — HUD de confronto (src/combat/CombatHud) acima do centro inferior + aviso discreto ZONA DE PAZ */
+  /** rodada 9 — HUD de confronto (src/combat/CombatHud) acima do centro inferior (+ aviso opcional fora do painel) */
   mountCombat(panel: HudPanel, notice?: HTMLElement) {
     this.specSlot.parentElement?.prepend(panel.el);
     if (notice) this.root.appendChild(notice);
@@ -450,12 +452,13 @@ export class HudShell {
 
   private onZone(ch: ZoneChange) {
     const z = ch.to;
-    const pol = z?.combatPolicy ?? 'PEACE';
+    const pol = normalizeZonePolicy(z?.combatPolicy);
     this.minimap.setCaption(z ? `${z.name} · ${POLICY_SHORT[pol]}` : '');
-    // rodada 11 — indicador permanente: fora de zona nomeada vale a regra padrão (paz)
-    this.zoneChipText.set(POLICY_CHIP[pol]);
+    // rodada 12 — indicador permanente mostra a REGIÃO (nome da zona; fora dela, a região genérica). Não há zona de
+    // paz: a regra (confronto liberado, ou disputa de evento) só aparece na dica e na cor
+    this.zoneChipText.set((z?.name ?? REGION_FALLBACK).toUpperCase());
     this.zoneChip.dataset.policy = pol;
-    this.zoneChip.title = z ? `${z.name} · ${POLICY_LABEL[pol]}` : POLICY_LABEL[pol];
+    this.zoneChip.title = `${z?.name ?? REGION_FALLBACK} · ${POLICY_LABEL[pol]}`;
     for (const fn of this.zoneListeners) fn(ch);
     if (!z) return;
     this.bannerName.textContent = z.name;
@@ -509,7 +512,7 @@ export class HudShell {
   info() {
     return {
       clean: this.clean, dim: this.autoHide.faded, expanded: this.minimap.expanded, target: this.minimap.target, zone: this.zones.current?.id ?? null,
-      policy: this.zones.current ? this.zones.current.combatPolicy ?? 'PEACE' : null, chip: this.zoneChipText.value, blocked: this.blockedLog.slice(-5), banner: { name: this.bannerName.textContent, policy: this.bannerPolicy.textContent, shown: this.banner.classList.contains('show') },
+      policy: this.zones.current ? normalizeZonePolicy(this.zones.current.combatPolicy) : null, chip: this.zoneChipText.value, blocked: this.blockedLog.slice(-5), banner: { name: this.bannerName.textContent, policy: this.bannerPolicy.textContent, shown: this.banner.classList.contains('show') },
       prefs: { ...this.prefs.value }, minimap: { ...this.minimap.stats, drawMs: +this.minimap.stats.drawMs.toFixed(3), densityMs: +this.minimap.stats.densityMs.toFixed(3) },
       writes: { event: this.eventText.writes, status: this.statusText.writes, prompt: this.promptText.writes },
       focus: { x: Math.round(this.lastFocus.x), z: Math.round(this.lastFocus.z) },

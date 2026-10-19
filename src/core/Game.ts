@@ -1185,7 +1185,7 @@ export class Game {
       selfPlayer: () => this.net?.selfPlayer() ?? null,
       titles: () => this.r11prog?.p?.titles ?? [],
       progression: () => this.r11prog?.cat ?? null,
-      zonePolicy: () => this.combat?.policyAt(this.player.x, this.player.z) ?? 'PEACE',
+      zonePolicy: () => this.combat?.policyAt(this.player.x, this.player.z) ?? 'COMBAT', // rodada 12 — colisão/zonas: sem zona de paz
       notify: (m) => this.flash(m),
       onModal: (open) => { shell.poke(); relock(open); },
       setMoveBlocked: (on) => this.input.setMoveBlocked(on),
@@ -1392,7 +1392,7 @@ export class Game {
     try {
       const [{ CombatClient }, { CombatHud }, { loadCombatTable }] = await Promise.all([import('../combat/CombatClient'), import('../combat/CombatHud'), import('../combat/data')]);
       const hud = (this.combatHud = new CombatHud());
-      this.hudShell.mountCombat(hud, hud.peaceEl);
+      this.hudShell.mountCombat(hud); // rodada 12: sem aviso de zona de paz
       this.combat = new CombatClient({
         net: this.net!, table: await loadCombatTable(import.meta.env.BASE_URL), avatar: this.avatar, input: this.input, collision: this.collision, scene: this.scene,
         zone: () => this.hudShell.zones.current, flash: (m) => this.flash(m), touch: this.touchCtl, hud,

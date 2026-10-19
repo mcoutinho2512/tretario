@@ -50,7 +50,7 @@ export interface InventoryHost {
   /** títulos ganhos (cópia do `prog`) e catálogo de progressão (requisitos) */
   titles(): readonly string[];
   progression(): ProgressionCatalog | null;
-  /** política de confronto onde o jogador está ('PEACE' | 'CONTESTED' | 'COMBAT' | 'TRAINING') */
+  /** política de confronto onde o jogador está ('CONTESTED' | 'COMBAT' | 'TRAINING'; rodada 12: não há zona de paz) */
   zonePolicy(): string;
   /** aviso curto do HUD (sem modal) */
   notify(msg: string): void;
@@ -267,7 +267,6 @@ export class InventoryController {
     const before = this.h.social.prop;
     if (prop === 0) { if (before) this.h.social.requestProp(0); }
     else this.h.social.requestProp(prop, design);
-    if (p?.category === 'COMBAT_PROP' && this.h.zonePolicy() === 'PEACE') this.h.notify(`${p.label} não pode ser usado nesta zona.`);
     // espera a confirmação (ou a negação, que o SocialController já avisa e desfaz)
     for (let t = 0; t < 1200 && this.h.online(); t += 100) { await wait(100); if (this.h.social.prop === (prop || 0)) break; }
   }

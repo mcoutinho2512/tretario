@@ -2,7 +2,6 @@
  "version": 1,
  "note": "Faixas ao longo do eixo pvAxis calibradas pelas ruas transversais do OSM (Central t=0,28 · Campo de Santana 0,36 · Av. Rio Branco 0,885 · Candelária 0,954)",
  "combatConsent": "none",
- "derivedPeaceAreas": false,
  "zones": [
   {
    "id": "CENTRAL",
@@ -77,5 +76,5 @@
    "combatPolicy": "COMBAT"
   }
  ],
- "combatNote": "Decisão do dono (2026-10-18): \"Avenida toda, sem nenhuma área de paz\" + \"bater em todos\" — toda zona é COMBAT, sem peaceAreas; combatConsent \"none\" (impacto em qualquer modo, sem K; src/combat/policy.ts) e derivedPeaceAreas false (spawn, palco, anéis do trio/carro de som e retornos de evento desligados em server/src/combat/zonePolicy.ts). Só a proteção de retorno (5 s) e as regras de evento (friendlyFire) bloqueiam. Para voltar à regra antiga: combatConsent \"both\", derivedPeaceAreas true e as políticas por zona."
+ "combatNote": "Decisão definitiva do dono (rodada 12): NÃO EXISTEM ÁREAS DE PAZ. Toda zona é COMBAT e fora de qualquer zona também é COMBAT (src/combat/policy.ts, server/src/combat/zonePolicy.ts); nada de peaceAreas nem áreas derivadas (spawn, palco, anéis do trio/carro de som, retornos de evento). combatConsent \"none\": impacto em qualquer modo, sem K. O que bloqueia um impacto não é lugar: a proteção temporária de retorno (5 s ao entrar, reconectar ou levantar) e as regras de evento (friendlyFire)."
 }

@@ -90,7 +90,7 @@ import { JumpValidator } from './combat/JumpValidator.ts';
 import { CombatTable } from '../../src/combat/data.ts';
 import { PROP_BY_ID } from '../../src/social/props.ts';
 // rodada 9 — itens de confronto, política de zona, proteção de retorno (agente B)
-import { ZonePolicy, type MovingRally } from './combat/zonePolicy.ts';
+import { ZonePolicy } from './combat/zonePolicy.ts';
 import { ProtectionService } from './combat/protection.ts';
 import { RoomItems, loadCombatProps } from './items/RoomItems.ts';
 import { isCombatProp } from '../../src/social/props.ts';
@@ -530,13 +530,13 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
   /** zona atual do jogador (id) — null fora das zonas ou desconhecido */
   zoneOf(sid: string): string | null { return this.rt.get(sid)?.zone.current?.id ?? null; }
 
-  /** definição da zona (política de confronto, áreas de paz) */
+  /** definição da zona (política de confronto) */
   zoneDef(id: string | null): ZoneDefinition | undefined { return id ? this.zoneDefs.find((z) => z.id === id) : undefined; }
 
   // ---------------------------------------------------------------- rodada 9 — itens de confronto, zonas, proteção
   /**
-   * Política de zona + áreas de paz (fixas, de evento, anéis móveis do trio/carro de som) — o CombatSystem pergunta
-   * `zonePolicy.policyFor(zoneOf(sid))` e `zonePolicy.peaceAt(x, z)`. Proteção de retorno: `applyProtection(sid)`
+   * Política de zona (rodada 12: NÃO existem áreas de paz; fora de zona = COMBAT) — o CombatSystem pergunta
+   * `zonePolicy.policyFor(zoneOf(sid))`. Proteção TEMPORÁRIA de retorno (não é zona): `applyProtection(sid)`
    * (entrar/reconectar aqui; levantar: CombatSystem; retorno de evento: runner). Itens: server/src/items.
    */
   zonePolicy!: ZonePolicy;
@@ -547,13 +547,8 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
   private qaStatus = new Map<string, number>();
 
   private r9bSetup(W: ServerWorld, ev: string) {
-    const rallies = (): MovingRally[] => {
-      const out: MovingRally[] = [];
-      for (const id of this.eventVehIds) { const v = this.state.vehicles.get(id); if (v) out.push({ id, kind: v.kind, x: v.x, z: v.z }); }
-      return out;
-    };
-    this.zonePolicy = new ZonePolicy({ zones: this.zoneDefs, axis: this.zoneAxis, spawn: W.manifest.spawn, spots: W.manifest.eventSpots, rallies, derived: W.combatRules.derivedPeaceAreas });
-    for (const a of W.events.get(ev)?.agenda ?? []) if (a.clash?.respawn?.length) this.zonePolicy.setEventAreas(`evento:${a.id}`, this.zonePolicy.respawnAreas(a.id, a.clash.respawn));
+    void ev;
+    this.zonePolicy = new ZonePolicy({ zones: this.zoneDefs }); // rodada 12: sem áreas de paz (fora de zona = COMBAT)
     this.items = new RoomItems({
       player: (sid) => { const p = this.state.players.get(sid), r = this.rt.get(sid); return p && r ? { p, x: r.last.x, z: r.last.z } : undefined; },
       // bots de carga não desenham nada: sem lista de itens (a banda medida nos testes de carga não muda)
@@ -571,7 +566,6 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
   }
 
   policyFor(zoneId: string | null) { return this.zonePolicy.policyFor(zoneId); }
-  peaceAt(x: number, z: number) { return this.zonePolicy.peaceAt(x, z); }
 
   /** proteção de retorno (FX.PROTECTED por CombatTuning.protectMs) — devolve o fim (ms) */
   applyProtection(sid: string, now = Date.now(), ms?: number): number {
@@ -1548,7 +1542,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     const now = Date.now();
     const v = canPush(r.actor, t?.actor, now, world().walls, world().combatRules.combatConsent);
     if (!v.ok) { client.send('push_denied', v.reason); metrics.denied(); log.debug(`[room] empurrão negado ${client.sessionId} → ${targetId}: ${v.reason}`); return; }
-    const pol = this.combat.pushPolicy(client.sessionId, targetId); // rodada 9 — confronto: zona de paz/evento valem para o empurrão
+    const pol = this.combat.pushPolicy(client.sessionId, targetId); // rodada 9 — confronto: regras de evento/proteção valem para o empurrão
     if (!pol.ok) { client.send('push_denied', pol.reason); metrics.denied(); return; }
     r.actor.lastActionAt = now;
     r.actor.actionTimes = [...r.actor.actionTimes.filter((x) => now - x < RULES.rateWindowMs), now];
@@ -1571,7 +1565,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
       const a = this.rt.get(id)?.actor;
       if (!a || a.vehicle || a.platform) return; // em veículo ou em cima do trio: não está no chão
       const canHit = (kind === 'car' || kind === 'moto') && !!d && impactAllowed(d.actor.mode, a.mode, world().combatRules.combatConsent) && a.status === STATUS.OK && now >= a.immuneUntil
-        && this.combat.pushPolicy(driverId, id).ok; // rodada 9: em zona de paz o carro PARA (bloqueia), como para pacífico
+        && this.combat.pushPolicy(driverId, id).ok; // rodada 9: impacto negado (evento/proteção) → o carro PARA (bloqueia), como para pacífico
       if (!canHit) out.push({ x: a.x, z: a.z });
     });
     return out;
@@ -1592,7 +1586,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
       if (!r || id === driverId) continue;
       const a = r.actor;
       if (!impactAllowed(d.actor.mode, a.mode, consent) || a.status !== STATUS.OK || a.vehicle || a.platform || now < a.immuneUntil) continue;
-      if (!this.combat.pushPolicy(driverId, id).ok) continue; // rodada 9: zona de paz/evento valem também para veículo
+      if (!this.combat.pushPolicy(driverId, id).ok) continue; // rodada 9: regras de evento/proteção valem também para veículo
       const hit = vehicleImpact(car, { x: a.x, z: a.z });
       if (hit.hit) this.knockdown(id, car.x - Math.sin(car.heading) * 3, car.z - Math.cos(car.heading) * 3, hit.strength, 'impact', driverId, hit.strength);
     }
@@ -1640,8 +1634,6 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
       forEachNear: (x, z, r, fn) => this.grid.forEachInRadius(x, z, r, (sl) => { const sid = this.slotIds[sl]; if (sid && this.rt.has(sid)) fn(sid); }),
       walls: W.walls,
       zoneOf: (sid) => this.zoneOf(sid),
-      // áreas de paz MÓVEIS/derivadas (trio, carros de som, spawn, palco, retornos de evento) — server/src/combat/zonePolicy.ts
-      peaceAt: (x, z) => this.zonePolicy.peaceAt(x, z),
       consent: W.combatRules.combatConsent,
       // servidor de TESTE (carga/QA): PV_COMBAT_ZONES=*|ID,ID força política COMBAT (as zonas reais são dados do agente B)
       zoneDef: (id) => { const z = this.zoneDef(id); return forced && z && (forced === '*' || forced.split(',').includes(z.id)) ? { ...z, combatPolicy: 'COMBAT' as const } : z; },

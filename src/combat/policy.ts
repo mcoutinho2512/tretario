@@ -1,39 +1,42 @@
 /**
- * POLÍTICA DE CONFRONTO (rodada 9) — pura, compartilhada. Responde "este golpe pode ter impacto?" a partir de
- * ZONA + EVENTO + ESTADO DO JOGADOR. O CombatSystem não conhece bairro, grupo ou evento por nome: só esta função.
+ * POLÍTICA DE CONFRONTO (rodada 9; rodada 12: NÃO EXISTEM ÁREAS DE PAZ) — pura, compartilhada. Responde "este golpe
+ * pode ter impacto?" a partir de ZONA + EVENTO + ESTADO DO JOGADOR. O CombatSystem não conhece bairro, grupo ou
+ * evento por nome: só esta função.
  *
- *   PEACE      nunca há impacto (palco, entrada, pontos sociais, áreas de retorno) → 'zona_paz'
- *   CONTESTED  impacto só durante um evento de confronto ATIVO que inclua a zona, entre inscritos nele
+ * Decisão definitiva do dono (rodada 12): não há zona permanente onde o confronto é proibido. Toda a avenida — e
+ * também fora de qualquer zona nomeada — é COMBAT. Não há áreas de paz (nem nos dados, nem derivadas: spawn, palco,
+ * anéis do trio/carro de som, retornos de evento). Zona de dados ausente ou com valor antigo ('PEACE') vale COMBAT.
+ *
  *   COMBAT     impacto entre quem aceitou o confronto: os dois em modo 'interacao' (K) OU os dois inscritos num
- *              evento de confronto ativo que inclua a zona
+ *              evento de confronto ativo que inclua a zona (com consentimento 'none': qualquer um)
+ *   CONTESTED  (mecânica de EVENTO, nenhuma zona dos dados usa hoje) impacto só durante um evento de confronto ATIVO
+ *              que inclua a zona, entre inscritos nele
  *
+ * O que continua bloqueando um impacto (nada disso é zona): a PROTEÇÃO TEMPORÁRIA de retorno (5 s ao entrar,
+ * reconectar ou levantar — `protectedUntil`), as regras do EVENTO (`friendlyFire`, inscrição) e o consentimento.
  * Consentimento (DADO: zones.json `combatConsent`):
  *   'both'  quem fica em modo pacífico e fora de eventos de confronto NUNCA sofre impacto (regra até 2026-10)
- *   'none'  decisão do dono (2026-10-18, "bater em todos"): em zona COMBAT qualquer jogador sofre impacto, em
- *           qualquer modo — só a proteção de retorno (protectedUntil) e as regras de evento (friendlyFire) bloqueiam
+ *   'none'  decisão do dono (2026-10-18, "bater em todos"): qualquer jogador sofre impacto, em qualquer modo
  * Fogo amigo (mesmo grupo) vem da regra do EVENTO (`friendlyFire`), comparando chaves por igualdade —
  * nenhuma chave de grupo aparece no código.
  */
 import type { CombatDenial } from './types';
 
-export type ZoneCombatPolicy = 'PEACE' | 'CONTESTED' | 'COMBAT';
+export type ZoneCombatPolicy = 'CONTESTED' | 'COMBAT';
+/** política efetiva de um valor de dados (ausente, desconhecido ou o antigo 'PEACE' → COMBAT) */
+export const normalizeZonePolicy = (raw: unknown): ZoneCombatPolicy => (raw === 'CONTESTED' ? 'CONTESTED' : 'COMBAT');
 /** consentimento exigido fora de evento em zona COMBAT ('both' = os dois em modo interação; 'none' = ninguém) */
 export type CombatConsent = 'none' | 'both';
 
 /** regras gerais de confronto (raiz de public/world/zones.json) — servidor e cliente leem o MESMO arquivo */
 export interface CombatRules {
   combatConsent: CombatConsent;
-  /** áreas de paz derivadas do mundo (spawn, palco, anéis do trio/carro de som, retornos de evento) ligadas? */
-  derivedPeaceAreas: boolean;
 }
-/** ausente = regra antiga (consentimento dos dois, áreas derivadas ligadas) */
-export const DEFAULT_COMBAT_RULES: CombatRules = { combatConsent: 'both', derivedPeaceAreas: true };
+/** ausente = regra antiga de consentimento (os dois em modo interação) */
+export const DEFAULT_COMBAT_RULES: CombatRules = { combatConsent: 'both' };
 export function parseCombatRules(raw: unknown): CombatRules {
-  const o = (raw ?? {}) as { combatConsent?: unknown; derivedPeaceAreas?: unknown };
-  return {
-    combatConsent: o.combatConsent === 'none' ? 'none' : 'both',
-    derivedPeaceAreas: o.derivedPeaceAreas !== false,
-  };
+  const o = (raw ?? {}) as { combatConsent?: unknown };
+  return { combatConsent: o.combatConsent === 'none' ? 'none' : 'both' };
 }
 
 /** regras de confronto de um evento (EventDef/ScheduledEventDef → `combat`) */
@@ -49,8 +52,6 @@ export interface CombatEventRules {
 /** o que a política precisa saber de cada lado (montado pelo servidor; nada vem do cliente) */
 export interface CombatParty {
   zone: string | null;
-  /** dentro de uma área de paz pontual (palco, retorno…) */
-  inPeaceArea: boolean;
   mode: 'pacifico' | 'interacao';
   /** chave do grupo no evento do mundo (só comparada por igualdade) */
   groupKey: string | null;
@@ -70,9 +71,7 @@ export function combatAllowed(
   now: number,
   consent: CombatConsent = 'both',
 ): PolicyResult {
-  if (a.inPeaceArea || b.inPeaceArea) return { ok: false, reason: 'zona_paz' };
   const pa = zonePolicy(a.zone), pb = zonePolicy(b.zone);
-  if (pa === 'PEACE' || pb === 'PEACE') return { ok: false, reason: 'zona_paz' };
   if (b.protectedUntil > now) return { ok: false, reason: 'protegido' };
   const inEvent = !!event && a.combatEventId === event.eventId && b.combatEventId === event.eventId
     && (a.zone !== null && event.zones.includes(a.zone)) && (b.zone !== null && event.zones.includes(b.zone));
@@ -86,8 +85,3 @@ export function combatAllowed(
   if (a.mode === 'interacao' && b.mode === 'interacao') return { ok: true };
   return { ok: false, reason: 'politica' };
 }
-
-/** área de paz pontual (dados: zones.json `peaceAreas`, retorno de eventos, palco) */
-export interface PeaceArea { id: string; x: number; z: number; r: number }
-export const inPeaceArea = (areas: readonly PeaceArea[], x: number, z: number) =>
-  areas.some((p) => (x - p.x) ** 2 + (z - p.z) ** 2 <= p.r * p.r);
