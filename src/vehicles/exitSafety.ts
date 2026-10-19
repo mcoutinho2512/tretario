@@ -73,7 +73,7 @@ export function findSafeExit(kind: string, self: Pose2D, world: ExitWorld, obs: 
   const seat = seatPoint(kind, self);
   const b = world.bounds;
   const inMap = (x: number, z: number) => !b || (x >= b[0] + 1 && z >= b[1] + 1 && x <= b[2] - 1 && z <= b[3] - 1);
-  const selfBox = { ...self, kind };
+  const selfBox = { x: self.x, z: self.z, heading: self.heading, kind }; // campos explícitos (o servidor passa um Schema)
   const others = obs.vehicles ?? [];
   const people = obs.people ?? [];
   const okWall = (c: { x: number; z: number }) => inMap(c.x, c.z) && !world.blocked?.(c.x, c.z) && world.clear(seat.x, seat.z, c.x, c.z);

@@ -120,6 +120,12 @@ describe('saída segura (findSafeExit)', () => {
     const r = findSafeExit('moto', car, free, { people });
     expect(r.reason).toBe('perto_de_pessoa');
   });
+  it('aceita objeto com campos por getter (Schema do Colyseus no servidor) — não depende de espalhar propriedades', () => {
+    class SchemaLike { private d = { x: 0, z: 0, heading: 0 }; get x() { return this.d.x; } get z() { return this.d.z; } get heading() { return this.d.heading; } }
+    const r = findSafeExit('car', new SchemaLike(), free, { people: [{ x: exitCandidates('car', car)[0].x, z: exitCandidates('car', car)[0].z }] });
+    expect(r.reason).toBe('livre');
+    expect(r.tag).toBe('outro_lado');
+  });
   it('determinística e com rumo: a mesma entrada dá a mesma saída para qualquer rumo do veículo', () => {
     for (const h of [0, 1, 2.5, -2]) {
       const a = findSafeExit('bicycle', { x: 5, z: 5, heading: h }, free), b = findSafeExit('bicycle', { x: 5, z: 5, heading: h }, free);

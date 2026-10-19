@@ -1321,7 +1321,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
       if (q && !q.vehicle && !q.platform) people.push({ x: q.x, z: q.z });
     });
     const W = world();
-    const r = findSafeExit(v.kind, v, { clear: (ax, az, bx, bz) => W.walls.raycast(ax, 0.6, az, bx, 0.6, bz) >= 1, bounds: W.manifest.bounds as [number, number, number, number] }, { vehicles, people });
+    const r = findSafeExit(v.kind, { x: v.x, z: v.z, heading: v.heading }, { clear: (ax, az, bx, bz) => W.walls.raycast(ax, 0.6, az, bx, 0.6, bz) >= 1, bounds: W.manifest.bounds as [number, number, number, number] }, { vehicles, people });
     this.lastExit = { sid, vid, ...r };
     return r;
   }
