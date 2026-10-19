@@ -103,12 +103,13 @@ try {
   // vagas perto do eixo da avenida (onde a população anda), com vários veículos juntos
   const ax = manifest.pvAxis;
   const axisD = (x, z) => { let b2 = 1e9; for (let i = 0; i < ax.length - 1; i++) { const [p0, q0] = ax[i], [p1, q1] = ax[i + 1], vx = p1 - p0, vz = q1 - q0, l = vx * vx + vz * vz, t = Math.max(0, Math.min(1, ((x - p0) * vx + (z - q0) * vz) / l)); b2 = Math.min(b2, Math.hypot(x - p0 - vx * t, z - q0 - vz * t)); } return b2; };
-  const st = vs.filter((v) => axisD(v.x, v.z) < 35).map((v) => ({ v, n: vs.filter((o) => Math.hypot(o.x - v.x, o.z - v.z) < 30).length })).sort((a, b2) => b2.n - a.n)[0]?.v;
+  const st = vs.filter((v) => axisD(v.x, v.z) < 35).map((v) => ({ v, n: vs.filter((o) => Math.hypot(o.x - v.x, o.z - v.z) < 30).length, d: Math.hypot(v.x - SP.x, v.z - SP.z) })).filter((c) => c.n >= 3).sort((a, b2) => a.d - b2.d)[0]?.v;
   if (st) await tp({ x: st.x - 4, z: st.z - 6 });
+  console.log('vaga escolhida', st?.id, st?.x, st?.z, 'autônomos na vista', autos().length);
   let rider = null;
   const t1 = Date.now();
-  while (Date.now() - t1 < 150000 && !rider) { rider = autos().find((q) => q.vehicle); if (!rider) await w(1000); }
-  check('X: autônomo montado em veículo do mundo', !!rider, rider ? `${rider.name} em ${rider.vehicle}` : 'nenhum em 90 s');
+  while (Date.now() - t1 < 150000 && !rider) { rider = autos().find((q) => q.vehicle); if (!rider) await w(300); }
+  check('X: autônomo montado em veículo do mundo', !!rider, rider ? `${rider.name} em ${rider.vehicle}` : 'nenhum em 150 s');
   if (rider) { await tp({ x: rider.x + 10, z: rider.z + 6 }); const r2 = autos().find((q) => q.id === rider.id) ?? rider; await shot('X_veiculos_autonomos', r2, 3, 9); out.scenes.X = { vehicle: rider.vehicle }; }
   // Y — visão aérea
   await tp(SP);

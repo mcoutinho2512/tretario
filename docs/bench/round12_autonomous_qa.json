@@ -1,5 +1,5 @@
 {
-  "date": "2026-10-19T23:12:47.400Z",
+  "date": "2026-10-19T23:31:37.088Z",
   "port": 4360,
   "population": 200,
   "scenes": {
@@ -9,36 +9,39 @@
     "D": {
       "n": 2,
       "c": {
-        "x": -571.9599914550781,
-        "z": 275.31500244140625
+        "x": -568.9199829101562,
+        "z": 265.81500244140625
       }
     },
     "E": {
       "sup": 1,
-      "x": -557.0800170898438,
-      "z": 263.6600036621094,
+      "x": -757.1900024414062,
+      "z": 325.92999267578125,
       "n": 1
     },
     "F": {
       "sup": 2,
-      "x": -462.70001220703125,
-      "z": 243.17999267578125,
-      "n": 2
+      "x": -639.8400268554688,
+      "z": 292.2799987792969,
+      "n": 1
     },
     "G": {
       "sup": 3,
-      "x": -571.25,
-      "z": 275.5299987792969,
+      "x": -566.6400146484375,
+      "z": 272.05999755859375,
       "n": 2
     },
     "H": {
       "sup": 4,
-      "x": -566.3200073242188,
-      "z": 276.7099914550781,
-      "n": 5
+      "x": -566.7481079101562,
+      "z": 270.0276184082031,
+      "n": 3
+    },
+    "X": {
+      "vehicle": "moto4"
     },
     "Y": {
-      "autos": 35
+      "autos": 47
     }
   },
   "results": [
@@ -55,12 +58,12 @@
     {
       "name": "nametag por autônomo (tag 1/2)",
       "ok": true,
-      "detail": "[2,2,2,1,1,1]"
+      "detail": "[1,2,1,2,1,2]"
     },
     {
       "name": "apelidos sem série robótica",
       "ok": true,
-      "detail": "VascaoDaGema, Rocinha1898, Brisa87, mate2, LemeLapa, Bonsucesso14, flumadureira, BonsucessoBarca"
+      "detail": "UrcaDoCentro, Botafoguense1902, Ritmista7, Gloria77, Torcedor2, Chopp, GrajauRocinha, central96"
     },
     {
       "name": "D: roda de conversa visível",
@@ -75,7 +78,7 @@
     {
       "name": "F: torcedores (sup 2) na vista",
       "ok": true,
-      "detail": "2 juntos"
+      "detail": "1 juntos"
     },
     {
       "name": "G: torcedores (sup 3) na vista",
@@ -85,12 +88,12 @@
     {
       "name": "H: torcedores (sup 4) na vista",
       "ok": true,
-      "detail": "5 juntos"
+      "detail": "3 juntos"
     },
     {
       "name": "X: autônomo montado em veículo do mundo",
-      "ok": false,
-      "detail": "nenhum em 90 s"
+      "ok": true,
+      "detail": "Chopp40 em moto4"
     },
     {
       "name": "sem erros de página",

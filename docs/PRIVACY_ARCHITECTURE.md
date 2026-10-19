@@ -169,3 +169,11 @@ Clique/toque em outro jogador abre um painel compacto (`src/ui/PersonPanel.ts`, 
   correlacionar a entrada/saída de uma pessoa específica com precisão de segundos).
 - **Logs do servidor** de desenvolvimento registram ids de conexão (efêmeros) em entrada/saída/queda/substituição —
   nunca userId, e-mail ou IP.
+
+## Personagens autônomos não são contas (rodada 12)
+
+Autônomos (`NetPlayer.kind = 1`, ids `ac:<n>`) não têm conta, sessão, e-mail, IP nem conexão: não existem no banco, na
+presença nem nas métricas públicas, e nada deles é gravado (memória da sessão do mundo). Denunciar/silenciar pelo nid de
+um autônomo é recusado (`autonomo`) — não há pessoa por trás para moderar. Os apelidos são gerados (nunca copiados de
+contas: conferidos contra `profiles.byNicknameKey` e contra quem está na sala) e ficam RESERVADOS enquanto vivos, para que
+nenhuma conta se passe por um autônomo nem o contrário. O painel da pessoa não rotula ninguém como "bot"/"NPC".

@@ -501,6 +501,8 @@ export class AutonomousSystem implements AutonomousWorldView {
     if (a.mem.threat && !a.threatHandled && now - a.mem.threat.at < 5000 && !a.fight) { a.threatHandled = true; if (this.reactToThreat(a, a.mem.threat.id, now)) return; }
     // briga em curso: o executor cuida (fim, escalada) — só reavalia quando acaba
     if (a.fight && now < a.fight.until) return;
+    // montado com destino: segue até chegar (ninguém desce do veículo a cada decisão)
+    if (a.vehicleId && now < a.goal.until && a.plan.mode === 'drive') return;
     const live = now < a.goal.until;
     // pedido aceito do diretor vale até expirar — salvo AMEAÇA recente (fui atacado: reajo por conta própria)
     const threatened = !!a.mem.threat && now - a.mem.threat.at < 4000;
@@ -588,7 +590,7 @@ export class AutonomousSystem implements AutonomousWorldView {
         a.plan = { ...this.walkPlan(x, z, kind === 'LEAVE_AREA' ? 1.04 : 1.06), axisS: s, lane: r.range(-20, 20), run: r.chance(a.prof.run * 0.5) };
         // viagem longa e veículo livre perto: vai de veículo (mesmo caminho dos jogadores)
         // quem gosta de veículo procura um a ≤ 30 m; qualquer um, às vezes, pega um que está bem do lado (≤ 12 m)
-        const casual = !a.vehicleAffinity && kind === 'TRAVEL' && r.chance(0.2);
+        const casual = !a.vehicleAffinity && kind === 'TRAVEL' && r.chance(0.1);
         if (casual) { const v = this.freeVehicle(a, 12); if (v) { a.goal.kind = 'USE_VEHICLE'; a.plan = { ...this.walkPlan(v.x, v.z, 1.05), mode: 'board', vehicle: v.id, axisS: s, lane: a.plan.lane, arriveR: 1.0 }; } }
         if (a.vehicleAffinity && kind === 'TRAVEL') {
           const v = this.freeVehicle(a, 30);
