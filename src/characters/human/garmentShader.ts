@@ -109,14 +109,15 @@ vec3 pvPattern(int slot, vec4 r) {
   }
   if (p == 12) {
     // listras verticais bg/ac (5,5 cm) com filete th entre elas; gola V e punhos th
-    if (collar && r.w < 0.03) return th;
-    if (cuff && r.w < 0.035) return th;
+    if (collar && r.w < 0.02) return th;
+    if (cuff && r.w < 0.03) return th;
     float u = r.x / 0.055 + 0.5;
     vec3 c = mod(floor(u), 2.0) > 0.5 ? ac : bg;
     float f = (fract(u) - 0.5) * 0.055;
     c = mix(c, th, pvLine(abs(f) - 0.0275, 0.006, px));
-    // V da gola: duas linhas descendo do decote até o peito, na frente
-    float v = pvLine(ax - (r.y - 0.1) * 0.55, 0.026, px) * step(0.1, r.y) * step(r.y, 0.24) * step(0.0, r.z);
+    // V da gola RASO, ancorado na borda do decote (r.w = distância à borda; vale para os 4 corpos): acabamento estreito
+    // (~1,8 cm) que sai da gola e desce até ~9 cm abaixo dela no centro, só na frente; de longe some (pvLine)
+    float v = pvLine(ax - (0.09 - r.w) * 0.75, 0.018, px) * step(r.w, 0.09) * step(0.12, r.y) * step(ax, 0.075) * step(0.0, r.z);
     return mix(c, th, v);
   }
   // p == 13: listras verticais iguais; gola e punhos ac com frisos bg

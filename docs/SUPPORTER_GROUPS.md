@@ -28,7 +28,7 @@ padrões novos. Coordenadas no espaço de REPOUSO do corpo (o padrão acompanha 
 |---|---|---|---|
 | 212 | `tor_faixas_vermelho_preto` | `hoops_top` | faixas horizontais de 8,5 cm com FASE começando em preto no topo; gola polo preta; 2 frisos vermelhos no alto dos ombros |
 | 213 | `tor_preta_faixa_diagonal` | `sash_l` | preta; faixa branca (~10 cm) do ombro esquerdo ao quadril direito, só no tronco (não invade a manga); curvas de nível sutis em cinza dentro da faixa (procedurais, não a textura oficial); costas coerentes (a faixa dá a volta) |
-| 214 | `tor_listras_grena_verde` | `stripes_pin` | listras grená/verde de 5,5 cm com filete branco de 6 mm; gola V branca (borda + "V" no peito, só na frente); punhos brancos |
+| 214 | `tor_listras_grena_verde` | `stripes_pin` | listras grená/verde de 5,5 cm com filete branco de 6 mm; gola V RASA branca (acabamento de ~2 cm na borda do decote + V estreito ancorado na borda, ponta ~9 cm abaixo dela, só na frente; some de longe); punhos brancos |
 | 215 | `tor_listras_preto_branco` | `stripes_eq` | listras iguais de 6,5 cm; gola preta com friso branco; punho preto com dois frisos brancos |
 | 216/217 | bandeira / faixa | `hoops_top` / `h_stripes` | vermelho e preto |
 | 218/219 | bandeira / faixa | `sash_l` | preta com diagonal branca (mesmo sentido da camisa, vista de frente) |
