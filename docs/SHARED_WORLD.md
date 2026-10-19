@@ -36,7 +36,13 @@ Objetivo: dois jogadores olhando o mesmo cruzamento veem **essencialmente a mesm
 
 - **Entrar:** `E — USAR <VEÍCULO>` aparece perto de um veículo livre; o cliente pede `enter`, o servidor valida
   distância (pela carroceria: carro 2,2 m, moto 1,6 m, bicicleta/patinete 3,5 m), estado e ocupante.
-- **Sair:** o veículo fica **parado onde está** e volta a `AVAILABLE` imediatamente para qualquer jogador.
+- **Sair:** o veículo fica **parado onde está** e volta a `AVAILABLE` imediatamente para qualquer jogador. Rodada 10:
+  o ponto de saída é a **saída segura** do servidor (`src/vehicles/exitSafety.ts`: porta do motorista → outro lado →
+  frente → trás → anel; nunca dentro de parede, de outro veículo, colado em outra pessoa a pé nem fora do mapa).
+- **Corpo no veículo (rodada 10, docs/VEHICLE_MOUNTING.md):** nada de osso na rede. Cada cliente deriva a fase
+  (`entering → mounted → exiting`) da mudança de `NetPlayer.vehicle` e põe o corpo no banco do veículo **como ele o
+  desenha** (âncoras de `MOUNT_PROFILES`, IK de mãos/pés só de perto); inclinação, esterço e pedivela saem do
+  deslocamento do veículo — iguais para o motorista e para quem olha.
 - **Sincronizado:** posição, rotação, velocidade, ocupante, tipo e estado (`NetVehicle`), só para quem está na área
   de interesse — o servidor mantém uma grade espacial de veículos (`vgrid`) e consulta só as células próximas.
 
@@ -65,6 +71,13 @@ Carro de som e trio são **sempre pacíficos** (nunca entram em `checkImpacts`; 
 ### Medido (`tools/qa/vehicles_mp.mjs`, 2 navegadores reais por tipo: 24/24)
 Para carro, moto, bicicleta e patinete: estacionado e disponível → A entra → B **não** entra no mesmo → A anda →
 B vê o movimento (erro < 2,5 m) → A sai → veículo parado e disponível.
+
+### Medido (`tools/qa/vehicle_mount_mp.mjs`, rodada 10: 26/26)
+Para carro, moto, bicicleta e patinete: B vê A **entrando** (fase no remoto), **montado** (pelve no banco com erro 0,
+mãos no guidão/volante < 0,12 m), **andando** com o corpo preso ao banco (inclinação/esterço/pedivela vistos por B) e
+**saindo**; depois da saída, B desenha A de pé exatamente no ponto do servidor. Testes do servidor real
+(`tests/vehicleMountServer.test.ts`): corrida pelo mesmo carro (só um entra), saída segura com alguém na porta,
+reconexão dentro da graça (volta no mesmo veículo, sem duplicar) e fora dela (veículo livre e de volta à vaga).
 
 ## Ações sociais e itens (rodada 7)
 Nada de ossos pela rede. Cada jogador tem, no estado da sala (só para quem está na área de interesse):

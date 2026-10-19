@@ -29,6 +29,7 @@ import { netStats, SIM } from './netWebSocket';
 import { worldClock } from './clock';
 import { RIDEABLE_DEFS, seatWorld, type RideableKind } from '../vehicles/Rideable';
 import { TRIO, localToWorld, packPlatformMove } from '../vehicles/platform';
+import type { MountSource } from '../characters/human/vehicleClips'; // rodada 10 — montagem
 import { AvatarVisual } from '../player/AvatarVisual';
 import { createPlayerState, type PlayerState } from '../player/PlayerState';
 import type { Accessory, BodyType, CharacterAppearance } from '../characters/bodyTypes';
@@ -188,6 +189,8 @@ export class NetworkClient {
   platform: { id: string; lx: number; lz: number; lh: number; speed: number; loco: number } | null = null;
   /** pose do trio COMO ESTE CLIENTE O DESENHA (interpolada) — os passageiros remotos são presos a ela */
   platformPose: ((id: string) => { x: number; y: number; z: number; heading: number } | null) | null = null;
+  /** rodada 10 — montagem: veículo desenhado neste cliente (pose + dinâmica) — o corpo do remoto vai fisicamente ao banco */
+  vehicleSource: ((id: string) => MountSource | null) | null = null;
   onBoard: ((ok: boolean, d: { id: string; reason?: string; lx?: number; lz?: number }) => void) | null = null;
   onUnboard: ((pos: { x: number; z: number }) => void) | null = null;
   onPlatformCorrect: ((lx: number, lz: number, reason: string) => void) | null = null;
@@ -774,7 +777,7 @@ export class NetworkClient {
         // tipo REAL do veículo (sincronizado), não deduzido do id
         const def = RIDEABLE_DEFS[(this.vehicleKinds.get(c.vehicle) ?? 'bicycle') as RideableKind] ?? RIDEABLE_DEFS.bicycle;
         const seat = seatWorld(def, s.x, s.z, s.heading); // carro de som/trio: banco na cabine, longe do centro
-        visual.updateRiding(seat.x, s.y, seat.z, s.heading, def.pose, s.speed, def.seatHeight, dt);
+        visual.updateRiding(seat.x, s.y, seat.z, s.heading, def.pose, s.speed, def.seatHeight, dt, this.vehicleSource?.(c.vehicle) ?? undefined); // rodada 10 — montagem
       } else visual.update(this.viewOf(r, !!c.platform, dt), dt, crowd ? visual.root.visible && crowd.shouldAnimate(ag) : undefined);
     }
     this.updateLabels(camera, viewport, nowP);
@@ -909,6 +912,11 @@ export class NetworkClient {
   }
 
   /** para QA */
+  /** rodada 10 — montagem (QA): fase da montagem e posição desenhada de cada remoto com corpo */
+  mountDebug() {
+    return [...this.remotes.values()].map((r) => ({ id: r.id, name: r.name, vehicle: r.vehicle, visual: !!r.visual, mount: r.visual?.mountInfo ?? null, root: r.visual ? r.visual.root.position.toArray().map((x) => +x.toFixed(3)) : null }));
+  }
+
   remotesInfo(): RemoteInfo[] {
     return [...this.remotes.values()].map((r) => {
       const c = r.buf[r.buf.length - 1];

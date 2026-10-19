@@ -1,0 +1,321 @@
+{
+ "results": [
+  {
+   "name": "car: A entra (servidor confirma)",
+   "ok": true,
+   "detail": "car"
+  },
+  {
+   "name": "car: B vê A ENTRANDO (fase entering no remoto)",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "car: B vê A MONTADO — pelve no banco, mãos no guidão/volante (IK no remoto)",
+   "ok": true,
+   "detail": "{\"handL\":0,\"handR\":0.004,\"footL\":0.017,\"footR\":0.037,\"hip\":0}"
+  },
+  {
+   "name": "car: B vê veículo andando com o corpo coerente (pelve presa ao banco em movimento)",
+   "ok": true,
+   "detail": "v=2.26 esterço=0.63 incl=0.00 pedivela=0.00 err={\"handL\":0,\"handR\":0.052,\"footL\":0.017,\"footR\":0.037,\"hip\":0}"
+  },
+  {
+   "name": "car: B vê A SAINDO (fase exiting no remoto)",
+   "ok": true,
+   "detail": "mounted → exiting"
+  },
+  {
+   "name": "car: depois da saída, B desenha A de pé no ponto do servidor (fora da carroceria)",
+   "ok": true,
+   "detail": "distância do desenho 0.00 m · veículo livre true"
+  },
+  {
+   "name": "moto: A entra (servidor confirma)",
+   "ok": true,
+   "detail": "moto"
+  },
+  {
+   "name": "moto: B vê A ENTRANDO (fase entering no remoto)",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "moto: B vê A MONTADO — pelve no banco, mãos no guidão/volante (IK no remoto)",
+   "ok": true,
+   "detail": "{\"handL\":0,\"handR\":0.015,\"footL\":0.021,\"footR\":0,\"hip\":0}"
+  },
+  {
+   "name": "moto: B vê veículo andando com o corpo coerente (pelve presa ao banco em movimento)",
+   "ok": true,
+   "detail": "v=2.65 esterço=0.65 incl=0.21 pedivela=0.00 err={\"handL\":0,\"handR\":0.061,\"footL\":0,\"footR\":0,\"hip\":0}"
+  },
+  {
+   "name": "moto: B vê A SAINDO (fase exiting no remoto)",
+   "ok": true,
+   "detail": "mounted → exiting"
+  },
+  {
+   "name": "moto: depois da saída, B desenha A de pé no ponto do servidor (fora da carroceria)",
+   "ok": true,
+   "detail": "distância do desenho 0.00 m · veículo livre true"
+  },
+  {
+   "name": "bicycle: A entra (servidor confirma)",
+   "ok": true,
+   "detail": "bicycle"
+  },
+  {
+   "name": "bicycle: B vê A ENTRANDO (fase entering no remoto)",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "bicycle: B vê A MONTADO — pelve no banco, mãos no guidão/volante (IK no remoto)",
+   "ok": true,
+   "detail": "{\"handL\":0,\"handR\":0.006,\"footL\":0,\"footR\":0,\"hip\":0}"
+  },
+  {
+   "name": "bicycle: B vê veículo andando com o corpo coerente (pelve presa ao banco em movimento)",
+   "ok": true,
+   "detail": "v=2.42 esterço=0.45 incl=0.10 pedivela=1.40 err={\"handL\":0,\"handR\":0.045,\"footL\":0,\"footR\":0,\"hip\":0}"
+  },
+  {
+   "name": "bicycle: B vê a pedalada (pedivela gira com a velocidade)",
+   "ok": true,
+   "detail": "3.41 → 5.40 rad"
+  },
+  {
+   "name": "bicycle: B vê A SAINDO (fase exiting no remoto)",
+   "ok": true,
+   "detail": "mounted → exiting"
+  },
+  {
+   "name": "bicycle: depois da saída, B desenha A de pé no ponto do servidor (fora da carroceria)",
+   "ok": true,
+   "detail": "distância do desenho 0.00 m · veículo livre true"
+  },
+  {
+   "name": "scooter: A entra (servidor confirma)",
+   "ok": true,
+   "detail": "scooter"
+  },
+  {
+   "name": "scooter: B vê A ENTRANDO (fase entering no remoto)",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "scooter: B vê A MONTADO — pelve no banco, mãos no guidão/volante (IK no remoto)",
+   "ok": true,
+   "detail": "{\"handL\":0,\"handR\":0.083,\"footL\":0,\"footR\":0,\"hip\":0}"
+  },
+  {
+   "name": "scooter: B vê veículo andando com o corpo coerente (pelve presa ao banco em movimento)",
+   "ok": true,
+   "detail": "v=2.65 esterço=0.38 incl=0.10 pedivela=0.00 err={\"handL\":0,\"handR\":0.074,\"footL\":0,\"footR\":0,\"hip\":0}"
+  },
+  {
+   "name": "scooter: B vê A SAINDO (fase exiting no remoto)",
+   "ok": true,
+   "detail": "mounted → exiting"
+  },
+  {
+   "name": "scooter: depois da saída, B desenha A de pé no ponto do servidor (fora da carroceria)",
+   "ok": true,
+   "detail": "distância do desenho 0.00 m · veículo livre true"
+  },
+  {
+   "name": "custo: 5 montados perto — solver < 1 ms por quadro",
+   "ok": true,
+   "detail": "solver 0.152 ms/quadro (0.0503 ms por corpo, IK 726/726) · CPU do quadro a pé 5.987 → montados 6.096 → depois 5.742 ms"
+  }
+ ],
+ "report": {
+  "kinds": {
+   "car": {
+    "kind": "car",
+    "id": "car0",
+    "remoteMounted": {
+     "err": {
+      "handL": 0,
+      "handR": 0.004,
+      "footL": 0.017,
+      "footR": 0.037,
+      "hip": 0
+     },
+     "kickW": 0,
+     "footDownW": 0,
+     "torso": 0.15,
+     "ik": true
+    },
+    "driving": {
+     "dynB": {
+      "lean": 0,
+      "steer": 0.6296938146891315,
+      "crank": 0,
+      "speed": 2.2593268575613603,
+      "accel": -0.9011401923007201,
+      "x": -669.5654346506493,
+      "z": 343.07608152562256,
+      "heading": 2.5248359848041773,
+      "occupant": "Pd1hFKo4C"
+     },
+     "err": {
+      "handL": 0,
+      "handR": 0.052,
+      "footL": 0.017,
+      "footR": 0.037,
+      "hip": 0
+     },
+     "torso": 0.145,
+     "kickW": 0
+    }
+   },
+   "moto": {
+    "kind": "moto",
+    "id": "moto0",
+    "remoteMounted": {
+     "err": {
+      "handL": 0,
+      "handR": 0.015,
+      "footL": 0.021,
+      "footR": 0,
+      "hip": 0
+     },
+     "kickW": 0,
+     "footDownW": 0.941,
+     "torso": 0.535,
+     "ik": true
+    },
+    "driving": {
+     "dynB": {
+      "lean": 0.21424185118689382,
+      "steer": 0.6499274400935697,
+      "crank": 0,
+      "speed": 2.645186717307137,
+      "accel": 1.5160689795393434,
+      "x": -754.3823823571337,
+      "z": 374.20967809365334,
+      "heading": 2.1900835361316977,
+      "occupant": "Y-NtVDRDs"
+     },
+     "err": {
+      "handL": 0,
+      "handR": 0.061,
+      "footL": 0,
+      "footR": 0,
+      "hip": 0
+     },
+     "torso": 0.503,
+     "kickW": 0
+    }
+   },
+   "bicycle": {
+    "kind": "bicycle",
+    "id": "st0_0",
+    "remoteMounted": {
+     "err": {
+      "handL": 0,
+      "handR": 0.006,
+      "footL": 0,
+      "footR": 0,
+      "hip": 0
+     },
+     "kickW": 0,
+     "footDownW": 0,
+     "torso": 0.504,
+     "ik": true
+    },
+    "driving": {
+     "dynB": {
+      "lean": 0.10366812338059102,
+      "steer": 0.45467869779744635,
+      "crank": 1.4003058102989845,
+      "speed": 2.4247999428055307,
+      "accel": 2.987104841626656,
+      "x": -541.3681650299334,
+      "z": 553.3330546632506,
+      "heading": 0.15040982369187686,
+      "occupant": "31n_T9JJ9"
+     },
+     "err": {
+      "handL": 0,
+      "handR": 0.045,
+      "footL": 0,
+      "footR": 0,
+      "hip": 0
+     },
+     "torso": 0.468,
+     "kickW": 0
+    }
+   },
+   "scooter": {
+    "kind": "scooter",
+    "id": "st0_2",
+    "remoteMounted": {
+     "err": {
+      "handL": 0,
+      "handR": 0.083,
+      "footL": 0,
+      "footR": 0,
+      "hip": 0
+     },
+     "kickW": 0,
+     "footDownW": 0,
+     "torso": 0.449,
+     "ik": true
+    },
+    "driving": {
+     "dynB": {
+      "lean": 0.09920162524631095,
+      "steer": 0.38276529394388664,
+      "crank": 0,
+      "speed": 2.6504104982018073,
+      "accel": 2.7817495646059207,
+      "x": -539.8691393029982,
+      "z": 553.4663339110621,
+      "heading": 0.17384875815057763,
+      "occupant": "khxYVOmpC"
+     },
+     "err": {
+      "handL": 0,
+      "handR": 0.074,
+      "footL": 0,
+      "footR": 0,
+      "hip": 0
+     },
+     "torso": 0.35,
+     "kickW": 0.997
+    }
+   }
+  },
+  "cost": {
+   "before": {
+    "cpuMs": 5.987,
+    "solveMsPerCall": 0,
+    "calls": 0,
+    "ikCalls": 0,
+    "solveMsTotal": 0,
+    "frames": 180
+   },
+   "mounted": {
+    "cpuMs": 6.096,
+    "solveMsPerCall": 0.0503,
+    "calls": 726,
+    "ikCalls": 726,
+    "solveMsTotal": 36.5,
+    "frames": 240
+   },
+   "after": {
+    "cpuMs": 5.742,
+    "solveMsPerCall": 0,
+    "calls": 0,
+    "ikCalls": 0,
+    "solveMsTotal": 0,
+    "frames": 180
+   },
+   "solveMsPerFrame": 0.152
+  }
+ }
+}

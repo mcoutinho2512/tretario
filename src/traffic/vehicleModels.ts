@@ -57,8 +57,14 @@ export async function loadVehicleModels(url = `${import.meta.env?.BASE_URL ?? '/
           const geo = toFloat(m.geometry, m.matrixWorld);
           parts.push({ geo, mat: m.material as THREE.MeshStandardMaterial });
         });
-        const g = bake(parts.map((p) => ({ geo: p.geo, name: p.mat.name.replace(/\.\d+$/, ''), color: p.mat.color })));
+        const named = parts.map((p) => ({ geo: p.geo, name: p.mat.name.replace(/\.\d+$/, ''), color: p.mat.color }));
+        const g = bake(named);
         if (g) { cache.set(`${name}:${lod}`, g); assetManager.register({ category: 'vehicles/assets', geometry: g }); }
+        // rodada 10 — montagem: o carro dirigível (sedan) desenha os vidros à parte (translúcidos: motorista visível)
+        if (name === 'sedan' && lod === 0) {
+          const body = bake(named.filter((p) => p.name !== 'glass')), glass = bake(named.filter((p) => p.name === 'glass'));
+          if (body && glass) split.set(name, { body, glass });
+        }
       }
     }
     loaded = cache.size > 0;
@@ -72,6 +78,26 @@ export async function loadVehicleModels(url = `${import.meta.env?.BASE_URL ?? '/
 }
 
 export function vehicleModelsLoaded() { return loaded; }
+
+const split = new Map<VehicleModelName, { body: THREE.BufferGeometry; glass: THREE.BufferGeometry }>();
+/** rodada 10 — montagem: carroceria SEM vidros + vidros (para o carro dirigível); null sem o GLB */
+export function getVehicleSplit(name: VehicleModelName) { return split.get(name) ?? null; }
+
+const glassMats: THREE.Material[] = [];
+/**
+ * vidro do carro dirigível: de perto translúcido (vê-se o motorista, os bancos e o volante), com reflexo; de longe opaco
+ * escuro como o do trânsito (sem interior para desenhar)
+ */
+export function vehicleGlassMaterial(near: boolean): THREE.Material {
+  const i = near ? 0 : 1;
+  if (!glassMats[i]) {
+    glassMats[i] = near
+      ? new THREE.MeshPhysicalMaterial({ color: 0x15202a, roughness: 0.04, metalness: 0, transparent: true, opacity: 0.3, depthWrite: false, side: THREE.DoubleSide, envMapIntensity: 1.4 })
+      : new THREE.MeshStandardMaterial({ color: 0x05080a, roughness: 0.06, metalness: 0.4 });
+    glassMats[i].name = near ? 'vehicle_glass_near' : 'vehicle_glass_far';
+  }
+  return glassMats[i];
+}
 
 /** converte atributos quantizados (int16 normalizado) em float32 e aplica a transformação do nó */
 function toFloat(src: THREE.BufferGeometry, m: THREE.Matrix4): THREE.BufferGeometry {
