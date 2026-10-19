@@ -8,6 +8,7 @@
  *  - senhas só como scrypt; códigos e tokens só como hash
  *  - o cliente nunca vira PLAYER sozinho: o estado vem de AccountAccess (só a CLI de operador concede nesta rodada)
  */
+import { autonomousNicknameTaken } from '../autonomous/names'; // rodada 12 — apelidos reservados dos autônomos
 import type { ApiRequest, ApiResponse } from '../http/router';
 import type { DataStore, UserRecord } from '../data/types';
 import type { TicketService } from '../identity/tickets';
@@ -126,6 +127,8 @@ export class AuthService {
     const v = textModeration.check(typeof raw === 'string' ? raw.trim() : '', 'nickname');
     if (!v.ok) return { ok: false, error: NICK_ERRORS[v.reason] };
     const key = textModeration.nicknameKey(v.text);
+    // rodada 12 — apelido em uso por um personagem autônomo vivo: reservado (ninguém se confunde com um autônomo)
+    if (autonomousNicknameTaken(key)) return { ok: false, error: 'apelido_em_uso' };
     const owner = await this.store.profiles.byNicknameKey(key);
     if (owner && owner.userId !== exceptUserId) return { ok: false, error: 'apelido_em_uso' };
     return { ok: true, nickname: v.text, key };

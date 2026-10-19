@@ -110,6 +110,13 @@ import { log } from './log.ts'; // rodada 9.1 — logs estruturados
 import { clientIp } from './http/clientIp.ts';
 import { ipKey, Window } from './auth/rateLimit.ts';
 import { runtime } from './http/health.ts';
+// rodada 12 — personagens autônomos (server/src/autonomous, docs/AUTONOMOUS_CHARACTERS.md)
+import { AutonomousSystem, isAutonomousId } from './autonomous/AutonomousSystem.ts';
+import type { AgentLook, AutonomousHost, Hotspot, HumanView, VehicleView } from './autonomous/host.ts';
+import { autonomousConfig } from './autonomous/config.ts';
+import { manifestHotspots } from './autonomous/simHost.ts';
+import { nicknameKey } from './autonomous/names.ts';
+import { packMove } from '../../src/net/rules.ts';
 
 const AOI_RADIUS = Number(process.env.PV_AOI ?? 220); // m — jogadores/veículos visíveis
 /** histerese da AOI: entra a ≤ R, sai só além de R × AOI_HYST */
@@ -192,6 +199,8 @@ interface PlayerRT {
   plat: { id: string; x: number; z: number; t: number; seq: number } | null;
   /** rodada 9 — zona atual (com histerese), atualizada pelo servidor a 2 Hz: missões, confronto, eventos */
   zone: ZoneTracker;
+  /** rodada 12 — personagem AUTÔNOMO (sem conexão, sem vista própria: fora da AOI/multidão/itens/progressão) */
+  auto?: true;
 }
 
 export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
@@ -282,10 +291,11 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     gf_admin: (client: Client, m: unknown) => client.send('gf_res', this.graffiti.adminMessage(client.sessionId, m)),
     // chat (server/src/chat): o serviço checa `chat.write`/`report.create` e responde chat_denied / chat_report_res
     chat_send: (client: Client, m: unknown) => { this.r9.e.chat(client.sessionId, this.chat.send(client.sessionId, m).ok); }, // rodada 9 — progressão (chat aceito)
-    chat_mute: (client: Client, m: unknown) => this.chat.mute(client.sessionId, m),
+    // rodada 12 — autônomo não é conta: silenciar/denunciar pelo nid dele é recusado de forma limpa (motivo 'autonomo')
+    chat_mute: (client: Client, m: unknown) => { if (this.autoNid(m)) { client.send('chat_mute_denied', { reason: 'autonomo' }); return; } this.chat.mute(client.sessionId, m); },
     chat_report: (client: Client, m: unknown) => { void this.chat.report(client.sessionId, m); },
     // rodada 10 — interação: denúncia de PESSOA pelo painel (nid da entidade; o serviço valida, limita e guarda)
-    user_report: (client: Client, m: unknown) => { void this.chat.reportUser(client.sessionId, m); },
+    user_report: (client: Client, m: unknown) => { if (this.autoNid(m)) { client.send('user_report_res', { ok: false, r: 'autonomo' }); return; } void this.chat.reportUser(client.sessionId, m); },
     // rodada 9 — progressão: preferências de UI (missão em destaque, telas vistas) e teleporte de QA (só PV_TEST=1)
     mission_track: (client: Client, m: unknown) => this.r9.track(client.sessionId, m),
     prog_seen: (client: Client, m: unknown) => this.r9.seen(client.sessionId, m),
@@ -372,6 +382,8 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     liveMemorySweepers.add(this.graffiti); // rodada 9.1 — limites temporários do grafite (cooldown/cota por hora/denúncias)
     this.setupDebateAds(W, ev); // rodada 9 — debate e telões
     this.r9bSetup(W, ev); // rodada 9 — itens/zonas/proteção
+    this.setupAutonomous(W); // rodada 12 — personagens autônomos
+    this.gameplay.ignore = (sid) => isAutonomousId(sid); // rodada 12 — missões/progressão/telemetria não contam ações de autônomos
     this.patchRate = 50; // 20 Hz
     this.setSimulationInterval((dt) => this.tick(dt), 100); // 10 Hz
     // suspensão/banimento/revogação feitos pela CLI (outro processo) chegam aqui por releitura periódica do banco
@@ -381,8 +393,8 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     log.info('room.create', `${this.roomId} evento=${ev} (interação: ${this.interactionPolicy}) sem trânsito NPC · veículos ${JSON.stringify(kinds)} AOI=${AOI_RADIUS} m`, { room: this.roomId, eventId: ev, maxPlayers: ROOM_CAPS.players, maxSpectators: ROOM_CAPS.spectators });
   }
 
-  /** conexão pelo sessionId (jogadores e espectadores) */
-  private clientBySid(sid: string): Client | undefined { return this.clients2.get(sid) ?? this.clients.find((c) => c.sessionId === sid); }
+  /** conexão pelo sessionId (jogadores e espectadores; rodada 12: a "conexão" interna de um autônomo) */
+  private clientBySid(sid: string): Client | undefined { return this.clients2.get(sid) ?? this.autoStubs.get(sid) ?? (isAutonomousId(sid) ? undefined : this.clients.find((c) => c.sessionId === sid)); }
 
   /** denúncia de grafite aceita → Report no banco (autor identificado internamente; nunca enviado a clientes) */
   private gfReported(e: GfReportEvent) {
@@ -409,6 +421,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     await this.r9.dispose(); // rodada 9 — progressão: grava tudo no desligamento
     this.r10sup.dispose(); // rodada 10 — torcidas
     this.r11titles.dispose(); // rodada 11 — inventário
+    this.auto?.dispose(); // rodada 12 — autônomos (libera os apelidos reservados)
   }
 
   /** mede a codificação/envio dos patches (StateView por cliente): é o custo que cresce com a multidão */
@@ -479,7 +492,10 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     this.graffiti.update(now, this.gfPos);
     this.r9.tick(dtMs, now); // rodada 9 — progressão (envio ≤ 2 Hz, gravação em lote, concentrações 1 Hz, telemetria)
     this.tickDebateAds(now); // rodada 9 — debate e telões
-    metrics.tick(performance.now() - t0, this.state.players.size);
+    // rodada 12 — autônomos: decisões/movimento/social pelo LOD (custo medido à parte em /metrics: aiMs)
+    if (this.auto) { const ta = performance.now(); this.auto.tick(dtMs); metrics.ai(performance.now() - ta, this.auto); }
+    // jogadores (conexões: humanos + bots de carga) — autônomos NUNCA entram nesta conta
+    metrics.tick(performance.now() - t0, this.state.players.size - this.autoCount);
   }
 
   private updateZones(slice: number, slices: number, now: number) {
@@ -507,7 +523,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
       pos: (sid) => { const r = this.rt.get(sid); return r ? { x: r.last.x, z: r.last.z } : undefined; },
       // plateia: jogadores pela grade + espectadores pela câmera (poucos; 1 Hz)
       near: (x, z, r, fn) => {
-        this.grid.forEachInRadius(x, z, r, (sl) => { const sid = this.slotIds[sl]; if (sid && this.rt.has(sid)) fn(sid); });
+        this.grid.forEachInRadius(x, z, r, (sl) => { const sid = this.slotIds[sl]; if (sid && this.rt.has(sid) && !isAutonomousId(sid)) fn(sid); }); // rodada 12 — plateia só de pessoas
         for (const sp of this.specs.values()) if (Math.hypot(sp.cam.x - x, sp.cam.z - z) <= r) fn(sp.client.sessionId);
       },
       screen: (sid, text, cap, now) => this.chat.screen(sid, text, cap, now),
@@ -570,8 +586,8 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     for (const a of W.events.get(ev)?.agenda ?? []) if (a.clash?.respawn?.length) this.zonePolicy.setEventAreas(`evento:${a.id}`, this.zonePolicy.respawnAreas(a.id, a.clash.respawn));
     this.items = new RoomItems({
       player: (sid) => { const p = this.state.players.get(sid), r = this.rt.get(sid); return p && r ? { p, x: r.last.x, z: r.last.z } : undefined; },
-      // bots de carga não desenham nada: sem lista de itens (a banda medida nos testes de carga não muda)
-      each: (fn) => { for (const [sid, r] of this.rt) if (!this.identities.get(sid)?.bot) fn(sid, r.slot, r.last.x, r.last.z); },
+      // bots de carga não desenham nada: sem lista de itens (a banda medida nos testes de carga não muda); autônomos idem
+      each: (fn) => { for (const [sid, r] of this.rt) if (!r.auto && !this.identities.get(sid)?.bot) fn(sid, r.slot, r.last.x, r.last.z); },
       send: (sid, type, msg) => this.clients2.get(sid)?.send(type, msg),
       setHand: (sid, prop, now) => {
         const p = this.state.players.get(sid), r = this.rt.get(sid);
@@ -763,7 +779,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
   private updateInterest(phase = 0, slices = 1, only?: string) {
     const t0 = performance.now();
     for (const [id, r] of this.rt) {
-      if (only ? id !== only : r.slot % slices !== phase) continue;
+      if (r.auto || (only ? id !== only : r.slot % slices !== phase)) continue; // rodada 12 — autônomo não tem vista
       const me = this.state.players.get(id);
       if (!me) continue;
       this.interestAt(r, me.x, me.z, me.vehicle || me.platform); // o veículo em uso / o trio em que está em cima fica sempre na vista
@@ -876,7 +892,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
 
   // ---------------------------------------------------------------- rodada 11 — inventário (nível e título públicos)
   readonly r11titles = new RoomTitles({
-    players: () => this.state.players.entries() as Iterable<[string, { lvl: number; title: string }]>,
+    players: () => this.peopleEntries() as Iterable<[string, { lvl: number; title: string }]>, // rodada 12 — sem autônomos
     userOf: (sid) => { const id = this.identities.get(sid); return id?.userId && !id.test ? id.userId : null; },
     progression: () => this.r9.service,
     store: () => storeOrNull(),
@@ -885,7 +901,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
 
   // ---------------------------------------------------------------- rodada 10 — torcidas (server/src/supporters)
   readonly r10sup = new RoomSupporters({
-    players: () => this.state.players.entries() as Iterable<[string, { sup: number }]>,
+    players: () => this.peopleEntries() as Iterable<[string, { sup: number }]>, // rodada 12 — sem autônomos
     userOf: (sid) => { const id = this.identities.get(sid); return id?.userId && !id.test ? id.userId : null; },
     instanceOf: (sid) => this.evt?.instanceOf(sid) ?? null,
     setGroupKey: (sid, key) => { const id = this.identities.get(sid); if (id) id.groupKey = key; },
@@ -917,7 +933,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     for (const [sid, p] of this.pendingJoins) { if (now - p.at > 20_000) this.pendingJoins.delete(sid); else if (p.role === role) pending++; }
     if (role === 'spectator') return this.specs.size + pending >= ROOM_CAPS.spectators;
     if (userId) for (const [sid, other] of this.identities) if (other.userId === userId && other.role === 'player' && this.state.players.has(sid)) return false; // login duplicado: substitui
-    return this.state.players.size + pending >= ROOM_CAPS.players;
+    return this.state.players.size - this.autoCount + pending >= ROOM_CAPS.players; // rodada 12 — autônomo não ocupa vaga
   }
 
   async onAuth(_client: Client, options: JoinOptions, context?: { headers?: Headers }) {
@@ -1127,6 +1143,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     p.y = 0; p.heading = taken?.heading ?? this.spawn.heading; p.loco = 0; p.vehicle = ''; p.platform = ''; p.interaction = 'pacifico'; p.status = STATUS.OK;
     p.link = LINK_WIRE.CONNECTED;
     p.nid = this.allocNid();
+    p.kind = id.bot ? ENTITY_KIND.LOAD_BOT : ENTITY_KIND.HUMAN; // rodada 12 — tipo de entidade (só HUMANO conta como jogador)
     this.state.players.set(client.sessionId, p);
     const view = new StateView();
     client.view = view;
@@ -1331,8 +1348,10 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     p.loco = Math.max(0, Math.min(4, m.loco | 0));
     r.actor.x = res.x; r.actor.z = res.z; r.actor.heading = m.heading;
     r.last = { x: res.x, y: res.y, z: res.z, t: now, seq: m.seq };
-    this.r9.e.moved(client.sessionId, mode, Math.hypot(res.x - prevX, res.z - prevZ), dtS, now); // rodada 9 — progressão (distância aceita)
-    this.evt.onMove(client.sessionId, res.x, res.z, mode, res.ok, res.reason ?? '', now); // rodada 9 — eventos (checkpoints)
+    if (!r.auto) { // rodada 12 — autônomo não acumula distância de missão nem passa checkpoint de evento
+      this.r9.e.moved(client.sessionId, mode, Math.hypot(res.x - prevX, res.z - prevZ), dtS, now); // rodada 9 — progressão (distância aceita)
+      this.evt.onMove(client.sessionId, res.x, res.z, mode, res.ok, res.reason ?? '', now); // rodada 9 — eventos (checkpoints)
+    }
     if (!res.ok) {
       client.send('correct', [res.x, res.y, res.z, m.seq, res.reason ?? '']);
       metrics.correction();
@@ -1673,7 +1692,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
   });
 
   private *r9Players(): Iterable<{ sid: string; x: number; z: number }> {
-    for (const [sid, r] of this.rt) { const p = this.state.players.get(sid); if (p && !p.vehicle && p.status === STATUS.OK) yield { sid, x: r.last.x, z: r.last.z }; }
+    for (const [sid, r] of this.rt) { if (r.auto) continue; const p = this.state.players.get(sid); if (p && !p.vehicle && p.status === STATUS.OK) yield { sid, x: r.last.x, z: r.last.z }; }
   }
 
   /** QA (PV_TEST=1, nunca em produção): o SERVIDOR põe o jogador num ponto — como o testSpawn, sem contar distância */
@@ -1708,9 +1727,9 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
       zoneDef: (id) => { const z = this.zoneDef(id); return forced && z && (forced === '*' || forced.split(',').includes(z.id)) ? { ...z, combatPolicy: 'COMBAT' as const } : z; },
       groupKey: (sid) => this.identities.get(sid)?.groupKey ?? null,
       propKind: (id) => PROP_BY_ID.get(id)?.kind,
-      can: (sid) => { const id = this.identities.get(sid); return !!id && can(id.state, 'combat.act', id.role); },
+      can: (sid) => { if (this.rt.get(sid)?.auto) return true; const id = this.identities.get(sid); return !!id && can(id.state, 'combat.act', id.role); }, // rodada 12 — autônomo: mesmas regras, sem conta
       send: (sid, type, msg) => this.clientBySid(sid)?.send(type, msg),
-      sendAoi: (subject, type, msg, also) => this.combatAoi(subject, type, msg, also),
+      sendAoi: (subject, type, msg, also) => { this.autoCombat(type, msg); this.combatAoi(subject, type, msg, also); }, // rodada 12 — autônomos veem a briga
       sendNear: (x, z, r, type, msg) => this.grid.forEachInRadius(x, z, r, (sl) => { const c = this.clients2.get(this.slotIds[sl]); c?.send(type, msg); }),
       setStatus: (sid, st) => { const v = view(sid); if (v) { v.p.status = st; v.r.actor.status = st; } },
       setFx: (sid, fx) => { const p = this.state.players.get(sid); if (p && p.fx !== fx) p.fx = fx; },
@@ -1813,4 +1832,158 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     else { const { ok: _ok, ...msg } = r; client.send('pveh_denied', msg); }
   }
   // fim rodada 12 — veículo pessoal ---------------------------------------------------------------------------------
+  // rodada 12 — personagens autônomos -------------------------------------------------------------------------------
+  /**
+   * Personagens do MUNDO decididos pelo servidor (server/src/autonomous, docs/AUTONOMOUS_CHARACTERS.md). Cada um é uma
+   * entrada comum de `state.players` (kind AUTÔNOMO, id `ac:<n>`) com PlayerRT `auto` e uma "conexão" interna (stub) —
+   * então movimento, ações, itens, veículos e confronto passam pelos MESMOS métodos dos jogadores (onMove, onAct,
+   * onProp, onEnter/onExit → mountVehicle/dismountVehicle, CombatSystem.request). Fora: AOI própria, multidão, itens do
+   * chão, progressão/missões (bus.ignore), presença e métricas de jogadores, denúncia/silenciar.
+   * PV_AUTONOMOUS: ausente = dados (autonomous.json) fora do servidor de teste e 0 no servidor de teste; '0' desliga; N = população.
+   */
+  auto: AutonomousSystem | null = null;
+  private autoStubs = new Map<string, Client & { corrected: boolean; denied: string }>();
+  private autoView = new StateView();
+  private autoHumans: HumanView[] = [];
+  private autoHot: Hotspot[] = [];
+  private autoHotAt = 0;
+  private autoVeh = new Map<string, VehicleView>();
+  /** autônomos com entidade sincronizada agora */
+  get autoCount() { return this.autoStubs.size; }
+  /** só pessoas (humanos e bots de carga): torcida, título/nível públicos */
+  private *peopleEntries(): Iterable<[string, NetPlayer]> { for (const e of this.state.players.entries()) if (!isAutonomousId(e[0])) yield e; }
+  /** o pedido (denúncia/silenciar) aponta para um autônomo? */
+  private autoNid(m: unknown): boolean { const nid = (m as { nid?: unknown } | null)?.nid; return typeof nid === 'number' && !!this.auto?.isAutonomousNid(nid); }
+
+  /** o CombatSystem anunciou golpe/acerto: autônomos veem a briga; HUMANO acertando autônomo → diretor (onAggression) */
+  private autoCombat(type: string, msg: unknown) {
+    if (!this.auto || (type !== 'cbt_act' && type !== 'cbt_hit')) return;
+    const m = msg as { by?: number; tgt?: number; r?: string };
+    if (typeof m.by !== 'number') return;
+    this.auto.onCombat(type === 'cbt_act' ? 'act' : 'hit', m.by, m.tgt ?? 0, m.r ?? '');
+    if (type === 'cbt_hit' && m.r === 'hit' && m.tgt) {
+      const by = this.auto.idOfNid(m.by), tgt = this.auto.idOfNid(m.tgt);
+      if (by && tgt && !isAutonomousId(by) && isAutonomousId(tgt) && this.state.players.get(by)?.kind === ENTITY_KIND.HUMAN) {
+        const t = this.state.players.get(tgt);
+        if (t) this.dyn.onAggression(by, tgt, t.x, t.z, Date.now());
+      }
+    }
+  }
+
+  private setupAutonomous(W: ServerWorld) {
+    const env = process.env.PV_AUTONOMOUS;
+    const n = env === undefined || env === '' ? (process.env.PV_TEST === '1' ? 0 : autonomousConfig().population.maxActive) : env === 'off' ? 0 : Math.max(0, Math.min(2000, Math.round(Number(env) || 0)));
+    if (!n) return;
+    const room = this;
+    const hotStatic = manifestHotspots(W.manifest);
+    const blank = (): HumanView => ({ id: '', nid: 0, x: 0, z: 0, heading: 0, speed: 0, vehicle: false, status: 0 });
+    const host: AutonomousHost = {
+      now: () => Date.now(),
+      clear: (ax, az, bx, bz) => W.walls.raycast(ax, 0.6, az, bx, 0.6, bz) >= 1,
+      bounds: W.manifest.bounds as [number, number, number, number],
+      axis: (W.manifest.pvAxis ?? []) as [number, number][],
+      humans() {
+        const out = room.autoHumans; let i = 0;
+        for (const [sid, r] of room.rt) {
+          if (r.auto) continue;
+          const p = room.state.players.get(sid);
+          if (!p) continue;
+          const h = (out[i++] ??= blank());
+          h.id = sid; h.nid = p.nid; h.x = p.x; h.z = p.z; h.heading = p.heading; h.speed = p.speed; h.vehicle = !!p.vehicle || !!p.platform; h.status = p.status; h.spectator = false;
+        }
+        // espectadores também "trazem" a avenida à vida (câmera), mas não são corpos nem alvos
+        for (const sp of room.specs.values()) { const h = (out[i++] ??= blank()); h.id = sp.sid; h.nid = 0; h.x = sp.cam.x; h.z = sp.cam.z; h.heading = 0; h.speed = 0; h.vehicle = false; h.status = 0; h.spectator = true; }
+        out.length = i;
+        return out;
+      },
+      hotspots() {
+        const now = Date.now();
+        if (now - room.autoHotAt < 900) return room.autoHot;
+        room.autoHotAt = now;
+        const out: Hotspot[] = [...hotStatic];
+        for (const id of room.eventVehIds) {
+          const v = room.state.vehicles.get(id); const sh = v && (v.kind === 'trio' || v.kind === 'soundcar') ? RALLY_SHAPE[v.kind] : null;
+          if (v && sh) out.push({ id, kind: v.kind as 'trio' | 'soundcar', x: v.x, z: v.z, inner: sh.inner, radius: sh.radius, weight: v.kind === 'trio' ? 1.5 : 1.1, heading: v.heading, moving: true });
+        }
+        for (const r of room.evt.rallies()) out.push({ id: `evt:${r.id}`, kind: 'event', x: r.x, z: r.z, inner: r.inner, radius: r.radius, weight: 0.6 + r.strength, moving: true });
+        return (room.autoHot = out);
+      },
+      vehiclesNear(x, z, r, out) {
+        out.length = 0;
+        room.vgrid.forEachInRadius(x, z, r, (vs) => {
+          const id = room.vehIds[vs], v = id ? room.state.vehicles.get(id) : undefined;
+          if (!v) return;
+          let o = room.autoVeh.get(id);
+          if (!o) room.autoVeh.set(id, (o = { id, kind: v.kind, x: 0, z: 0, heading: 0, occupant: '', state: 0 }));
+          o.kind = v.kind; o.x = v.x; o.z = v.z; o.heading = v.heading; o.occupant = v.occupant; o.state = v.state; o.owner = v.owner || undefined;
+          out.push(o);
+        });
+        return out;
+      },
+      spawn: (id, look, x, z, heading) => this.autoSpawn(id, look, x, z, heading),
+      despawn: (id) => { if (this.autoStubs.has(id)) { this.removePlayer(id); this.autoStubs.delete(id); } },
+      state: (id) => { const p = this.state.players.get(id); return p ? { x: p.x, z: p.z, heading: p.heading, status: p.status, vehicle: p.vehicle, act: p.act, prop: p.prop } : undefined; },
+      move: (id, x, z, heading, speed, loco) => {
+        const c = this.autoStubs.get(id), r = this.rt.get(id), p = this.state.players.get(id);
+        if (!c || !r || !p) return { x, z, ok: false };
+        c.corrected = false;
+        this.onMove(c, packMove({ x, y: 0, z, heading, speed, loco, seq: r.last.seq + 1 }));
+        return { x: p.x, z: p.z, ok: !c.corrected };
+      },
+      act: (id, a, v) => { const c = this.autoStubs.get(id); if (!c) return false; c.denied = ''; this.onAct(c, { a, v }); return !c.denied && this.state.players.get(id)?.act === a; },
+      prop: (id, pr, d) => { const c = this.autoStubs.get(id); if (!c) return false; c.denied = ''; this.onProp(c, { p: pr, d }); return !c.denied; },
+      look: (id, nid) => { const p = this.state.players.get(id); if (p && p.look !== nid) p.look = nid; },
+      enter: (id, vid) => { const c = this.autoStubs.get(id); if (!c) return false; this.onEnter(c, vid); return this.state.players.get(id)?.vehicle === vid; },
+      exit: (id) => { const c = this.autoStubs.get(id); if (!c) return false; this.onExit(c); return !this.state.players.get(id)?.vehicle; },
+      combat: (id, a, h) => this.combat.request(id, { a, h }).ok,
+      nameTaken: (key) => { for (const [sid, p] of this.state.players) if (!isAutonomousId(sid) && nicknameKey(p.name) === key) return true; return false; },
+      // gancho opcional (agente B): veículo pessoal do autônomo — mesmas validações, só o dono usa
+      personalVehicle: (owner, kind, at) => { const p = this.state.players.get(owner); const r = this.r12pv.spawnPersonalVehicle(owner, kind as Parameters<PersonalVehicles['spawnPersonalVehicle']>[1], { x: at.x, z: at.z, heading: p?.heading ?? 0 }, { mount: true }); return r.ok ? r.id : null; },
+    };
+    this.auto = new AutonomousSystem(host, { population: n, seed: this.state.seed, supporters: supporterDefs(), roleOf: (id) => this.dyn?.roleOf(id) ?? null });
+    this.dyn.setView(this.auto); // rodada 12 — o diretor de eventos (agente E) lê/propõe por aqui
+    // apelidos: confere as CONTAS do banco antes de aparecerem (colisão → outro apelido)
+    const store = storeOrNull();
+    if (store) void this.auto.screenNames(async (k) => !!(await store.profiles.byNicknameKey(k)));
+    log.info('autonomos', `${n} personagens autônomos (ativos até ${this.auto.targetActive(0)}; LOD perto ${autonomousConfig().population.near.radius} m / médio ${autonomousConfig().population.mid.radius} m)`);
+  }
+
+  /** entidade de um autônomo: MESMO NetPlayer/PlayerRT dos jogadores (aparência pelo validador único, itens validados) */
+  private autoSpawn(id: string, look: AgentLook, x: number, z: number, heading: number): number {
+    if (this.state.players.has(id)) return this.state.players.get(id)!.nid;
+    const nid = this.allocNid();
+    if (!nid) return 0;
+    const now = Date.now();
+    const p = new NetPlayer();
+    p.name = look.name;
+    this.applyAppearance(p, look.appearance, {});
+    p.sup = look.sup; p.title = look.title; p.lvl = look.lvl; p.tag = look.tag; p.kind = ENTITY_KIND.AUTONOMOUS;
+    p.x = x; p.z = z; p.y = 0; p.heading = heading; p.loco = 0; p.vehicle = ''; p.platform = ''; p.interaction = 'pacifico'; p.status = STATUS.OK; p.link = LINK_WIRE.CONNECTED;
+    p.nid = nid;
+    this.state.players.set(id, p);
+    const r: PlayerRT = {
+      actor: { id, x, z, heading, mode: 'pacifico', status: 0, vehicle: '', immuneUntil: 0, lastActionAt: -1e12, actionTimes: [], lastDown: 0 },
+      last: { x, y: 0, z, t: now, seq: -1 }, view: this.autoView, inView: makeSlotView(1), vehInView: new Set(), rest: null, pendingIn: 0,
+      nid, overflow: [], crowdKnown: new Set(), slot: this.allocSlot(id), aoiCap: 0,
+      social: { act: 0, actAt: 0, prop: 0, design: 0, status: 0, vehicle: '', recent: [], ent: {} },
+      plat: null, zone: new ZoneTracker(this.zoneDefs, this.zoneAxis), auto: true,
+    };
+    this.slotNid[r.slot] = nid;
+    this.rt.set(id, r);
+    this.combatJoin(id, r);
+    this.grid.insert(r.slot, x, z);
+    const auto = this.auto;
+    const stub = {
+      sessionId: id, corrected: false, denied: '',
+      send(type: string, msg: unknown) {
+        if (type === 'correct') stub.corrected = true;
+        else if (type === 'act_denied' || type === 'prop_denied' || type === 'enter_denied') stub.denied = String(msg && typeof msg === 'object' ? (msg as { reason?: string }).reason : msg);
+        auto?.onSelfMessage(id, type, msg);
+      },
+    } as unknown as Client & { corrected: boolean; denied: string };
+    this.autoStubs.set(id, stub);
+    if (look.prop) this.onProp(stub, { p: look.prop, d: look.design });
+    return nid;
+  }
+  // fim rodada 12 — personagens autônomos --------------------------------------------------------------------------
 }

@@ -9,6 +9,11 @@ let bytesOut = 0, bytesIn = 0, msgsOut = 0, msgsIn = 0;
 let players = 0;
 let corrections = 0, denials = 0, knocks = 0, impacts = 0;
 let snapshot: Record<string, number> = {};
+/** rodada 12 — autônomos: custo de IA por janela + contagens atuais (gauge) */
+interface AiWin { ms: number; ticks: number; max: number; decisions: number; decideMs: number; moveMs: number; socialMs: number }
+const aiWins = new Map<string, AiWin>();
+let aiGauge = { population: 0, near: 0, mid: 0, far: 0, dormant: 0 };
+export interface AiSource { population: number; lodCount: { NEAR: number; MID: number; FAR: number; DORMANT: number }; takeCost(): { decisions: number; decideMs: number; moveMs: number; socialMs: number } }
 setInterval(() => metrics.rssPeak(), 1000).unref();
 /** cada consumidor (log interno, GET /metrics) tem a SUA janela — um não zera a do outro */
 interface Win {
@@ -58,6 +63,16 @@ export const metrics = {
   combatReq(ok: boolean) { for (const w of windows.values()) { w.cbtReq++; if (ok) w.cbtOk++; } },
   /** pico de memória residente (amostrado a cada tick de métricas) */
   rssPeak() { const r = process.memoryUsage.rss(); for (const w of windows.values()) w.maxRss = Math.max(w.maxRss, r); },
+  /** rodada 12 — um tick do sistema de autônomos (ms total) + decisões/partes desde a última chamada */
+  ai(ms: number, src: AiSource) {
+    const c = src.takeCost();
+    aiGauge = { population: src.population, near: src.lodCount.NEAR, mid: src.lodCount.MID, far: src.lodCount.FAR, dormant: src.lodCount.DORMANT };
+    for (const k of windows.keys()) {
+      let w = aiWins.get(k);
+      if (!w) aiWins.set(k, (w = { ms: 0, ticks: 0, max: 0, decisions: 0, decideMs: 0, moveMs: 0, socialMs: 0 }));
+      w.ms += ms; w.ticks++; w.max = Math.max(w.max, ms); w.decisions += c.decisions; w.decideMs += c.decideMs; w.moveMs += c.moveMs; w.socialMs += c.socialMs;
+    }
+  },
   join(_id: string) {},
   leave(_id: string) {},
   correction() { corrections++; },
@@ -101,6 +116,18 @@ export const metrics = {
       rssMB: +(mem.rss / 1e6).toFixed(1),
       corrections, denials, knocks, impacts,
     };
+    // rodada 12 — autônomos (NUNCA contam em `players`): custo de IA por tick e por parte, decisões/s, ativos por LOD
+    {
+      const a = aiWins.get(key) ?? { ms: 0, ticks: 0, max: 0, decisions: 0, decideMs: 0, moveMs: 0, socialMs: 0 };
+      Object.assign(snapshot, {
+        aiMs: a.ticks ? +(a.ms / a.ticks).toFixed(4) : 0, aiMaxMs: +a.max.toFixed(3),
+        aiDecideMs: a.ticks ? +(a.decideMs / a.ticks).toFixed(4) : 0, aiMoveMs: a.ticks ? +(a.moveMs / a.ticks).toFixed(4) : 0, aiSocialMs: a.ticks ? +(a.socialMs / a.ticks).toFixed(4) : 0,
+        aiDecisionsPerSec: Math.round(a.decisions / dt),
+        autonomousPopulation: aiGauge.population, autonomousActive: aiGauge.near + aiGauge.mid + aiGauge.far,
+        autonomousNear: aiGauge.near, autonomousMid: aiGauge.mid, autonomousFar: aiGauge.far, autonomousDormant: aiGauge.dormant,
+      });
+      aiWins.set(key, { ms: 0, ticks: 0, max: 0, decisions: 0, decideMs: 0, moveMs: 0, socialMs: 0 });
+    }
     Object.assign(w, { t: now, bytesOut, bytesIn, msgsOut, msgsIn, tickMs: 0, ticks: 0, maxTick: 0, patchMs: 0, patches: 0, maxPatch: 0, aoiMs: 0, aois: 0, maxAoi: 0, crowdMs: 0, crowds: 0, combatMs: 0, combats: 0, maxCombat: 0, hitMs: 0, hits: 0, maxHit: 0, cbtReq: 0, cbtOk: 0, cpu: process.cpuUsage(), elu: performance.eventLoopUtilization(), maxRss: 0 });
     return snapshot;
   },

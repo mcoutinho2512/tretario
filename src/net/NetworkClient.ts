@@ -621,15 +621,18 @@ export class NetworkClient {
     }
   }
   /** perfil público de um remoto: apelido e torcida (`NetPlayer.sup`, lido de forma tolerante: ausente = 0) */
-  publicProfile(id: string): { name: string; sup: number; x: number; z: number; lvl: number; title: string } | null {
+  publicProfile(id: string): { name: string; sup: number; x: number; z: number; lvl: number; title: string; kind: number; tag: number } | null {
     const r = this.remotes.get(id);
     if (!r) return null;
-    const st = (this.room?.state as { players?: { get?(k: string): { sup?: unknown; lvl?: unknown; title?: unknown } | undefined } } | undefined)?.players?.get?.(id);
+    const st = (this.room?.state as { players?: { get?(k: string): { sup?: unknown; lvl?: unknown; title?: unknown; kind?: unknown; tag?: unknown } | undefined } } | undefined)?.players?.get?.(id);
     const sup = Number(st?.sup ?? 0);
     const s = r.view ?? r.state;
     // rodada 11 — nível e título equipado (públicos; ausentes = 0 / '')
     const lvl = Number(st?.lvl ?? 0);
-    return { name: r.name || 'Visitante', sup: Number.isInteger(sup) && sup > 0 ? sup : 0, x: s.x, z: s.z, lvl: Number.isInteger(lvl) && lvl > 0 ? lvl : 0, title: typeof st?.title === 'string' ? st.title.slice(0, 48) : '' };
+    // rodada 12 — tipo de entidade (src/world/entityKind.ts: 1 = personagem autônomo → painel sem Denunciar/Silenciar)
+    // e nametag (NetPlayer.tag: 1 = sem nametag) — lidos de forma tolerante (ausente = humano / visível)
+    const kind = Number(st?.kind ?? 0), tag = Number(st?.tag ?? 0);
+    return { name: r.name || 'Visitante', sup: Number.isInteger(sup) && sup > 0 ? sup : 0, x: s.x, z: s.z, lvl: Number.isInteger(lvl) && lvl > 0 ? lvl : 0, title: typeof st?.title === 'string' ? st.title.slice(0, 48) : '', kind: Number.isInteger(kind) ? kind : 0, tag: tag === 1 ? 1 : 0 };
   }
 
   /** rodada 11 — inventário: o que o SERVIDOR aplicou na própria entidade (aparência, torcida, nível, título) */
