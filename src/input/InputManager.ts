@@ -14,6 +14,8 @@ export class InputManager {
   touchRun = false;
   pointerLocked = false;
   readonly isTouch: boolean;
+  /** rodada 10 — interação (InteractionSystem.pointAt): clique em (x, y) da tela; true = consumido */
+  pointFilter: ((x: number, y: number, locked: boolean) => boolean) | null = null;
   sensitivity = 0.0024;
 
   constructor(private canvas: HTMLCanvasElement, isTouch: boolean) {
@@ -21,8 +23,11 @@ export class InputManager {
     window.addEventListener('keydown', this.onKeyDown);
     window.addEventListener('keyup', this.onKeyUp);
     window.addEventListener('blur', () => this.keys.clear());
-    canvas.addEventListener('click', () => {
-      if (!this.isTouch && !this.pointerLocked) this.requestLock();
+    canvas.addEventListener('click', (e) => {
+      if (this.isTouch || this.pointerLocked) return;
+      // rodada 10 — interação: clique (mouse solto) num objeto interage em vez de capturar o mouse
+      if (this.pointFilter?.(e.clientX, e.clientY, false)) return;
+      this.requestLock();
     });
     document.addEventListener('pointerlockchange', () => {
       this.pointerLocked = document.pointerLockElement === canvas;
@@ -35,6 +40,11 @@ export class InputManager {
     // rodada 9 — confronto: mouse esquerdo = soco (só com o mouse capturado: o 1º clique só captura), direito = chute
     canvas.addEventListener('mousedown', (e) => {
       if (!this.pointerLocked || this.isTouch) return;
+      // rodada 10 — mouse capturado: mira no centro da tela; veículo/item ao alcance ali = interação (não soco)
+      if (e.button === 0 && this.pointFilter) {
+        const r = canvas.getBoundingClientRect();
+        if (this.pointFilter(r.left + r.width / 2, r.top + r.height / 2, true)) return;
+      }
       if (e.button === 0) this.toggles.add('cbt_punch');
       else if (e.button === 2) this.toggles.add('cbt_kick');
     });

@@ -596,6 +596,26 @@ export class NetworkClient {
     for (const f of this.far.values()) fn(f.agent.x, f.agent.z);
   }
 
+  // rodada 10 — interação (InteractionSystem / PersonPanel): só dados PÚBLICOS (apelido, torcida); o id interno serve
+  // para reencontrar a entidade e nunca é mostrado
+  /** remotos detalhados (com corpo e posição de desenho): id, nid, apelido, posição, em veículo */
+  forEachPerson(fn: (id: string, nid: number, name: string, x: number, y: number, z: number, inVehicle: boolean) => void) {
+    for (const r of this.remotes.values()) {
+      if (!r.buf.length) continue;
+      const s = r.view ?? r.state;
+      fn(r.id, r.nid, r.name || 'Visitante', s.x, s.y, s.z, !!r.vehicle);
+    }
+  }
+  /** perfil público de um remoto: apelido e torcida (`NetPlayer.sup`, lido de forma tolerante: ausente = 0) */
+  publicProfile(id: string): { name: string; sup: number; x: number; z: number } | null {
+    const r = this.remotes.get(id);
+    if (!r) return null;
+    const st = (this.room?.state as { players?: { get?(k: string): { sup?: unknown } | undefined } } | undefined)?.players?.get?.(id);
+    const sup = Number(st?.sup ?? 0);
+    const s = r.view ?? r.state;
+    return { name: r.name || 'Visitante', sup: Number.isInteger(sup) && sup > 0 ? sup : 0, x: s.x, z: s.z };
+  }
+
   /** multidão distante: posições compactas (2 Hz) → agentes instanciados interpolados */
   private onCrowd(buf: Uint8Array) {
     this.crowdMsgs++;

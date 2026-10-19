@@ -1,5 +1,6 @@
 /** Controles de toque: joystick virtual (esquerda), arrasto de câmera (direita), pular / usar / ações / chat / correr. */
 import type { InputManager } from '../input/InputManager';
+import { TapTracker } from '../input/tapGesture';
 
 export class TouchControls {
   readonly el: HTMLDivElement;
@@ -16,6 +17,11 @@ export class TouchControls {
   /** botão CHAT (o HUD abre o painel do chat) */
   onChat?: () => void;
   onMenu?: () => void;
+  /** rodada 10 — TOQUE (não arrasto) no mundo em (x, y): o InteractionSystem decide se havia objeto ali */
+  onTap?: (x: number, y: number) => void;
+  /** rodada 10 — toque × arrasto (src/input/tapGesture.ts) e QA */
+  private taps = new TapTracker();
+  readonly tapStats = { taps: 0, drags: 0, ignored: 0 };
 
   constructor(private input: InputManager) {
     this.el = document.createElement('div');
@@ -63,6 +69,9 @@ export class TouchControls {
   setCombatVisible(v: boolean) { if (this.combatEl.hidden === v) this.combatEl.hidden = !v; }
   get combatVisible() { return !this.combatEl.hidden; }
 
+  /** rodada 10: em veículo esconde PULAR/USAR/confronto (o SAIR grande fica no HUD do veículo) */
+  setRiding(v: boolean) { if (this.el.classList.contains('riding') !== v) this.el.classList.toggle('riding', v); }
+
   /** USAR só quando há algo perto (o HUD liga quando a ação contextual muda) */
   setUseVisible(v: boolean) { if (this.useBtn.hidden === v) this.useBtn.hidden = !v; }
 
@@ -77,8 +86,11 @@ export class TouchControls {
 
   private onStart = (e: TouchEvent) => {
     e.preventDefault();
+    const now = e.timeStamp; // quando o toque aconteceu (não quando o quadro ocupado chegou a tratá-lo)
     for (const t of Array.from(e.changedTouches)) {
-      if (t.clientX < window.innerWidth * 0.45 && this.stickId === null) {
+      const stick = t.clientX < window.innerWidth * 0.45 && this.stickId === null;
+      this.taps.begin(t.identifier, t.clientX, t.clientY, now, stick); // dois dedos de olhar (pinça): nenhum vira toque
+      if (stick) {
         this.stickId = t.identifier;
         this.stickCenter = { x: t.clientX, y: t.clientY };
         this.base.style.left = `${t.clientX - 60}px`;
@@ -105,6 +117,11 @@ export class TouchControls {
         this.input.touchMove.y = -dy;
         this.knob.style.transform = `translate(${dx * 40}px, ${dy * 40}px)`;
       } else if (t.identifier === this.lookId) {
+        // rodada 10: só gira depois de passar do limiar do toque (um toque não mexe a câmera); o 1º delta parte da
+        // origem do dedo (não perde o movimento do limiar)
+        const wasDrag = this.taps.isDrag(t.identifier);
+        if (!this.taps.move(t.identifier, t.clientX, t.clientY)) continue;
+        if (!wasDrag) this.lastLook = this.taps.origin(t.identifier) ?? this.lastLook;
         this.input.addLook((t.clientX - this.lastLook.x) * 1.6, (t.clientY - this.lastLook.y) * 1.6);
         this.lastLook = { x: t.clientX, y: t.clientY };
       }
@@ -117,7 +134,12 @@ export class TouchControls {
   };
 
   private onEnd = (e: TouchEvent) => {
+    const now = e.timeStamp;
     for (const t of Array.from(e.changedTouches)) {
+      const g = e.type === 'touchcancel' ? (this.taps.forget(t.identifier), null) : this.taps.end(t.identifier, t.clientX, t.clientY, now);
+      if (g === 'tap') { this.tapStats.taps++; this.onTap?.(t.clientX, t.clientY); }
+      else if (g === 'drag') this.tapStats.drags++;
+      else this.tapStats.ignored++;
       if (t.identifier === this.stickId) {
         this.stickId = null;
         this.input.touchMove.x = this.input.touchMove.y = 0;

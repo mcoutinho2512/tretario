@@ -333,6 +333,17 @@ const PALETTE: Record<RideableKind, number[]> = {
 const DRAW_DIST: Record<RideableKind, number> = { car: 400, moto: 220, bicycle: 140, scooter: 140, soundcar: 450, trio: 700 };
 const hashId = (id: string) => { let h = 0; for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0; return h; };
 
+/**
+ * distância "de uso" (m) comparada com o alcance `range` (padrão 2,4 m) — a MESMA de `nearest` (rodada 10: o
+ * InteractionSystem usa esta medida). Carro/moto: pela lateral da carroceria; trio: pela porta da cabine (a escada é
+ * para subir).
+ */
+export function useDistance(it: RideableInstance, x: number, z: number, range = 2.4): number {
+  return it.def.kind === 'trio'
+    ? distToCabDoor(x, z, it.state) + (range - TRIO.driveRange)
+    : distToVehicle(x, z, { x: it.state.x, z: it.state.z, heading: it.state.heading, kind: it.def.kind }) - (it.def.kind === 'car' || it.def.kind === 'soundcar' ? 0.2 : it.def.kind === 'moto' ? 0.8 : 0);
+}
+
 export class RideableSystem {
   readonly group = new THREE.Group();
   readonly items: RideableInstance[] = [];
@@ -390,10 +401,7 @@ export class RideableSystem {
     let best: RideableInstance | null = null, bd = range;
     for (const it of this.items) {
       if (it.state.occupant || it.netState === 2) continue; // ocupado ou voltando para a vaga
-      // carro/moto: alcance pela lateral da carroceria; trio: pela porta da cabine (a escada é para subir)
-      const d = it.def.kind === 'trio'
-        ? distToCabDoor(x, z, it.state) + (range - TRIO.driveRange)
-        : distToVehicle(x, z, { x: it.state.x, z: it.state.z, heading: it.state.heading, kind: it.def.kind }) - (it.def.kind === 'car' || it.def.kind === 'soundcar' ? 0.2 : it.def.kind === 'moto' ? 0.8 : 0);
+      const d = useDistance(it, x, z, range);
       if (d < bd) { bd = d; best = it; }
     }
     return best;

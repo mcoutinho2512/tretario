@@ -1,0 +1,227 @@
+{
+ "when": "2026-10-19T01:31:52.619Z",
+ "ok": 44,
+ "total": 44,
+ "results": [
+  {
+   "name": "desktop car: hover → UM realce \"E · CARRO · Entrar\" e cursor de clique",
+   "ok": true,
+   "detail": "E · CARRO · Entrar · cursor=pointer"
+  },
+  {
+   "name": "desktop: clique no car → servidor confirma (enter_ok, ocupante)",
+   "ok": true,
+   "detail": "via=click tipo=enter_vehicle"
+  },
+  {
+   "name": "onboarding: \"Toque ou clique nos objetos para interagir.\" aparece na 1ª oportunidade",
+   "ok": true,
+   "detail": "Confronto liberado / Toque ou clique nos objetos para interagir. / Entrando… (aguardando o servidor) / Você está dirigindo (servidor confirmou)"
+  },
+  {
+   "name": "desktop car: HUD de veículo (velocidade + SAIR)",
+   "ok": true,
+   "detail": "CARRO · 0 km/h"
+  },
+  {
+   "name": "desktop: W acelera o carro e o HUD mostra a velocidade",
+   "ok": true,
+   "detail": "CARRO · 9 km/h"
+  },
+  {
+   "name": "desktop car: SAIR (botão do HUD) desce pelo servidor",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "desktop moto: hover → UM realce \"E · MOTO · Montar\" e cursor de clique",
+   "ok": true,
+   "detail": "E · MOTO · Montar · cursor=pointer"
+  },
+  {
+   "name": "desktop: clique no moto → servidor confirma (enter_ok, ocupante)",
+   "ok": true,
+   "detail": "via=click tipo=enter_vehicle"
+  },
+  {
+   "name": "desktop moto: HUD de veículo (velocidade + DESCER)",
+   "ok": true,
+   "detail": "MOTO · 0 km/h"
+  },
+  {
+   "name": "desktop moto: SAIR (botão do HUD) desce pelo servidor",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "desktop bicycle: hover → UM realce \"BICICLETA · Montar\" e cursor de clique",
+   "ok": true,
+   "detail": "BICICLETA · Montar · cursor=pointer"
+  },
+  {
+   "name": "desktop: clique no bicycle → servidor confirma (enter_ok, ocupante)",
+   "ok": true,
+   "detail": "via=click tipo=enter_vehicle"
+  },
+  {
+   "name": "desktop bicycle: HUD de veículo (velocidade + DESCER)",
+   "ok": true,
+   "detail": "BICICLETA · 0 km/h"
+  },
+  {
+   "name": "desktop bicycle: SAIR (botão do HUD) desce pelo servidor",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "desktop scooter: hover → UM realce \"E · PATINETE · Usar\" e cursor de clique",
+   "ok": true,
+   "detail": "E · PATINETE · Usar · cursor=pointer"
+  },
+  {
+   "name": "desktop: clique no scooter → servidor confirma (enter_ok, ocupante)",
+   "ok": true,
+   "detail": "via=click tipo=enter_vehicle"
+  },
+  {
+   "name": "desktop scooter: HUD de veículo (velocidade + DESCER)",
+   "ok": true,
+   "detail": "PATINETE · 0 km/h"
+  },
+  {
+   "name": "desktop scooter: SAIR (botão do HUD) desce pelo servidor",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "desktop: clique no vazio não interage (só conta como \"nada ali\")",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "desktop: hover no item → \"… · Pegar\"",
+   "ok": true,
+   "detail": "E · BARRA DE FERRO · Pegar"
+  },
+  {
+   "name": "clique no item → servidor aprova (item_self) e aparece na mão",
+   "ok": true,
+   "detail": "{\"hud\":\"Barra de ferro\",\"social\":12,\"server\":12,\"visible\":12,\"label\":\"Barra de ferro\"}"
+  },
+  {
+   "name": "HUD \"MÃOS\" = item na mão = servidor = corpo (sem divergência)",
+   "ok": true,
+   "detail": "{\"hud\":\"Barra de ferro\",\"social\":12,\"server\":12,\"visible\":12,\"label\":\"Barra de ferro\"}"
+  },
+  {
+   "name": "largar (Z) → mão, HUD e servidor vazios juntos",
+   "ok": true,
+   "detail": "{\"hud\":\"Vazias\",\"social\":0,\"server\":0,\"visible\":0,\"label\":null}"
+  },
+  {
+   "name": "clique em outro jogador → painel compacto com VER PERFIL / INTERAGIR / SILENCIAR / DENUNCIAR",
+   "ok": true,
+   "detail": "Pessoa | Sem torcida escolhida | × | VER PERFIL | INTERAGIR | SILENCIAR | DENUNCIAR"
+  },
+  {
+   "name": "painel só com dados públicos (sem sessão/ids/e-mail)",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "VER PERFIL: apelido + torcida pelos dados",
+   "ok": true,
+   "detail": "Pessoa | Sem torcida escolhida | × | Apelido | Pessoa | Torcida | Nenhuma | Só dados públicos. Conta, e-mail e localização real nunca aparecem. | Voltar"
+  },
+  {
+   "name": "INTERAGIR → gesto (Acenar) confirmado pelo servidor",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "DENUNCIAR → user_report aceito pelo servidor (\"Denúncia registrada\")",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "Esc fecha o painel",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "celular: arrasto por cima do veículo = câmera (não vira toque, não entra)",
+   "ok": true,
+   "detail": "drags 0→1 taps 0→0 yaw0=0.3592036732050836"
+  },
+  {
+   "name": "celular: rótulo do alvo tocável (≥ 44 px de altura)",
+   "ok": true,
+   "detail": "{\"w\":129.34375,\"h\":44,\"t\":\"CARRO · Entrar\"}"
+  },
+  {
+   "name": "celular: toque no car → entra (servidor) — toque não vira arrasto",
+   "ok": true,
+   "detail": "taps 0→1"
+  },
+  {
+   "name": "celular no carro: SAIR grande (≥ 44 px), PULAR/USAR escondidos, velocidade + dica do joystick",
+   "ok": true,
+   "detail": "{\"exit\":{\"w\":84,\"h\":84},\"jump\":null,\"use\":null,\"hud\":{\"shown\":true,\"text\":\"CARRO · 0 km/h\",\"exit\":\"SAIR\",\"touch\":true}}"
+  },
+  {
+   "name": "celular: joystick ↑ acelera o carro (sem teclado)",
+   "ok": true,
+   "detail": "CARRO · 9 km/h"
+  },
+  {
+   "name": "celular car: SAIR desce",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "celular: toque no moto → entra (servidor) — toque não vira arrasto",
+   "ok": true,
+   "detail": "taps 1→2"
+  },
+  {
+   "name": "celular moto: SAIR desce",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "celular: toque no bicycle → entra (servidor) — toque não vira arrasto",
+   "ok": true,
+   "detail": "taps 2→3"
+  },
+  {
+   "name": "celular bicycle: SAIR desce",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "celular: toque no scooter → entra (servidor) — toque não vira arrasto",
+   "ok": true,
+   "detail": "taps 3→4"
+  },
+  {
+   "name": "celular scooter: SAIR desce",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "celular: toque parado (no vazio) não gira a câmera e não interage",
+   "ok": true,
+   "detail": "yaw -1.5708 → -1.5708 · foot"
+  },
+  {
+   "name": "celular: toque na pessoa abre o painel (botões ≥ 44 px)",
+   "ok": true,
+   "detail": "44px "
+  },
+  {
+   "name": "celular: toque fora fecha o painel",
+   "ok": true,
+   "detail": ""
+  }
+ ]
+}

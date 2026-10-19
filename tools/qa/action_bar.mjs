@@ -191,7 +191,7 @@ try {
   await hit(A, '.ab-btn[data-cat=veiculos]');
   q = await bar(A);
   const useIt = q.items.find((i) => i.id === 'use');
-  check('Veículos: ponto no botão e "E — USAR …" quando há veículo perto; lista com distância', ready && useIt && /USAR/.test(useIt.label) && q.items.some((i) => i.id === 'v_bicycle'), q.items.map((i) => i.label).join(' | '));
+  check('Veículos: ponto no botão e "E — USAR …" quando há veículo perto; lista com distância', ready && useIt && /USAR|MONTAR|ENTRAR|DIRIGIR/.test(useIt.label) && q.items.some((i) => i.id === 'v_bicycle'), q.items.map((i) => i.label).join(' | '));
   const far = q.items.find((i) => i.id.startsWith('v_') && i.id !== 'v_bicycle') ?? q.items.find((i) => i.id === 'v_bicycle');
   if (far) {
     await hit(A, `.ab-pop [data-id=${far.id}]`);

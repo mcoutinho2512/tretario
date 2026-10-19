@@ -95,6 +95,10 @@ export const CHAT_SERVER = {
   reportMax: 6,
   reportWindowMs: 10 * 60_000,
   reportDetailsMax: 300,
+  /** rodada 10 — denúncia de PESSOA (painel da pessoa): só de quem está a até isto (posição autoritativa de ambos) */
+  userReportRangeM: 60,
+  /** mesma pessoa pelo mesmo denunciante: no máximo 1 por janela */
+  userReportRepeatMs: 30 * 60_000,
 } as const;
 
 export type ChatSendResult = { ok: true; id: string; recipients: number } | { ok: false; reason: ChatRejection; retryMs: number };
@@ -131,6 +135,8 @@ export class ChatService {
   private owners = new Map<string, MuteSet>();
   private secret: string;
   private reportTimes = new Map<string, number[]>();
+  /** rodada 10: `denunciante|alvo` → quando (denúncia de pessoa repetida) */
+  private userReports = new Map<string, number>();
   private nextId = 1;
   private gen = { windowStart: 0, n: 0 };
   private store: ChatServiceOptions['store'];
@@ -436,6 +442,56 @@ export class ChatService {
     return res(true);
   }
 
+  /**
+   * rodada 10 — denúncia de PESSOA fora do chat (painel da pessoa): `user_report { nid, category, details? }`.
+   * O alvo é resolvido AQUI pelo nid da entidade no mundo (o cliente nunca manda userId/sessionId; qualquer outro campo
+   * é ignorado); exige `report.create`, alvo existente a ≤ userReportRangeM da posição autoritativa do denunciante,
+   * não ser a si mesmo, 1 por alvo por janela e o MESMO teto de denúncias do chat. Resposta `user_report_res`
+   * { ok, r? } — sem ids. Evidência (só para a moderação): apelido no momento, distância, posições, horário.
+   */
+  async reportUser(sid: string, raw: unknown, now = Date.now()): Promise<{ ok: boolean; r?: string }> {
+    const p = this.peers.get(sid);
+    const res = (ok: boolean, r?: string) => { const out = { ok, ...(r ? { r } : {}) }; p?.out.send('user_report_res', out); return out; };
+    if (!p || !can(p.ident.state, 'report.create', p.ident.role)) return res(false, 'sem_permissao');
+    const m = (raw && typeof raw === 'object' ? raw : {}) as { nid?: unknown; category?: unknown; details?: unknown };
+    const nid = typeof m.nid === 'number' && Number.isInteger(m.nid) && m.nid > 0 && m.nid <= 0xffff ? m.nid : 0;
+    const t = nid ? this.hooks.identityOfNid?.(nid) : undefined;
+    if (!t) return res(false, 'inexistente');
+    const tKey = authorKeyOf(t.sid, t.userId);
+    if (tKey === p.key || t.sid === sid) return res(false, 'propria');
+    const a = this.hooks.posOf(sid), b = this.hooks.posOf(t.sid);
+    if (!a || !b) return res(false, 'inexistente');
+    const dist = Math.hypot(a.x - b.x, a.z - b.z);
+    if (dist > CHAT_SERVER.userReportRangeM) return res(false, 'longe');
+    const pair = `${p.key}|${tKey}`;
+    const prev = this.userReports.get(pair);
+    if (prev !== undefined && now - prev < CHAT_SERVER.userReportRepeatMs) return res(false, 'repetida');
+    const times = (this.reportTimes.get(p.key) ?? []).filter((x) => now - x < CHAT_SERVER.reportWindowMs);
+    if (times.length >= CHAT_SERVER.reportMax) { this.reportTimes.set(p.key, times); return res(false, 'limite'); }
+    const category: ReportCategory = REPORT_CATEGORIES.includes(m.category as ReportCategory) ? (m.category as ReportCategory) : 'OUTRO';
+    const details = typeof m.details === 'string' ? textModeration.sanitize(m.details, 'chat').slice(0, CHAT_SERVER.reportDetailsMax) || null : null;
+    times.push(now); this.reportTimes.set(p.key, times);
+    this.userReports.set(pair, now);
+    const targetUserId = realUser(tKey);
+    const evidence = {
+      kind: 'user', targetNick: t.nickname, targetUserId, ...(targetUserId ? {} : { targetConnection: t.sid }),
+      distanceM: Math.round(dist * 10) / 10, reporterPos: { x: Math.round(a.x), z: Math.round(a.z) }, targetPos: { x: Math.round(b.x), z: Math.round(b.z) },
+      at: new Date(now).toISOString(), via: 'person_panel',
+    };
+    this.stats.reports++;
+    let reportId = '—';
+    if (this.store) {
+      try {
+        reportId = (await this.store.reports.create({
+          reporterUserId: p.ident.userId, targetUserId, targetType: 'USER', targetRef: `user:${this.eventId}:${tKey}`,
+          category, details, evidence, eventId: this.eventId || null, reportedNicknameAtTime: t.nickname,
+        })).id;
+      } catch (e) { this.log(`falha ao gravar denúncia de pessoa: ${(e as Error).message}`); return res(false, 'erro'); }
+    }
+    this.log(`denúncia ${reportId} (${category}) de pessoa (${t.nickname}) por ${p.ident.nickname}`);
+    return res(true);
+  }
+
   // ------------------------------------------------------------------ limpeza
   /**
    * Esquece estado ocioso que cresce por conta até reiniciar (chamado pela limpeza periódica): anti-flood já fora do
@@ -450,6 +506,7 @@ export class ChatService {
       if (now >= f.blockedUntil && now - last > idle) { this.flood.delete(k); n++; }
     }
     for (const [k, ts] of this.reportTimes) if (ts.every((t) => now - t >= CHAT_SERVER.reportWindowMs)) { this.reportTimes.delete(k); n++; }
+    for (const [k, t] of this.userReports) if (now - t >= CHAT_SERVER.userReportRepeatMs) { this.userReports.delete(k); n++; }
     return n;
   }
 

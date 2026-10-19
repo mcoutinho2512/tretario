@@ -14,8 +14,9 @@ Mesma separação do jogador: **estado** (`RideableState`, serializável, com `o
 
 (Valores em `RIDEABLE_DEFS`; a avenida está fechada para o evento — limites urbanos.)
 
-Controles: **E** sobe/desce (o AGENTE B da rodada 10 acrescenta clique/toque e HUD de veículo), **W/S** acelera/freia
-(carro: ré), **A/D** vira, **Shift** mais rápido. O evento ativo decide quais veículos existem (`EventDef.vehicles`).
+Controles: **E** sobe/desce, **W/S** acelera/freia (carro: ré), **A/D** vira, **Shift** mais rápido. No toque, botão
+**USAR**. Rodada 10: também **clique/toque no veículo** (e SAIR no HUD do veículo) — `InteractionSystem`, ver
+[INTERACTION_SYSTEM.md](INTERACTION_SYSTEM.md). O evento ativo decide quais veículos existem (`EventDef.vehicles`).
 No multiplayer o servidor é a autoridade (entrar/sair/ocupante/posição validada; estados AVAILABLE/OCCUPIED/RESETTING —
 docs/SHARED_WORLD.md).
 

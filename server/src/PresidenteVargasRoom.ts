@@ -241,7 +241,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     // espectador: posição da câmera (centro da área de interesse), presa aos limites e com taxa limitada
     spec_cam: (client: Client, m: unknown) => this.onSpecCam(client, m),
     mode: (client: Client, m: Mode) => this.gate(client, 'world.play', () => this.onMode(client, m)),
-    enter: (client: Client, m: { id: string; seq?: number } | string) => this.gate(client, 'vehicle.use', () => this.withNet(client, false, () => this.onEnter(client, typeof m === 'string' ? m : m?.id, typeof m === 'object' ? m?.seq : undefined))),
+    enter: (client: Client, m: { id?: unknown; seq?: number } | string) => this.gate(client, 'vehicle.use', () => this.withNet(client, false, () => this.onEnter(client, typeof m === 'string' ? m : m?.id, typeof m === 'object' && m ? m.seq : undefined))),
     exit: (client: Client, m?: { seq?: number }) => this.gate(client, 'vehicle.use', () => this.withNet(client, false, () => this.onExit(client, m?.seq))),
     push: (client: Client, target: string) => this.gate(client, 'push', () => this.withNet(client, false, () => this.onPush(client, target))),
     // ações sociais (emotes) e itens seguráveis: só ids pequenos — os outros clientes tocam a animação localmente
@@ -270,6 +270,8 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     chat_send: (client: Client, m: unknown) => { this.r9.e.chat(client.sessionId, this.chat.send(client.sessionId, m).ok); }, // rodada 9 — progressão (chat aceito)
     chat_mute: (client: Client, m: unknown) => this.chat.mute(client.sessionId, m),
     chat_report: (client: Client, m: unknown) => { void this.chat.report(client.sessionId, m); },
+    // rodada 10 — interação: denúncia de PESSOA pelo painel (nid da entidade; o serviço valida, limita e guarda)
+    user_report: (client: Client, m: unknown) => { void this.chat.reportUser(client.sessionId, m); },
     // rodada 9 — progressão: preferências de UI (missão em destaque, telas vistas) e teleporte de QA (só PV_TEST=1)
     mission_track: (client: Client, m: unknown) => this.r9.track(client.sessionId, m),
     prog_seen: (client: Client, m: unknown) => this.r9.seen(client.sessionId, m),
@@ -1292,12 +1294,16 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
   }
 
   // ---------------------------------------------------------------- veículos
-  private onEnter(client: Client, id: string, seq?: number) {
+  private onEnter(client: Client, rawId: unknown, seq?: number) {
     const p = this.state.players.get(client.sessionId);
     const r = this.rt.get(client.sessionId);
-    const v = typeof id === 'string' ? this.state.vehicles.get(id) : undefined;
+    // rodada 10: id só como texto curto (a resposta nunca ecoa objeto/texto arbitrário do cliente)
+    const id = typeof rawId === 'string' && rawId.length <= 64 ? rawId : '';
+    const v = id ? this.state.vehicles.get(id) : undefined;
     if (!p || !r) return;
     if (p.platform) { client.send('enter_denied', { id, reason: 'em_cima_do_trio' }); return; }
+    // rodada 10: veículo voltando para a vaga (RESETTING) não é entregue — o cliente já o mostra indisponível
+    if (v && v.state === VEHICLE_STATE.RESETTING && !v.occupant) { client.send('enter_denied', { id, reason: 'indisponivel' }); metrics.denied(); return; }
     const c = canEnter({ x: r.last.x, z: r.last.z, status: p.status, vehicle: p.vehicle }, v ? { x: v.x, z: v.z, occupant: v.occupant, heading: v.heading, kind: v.kind } : undefined);
     if (!c.ok) { client.send('enter_denied', { id, reason: c.reason }); metrics.denied(); log.debug(`[room] entrar negado ${client.sessionId} → ${JSON.stringify(id)}: ${c.reason}`); return; }
     v!.occupant = client.sessionId;

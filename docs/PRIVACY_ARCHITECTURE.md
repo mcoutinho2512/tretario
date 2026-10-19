@@ -71,7 +71,8 @@ clientId, e-mail, IP) a outros clientes. Identidade: `docs/IDENTITY.md`.
 ## Denúncias (Report)
 
 - Origem: mensagem de chat (`CHAT_MESSAGE`), fala do debate (`DEBATE_LINE`, rodada 9 — mesma evidência do chat:
-  cópia do servidor, tema, turno, até 3 falas anteriores do autor) ou grafite (`GRAFFITI`). Exige conta (`report.create`).
+  cópia do servidor, tema, turno, até 3 falas anteriores do autor), grafite (`GRAFFITI`) ou pessoa (`USER`, rodada 10 —
+  painel da pessoa; ver abaixo). Exige conta (`report.create`).
 - `reportedNicknameAtTime`: cópia do apelido do denunciado no momento (chat: o da mensagem; grafite: o do autor) para a
   revisão — a identidade continua sendo `targetUserId`. Aparece em `npm run dev:reports` (`apelido_na_hora=`).
 - **Evidência = cópia do servidor**, não o que o cliente envia: texto, canal, hora, apelido e userId do autor, grupo,
@@ -80,11 +81,30 @@ clientId, e-mail, IP) a outros clientes. Identidade: `docs/IDENTITY.md`.
   grafites enquanto existir.
 - Visível só para moderação no servidor (`dev:reports` / `DataStore.reports`); nunca para outros jogadores; o autor
   não sabe quem denunciou.
-- Limites: 1 denúncia por pessoa por mensagem; 6 por 10 min por denunciante (chat); 10/min (grafite).
+- Limites: 1 denúncia por pessoa por mensagem; 6 por 10 min por denunciante (chat e pessoa, teto compartilhado); 1 por pessoa denunciada a cada 30 min; 10/min (grafite).
 - **Retenção (conceito):** Reports ficam **180 dias** após a decisão (REVIEWED/DISMISSED/ACTIONED) e depois são apagados
   com a evidência; OPEN não expira sem revisão. Ação de moderação resultante (ModerationAction/Audit) segue a política
   de auditoria. A limpeza periódica ainda não está implementada (tarefa do painel de moderação).
 
+
+## Painel da pessoa (rodada 10)
+
+Clique/toque em outro jogador abre um painel compacto (`src/ui/PersonPanel.ts`, docs/INTERACTION_SYSTEM.md):
+
+- **Mostra só o que já é público no mundo**: apelido (`NetPlayer.name`) e a torcida pelo `displayName` dos dados
+  (`public/gameplay/supporters.json`, índice público `NetPlayer.sup`). O painel não recebe — e portanto não pode exibir —
+  e-mail, userId, sessionId, IP, papel, estado de acesso, grupo do evento, posição real ou qualquer dado administrativo.
+  O id interno da entidade fica só na memória do cliente para reencontrá-la (nunca aparece na tela). Nível/progressão
+  não são públicos hoje e não aparecem.
+- **Silenciar** usa o mute por identidade do chat (`chat_mute {nid}`): o servidor resolve a conta; o cliente nunca vê nem
+  manda userId.
+- **Denunciar** (`user_report {nid, category}`): o servidor resolve o alvo pelo nid da entidade (qualquer userId/sessionId
+  enviado é ignorado), exige `report.create`, alvo a ≤ 60 m da posição autoritativa do denunciante, 1 denúncia por alvo
+  a cada 30 min e o mesmo teto do chat (6 por 10 min). Grava `Report` `USER` com evidência do servidor — apelido no
+  momento, userId do denunciado (ou a conexão, se sem conta), distância e posições arredondadas, horário — visível só
+  para a moderação. A resposta `user_report_res {ok, r?}` não traz ids; o denunciado não é avisado. Retenção: a dos
+  Reports (acima).
+- Não existe "atacar" no painel; interagir = gestos sociais existentes validados pelo servidor.
 
 ## Grupo do evento (rodada 8)
 - A escolha de grupo (GRUPO 13 / GRUPO 22 / NEUTRO ou nenhum) é uma `EventMembership` **ligada a um evento**, não um

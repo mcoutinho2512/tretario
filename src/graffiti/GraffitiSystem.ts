@@ -141,6 +141,8 @@ export class GraffitiSystem {
 
   // ------------------------------------------------------------------ prompt / editor
   get editing() { return this.editor.isOpen; }
+  /** rodada 10 — interação: superfície autorizada ao alcance (a mesma do prompt), null = nenhuma */
+  get nearSurface(): GraffitiSurface | null { return this.near; }
 
   /** texto do prompt (o Game mostra quando não há veículo por perto) */
   promptText(): string {

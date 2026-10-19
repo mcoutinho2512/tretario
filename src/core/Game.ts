@@ -81,6 +81,17 @@ import { FX } from '../combat/types';
 import { hitNpcs, type NpcTarget } from '../combat/npcHits';
 import { RULES } from '../net/rules';
 import { Ragdoll } from '../physics/Ragdoll';
+// rodada 10 — interação: clicou/tocou → interagiu (src/interaction/InteractionSystem.ts, docs/INTERACTION_SYSTEM.md)
+import { InteractionSystem } from '../interaction/InteractionSystem';
+import { GraffitiProvider, ItemProvider, PersonProvider, VehicleProvider, PERSON_RANGE_M } from '../interaction/providers';
+import { promptText as ixPromptText } from '../interaction/select';
+import type { InteractionPlayerState } from '../interaction/types';
+import { PersonPanel } from '../ui/PersonPanel';
+import { VehicleHud } from '../ui/hud/VehicleHud';
+import { PROP_BY_ID } from '../social/props';
+import type { ReportCategory } from '../chat/protocol';
+import { pointOnAxis } from '../world/zones';
+// fim rodada 10 — interação
 
 /** rodada 8: como entrar no mundo compartilhado (tela inicial → jogo). `mp` = endereço do servidor (ws://…) */
 export interface GameStartOptions extends IdentityJoinOptions {
@@ -471,6 +482,7 @@ export class Game {
     this.hud.appendChild(this.linkBadge.el);
     this.r9bMount(); // rodada 9 — MÃOS / ITEM ATUAL, véu de desorientação
     this.mountActionBar(shell); // rodada 9.1 — barra de ações (só jogador)
+    this.r10Mount(shell, relock); // rodada 10 — interação
     if (this.spec) {
       // seletor de câmeras no encaixe do HUD (HudShell.mountSpectator); zona/minimapa seguem o foco da câmera
       const spec = this.spec;
@@ -713,6 +725,7 @@ export class Game {
       this.social.update(Math.abs(this.player.speed) / NET_TICK_HZ, this.avatar.isDown || !!this.riding);
       this.r9bFrame(); // rodada 9 — itens (R/X), efeitos do próprio
       this.cam.update(this.avatar.root.position, dt);
+      this.r10Frame(dt); // rodada 10 — interação (alvo contextual, realce, painel, HUD de veículo)
     }
     mark('movimento');
     const ppos = this.avatar.root.position;
@@ -876,6 +889,7 @@ export class Game {
     this.net.onExit = (pos) => this.dismountLocal(pos);
     this.net.onKnock = (k, isSelf, refine) => { if (isSelf) this.onSelfKnock(k, refine); };
     this.r9bNet(this.net); // rodada 9 — itens no mundo, queda por status
+    this.r10Net(this.net); // rodada 10 — interação (denúncia de pessoa)
     this.net.onNotice = (m) => this.flash(m);
     this.net.onSelfSocial = () => this.social.fromServer(this.net!.self.social);
     // rodada 8: reconexão (mesma entidade: volta para a posição do servidor) e sessão substituída
@@ -975,7 +989,8 @@ export class Game {
     const net = this.net;
     if (this.items && net) {
       this.items.update(this.player.x, this.player.z, this.social.prop);
-      if (this.input.consumeToggle('item') && !this.avatar.isDown) { if (this.mpOnline) this.items.pickOrDrop(this.social.prop, (id) => this.social.requestProp(id)); }
+      // rodada 10 — interação: T pega o item contextual pelo mesmo sistema (item_pick); sem item perto, larga como antes
+      if (this.input.consumeToggle('item') && !this.avatar.isDown) { if (this.mpOnline && !this.ix?.useType('pickup')) this.items.pickOrDrop(this.social.prop, (id) => this.social.requestProp(id)); }
       if (this.input.consumeToggle('drop') && !this.avatar.isDown && this.mpOnline) this.items.drop(this.social.prop, (id) => this.social.requestProp(id));
       if (this.input.consumeToggle('stow') && !this.avatar.isDown) this.items.stowToggle(this.social.prop, (id) => this.social.requestProp(id));
     } else { this.input.consumeToggle('item'); this.input.consumeToggle('drop'); this.input.consumeToggle('stow'); }
@@ -1013,6 +1028,150 @@ export class Game {
       r9bPrefs: (o: { reduceEffects?: boolean }) => { if (o.reduceEffects !== undefined) this.hudShell.prefs.set({ reduceEffects: o.reduceEffects }); return this.hudShell.prefs.value; },
     };
   }
+
+  // ------------------------------------------------------------------ rodada 10 — interação (docs/INTERACTION_SYSTEM.md)
+  ix: InteractionSystem | null = null;
+  private personPanel: PersonPanel | null = null;
+  private vehHud: VehicleHud | null = null;
+  private supporterNames: string[] = [];
+  private pendingPick = 0;
+
+  private r10Mount(shell: HudShell, relock: (open: boolean) => void) {
+    if (this.spectator) return;
+    const ix = (this.ix = new InteractionSystem({
+      camera: this.camera, canvas: this.canvas, touch: this.input.isTouch,
+      pos: () => this.player, state: () => this.r10State(),
+      aim: () => { const [fx, fz] = this.cam.forward(); const l = Math.hypot(fx, fz) || 1; return { x: fx / l, z: fz / l }; },
+      ground: (x, z) => this.collision.groundHeight(x, z),
+      notify: (m) => this.flash(m),
+    }, this.scene, this.hud));
+    ix.register(new VehicleProvider({
+      items: () => this.rideables.items, riding: () => this.riding, platform: () => this.trio.state?.id ?? null,
+      pending: () => !!this.pendingEnter || this.pendingBoard,
+      enter: (it) => this.r10Enter(it), board: (it) => this.r10Board(it), exit: () => this.r10Exit(),
+    }));
+    ix.register(new ItemProvider({
+      forEach: (fn) => this.items?.view.forEach(fn),
+      label: (p) => PROP_BY_ID.get(p)?.label ?? 'Item', ground: (x, z) => this.collision.groundHeight(x, z),
+      pick: (id) => { if (!this.mpOnline) return; this.pendingPick = performance.now(); this.net!.send('item_pick', { i: id }); },
+      pending: () => performance.now() - this.pendingPick < 400,
+    }));
+    ix.register(new PersonProvider({
+      forEach: (fn) => this.net?.forEachPerson(fn),
+      open: (id, nid) => this.personPanel?.show(id, nid),
+    }));
+    ix.register(new GraffitiProvider({ near: () => this.graffiti.nearSurface, prompt: () => this.graffiti.promptText(), open: () => { this.graffiti.tryOpen(this.player); } }));
+    // clique (mouse solto; capturado = centro da tela) e toque (separado do arrasto em TouchControls)
+    this.input.pointFilter = (x, y, locked) => !this.wheel?.open && !shell.anyModal && !this.personPanel?.open && ix.pointAt(x, y, locked ? 'aim' : 'click');
+    if (this.touchCtl) this.touchCtl.onTap = (x, y) => { if (!this.wheel?.open && !shell.anyModal && !this.personPanel?.open) ix.pointAt(x, y, 'tap'); };
+    // onboarding: uma dica curta, uma vez por aparelho
+    ix.onFirstTarget = () => {
+      try { if (localStorage.getItem('pv.ix.hint') === '1') return; localStorage.setItem('pv.ix.hint', '1'); } catch { /* sem armazenamento: mostra mesmo assim */ }
+      shell.flash('Toque ou clique nos objetos para interagir.', 5000);
+    };
+    // painel da pessoa (só dados públicos) e HUD do veículo
+    const acts = ['wave', 'thumbs_up', 'point', 'cheer', 'clap'].map((k) => ACTION_BY_KEY.get(k)).filter((a): a is NonNullable<typeof a> => !!a);
+    this.personPanel = new PersonPanel({
+      touch: this.input.isTouch,
+      profile: (id) => this.net?.publicProfile(id) ?? null,
+      distance: (id) => { const p = this.net?.publicProfile(id); return p ? Math.hypot(p.x - this.player.x, p.z - this.player.z) : null; },
+      supporter: (sup) => (sup > 0 ? this.supporterNames[sup - 1] || null : null),
+      gestures: acts.map((a) => ({ id: a.id, label: a.label })),
+      gesture: (id, actionId) => {
+        const p = this.net?.publicProfile(id);
+        if (p && !this.riding) this.player.heading = Math.atan2(p.x - this.player.x, p.z - this.player.z); // vira para a pessoa
+        this.social.requestAction(actionId);
+      },
+      muted: (name) => !!this.chat?.qa.muted().some((e) => e.nick === name),
+      setMuted: (nid, name, on) => {
+        if (!this.chat) { this.flash('Chat indisponível agora'); return; }
+        if (on) { this.chat.muteEntity(nid, true); this.flash(`${name} silenciado (só para você)`); }
+        else { const ref = this.chat.qa.muted().find((e) => e.nick === name)?.ref; if (ref) this.chat.unmute(ref); }
+      },
+      report: (nid, category: ReportCategory) => { if (this.mpOnline) this.net!.send('user_report', { nid, category }); },
+      onModal: (open) => { shell.poke(); relock(open); },
+      flash: (m) => this.flash(m),
+    });
+    shell.mountOverlay(this.personPanel);
+    this.vehHud = new VehicleHud(this.input.isTouch, () => this.input.queueToggle('use'));
+    shell.mountOverlay(this.vehHud);
+    void fetch(`${import.meta.env.BASE_URL}gameplay/supporters.json`).then((r) => (r.ok ? r.json() : null)).then((d: { groups?: { displayName?: string }[] } | null) => {
+      this.supporterNames = (d?.groups ?? []).map((g) => String(g.displayName ?? ''));
+    }).catch(() => { /* sem dados: o painel mostra "sem torcida" */ });
+  }
+
+  private r10Net(net: NetworkClient) {
+    if (this.spectator) return;
+    const T: Record<string, string> = {
+      sem_permissao: 'Crie uma conta para denunciar', limite: 'Muitas denúncias seguidas; tente mais tarde', repetida: 'Você já denunciou essa pessoa',
+      longe: 'A pessoa não está mais por perto', inexistente: 'A pessoa saiu do evento', propria: 'Não dá para denunciar a si mesmo', erro: 'Falha ao registrar; tente de novo',
+    };
+    net.on('user_report_res', (r: { ok?: boolean; r?: string }) => this.flash(r?.ok ? 'Denúncia registrada. Obrigado.' : T[r?.r ?? ''] ?? 'Denúncia não registrada'));
+  }
+
+  private r10State(): InteractionPlayerState {
+    if (this.spectator) return 'spectator';
+    if (this.avatar.isDown || this.graffiti.editing) return 'down';
+    if (this.trio.active) return 'platform';
+    if (this.riding) return 'vehicle';
+    return 'foot';
+  }
+
+  /** E / USAR / barra / SAIR: o alvo contextual (o grafite é um provedor; sem alvo, nada) */
+  private r10Use() {
+    if (this.ix) { this.ix.useKey(); return; }
+    if (this.riding) { if (this.mpOnline) this.net!.requestExit(); else this.dismountLocal(); }
+  }
+
+  /** pedidos — a lógica que antes ficava no `use`, chamada pelos provedores; o servidor decide */
+  private r10Enter(it: RideableInstance) {
+    if (this.riding || this.trio.active || this.pendingEnter) return;
+    if (this.mpOnline) { this.pendingEnter = it.state.id; this.net!.requestEnter(it.state.id); this.flash('Entrando… (aguardando o servidor)'); }
+    else this.mountLocal(it);
+  }
+  private r10Board(it: RideableInstance) {
+    if (this.riding || this.trio.active || this.pendingBoard) return;
+    if (this.mpOnline) { this.pendingBoard = true; this.net!.requestBoard(it.state.id); this.flash('Subindo… (aguardando o servidor)'); }
+    else this.trio.board(it.state.id);
+  }
+  private r10Exit() {
+    if (this.trio.active) { if (this.mpOnline) { this.pendingBoard = true; this.net!.requestUnboard(); } else this.leaveTrioLocal(); }
+    else if (this.riding) { if (this.mpOnline) this.net!.requestExit(); else this.dismountLocal(); }
+  }
+
+  private r10Frame(dt: number) {
+    if (!this.ix) return;
+    this.ix.update(dt);
+    this.personPanel?.tick(dt);
+    const v = this.riding;
+    const k = v?.def.kind;
+    this.vehHud?.set(v ? { label: v.def.label, kind: v.def.kind, exitLabel: k === 'car' || k === 'soundcar' || k === 'trio' ? 'Sair' : 'Descer' } : null, v ? v.state.speed : 0);
+    this.touchCtl?.setRiding(!!v);
+  }
+
+  /** QA (tools/qa/interaction_mp.mjs) */
+  private r10Qa() {
+    return {
+      ix: () => this.ix?.info() ?? null,
+      ixPoint: (x: number, y: number, via: 'click' | 'tap' | 'aim' = 'click') => this.ix?.pointAt(x, y, via) ?? false,
+      ixUse: () => this.ix?.useKey() ?? false,
+      person: () => this.personPanel?.info() ?? null,
+      vehHud: () => this.vehHud?.info ?? null,
+      touchTaps: () => (this.touchCtl ? { ...this.touchCtl.tapStats } : null),
+      /** HUD "MÃOS" × item na mão (social) × servidor × o que o corpo mostra — nunca divergem */
+      handSync: () => ({
+        hud: this.hand?.text.item ?? null,
+        social: this.social.prop,
+        server: this.net?.self.social.prop ?? 0,
+        visible: (this.avatar as unknown as { human?: { propAttachment?: { prop?: number } } }).human?.propAttachment?.prop ?? 0,
+        label: PROP_BY_ID.get(this.social.prop)?.label ?? null,
+      }),
+      personRange: PERSON_RANGE_M,
+      camYaw: () => this.cam.yaw,
+      axisPoint: (t: number, side = 0) => pointOnAxis(this.manifest.pvAxis as [number, number][], t, side),
+    };
+  }
+  // fim rodada 10 — interação ------------------------------------------------------------------------------------------
 
   // ------------------------------------------------------------------ movimento e veículos
   private mountLocal(v: RideableInstance) {
@@ -1068,25 +1227,8 @@ export class Game {
         ax.x = ddx * -Math.cos(this.cam.yaw) + ddz * Math.sin(this.cam.yaw);
       }
     }
-    if (this.input.consumeToggle('use') && !this.avatar.isDown) {
-      const ladder = !this.riding && !this.trio.active ? this.rideables.nearestLadder(this.player.x, this.player.z) : null;
-      if (this.trio.active) {
-        // em cima do trio: E desce pela escada
-        if (this.mpOnline) { this.pendingBoard = true; this.net!.requestUnboard(); } else this.leaveTrioLocal();
-      } else if (ladder) {
-        if (this.mpOnline) { this.pendingBoard = true; this.net!.requestBoard(ladder.state.id); this.flash('Subindo… (aguardando o servidor)'); }
-        else this.trio.board(ladder.state.id);
-      } else if (this.riding) {
-        if (this.mpOnline) this.net!.requestExit();
-        else this.dismountLocal();
-      } else {
-        const near = this.rideables.nearest(this.player.x, this.player.z);
-        if (near) {
-          if (this.mpOnline) { this.pendingEnter = near.state.id; this.net!.requestEnter(near.state.id); this.flash(`Entrando… (aguardando o servidor)`); }
-          else this.mountLocal(near);
-        } else this.graffiti.tryOpen(this.player); // sem veículo perto: parede/tapume/chão autorizado
-      }
-    }
+    // rodada 10 — interação: E / USAR / barra passam pelo InteractionSystem (alvo contextual → mesma mensagem de antes)
+    if (this.input.consumeToggle('use') && !this.avatar.isDown) this.r10Use();
     if (this.avatar.isDown) {
       // caído: sem controle; o servidor decide quando levanta
       this.input.consumeJump();
@@ -1143,7 +1285,7 @@ export class Game {
       while (dyaw > Math.PI) dyaw -= Math.PI * 2;
       while (dyaw < -Math.PI) dyaw += Math.PI * 2;
       if (Math.abs(v.state.speed) > 1) this.cam.yaw += dyaw * Math.min(1, dt * (v.def.kind === 'car' ? 2.2 : 1.5));
-      this.hudShell.setPrompt(RIDE_HELP[v.def.kind]);
+      this.hudShell.setPrompt(this.input.isTouch ? '' : RIDE_HELP[v.def.kind]); // rodada 10: no toque, o HUD do veículo (SAIR + dica do joystick)
     } else {
       const held = this.combat?.locked ? 0 : 1; // rodada 9: cambaleando (golpe sofrido) não anda
       const intent = {
@@ -1162,9 +1304,8 @@ export class Game {
         if (o) { this.player.x = o.x; this.player.z = o.z; }
       }
       this.avatar.update(this.player, dt);
-      const near = this.rideables.nearest(this.player.x, this.player.z);
-      const ladder = this.rideables.nearestLadder(this.player.x, this.player.z);
-      this.hudShell.setPrompt(this.pendingEnter || this.pendingBoard ? 'Aguardando o servidor…' : ladder ? 'E — SUBIR NO TRIO' : near ? (near.def.kind === 'trio' ? 'E — DIRIGIR O TRIO ELÉTRICO' : `E — USAR ${near.def.label.toUpperCase()}`) : this.graffiti.promptText());
+      // rodada 10 — interação: o texto vem do alvo contextual (veículo, escada do trio, item, grafite)
+      this.hudShell.setPrompt(this.pendingEnter || this.pendingBoard ? 'Aguardando o servidor…' : this.ix?.current ? ixPromptText(this.ix.current) : this.graffiti.promptText());
     }
     this.rideables.sync(this.camera.position);
     // sem consentimento (decisão do dono 2026-10-18): o modo K não protege ninguém — o rótulo diz a regra real
@@ -1405,6 +1546,7 @@ export class Game {
       },
       ...this.r9bQa(), // rodada 9 — itens/efeitos/quedas
       audio: () => this.audioWorld.qa(), // rodada 10 — áudio (vozes, nós vivos, células, CPU)
+      ...this.r10Qa(), // rodada 10 — interação
       /** painéis de LED: conteúdo por painel ('*' = todos). Preparado para o backend. */
       billboard: (id: string, content: unknown) => this.billboards.setPanelContent(id, content as never),
       billboards: () => this.manifest.billboards ?? [],
