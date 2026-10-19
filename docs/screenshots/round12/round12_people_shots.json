@@ -1,0 +1,59 @@
+{
+  "B": {
+    "shown": 3,
+    "candidates": 30,
+    "decisions": 28,
+    "decideMs": 0.056,
+    "transforms": 552,
+    "frameMs": 0.0197,
+    "rays": 48,
+    "nodes": 18,
+    "inUse": 3,
+    "pool": 18,
+    "domNodes": 18,
+    "shownNames": [
+      "Maracana",
+      "Malandro2…",
+      "Cria"
+    ]
+  },
+  "C": {
+    "total": 9,
+    "tagged": 4,
+    "untagged": 5,
+    "shown": 3,
+    "untaggedShown": 0
+  },
+  "D": {
+    "open": true,
+    "view": "main",
+    "name": "Maracana",
+    "title": "",
+    "lvl": 0,
+    "kind": 1,
+    "selected": "3PJrdNLXQ",
+    "text": "Maracana\nSem torcida escolhida\n×\nVER PERFIL\nINTERAGIR",
+    "log": [
+      "open:Maracana"
+    ]
+  },
+  "E": {
+    "active": 8,
+    "ms": 0.0005
+  },
+  "F": 3,
+  "audio": {
+    "ms": 0.017,
+    "vehiclesTracked": 1,
+    "remotesTracked": 48,
+    "aggAdded": 163.00939728868414,
+    "profiles": [
+      "manifestacao",
+      "torcida_a",
+      "torcida_b",
+      "torcida_c",
+      "torcida_d"
+    ],
+    "dynamic": 3
+  }
+}

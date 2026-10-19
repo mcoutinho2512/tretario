@@ -424,6 +424,17 @@ export class HumanAnimator {
 
   get naturalSpeeds() { return { ...this.natural }; }
 
+  /** rodada 12 — QA (humanization_probe): fase normalizada da caminhada/parado e da ação em laço que está tocando */
+  get phaseDebug() {
+    const wa = this.act.get('walk'), ia = this.act.get('idle');
+    const l = this.layers.find((x) => x.kind === 'act' && x.target > 0 && x.loop);
+    return {
+      walk: wa ? +(wa.time / wa.getClip().duration % 1).toFixed(3) : null, walkW: +(this.w.walk ?? 0).toFixed(2),
+      idle: ia ? +(ia.time / ia.getClip().duration % 1).toFixed(3) : null,
+      act: l ? l.id : 0, actPhase: l ? +(((((l.phase * l.rate + l.offset) % l.dur) + l.dur) % l.dur) / l.dur).toFixed(3) : null,
+    };
+  }
+
   /**
    * rodada 9.1 — individualidade (NPCs): a partir de uma semente, fase própria dos ciclos (um grupo não respira/anda
    * em uníssono), andamento do parado ±8 %, e parâmetros do balanço procedural do parado (troca do peso de uma perna
@@ -678,7 +689,7 @@ export class HumanAnimator {
   private applyLook(dt: number, scale: number) {
     const l = this.look, head = this.bones.get('head');
     if (!head) return;
-    this.root.updateMatrixWorld(true);
+    // sem percorrer o esqueleto inteiro: getWorldPosition/getWorldQuaternion atualizam só a cadeia de pais
     let want = 0, yaw = l.yaw, pitch = l.pitch;
     if (l.on) {
       // direção do alvo no espaço do esqueleto (x = esquerda, y = cima, z = frente), a partir da cabeça

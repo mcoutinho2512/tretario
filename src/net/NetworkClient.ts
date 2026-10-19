@@ -599,7 +599,7 @@ export class NetworkClient {
     let v = list?.pop();
     if (v) { v.resetForReuse(); v.setAppearance(r.app); }
     else v = new AvatarVisual(r.app, { lod: 2, castShadow: false });
-    v.setVariant(r.seed); // rodada 12 — fase/cadência/parado/laços próprios (animVariety.ts)
+    if (NetworkClient.variety) v.setVariant(r.seed); // rodada 12 — fase/cadência/parado/laços próprios (animVariety.ts)
     this.group.add(v.root);
     r.visual = v;
     return v;
@@ -767,7 +767,16 @@ export class NetworkClient {
   statusFalls = 0;
 
   // ---------------------------------------------------------------- por frame
+  /** rodada 12 — QA/medição A/B: ?r12var=0 desliga a individualidade da animação dos remotos (comparação de custo) */
+  static variety = typeof location === 'undefined' || new URLSearchParams(location.search).get('r12var') !== '0';
+  /** rodada 12 — medição: ms (média móvel) do update por quadro — interpolação, animação dos esqueletos, olhar, rótulos */
+  updateMs = 0;
   update(dt: number, local: PlayerState, riding: string | null, camera: THREE.Camera, viewport: { w: number; h: number }) {
+    const tU = performance.now();
+    this.updateInner(dt, local, riding, camera, viewport);
+    this.updateMs = this.updateMs * 0.95 + (performance.now() - tU) * 0.05;
+  }
+  private updateInner(dt: number, local: PlayerState, riding: string | null, camera: THREE.Camera, viewport: { w: number; h: number }) {
     if (this.room && this.status === 'online' && this.role === 'spectator') this.sendSpectatorCam(dt);
     if (this.room && this.status === 'online' && this.spawned && !this.holdMoves) {
       this.sendAcc += dt;
@@ -1031,6 +1040,26 @@ export class NetworkClient {
     }
     const st = this.labelStats;
     st.frameMs = +(st.frameMs * 0.95 + (performance.now() - t1) * 0.05).toFixed(4);
+  }
+
+  /**
+   * rodada 12 — QA (tools/qa/humanization_probe.mjs): por remoto detalhado — tipo, ação, velocidade, rumo, com
+   * esqueleto, fases normalizadas (caminhada, parado, ação em laço; instanciado: fase do VAT) e o olhar
+   */
+  humanizationSample() {
+    const out: { nid: number; kind: number; act: number; speed: number; heading: number; skinned: boolean; walk: number | null; idle: number | null; actPhase: number | null; vat: number; look: number }[] = [];
+    for (const r of this.remotes.values()) {
+      if (!r.buf.length) continue;
+      const ph = r.visual?.phaseDebug ?? null;
+      out.push({ nid: r.nid, kind: r.kind, act: r.soc.act, speed: +r.state.speed.toFixed(2), heading: +r.state.heading.toFixed(3), skinned: !!r.visual, walk: ph?.walk ?? null, idle: ph?.idle ?? null, actPhase: ph?.actPhase ?? null, vat: +r.agent.phase.toFixed(3), look: r.visual?.lookDebug?.w ?? 0 });
+    }
+    return out;
+  }
+
+  /** rodada 12 — QA: por remoto detalhado, distância à câmera, tipo, nome pela regra, faixa do rótulo e oclusão */
+  labelDebug() {
+    const c = this.lastCam;
+    return [...this.remotes.values()].map((r) => ({ name: r.name, kind: r.kind, d: +Math.hypot(r.state.x - c.x, r.state.z - c.z).toFixed(1), tier: r.labelTier, agentTier: r.agent.tier, visual: !!r.visual, tagged: r.kind !== ENTITY_KIND.AUTONOMOUS || autonomousTagged(r.nid, this.npcNames.share, Number(r.st.tag ?? 0) || 0), occluded: this.occlusion.peek(r.nid) ?? null }));
   }
 
   /** para QA */

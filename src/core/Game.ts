@@ -110,7 +110,7 @@ import { noticeForJoinError } from '../ui/netNotice'; // rodada 9.1 — versão 
 import { ProgressionUI } from '../ui/progress/ProgressionUI'; // rodada 9 — progressão
 import { InventoryController } from '../inventory/InventoryController'; // rodada 11 — inventário
 import { AudioWorld } from '../audio/AudioWorld'; // rodada 10 — áudio
-import { npcRanges } from '../net/nameLod'; // rodada 12 — nomes dos autônomos
+import { autonomousTagged, npcRanges } from '../net/nameLod'; // rodada 12 — nomes dos autônomos
 import { dynamicEventMark, normalizeDynamicEvents } from '../events/dynamicPresentation'; // rodada 12 — eventos dinâmicos
 import { mountAgendaDebate, type AgendaDebate } from '../ui/agendaDebateMount'; // rodada 9 — agenda/debate/telões
 // rodada 9 — confronto (src/combat; carregado com o multiplayer)
@@ -1131,7 +1131,7 @@ export class Game {
       const h = this.ix?.hover;
       return { hover: h && h.key.startsWith('person:') ? h.key.slice(7) : null, selected: this.personPanel?.selectedId ?? null };
     };
-    net.occluder = (ax, ay, az, bx, by, bz) => this.collision.raycast(ax, ay, az, bx, by, bz);
+    net.occluder = (ax, ay, az, bx, by, bz) => this.collision.raycast(ax, ay, az, bx, by, bz, 3); // só prédio (≥ 3 m) esconde nome
     void fetch(`${import.meta.env.BASE_URL}gameplay/autonomous.json`).then((r) => (r.ok ? r.json() : null)).then((j: { nametag?: { share?: number; nearM?: number; midM?: number } } | null) => {
       const t = j?.nametag;
       if (!t) return;
@@ -1155,6 +1155,23 @@ export class Game {
       lookAtMe: (on = true) => { net.qaLook = on ? () => net.selfNid : null; },
       labels: () => ({ ...net.labelStats, inUse: net.tags.inUse, pool: net.tags.nodes, domNodes: document.querySelectorAll('.name-label').length, shownNames: [...document.querySelectorAll('.name-label')].filter((e) => !(e as HTMLElement).hidden).map((e) => (e as HTMLElement).textContent) }),
       lookStats: () => ({ ...net.lookStats }),
+      netMs: () => +net.updateMs.toFixed(3),
+      sample: () => net.humanizationSample(),
+      labelDebug: () => net.labelDebug(),
+      /** QA (capturas C_com_e_sem_nomes): pessoas à vista em px, tipo, se tem nome pela regra e se o rótulo aparece */
+      people: () => {
+        const out: { name: string; kind: number; tagged: boolean; shown: boolean; px: number; py: number; d: number }[] = [];
+        const shown = new Set([...document.querySelectorAll('.name-label')].filter((e) => !(e as HTMLElement).hidden).map((e) => (e as HTMLElement).textContent ?? ''));
+        const v = new THREE.Vector3(), w = this.canvas.clientWidth, h = this.canvas.clientHeight;
+        net.forEachPerson((id, nid, name, x, y, z) => {
+          v.set(x, y + 1.0, z).project(this.camera);
+          if (v.z >= 1 || Math.abs(v.x) > 1 || Math.abs(v.y) > 1) return;
+          const kind = net.kindOf(id);
+          const tagged = kind !== 1 || autonomousTagged(nid, net.npcNames.share);
+          out.push({ name, kind, tagged, shown: [...shown].some((t) => t === name || name.startsWith(t.replace('…', ''))), px: Math.round(((v.x + 1) / 2) * w), py: Math.round(((1 - v.y) / 2) * h), d: +Math.hypot(x - this.camera.position.x, z - this.camera.position.z).toFixed(1) });
+        });
+        return out;
+      },
       humans: () => net.humanCount(!this.spectator),
     };
   }

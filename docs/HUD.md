@@ -383,3 +383,32 @@ caso) e multidão de bots: **17/17 sem sobreposição, sem corte e com o centro 
   personagem (`input.setMoveBlocked`) e o clique no cenário não interage.
 - Avisos curtos (sem modal) pelo canal de sempre (`flash`): "Você não possui este item.", "<item>: bloqueado — Nível 3",
   "Taco não pode ser usado nesta zona." (zona de paz), "Título: …", "Torcida atualizada.".
+
+## Rodada 12 — nomes da população e minimapa (agente D; docs/AUTONOMOUS_CHARACTERS.md § Cliente)
+
+### Nomes
+
+- **Pool fixo de rótulos** (`src/net/NameTagPool.ts`): 18 nós `.name-label` no total (teto de 14 visíveis + folga),
+  emprestados a quem a decisão escolhe. Antes: um nó por remoto detalhado (até 64). Texto/classe só quando mudam;
+  por quadro só o `transform` dos emprestados e só quando muda de pixel.
+- **Autônomos** (`NetPlayer.kind = 1`): parte SEM nome (`autonomousTagged`: hash do nid × `autonomous.json`
+  `nametag.share` = 0,6; ou `NetPlayer.tag` se o servidor mandar); com nome: completo até 18 m, faixa média até 35 m,
+  nada além.
+- **Densidade**: faixa média (humanos 15–30 m, autônomos 18–35 m) com mais de 8 candidatos → só centro da tela,
+  interagindo ou em foco (PRÓXIMOS; TODOS ignora).
+- **Foco**: pessoa sob o cursor (hover do InteractionSystem) ou aberta no painel → apelido completo, prioridade × 0,1.
+- **Oclusão amostrada**: raio câmera → cabeça contra as paredes **≥ 3 m** do `CollisionWorld` (prédios; gradil e
+  mureta não escondem). `OcclusionCache`: ≤ 8 raios novos por decisão (5 Hz), resultado válido 400 ms, ocluir exige 2
+  bloqueios seguidos (sem piscar na quina), desocluir é imediato. Ocluído não gasta vaga do teto.
+
+| Medição (Chrome + Metal, M-series, preset ALTO, `tools/qa/nametag_bench.mjs`) | 50 | 250 | 500 |
+|---|---|---|---|
+| ver tabela em docs/bench/round12_nametags.json | | | |
+
+### Minimapa
+
+A população (autônomos inclusive) continua SÓ no calor da densidade (`DensityGrid`, células de 10 m) — nunca um
+ponto por pessoa. Novo: `Minimap.dynamicMarks` — **uma marca agregada por foco** de evento dinâmico
+(`dynamicEventMark`): tamanho pela massa, âmbar (ato/concentração), dourado (festa), vermelho (confusão), anel
+pulsando pela intensidade; rótulo genérico (Concentração, Caminhada, Ato, Torcidas, Agito, Confusão, Corrida, Festa)
+só no mapa expandido. A escalada interna nunca aparece como texto. Alimentado pela mensagem `dyn_events`.

@@ -212,3 +212,22 @@ gesto, teto de nós, inaudível não cria nó, mudo suspende).
 - Passos de NPCs perto não soam individualmente (a textura vem do murmúrio da célula) — de propósito.
 - `ambience.music` dos eventos ainda é ignorado (só `ambience.crowd`); uma trilha por evento precisaria de outra receita.
 - HRTF não usado (pan estéreo para todas as fontes).
+
+## Rodada 12 — população autônoma e eventos dinâmicos
+
+- **Autônomos** (NetPlayer.kind = 1) chegam como remotos/multidão distante e entram no `CrowdDirector` como qualquer
+  agente: somam na célula de multidão (densidade, atividade, perfil pela camisa/item e por `NetPlayer.sup`). **Nunca
+  uma voz por NPC**; passos continuam só dos ≤ 4 remotos detalhados mais perto. (Correção: o voto de perfil por
+  `sup` dos remotos lia um campo inexistente e era sempre 0 — agora vem do estado sincronizado.)
+- **Gancho do diretor de eventos dinâmicos** (AGENTE E): `AudioWorld.setDynamicEvents(lista)` — focos
+  `{ x, z, r, kind, escalation?, participants?, watchers?, crowdIntensity?, cheering?, combatIntensity? }`
+  (src/events/dynamicPresentation.ts). O jogo chama ao receber a mensagem **`dyn_events`** (array ou `{ events }`;
+  interface tolerante, até 32 focos). A cada rodada da agregação (~4 Hz), cada foco:
+  - soma calor de **confronto** e **comemoração** na célula do foco (`addHeat`) → `combatIntensity` /
+    `celebrationIntensity` da voz;
+  - reforça a **massa** (`addMass`, até 24 pessoas equivalentes × `crowdIntensity`) → volume/atividade da célula;
+  - marca o **tipo do evento** na célula (`eventType` = `kind` em minúsculas: `festa`, `briga`, `concentracao`…).
+  Campos explícitos (0..1) mandam; sem eles, a intensidade sai do tipo + escalada (`dynamicEventAudio`): BRIGA/
+  BRIGA_GENERALIZADA puxam confronto, FESTA/ENCONTRO_TORCIDAS comemoração; a escalada (CALMO → GENERALIZADO) só
+  aumenta tensão e massa. Custo: ≤ 32 somas por rodada de 250 ms.
+- QA: `__pvR12.dyn(lista)` injeta focos sem servidor; `__pv.audio().world.dynamic` = focos ativos.

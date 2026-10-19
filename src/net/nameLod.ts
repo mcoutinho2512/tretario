@@ -166,6 +166,8 @@ export class OcclusionCache {
     return e.occ;
   }
   forget(key: number) { this.m.delete(key); }
+  /** QA: último resultado guardado (undefined = nunca testado) */
+  peek(key: number): boolean | undefined { return this.m.get(key)?.occ; }
   get size() { return this.m.size; }
 }
 

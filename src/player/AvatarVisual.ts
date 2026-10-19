@@ -143,6 +143,7 @@ export class AvatarVisual {
   setLook(target: { x: number; y: number; z: number } | null) { this.human?.animator?.setLook(target); }
   get lookDebug() { return this.human?.animator?.lookDebug ?? null; }
   get variantDebug() { return this.human?.animator?.variantDebug ?? null; }
+  get phaseDebug() { return this.human?.animator?.phaseDebug ?? null; }
 
   /** nível de detalhe fixo (jogador local) */
   setDetail(lod: Lod) { this.human?.setLod(lod); }
