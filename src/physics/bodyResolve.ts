@@ -322,6 +322,21 @@ export function findFreeSpot(x: number, z: number, r: number, index: BodyIndex, 
 }
 
 /**
+ * Dá para sair daqui? Testa 8 direções com um passo curto (constrainMove contra os vizinhos + `clear` para parede):
+ * basta UMA andar ≥ 60 % do passo. Multidão que só bloqueia a frente → true (volta ou vai de lado); cercado por
+ * corpos (ou corpos + parede) → false. Base do "unstuck" (cliente pede, servidor confere com a mesma função).
+ */
+export function canEscape(id: string, x: number, z: number, r: number, neighbors: readonly BodyRef[], clear?: (ax: number, az: number, bx: number, bz: number) => boolean, step = 0.25): boolean {
+  const tmp: MoveResult = { x: 0, z: 0, contacts: 0, blocked: false, maxPen: 0 };
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2, tx = x + Math.cos(a) * step, tz = z + Math.sin(a) * step;
+    constrainMove(id, r, x, z, tx, tz, neighbors, 0, tmp);
+    if (Math.hypot(tmp.x - x, tmp.z - z) >= step * 0.6 && (!clear || clear(x, z, tmp.x, tmp.z))) return true;
+  }
+  return false;
+}
+
+/**
  * "Preso de verdade": quer andar, quase não anda, e está encostado em ≥ 2 corpos (ou 1 corpo + parede) por
  * `holdS` segundos seguidos. Só então vale um "unstuck" (ponto livre próximo). Multidão que só atrapalha NÃO dispara:
  * qualquer progresso (≥ 25 % do pedido) zera o relógio.

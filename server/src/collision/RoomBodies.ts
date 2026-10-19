@@ -7,12 +7,13 @@
  *                           próprio passo → corrige para a posição deslizada (a tolerância absorve a latência:
  *                           corrige só o excesso, sem briga de predição). Quem é empurrado parado nunca é corrigido
  *   freeSpot(...)           spawn, reconexão, levantar, saída de veículo: ponto livre próximo (sem parede)
- *   unstuck(...)            pedido do cliente preso de verdade (≥ 2 corpos ou corpo + parede), conferido aqui, ≤ 1/4 s
+ *   unstuck(...)            pedido do cliente preso de verdade (≥ 2 corpos ou corpo + parede E sem saída em nenhuma de
+ *                           8 direções — canEscape), conferido aqui, ≤ 1 a cada 4 s
  *   resolveAutonomous(...)  o agente C chama com os corpos dos autônomos (resolução progressiva; humanos são fixos)
  * Métricas (/metrics): collisionMs (ms por tick), neighborQueries (por tick), validações, correções, unstucks.
  */
 import { BODY, type BodyRef } from '../../../src/physics/bodies';
-import { SpatialBodyGrid, constrainMove, findFreeSpot, penetrationOf, resolveBodies, type ResolveOptions } from '../../../src/physics/bodyResolve';
+import { SpatialBodyGrid, canEscape, constrainMove, findFreeSpot, penetrationOf, resolveBodies, type ResolveOptions } from '../../../src/physics/bodyResolve';
 import { ENTITY_KIND } from '../../../src/world/entityKind';
 import { STATUS } from '../../../src/net/rules';
 
@@ -70,7 +71,9 @@ export class RoomBodies {
   validate(id: string, prevX: number, prevZ: number, x: number, z: number, dtS: number): { x: number; z: number; pen: number } | null {
     const t0 = performance.now(), q0 = this.grid.queries;
     this.stats.validations++;
-    const near = this.grid.near(x, z, BODY.queryRadius, this.near);
+    // só quem pode encostar neste passo (contato + passo + folga) — em multidão densa ~5× menos vizinhos que queryRadius
+    const qr = Math.min(BODY.queryRadius, 2 * BODY.radius + 0.2 + Math.hypot(x - prevX, z - prevZ));
+    const near = this.grid.near(x, z, qr, this.near);
     let out: { x: number; z: number; pen: number } | null = null;
     const { pen, other } = penetrationOf(id, x, z, BODY.radius, near);
     if (pen > BODY.serverTolerance && other) {
@@ -108,6 +111,8 @@ export class RoomBodies {
     let contacts = 0;
     for (const n of near) if (n.id !== id && Math.hypot(x - n.x, z - n.z) < BODY.radius + n.r + 0.12) contacts++;
     if (!(contacts >= 2 || (contacts >= 1 && wallNear(x, z)))) { this.stats.unstuckDenied++; return null; }
+    // sem saída de verdade (8 direções contra corpos e parede)? Multidão que só fecha a frente: negado
+    if (canEscape(id, x, z, BODY.radius, near, clear ? (_ax, _az, bx, bz) => clear(bx, bz) : undefined)) { this.stats.unstuckDenied++; return null; }
     // procura além do anel encostado (raio ≥ 1 m), para não cair de novo no mesmo aperto
     const f = findFreeSpot(x, z, BODY.radius, this.grid, { selfId: id, clear, maxRadius: 6, gap: 0.15 });
     if (!f.moved) { this.stats.unstuckDenied++; return null; }

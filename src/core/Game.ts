@@ -697,6 +697,7 @@ export class Game {
       npcs: () => [this.peds, this.rallyCrowd],
       walls: (p) => { const q = { x: p.x, y: this.player.y, z: p.z }; this.collision.resolveCircle(q, 0.32, 1.78); const hit = Math.hypot(q.x - p.x, q.z - p.z) > 1e-3; p.x = q.x; p.z = q.z; return hit; },
       onStuck: () => this.net?.send('unstuck', 1), // o servidor confere e escolhe o ponto livre ('correct' livre)
+      clear: (ax, az, bx, bz) => this.collision.raycast(ax, 0.6, az, bx, 0.6, bz) >= 1,
     });
   }
   readonly social = new SocialController((s) => this.avatar.setSocial(s), () => (this.mpOnline ? this.net! : null), (m) => this.flash(m));

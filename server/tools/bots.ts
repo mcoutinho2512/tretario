@@ -7,6 +7,8 @@
  *   cenário  0 | spawn  perto do spawn (padrão; servidor normal)
  *            1 | spread espalhados ao longo da avenida (requer servidor PV_TEST=1)
  *            dense      todos numa elipse de ~60 m × 20 m no eixo da avenida — o caso real da manifestação (PV_TEST=1)
+ *            packed     rodada 12: CONCENTRADOS — todos num disco de raio √T × 0,42 m (~1,8 pessoa/m²) andando para o
+ *                       centro: corpos se apertam o tempo todo (custo da colisão entre corpos no servidor; PV_TEST=1)
  *   opções   --offset=K   índice do primeiro bot (vários processos dividem a mesma multidão)
  *            --total=T    tamanho total da multidão (para distribuir posições entre processos)
  *            --wait-go    entra, imprime "READY" e só começa a medir ao receber "go" na entrada padrão
@@ -45,7 +47,7 @@ const flagNum = (k: string, d: number) => { const f = flag(k); return f && f.inc
 const N = Number(args[0] ?? 5);
 const SECS = Number(args[1] ?? 20);
 const ENDPOINT = args[2] ?? 'ws://127.0.0.1:2567';
-const SCEN = args[3] === '1' ? 'spread' : args[3] === 'dense' ? 'dense' : args[3] === 'spread' ? 'spread' : 'spawn';
+const SCEN = args[3] === '1' ? 'spread' : args[3] === 'dense' ? 'dense' : args[3] === 'spread' ? 'spread' : args[3] === 'packed' ? 'packed' : 'spawn';
 const OFFSET = flagNum('offset', 0);
 const TOTAL = flagNum('total', N);
 const WAIT_GO = !!flag('wait-go');
@@ -85,6 +87,8 @@ const DENSE = (() => {
   const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
   return { x: (a[0] + b[0]) / 2, z: (a[1] + b[1]) / 2, ux: (b[0] - a[0]) / len, uz: (b[1] - a[1]) / len, along: 60, across: 20 };
 })();
+/** rodada 12 — raio do disco do cenário `packed` (m) */
+const PACK_R = Math.sqrt(Math.max(1, TOTAL)) * 0.42;
 const inDense = (x: number, z: number) => {
   const dx = x - DENSE.x, dz = z - DENSE.z;
   const u = dx * DENSE.ux + dz * DENSE.uz, v = -dx * DENSE.uz + dz * DENSE.ux;
@@ -108,6 +112,7 @@ const bots: Bot[] = [];
 function spawnPoint(gi: number, r: () => number): { x: number; z: number } | undefined {
   if (SCEN === 'spread' && RANGE) { const p = pointOnAxis(axis, RANGE[0] + (gi / Math.max(1, TOTAL - 1)) * (RANGE[1] - RANGE[0]), (r() - 0.5) * 28); return { x: p.x + (r() - 0.5) * 4, z: p.z + (r() - 0.5) * 4 }; }
   if (SCEN === 'spread') { const ax = axis[Math.floor((gi / Math.max(1, TOTAL - 1)) * (axis.length - 1))]; return { x: ax[0] + (r() - 0.5) * 8, z: ax[1] + (r() - 0.5) * 8 }; }
+  if (SCEN === 'packed') { const a = r() * Math.PI * 2, k = Math.sqrt(r()) * PACK_R; return { x: DENSE.x + Math.cos(a) * k, z: DENSE.z + Math.sin(a) * k }; }
   if (SCEN === 'dense') {
     // ponto uniforme na elipse (raiz do raio)
     const a = r() * Math.PI * 2, k = Math.sqrt(r()) * 0.95;
@@ -241,7 +246,11 @@ function stepBot(b: Bot, dt: number) {
     if (b.r() < dt * 0.12) b.pause = 1 + b.r() * 5; // para (conversa, olha, espera)
     if (b.r() < dt * 0.5) b.h += (b.r() - 0.5) * 1.2;
   }
-  if (SCEN === 'dense') {
+  if (SCEN === 'packed') {
+    // rodada 12: aperta para o centro (multidão concentrada; as correções de corpo do servidor os fazem contornar)
+    const dc = Math.hypot(b.x - DENSE.x, b.z - DENSE.z);
+    if (dc > PACK_R * 0.5 && b.r() < dt * 2) b.h = Math.atan2(DENSE.x - b.x, DENSE.z - b.z) + (b.r() - 0.5) * 0.6;
+  } else if (SCEN === 'dense') {
     if (inDense(b.x, b.z) > 1) b.h = Math.atan2(DENSE.x - b.x, DENSE.z - b.z) + (b.r() - 0.5) * 0.8;
   } else if (Math.hypot(b.x - b.home.x, b.z - b.home.z) > 40) b.h = Math.atan2(b.home.x - b.x, b.home.z - b.z) + (b.r() - 0.5) * 0.8;
   b.x += Math.sin(b.h) * b.speed * dt; b.z += Math.cos(b.h) * b.speed * dt;

@@ -6,12 +6,13 @@
  *   NPCs locais  pedestres e multidão de concentração CEDEM (yieldBodies) e são macios: multidão densa resiste
  *   regra        constrainMove (src/physics/bodyResolve.ts): ninguém termina mais perto de um vizinho do que o
  *                contato — só a componente normal some, desliza pela tangente; parede tem a palavra final
- *   preso        StuckDetector: quer andar, não anda, encostado em ≥ 2 corpos (ou corpo + parede) por 3 s → pede
- *                "unstuck" ao servidor (que confere e escolhe o ponto livre)
+ *   preso        StuckDetector: quer andar, não anda, encostado em ≥ 2 corpos (ou corpo + parede) por 3 s E sem
+ *                saída em nenhuma de 8 direções (canEscape) → pede "unstuck" ao servidor (que confere e escolhe o ponto
+ *                livre). Empurrar uma multidão que só fecha a frente nunca teleporta ninguém
  * Custo medido em `stats` (ms por quadro, vizinhos) — exposto em __pv.bodies() para QA.
  */
 import { BODY, type BodyRef } from './bodies';
-import { StuckDetector, constrainMove, type MoveResult } from './bodyResolve';
+import { StuckDetector, canEscape, constrainMove, type MoveResult } from './bodyResolve';
 
 export interface NpcBodySource {
   yieldBodies(x: number, z: number, selfR: number, r: number, maxStep: number, soft: number, out: BodyRef[]): number;
@@ -24,6 +25,8 @@ export interface LocalBodiesDeps {
   npcs: () => readonly (NpcBodySource | null | undefined)[];
   /** resolve paredes no lugar; devolve true se a parede empurrou */
   walls: (p: { x: number; z: number }) => boolean;
+  /** caminho do chão livre de parede entre dois pontos (teste de saída do "preso") — opcional */
+  clear?: (ax: number, az: number, bx: number, bz: number) => boolean;
   /** preso de verdade por 3 s: pedir "unstuck" (servidor) ou, offline, resolver aqui */
   onStuck?: () => void;
 }
@@ -50,20 +53,24 @@ export class LocalBodies {
     const t0 = performance.now();
     const all = this.all;
     all.length = 0;
-    const q = BODY.queryRadius;
+    // contato + passo do quadro + folga (NPCs empurrados a ≤ 1,2 m); BODY.queryRadius é o teto
+    const q = Math.min(BODY.queryRadius, 2 * BODY.radius + 0.5 + Math.hypot(p.x - prevX, p.z - prevZ));
     if (this.d.remotes) for (const b of this.d.remotes(p.x, p.z, q, this.remote)) all.push(b);
     const st = NPC_YIELD_MPS * dt;
     for (const src of this.d.npcs()) src?.yieldBodies(p.x, p.z, BODY.radius, q, st, NPC_SOFT, all);
     let wall = false;
     const r = this.res;
     if (all.length) {
-      constrainMove('local', BODY.radius, prevX, prevZ, p.x, p.z, all, dt, r);
+      // parado: ninguém o empurra (dt 0 = sem desfazer sobreposição) — o remoto atrasado pela interpolação que o
+      // invade é problema do cliente DELE/servidor; andando: não afunda e a sobreposição antiga sai devagar
+      constrainMove('local', BODY.radius, prevX, prevZ, p.x, p.z, all, wantM > 0 ? dt : 0, r);
       p.x = r.x; p.z = r.z;
       wall = this.d.walls(p);
       for (const b of all) { const dd = Math.hypot(p.x - b.x, p.z - b.z); if (dd < this.stats.minDist) this.stats.minDist = dd; }
     } else { r.x = p.x; r.z = p.z; r.contacts = 0; r.blocked = false; r.maxPen = 0; }
     const moved = Math.hypot(p.x - prevX, p.z - prevZ);
-    if (track && this.stuck.update(dt, wantM, moved, r.contacts, wall)) { this.stats.stuckRequests++; this.d.onStuck?.(); }
+    // preso por 3 s E sem saída em nenhuma das 8 direções (multidão que só bloqueia a frente não conta)
+    if (track && this.stuck.update(dt, wantM, moved, r.contacts, wall) && !canEscape('local', p.x, p.z, BODY.radius, all, this.d.clear)) { this.stats.stuckRequests++; this.d.onStuck?.(); }
     const ms = performance.now() - t0;
     this.stats.frames++; this.stats.ms += ms; this.stats.maxMs = Math.max(this.stats.maxMs, ms);
     this.stats.neighbors += all.length; this.stats.contacts += r.contacts; if (r.blocked) this.stats.blocked++;

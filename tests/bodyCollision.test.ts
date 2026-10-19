@@ -5,7 +5,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { BODY, type BodyRef } from '../src/physics/bodies';
-import { SpatialBodyGrid, StuckDetector, constrainMove, findFreeSpot, penetrationOf, resolveBodies, steerAround } from '../src/physics/bodyResolve';
+import { SpatialBodyGrid, StuckDetector, canEscape, constrainMove, findFreeSpot, penetrationOf, resolveBodies, steerAround } from '../src/physics/bodyResolve';
 
 const R = BODY.radius;
 const body = (id: string, x: number, z: number, o: Partial<BodyRef> = {}): BodyRef => ({ id, x, z, r: R, ...o });
@@ -146,6 +146,12 @@ describe('colisão entre corpos — resolução pura', () => {
     let f2 = false;
     for (let i = 0; i < 200; i++) f2 = s.update(1 / 60, 0.03, 0, 1, true) || f2;
     expect(f2).toBe(true);
+    // saída: só a frente fechada → escapa; cercado por 4 a 0,72 m → sem saída; parede atrás + 2 na frente → sem saída
+    expect(canEscape('A', 0, 0, R, [body('f1', -0.33, 0.6), body('f2', 0.33, 0.6)])).toBe(true);
+    const ring = [0, 1, 2, 3].map((i) => body(`c${i}`, Math.cos((i / 4) * Math.PI * 2) * 0.72, Math.sin((i / 4) * Math.PI * 2) * 0.72));
+    expect(canEscape('A', 0, 0, R, ring)).toBe(false);
+    expect(canEscape('A', 0, 0, R, ring.slice(0, 2))).toBe(true);
+    expect(canEscape('A', 0, 0, R, ring.slice(0, 2), (_ax, _az, bx, bz) => bx > -0.1 && bz > -0.1)).toBe(false);
   });
 
   it('desvio local: contorna quem está à frente e nunca para de vez', () => {

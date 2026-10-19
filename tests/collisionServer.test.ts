@@ -121,14 +121,17 @@ describe.skipIf(skip)('colisão entre corpos — servidor real, cliente forjado'
     expect(dist(b, P)).toBeLessThan(2.5); expect(dist(c, P)).toBeLessThan(2.5);
   }, 20_000);
 
-  it('"unstuck": negado quando não está preso; cercado por 3 corpos, vai para um ponto livre', async () => {
+  it('"unstuck": negado quando não está preso; cercado por 4 corpos (sem saída), vai para um ponto livre', async () => {
     const C0 = AT(24, 0);
     const A = await join(ep, 'Hugo', C0);
+    const F = await join(ep, 'Frente', { x: C0.x, z: C0.z + 0.66 }); // só a frente fechada: tem saída → negado
+    await w(300);
     A.room.send('unstuck', 1);
     expect(await (async () => { for (let i = 0; i < 40; i++) { if (of(A, 'unstuck_denied').length) return true; await w(50); } return false; })()).toBe(true);
-    const ring = [0, 1, 2].map((i) => ({ x: C0.x + Math.cos((i / 3) * Math.PI * 2) * 0.72, z: C0.z + Math.sin((i / 3) * Math.PI * 2) * 0.72 }));
+    const ring = [0, 1, 2, 3].map((i) => ({ x: C0.x + Math.cos((i / 4) * Math.PI * 2) * 0.72, z: C0.z + Math.sin((i / 4) * Math.PI * 2) * 0.72 }));
+    await F.room.leave(); await w(200);
     for (const [i, r] of ring.entries()) await join(ep, `Cerca${i}`, r);
-    await w(400);
+    await w(4500); // o "unstuck" negado não conta no limite; espera a janela de 4 s mesmo assim
     A.room.send('unstuck', 1);
     let fixed: number[] | undefined;
     for (let i = 0; i < 40 && !fixed; i++) { fixed = of(A, 'correct').find((c) => c[4] === 'livre'); await w(50); }
