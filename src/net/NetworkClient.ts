@@ -691,7 +691,7 @@ export class NetworkClient {
   publicProfile(id: string): { name: string; sup: number; x: number; z: number; lvl: number; title: string; kind: number } | null {
     const r = this.remotes.get(id);
     if (!r) return null;
-    const st = (this.room?.state as { players?: { get?(k: string): { sup?: unknown; lvl?: unknown; title?: unknown } | undefined } } | undefined)?.players?.get?.(id);
+    const st = (this.room?.state as { players?: { get?(k: string): { sup?: unknown; lvl?: unknown; title?: unknown; kind?: unknown; tag?: unknown } | undefined } } | undefined)?.players?.get?.(id);
     const sup = Number(st?.sup ?? 0);
     const s = r.view ?? r.state;
     // rodada 11 — nível e título equipado (públicos; ausentes = 0 / '')

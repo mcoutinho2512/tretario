@@ -275,3 +275,13 @@ de 1,5 s, contrato `PublicMetrics` (`src/identity/types.ts`), contagens **semân
 | `testBots` | bots de carga (`bot: true` no join, só em servidor de teste — `server/tools/bots.ts`) |
 | `totalConnections` | conexões abertas agora (jogadores + espectadores + bots; sem as em graça) |
 | `eventId`, `eventName`, `updatedAt` | evento atual (sem sala viva: evento padrão dos dados) |
+
+## Personagens autônomos (rodada 12)
+
+O mundo tem uma população PERSISTENTE de personagens decididos pelo servidor (docs/AUTONOMOUS_CHARACTERS.md). Cada um é
+uma entrada comum de `state.players` (id `ac:<n>`, `NetPlayer.kind = 1`), então todos os clientes perto veem a MESMA
+pessoa, no mesmo lugar, fazendo a mesma coisa — pela mesma AOI (StateView), multidão distante (`crowd`, bit 6 = não
+humano), interpolação, animação, montagem e confronto dos jogadores. Só existem em `state.players` perto de alguém
+(≤ 240 m, sai além de 270 m — DORMANT, sem estado sincronizado); a população inteira continua na memória da sessão.
+Não ocupam vaga da sala, não contam em presença/métricas públicas nem em `/metrics.players`, não têm AOI própria e não
+contam para missões. `PV_AUTONOMOUS` controla a população (0 no servidor de teste por padrão).

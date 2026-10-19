@@ -117,3 +117,13 @@ bandeiras/faixas (`flagSet`/`bannerSet`, slot `HAND`, cabem no acesso rápido) �
 bloqueado (cosméticos de torcida são livres). Equipar a torcida usa a gravação existente: conta → `saveSupporter`
 de main.ts (PUT /api/me/supporter, cooldown/pendência iguais); visitante → mensagem `sup {group}` da sala (só a
 sessão). As artes de torcida não se repetem em ROUPAS/BANDEIRAS. Nenhum código cita torcida pelo id.
+
+## Rodada 12 — torcedores autônomos
+
+Os personagens autônomos (docs/AUTONOMOUS_CHARACTERS.md) recebem torcida pelos DADOS: `public/gameplay/autonomous.json`
+`supporters` (id da torcida → fração; o id neutro = sem torcida), mapeado para o MESMO índice `sup` de
+`supporters.json` (`supIndex`). A roupa vem de `supporterOutfit` (camisa/cores do `clothingSet`) e a bandeira de
+`flagSet` — validadas como as de qualquer jogador. Comportamento só por IGUALDADE de `sup`: torcedores se juntam a quem tem
+a mesma torcida (`FOLLOW_SUPPORTERS`) e o vínculo pesa na defesa de um amigo apanhando; nenhum código compara com uma
+torcida concreta nem dispara confronto por torcida (a tensão entre torcidas diferentes só multiplica a CHANCE no diretor de
+eventos, docs/DYNAMIC_WORLD.md). Capturas: docs/screenshots/round12/E..H_torcedores_<id>.jpg (ids só no nome do arquivo).

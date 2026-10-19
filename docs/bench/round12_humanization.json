@@ -1,0 +1,170 @@
+{
+  "generatedAt": "2026-10-19T23:23:32.836Z",
+  "tool": "server/tools/autonomous_report.ts",
+  "agents": 100,
+  "humans": 6,
+  "simMinutes": 10,
+  "wallMs": 619,
+  "activityPct": {
+    "idle": 8.7,
+    "walk": 30.3,
+    "run": 0.4,
+    "social": 13.1,
+    "event": 41.5,
+    "vehicle": 5,
+    "fight": 0,
+    "watch": 0.1,
+    "leave": 0.9
+  },
+  "phase": {
+    "walkStarts": 1161,
+    "walkStartsInCrowdedTicksPct": 9.7,
+    "walkStartsMaxPerTick": 11,
+    "walkStartsMaxAtS": 0.7,
+    "walkStartsMaxPerTickSteady": 4,
+    "actStarts": 1673,
+    "actStartsInCrowdedTicksPct": 2.3,
+    "actStartsMaxPerTick": 3,
+    "sameActSameTickPct": 1.6
+  },
+  "movement": {
+    "meanSpeedMps": 1.66,
+    "walkSpeedSpreadMps": 0.152,
+    "dirChangesPerMovingMin": 4.12,
+    "stoppedPct": 63.3,
+    "pathMeanM": 33.1,
+    "pathMedianM": 13.4,
+    "pathP90M": 60.8,
+    "paths": 1011,
+    "avoidPerAgentMin": 0.68,
+    "waitsPerAgentMin": 0.39,
+    "wallRepathsPerAgentMin": 0.24,
+    "corrections": 89,
+    "correctionReasons": {
+      "collision": 89,
+      "USE_VEHICLE:drive:MID:mov": 28,
+      "USE_VEHICLE:drive:NEAR:mov": 16,
+      "JOIN_CROWD:walk:MID:mov": 2,
+      "CHEER:walk:FAR:mov": 1,
+      "TRAVEL:walk:MID:mov": 2,
+      "JOIN_CROWD:walk:FAR:mov": 1,
+      "LEAVE_AREA:walk:MID:mov": 27,
+      "LEAVE_AREA:walk:FAR:mov": 7,
+      "LEAVE_AREA:walk:NEAR:mov": 3,
+      "JOIN_CROWD:walk:NEAR:mov": 2
+    },
+    "moves": 151791
+  },
+  "social": {
+    "groupsFormed": 51,
+    "groupHeadingSpreadDeg": 143,
+    "groupSizes": {
+      "2": 4,
+      "3": 1,
+      "4": 1,
+      "5": 1
+    }
+  },
+  "decisions": {
+    "perSec": 39.7,
+    "perAgentMin": 23.86
+  },
+  "vehicle": {
+    "rides": 40,
+    "enters": 40,
+    "exits": 35
+  },
+  "combat": {
+    "attacks": 0,
+    "denied": 0,
+    "knocks": 0,
+    "humansKnocked": 0,
+    "provocations": 10,
+    "directorStarted": 4,
+    "directorProposals": 207,
+    "directorAccepted": 79,
+    "directorEvents": {
+      "start:CONCENTRACAO": 3,
+      "kind:FESTA": 2,
+      "start:DISCUSSAO": 1,
+      "level:BRIGA:CONFRONTO": 1,
+      "react:BRIGA": 1,
+      "level:BRIGA:TENSAO": 1,
+      "level:BRIGA:CALMO": 1,
+      "end:BRIGA": 1,
+      "end:FESTA": 2,
+      "end:CONCENTRACAO": 1
+    },
+    "combatSystem": {
+      "requests": 10,
+      "accepted": 10,
+      "hits": 6,
+      "blocked": 0,
+      "dodged": 0,
+      "denied": {}
+    }
+  },
+  "lod": {
+    "NEAR": 20,
+    "MID": 74,
+    "FAR": 6,
+    "DORMANT": 0
+  },
+  "aiMsPerTick": 0.093,
+  "robotic": [
+    {
+      "check": "inícios de caminhada em ticks com ≥3 inícios (%)",
+      "value": 9.7,
+      "limit": "< 35",
+      "ok": true
+    },
+    {
+      "check": "mesma ação começando no mesmo tick (%)",
+      "value": 1.6,
+      "limit": "< 10",
+      "ok": true
+    },
+    {
+      "check": "máx. inícios de caminhada num tick (após 30 s de aquecimento)",
+      "value": 4,
+      "limit": "≤ 6",
+      "ok": true
+    },
+    {
+      "check": "desvio-padrão da velocidade de caminhada (m/s)",
+      "value": 0.152,
+      "limit": "> 0.08",
+      "ok": true
+    },
+    {
+      "check": "mudanças de direção > 30° por minuto andando (zig-zag)",
+      "value": 4.12,
+      "limit": "< 12",
+      "ok": true
+    },
+    {
+      "check": "espalhamento de rumo nas rodas (°; 0 = todos iguais)",
+      "value": 143,
+      "limit": "> 60 (ou sem rodas)",
+      "ok": true
+    },
+    {
+      "check": "tempo parado (%)",
+      "value": 63.3,
+      "limit": "20–85",
+      "ok": true
+    },
+    {
+      "check": "correções de parede por 1000 movimentos",
+      "value": 0.59,
+      "limit": "< 15",
+      "ok": true
+    },
+    {
+      "check": "humanos derrubados por autônomos sem provocação",
+      "value": 0,
+      "limit": "≤ provocações",
+      "ok": true
+    }
+  ]
+}

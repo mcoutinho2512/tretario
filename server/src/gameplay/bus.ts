@@ -11,10 +11,13 @@ export class GameplayBus {
   private ls = new Set<GameplayListener>();
   errors = 0;
   emitted = 0;
+  /** rodada 12 — entidades cujos eventos não contam (personagens autônomos: missões/progressão/telemetria só de pessoas) */
+  ignore: ((sid: string) => boolean) | null = null;
 
   on(fn: GameplayListener): () => void { this.ls.add(fn); return () => this.ls.delete(fn); }
 
   emit(sid: string, ev: GameplayEvent, at = Date.now()) {
+    if (this.ignore?.(sid)) return;
     this.emitted++;
     const env: GameplayEnvelope = { sid, at, ev };
     for (const fn of this.ls) {

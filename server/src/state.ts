@@ -73,6 +73,12 @@ export const NetPlayer = schema({
   kind: t.uint8(),
   /** rodada 12 — para onde a cabeça/tronco olha (nid do alvo; 0 = nada) — o cliente calcula os ossos localmente */
   look: t.uint16(),
+  /**
+   * rodada 12 — NAMETAG (docs/AUTONOMOUS_CHARACTERS.md § Nomes; desenho no cliente pelo agente D): 0 regra padrão do
+   * cliente (humanos sempre com nome; autônomo: hash do nid × nametag.share) · 1 sempre mostrar · 2 nunca mostrar.
+   * O servidor sorteia 1/2 para cada autônomo pela fração dos dados; humanos ficam 0. Campo no FIM — não renomear.
+   */
+  tag: t.uint8(),
 }, 'NetPlayer');
 export type NetPlayer = SchemaType<typeof NetPlayer>;
 
