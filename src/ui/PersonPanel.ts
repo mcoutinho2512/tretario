@@ -2,8 +2,9 @@
  * Rodada 10 — painel contextual da PESSOA (clique/toque em outro jogador perto; docs/INTERACTION_SYSTEM.md,
  * docs/PRIVACY_ARCHITECTURE.md). Compacto: VER PERFIL · INTERAGIR · SILENCIAR · DENUNCIAR — sem "atacar".
  *
- * Privacidade: só o que já é PÚBLICO no mundo — apelido (NetPlayer.name) e torcida pelo `displayName` dos DADOS
- * (public/gameplay/supporters.json, índice `NetPlayer.sup`). Nunca e-mail, conta, IP, sessão, ids ou dado
+ * Privacidade: só o que já é PÚBLICO no mundo — apelido (NetPlayer.name), torcida pelo `displayName` dos DADOS
+ * (public/gameplay/supporters.json, índice `NetPlayer.sup`) e, desde a rodada 11, nível (`NetPlayer.lvl`) e título
+ * equipado (`NetPlayer.title`). Nunca e-mail, conta, IP, sessão, ids ou dado
  * administrativo: o painel não recebe nada disso. Silenciar = mute por identidade do chat (`chat_mute {nid}`, o
  * servidor resolve a conta); denunciar = `user_report {nid, category}` (o servidor valida, limita e guarda a
  * evidência; a resposta não traz ids).
@@ -14,7 +15,7 @@ import { REPORT_CATEGORIES, REPORT_LABELS, type ReportCategory } from '../chat/p
 export interface PersonPanelDeps {
   touch: boolean;
   /** dados públicos da pessoa (null = saiu do mundo / da área) */
-  profile(id: string): { name: string; sup: number } | null;
+  profile(id: string): { name: string; sup: number; lvl?: number; title?: string } | null;
   /** distância atual (m) até a pessoa; null = sumiu */
   distance(id: string): number | null;
   /** nome de exibição da torcida pelos dados (sup = índice + 1; 0 = sem torcida) */
@@ -39,7 +40,7 @@ export class PersonPanel {
   private body: HTMLDivElement;
   private nameEl: HTMLDivElement;
   private subEl: HTMLDivElement;
-  private target: { id: string; nid: number; name: string; sup: number } | null = null;
+  private target: { id: string; nid: number; name: string; sup: number; lvl: number; title: string } | null = null;
   private view: View = 'main';
   private acc = 0;
   private esc = new EscSlot('pessoa', 100, () => this.close());
@@ -73,7 +74,7 @@ export class PersonPanel {
   show(id: string, nid: number) {
     const p = this.d.profile(id);
     if (!p) { this.d.flash('Essa pessoa saiu daqui'); return; }
-    this.target = { id, nid, name: p.name, sup: p.sup };
+    this.target = { id, nid, name: p.name, sup: p.sup, lvl: p.lvl ?? 0, title: p.title ?? '' }; // rodada 11 — nível e título
     this.view = 'main';
     this.render();
     const was = this.open;
@@ -114,7 +115,8 @@ export class PersonPanel {
     if (!t) return;
     const sup = this.d.supporter(t.sup);
     this.nameEl.textContent = t.name;
-    this.subEl.textContent = sup ? `Torcida: ${sup}` : 'Sem torcida escolhida';
+    // rodada 11 — título equipado e nível (públicos) antes da torcida
+    this.subEl.textContent = [t.title, t.lvl ? `Nível ${t.lvl}` : '', sup ? `Torcida: ${sup}` : 'Sem torcida escolhida'].filter(Boolean).join(' · ');
     const b = this.body;
     b.replaceChildren();
     if (this.view === 'main') {
@@ -129,7 +131,7 @@ export class PersonPanel {
       b.append(g);
     } else if (this.view === 'profile') {
       const row = (k: string, v: string) => { const r = document.createElement('div'); r.className = 'pp-row'; const a = document.createElement('span'); a.textContent = k; const c = document.createElement('span'); c.textContent = v; r.append(a, c); return r; };
-      b.append(row('Apelido', t.name), row('Torcida', sup ?? 'Nenhuma'));
+      b.append(row('Apelido', t.name), row('Título', t.title || 'Nenhum'), row('Nível', t.lvl ? String(t.lvl) : '—'), row('Torcida', sup ?? 'Nenhuma')); // rodada 11
       const n = document.createElement('div'); n.className = 'pp-note'; n.textContent = 'Só dados públicos. Conta, e-mail e localização real nunca aparecem.';
       b.append(n, this.back());
     } else if (this.view === 'interact') {
@@ -149,5 +151,5 @@ export class PersonPanel {
   private go(v: View) { this.view = v; this.log.push(`view:${v}`); this.render(); (this.body.querySelector('button') as HTMLButtonElement | null)?.focus({ preventScroll: true }); }
 
   /** QA */
-  info() { return { open: this.open, view: this.view, name: this.target?.name ?? null, text: this.open ? this.el.innerText : '', log: this.log.slice(-20) }; }
+  info() { return { open: this.open, view: this.view, name: this.target?.name ?? null, title: this.target?.title ?? null, lvl: this.target?.lvl ?? null, text: this.open ? this.el.innerText : '', log: this.log.slice(-20) }; }
 }

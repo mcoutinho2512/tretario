@@ -108,6 +108,7 @@ import { ReconnectBadge } from '../net/ReconnectBadge';
 import { gameEndpoint } from '../net/endpoint'; // rodada 9.1 — mesma origem em produção
 import { noticeForJoinError } from '../ui/netNotice'; // rodada 9.1 — versão nova / sala cheia
 import { ProgressionUI } from '../ui/progress/ProgressionUI'; // rodada 9 — progressão
+import { InventoryController } from '../inventory/InventoryController'; // rodada 11 — inventário
 import { AudioWorld } from '../audio/AudioWorld'; // rodada 10 — áudio
 import { mountAgendaDebate, type AgendaDebate } from '../ui/agendaDebateMount'; // rodada 9 — agenda/debate/telões
 // rodada 9 — confronto (src/combat; carregado com o multiplayer)
@@ -484,6 +485,7 @@ export class Game {
     this.r9bMount(); // rodada 9 — MÃOS / ITEM ATUAL, véu de desorientação
     this.mountActionBar(shell); // rodada 9.1 — barra de ações (só jogador)
     this.r10Mount(shell, relock); // rodada 10 — interação
+    this.r11Mount(shell, relock); // rodada 11 — inventário
     if (this.spec) {
       // seletor de câmeras no encaixe do HUD (HudShell.mountSpectator); zona/minimapa seguem o foco da câmera
       const spec = this.spec;
@@ -727,6 +729,7 @@ export class Game {
       this.r9bFrame(); // rodada 9 — itens (R/X), efeitos do próprio
       this.cam.update(this.avatar.root.position, dt);
       this.r10Frame(dt); // rodada 10 — interação (alvo contextual, realce, painel, HUD de veículo)
+      this.r11Frame(dt); // rodada 11 — inventário (I, acesso rápido 1–5)
     }
     mark('movimento');
     const ppos = this.avatar.root.position;
@@ -844,6 +847,7 @@ export class Game {
     if (!this.spectator) {
       const prog = new ProgressionUI(this.hudShell, this.net, import.meta.env.BASE_URL);
       (window as any).__pvProg = { ui: prog, notices: this.hudShell.noticeLog, tp: (x: number, z: number) => this.net?.send('test_tp', { x, z }) };
+      this.r11prog = prog; // rodada 11 — inventário (títulos ganhos, requisitos)
     }
     this.r9?.attach(this.net); // rodada 9 — agenda/debate/telões
     // quem fala ganha prioridade de nome acima da cabeça por alguns segundos (LOD de nomes)
@@ -1151,6 +1155,59 @@ export class Game {
     this.vehHud?.set(v ? { label: v.def.label, kind: v.def.kind, exitLabel: k === 'car' || k === 'soundcar' || k === 'trio' ? 'Sair' : 'Descer' } : null, v ? v.state.speed : 0);
     this.touchCtl?.setRiding(!!v);
   }
+
+  // rodada 11 — inventário: painel (I / botão do HUD), equipamentos e acesso rápido 1–5 (src/inventory) ---------------
+  inv: InventoryController | null = null;
+  private r11prog: ProgressionUI | null = null;
+  private r11Mount(shell: HudShell, relock: (open: boolean) => void) {
+    if (this.spectator) return;
+    const inv = (this.inv = new InventoryController({
+      touch: this.input.isTouch,
+      appearance: () => this.appearance ?? DEFAULT_PLAYER_APPEARANCE_LOCAL,
+      setAppearance: (a, o) => { if (o?.localOnly) { this.appearance = a; this.avatar.setAppearance(a); } else this.setAppearance(a); },
+      social: this.social,
+      carried: () => this.items?.carried.c ?? 0,
+      freeCombat: () => this.items?.free ?? false,
+      online: () => this.mpOnline,
+      send: (t, m) => this.net?.send(t, m),
+      on: (t, fn) => this.net?.on(t, fn) ?? (() => {}),
+      selfPlayer: () => this.net?.selfPlayer() ?? null,
+      titles: () => this.r11prog?.p?.titles ?? [],
+      progression: () => this.r11prog?.cat ?? null,
+      zonePolicy: () => this.combat?.policyAt(this.player.x, this.player.z) ?? 'PEACE',
+      notify: (m) => this.flash(m),
+      onModal: (open) => { shell.poke(); relock(open); },
+      setMoveBlocked: (on) => this.input.setMoveBlocked(on),
+    }));
+    shell.mountOverlay({ el: inv.quickbar.el });
+    shell.mountOverlay(inv.panel);
+    this.hud.classList.add('has-quick');
+    shell.addMenuItem('Inventário', () => inv.openPanel(), { top: true });
+    // inventário aberto: o clique no cenário não vira interação nem captura do mouse
+    const pf = this.input.pointFilter;
+    this.input.pointFilter = (x, y) => (inv.open ? true : pf?.(x, y) ?? false);
+    // QA (tools/qa/inventory_mp.mjs): estado, entidades vistas por este cliente e o painel da pessoa por apelido
+    const players = () => {
+      const out: Record<string, unknown>[] = [];
+      (this.net as unknown as { room?: { state?: { players?: Map<string, Record<string, unknown>> } } } | null)?.room?.state?.players?.forEach((p, sid) => out.push({ sid, self: sid === this.net?.sessionId, name: p.name, topStyle: p.topStyle, accessory: p.accessory, shirtDesign: p.shirtDesign, prop: p.prop ?? 0, design: p.design ?? 0, sup: p.sup ?? 0, lvl: p.lvl ?? 0, title: p.title ?? '' }));
+      return out;
+    };
+    const showPerson = (name: string) => {
+      let hit: [string, number] | null = null;
+      this.net?.forEachPerson((id, nid, n) => { if (n === name) hit = [id, nid]; });
+      if (hit) this.personPanel?.show(hit[0], hit[1]);
+      return !!hit;
+    };
+    (window as any).__pvInv = { inv, info: () => inv.info(), entries: () => inv.entries(), handSync: () => this.r10Qa().handSync(), players, showPerson, send: (t: string, m: unknown) => this.net?.send(t, m) };
+  }
+  private r11Frame(dt: number) {
+    const inv = this.inv;
+    if (!inv) return;
+    if (this.input.consumeToggle('inventory')) inv.toggle();
+    for (let i = 1; i <= 5; i++) if (this.input.consumeToggle(`quick_${i}`) && !this.avatar.isDown) void inv.quick(i - 1);
+    inv.frame(dt);
+  }
+  // fim rodada 11 — inventário ---------------------------------------------------------------------------------------
 
   /** QA (tools/qa/interaction_mp.mjs) */
   private r10Qa() {

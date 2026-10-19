@@ -31,6 +31,7 @@ import { loadSupporterData, supporterGroup, supporterOutfit } from './supporters
 import { localSupporter, setLocalSupporter } from './supporters/session'; // rodada 10 — torcida sem conta (só a sessão)
 import { metricsLine } from './ui/metricsText';
 import { openCharacterEditor, registerCharacterEditor } from './ui/editorBridge';
+import { registerInventoryAccount } from './inventory/accountBridge'; // rodada 11 — inventário
 import type { EventDef } from './events/types';
 // rodada 9 — recompensas: itens bloqueados no editor (cadeado + requisito); direitos vêm do servidor (GET /api/me/progress)
 import { localEntitlements, setLocalEntitlements } from './characters/unlocks';
@@ -476,6 +477,12 @@ registerCharacterEditor(() => {
   void openEditor({ overlay: !!game }); // rodada 11 — editor: overlay com Esc pela pilha única (escStack)
 });
 (window as any).pvOpenCharacterEditor = openCharacterEditor;
+// rodada 11 — inventário: o que o SERVIDOR aceitou pelo inventário volta para o visual salvo / rótulo da torcida
+registerInventoryAccount({
+  authed,
+  onLook: (a) => { look = a; savedLook = a; if (me) me.appearance = a; },
+  saveSupporter,
+});
 
 // automação/validação: ?autostart=1&quality=high (jogo local, como antes) · __pvLaunch({ role }) = mesmo caminho dos botões
 (window as any).__pvLaunch = (o: { role?: WorldRole } = {}) => launch((radios.find((r) => r.checked)?.value ?? 'auto') as QualityChoice, o.role);

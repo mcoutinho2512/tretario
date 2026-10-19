@@ -108,3 +108,12 @@ calção/tênis; o resto do visual fica igual). Capturas: `A_selecao_torcidas.jp
 - Minimapa: marcador AGREGADO por concentração (cor principal, anel na 2ª cor, sigla) — nunca posição de jogador.
 - Capturas: `F_concentracao_torcidas.jpg`, `Q_multidao.jpg`, `P_evento_torcida.jpg`, `Y_minimapa.jpg`
   (`node tools/qa/supporters_mp.mjs`, servidor de teste na porta 3150).
+
+## Rodada 11 — torcida no inventário
+
+Categoria **TORCIDA** do inventário (docs/INVENTORY.md), gerada dos MESMOS dados: a escolha de cada torcida (slot
+`SUPPORTER`; DESEQUIPAR = neutro), a camisa da torcida (`clothingSet.shirtDesign`, slot `TORSO`, prévia 3D) e as
+bandeiras/faixas (`flagSet`/`bannerSet`, slot `HAND`, cabem no acesso rápido) — 4 × (1 + 1 + 2) = 16 itens, nenhum
+bloqueado (cosméticos de torcida são livres). Equipar a torcida usa a gravação existente: conta → `saveSupporter`
+de main.ts (PUT /api/me/supporter, cooldown/pendência iguais); visitante → mensagem `sup {group}` da sala (só a
+sessão). As artes de torcida não se repetem em ROUPAS/BANDEIRAS. Nenhum código cita torcida pelo id.

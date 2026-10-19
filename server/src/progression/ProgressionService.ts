@@ -78,6 +78,8 @@ interface PState {
 }
 
 const day = (t: number) => new Date(t).toISOString().slice(0, 10);
+/** rodada 11 — textos dos títulos ganhos (grants "title:<texto>") */
+const titleTexts = (grants: Map<string, string>) => [...grants.keys()].filter((k) => k.startsWith('title:')).map((k) => k.slice(6));
 
 export class ProgressionService {
   private states = new Map<string, PState>();
@@ -146,6 +148,10 @@ export class ProgressionService {
   entitlementsOfUser(userId: string): ReadonlySet<string> | null { const st = this.states.get(`u:${userId}`); return st && !st.loading ? st.ent : null; }
   snapshot(sid: string): PlayerProgression | null { const st = this.bySid.get(sid); return st && !st.loading ? this.wire(st) : null; }
   isPersistent(sid: string) { return !!this.bySid.get(sid)?.persistent; }
+  // rodada 11 — inventário: títulos ganhos (texto) e nível, para o título equipado e o nível PÚBLICOS (NetPlayer)
+  titlesOf(sid: string): string[] | null { const st = this.bySid.get(sid); return st && !st.loading ? titleTexts(st.grants) : null; }
+  titlesOfUser(userId: string): string[] | null { const st = this.states.get(`u:${userId}`); return st && !st.loading ? titleTexts(st.grants) : null; }
+  levelOf(sid: string): number { const st = this.bySid.get(sid); return st && !st.loading ? st.level : 0; }
   get size() { return this.states.size; }
 
   // ------------------------------------------------------------------ preferências de UI (cliente)

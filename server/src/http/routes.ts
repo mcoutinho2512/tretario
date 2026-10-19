@@ -8,4 +8,5 @@ import './profile.ts'; // perfil, aparência, preferências, evento atual e grup
 import './publicMetricsRoute.ts'; // GET /api/metrics/public (rodada 8 — presença/espectador)
 import './progress.ts'; // GET /api/me/progress (rodada 9 — nível e itens liberados, só da própria conta)
 import './supporter.ts'; // rodada 10 — GET/PUT /api/me/supporter (torcida da própria conta)
+import './title.ts'; // rodada 11 — GET/PUT /api/me/title (título equipado da própria conta)
 import './health.ts'; // rodada 9.1 — /health/live, /health/ready, /api/status, /internal/health (deploy/CONTRACT.md)

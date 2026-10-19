@@ -135,8 +135,13 @@ export class InputManager {
     return false;
   }
 
+  /** rodada 11 — inventário aberto: andar/correr/pular não movem o personagem (o mundo não pausa) */
+  moveBlocked = false;
+  setMoveBlocked(on: boolean) { this.moveBlocked = on; if (on) this.jumpQueued = false; }
+
   /** eixo de movimento local (x = direita, y = frente) */
   moveAxis(): { x: number; y: number } {
+    if (this.moveBlocked) return { x: 0, y: 0 }; // rodada 11 — inventário
     let x = 0, y = 0;
     if (this.held('move_forward')) y += 1;
     if (this.held('move_back')) y -= 1;
@@ -154,6 +159,7 @@ export class InputManager {
   }
 
   consumeJump(): boolean {
+    if (this.moveBlocked) { this.jumpQueued = false; return false; } // rodada 11 — inventário
     const j = this.jumpQueued;
     this.jumpQueued = false;
     return j;

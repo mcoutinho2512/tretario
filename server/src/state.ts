@@ -60,6 +60,12 @@ export const NetPlayer = schema({
    * Lido por outros sistemas (painel de pessoa, áudio, minimapa) — NÃO renomear nem mudar a semântica.
    */
   sup: t.uint8(),
+  /**
+   * rodada 11 — PÚBLICOS (docs/PRIVACY_ARCHITECTURE.md): nível da progressão (0 = desconhecido: bot/sem progressão) e
+   * título EQUIPADO (texto de uma recompensa `title` que a conta ganhou; '' = nenhum). Validados pelo servidor.
+   */
+  lvl: t.uint8(),
+  title: t.string(),
 }, 'NetPlayer');
 export type NetPlayer = SchemaType<typeof NetPlayer>;
 
