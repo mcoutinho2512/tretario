@@ -106,3 +106,15 @@ real da VPS desconhecida (a 500 o servidor envia ~84 Mbit/s). Subir o limite só
 - **Capacidade** (mesma máquina de desenvolvimento, 9.1 × 10, `docs/bench/round10_compare_*.json`): servidor igual
   dentro do ruído (500 bots densos: tick 8,9 → 9,1 ms, CPU 35 → 37 %; 50 veículos ativos: tick 0,87 → 0,84 ms). O
   limite beta de 250 por sala continua.
+
+## Rodada 11
+
+- Mesmo layout, serviços, portas e pipeline; nenhuma variável de ambiente nova; CSP inalterada (nenhum asset externo).
+- **Migration** `20261019120000_round11_profile_title`: `ALTER TABLE "Profile" ADD COLUMN "titleKey" TEXT` (NULLABLE)
+  — EXPAND puro, instantâneo, compatível com o release anterior (rollback do app para a rodada 10 continua seguro).
+- **Rotas/mensagens novas** atrás do mesmo `/api/`: `GET/PUT /api/me/title` (validado contra os títulos ganhos);
+  `PUT /api/me/appearance` aceita `strict` (403 `bloqueado` com a lista do que não é da conta); mensagem de sala
+  `title`. Perfil público (`/api/profile/:nickname`) ganha `level` e `title` (dados públicos; ver PRIVACY_ARCHITECTURE).
+- **Rede**: `NetPlayer.lvl` (u8, 1 Hz) e `NetPlayer.title` (≤ 48 caracteres) — banda por cliente igual dentro do ruído.
+- **Capacidade** (mesma máquina, 10 × 11, `docs/bench/round11_compare_*.json`): servidor igual (500 densos: tick
+  7,5 → 7,6 ms, CPU 32 → 30 %; 50 veículos: 0,41 → 0,38 ms). Limite beta de 250 por sala mantido.

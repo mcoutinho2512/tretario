@@ -167,3 +167,10 @@ banco de dados, a mesma licença. Detalhes em [DATA_SOURCES.md](DATA_SOURCES.md)
 
 Os landmarks usam três texturas de detalhe CC0 da Poly Haven (reboco, concreto, granito) em
 `public/landmarks/tex/`. Fonte, autores e URLs: [`docs/licenses/landmarks.md`](licenses/landmarks.md).
+
+## Rodada 11 — interface desktop, inventário e editor
+
+Nenhum asset de terceiros novo. Ícones do inventário e do acesso rápido (`src/inventory/icons.ts`), do menu do jogo,
+da tela de controles e das abas do editor/ajustes são SVG de traço **escritos no projeto** (licença do projeto), no
+mesmo estilo dos ícones da barra de ações. A prévia 3D reutiliza os personagens e peças já listados acima; nenhuma
+fonte, imagem ou som novo foi baixado.

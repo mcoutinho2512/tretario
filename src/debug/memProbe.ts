@@ -41,9 +41,23 @@ if (typeof WebAssembly !== 'undefined' && !(WebAssembly as unknown as { __pvMem?
 }
 
 // ------------------------------------------------------------------------------------------------ GPU
-export interface GpuObj { kind: 'texture' | 'buffer' | 'renderbuffer'; bytes: number; w: number; h: number; d: number; levels: Map<number, number>; mip: boolean; fmt: number }
+export interface GpuObj { kind: 'texture' | 'buffer' | 'renderbuffer'; bytes: number; w: number; h: number; d: number; levels: Map<number, number>; mip: boolean; fmt: number;
+  /** contexto dono (rodada 11): objetos de contexto PERDIDO (prévia 3D descartada com forceContextLoss) já foram liberados pelo navegador */
+  gl?: { isContextLost(): boolean } }
 export interface GpuLedger { textures: Map<WebGLTexture, GpuObj>; buffers: Map<WebGLBuffer, GpuObj>; renderbuffers: Map<WebGLRenderbuffer, GpuObj> }
 export let gpuLedger: GpuLedger | null = null;
+/** tira do livro-razão o que pertence a contextos PERDIDOS (o navegador já liberou; nunca haverá deleteTexture). Devolve
+ * quantos objetos/bytes saíram — chamado antes de cada relatório. */
+export function purgeLostContexts(): { objects: number; bytes: number } {
+  let objects = 0, bytes = 0;
+  if (!gpuLedger) return { objects, bytes };
+  for (const m of [gpuLedger.textures, gpuLedger.buffers, gpuLedger.renderbuffers] as Map<object, GpuObj>[]) {
+    for (const [k, o] of m) { let lost = false; try { lost = !!o.gl?.isContextLost(); } catch { /* */ } if (lost) { m.delete(k); objects++; bytes += o.bytes; } }
+  }
+  purgedTotal.objects += objects; purgedTotal.bytes += bytes;
+  return { objects, bytes };
+}
+export const purgedTotal = { objects: 0, bytes: 0 };
 
 const GL = (typeof WebGL2RenderingContext !== 'undefined' ? WebGL2RenderingContext : {}) as typeof WebGL2RenderingContext;
 /** bytes por texel por formato interno (os não listados contam 4) */
@@ -84,9 +98,9 @@ function installLedger() {
   };
   const faceTarget = (t: number) => (t >= GL.TEXTURE_CUBE_MAP_POSITIVE_X && t <= GL.TEXTURE_CUBE_MAP_NEGATIVE_Z ? GL.TEXTURE_CUBE_MAP : t);
   const bound = (gl: object, target: number) => st(gl).tex.get(`${st(gl).unit}:${faceTarget(target)}`) ?? null;
-  const texObj = (tex: WebGLTexture): GpuObj => {
+  const texObj = (tex: WebGLTexture, gl?: object): GpuObj => {
     let o = L.textures.get(tex);
-    if (!o) { o = { kind: 'texture', bytes: 0, w: 0, h: 0, d: 1, levels: new Map(), mip: false, fmt: 0 }; L.textures.set(tex, o); }
+    if (!o) { o = { kind: 'texture', bytes: 0, w: 0, h: 0, d: 1, levels: new Map(), mip: false, fmt: 0, gl: gl as GpuObj['gl'] }; L.textures.set(tex, o); }
     return o;
   };
   const recompute = (o: GpuObj) => { let s = 0; for (const v of o.levels.values()) s += v; o.bytes = o.mip ? Math.round(s * 4 / 3) : s; };
@@ -97,7 +111,7 @@ function installLedger() {
   wrap('texStorage2D', (gl, a) => {
     const [target, levels, internal, w, h] = a as number[];
     const t = bound(gl, target); if (!t) return;
-    const o = texObj(t);
+    const o = texObj(t, gl);
     const faces = target === GL.TEXTURE_CUBE_MAP ? 6 : 1;
     o.levels.clear(); o.mip = false; o.w = w; o.h = h; o.fmt = internal;
     for (let l = 0; l < levels; l++) o.levels.set(l, Math.max(1, w >> l) * Math.max(1, h >> l) * bppOf(internal) * faces);
@@ -106,7 +120,7 @@ function installLedger() {
   wrap('texStorage3D', (gl, a) => {
     const [target, levels, internal, w, h, d] = a as number[];
     const t = bound(gl, target); if (!t) return;
-    const o = texObj(t);
+    const o = texObj(t, gl);
     o.levels.clear(); o.mip = false; o.w = w; o.h = h; o.d = d; o.fmt = internal;
     for (let l = 0; l < levels; l++) o.levels.set(l, Math.max(1, w >> l) * Math.max(1, h >> l) * (target === GL.TEXTURE_3D ? Math.max(1, d >> l) : d) * bppOf(internal));
     recompute(o);
@@ -117,7 +131,7 @@ function installLedger() {
     if (a.length >= 8 && typeof a[3] === 'number' && typeof a[4] === 'number') { w = a[3] as number; h = a[4] as number; type = a[7] as number; }
     else { const src = a[5] as { width?: number; height?: number; videoWidth?: number; videoHeight?: number; displayWidth?: number }; w = src?.videoWidth || src?.width || 0; h = src?.videoHeight || src?.height || 0; type = a[4] as number; }
     const t = bound(gl, target); if (!t) return;
-    const o = texObj(t);
+    const o = texObj(t, gl);
     if (level === 0) { o.w = w; o.h = h; o.fmt = internal; }
     const face = target - GL.TEXTURE_CUBE_MAP_POSITIVE_X;
     const key = target === faceTarget(target) ? level : level * 8 + face + 1000;
@@ -127,7 +141,7 @@ function installLedger() {
   wrap('texImage3D', (gl, a) => {
     const [target, level, internal, w, h, d] = a as number[];
     const t = bound(gl, target); if (!t) return;
-    const o = texObj(t);
+    const o = texObj(t, gl);
     if (level === 0) { o.w = w; o.h = h; o.d = d; o.fmt = internal; }
     o.levels.set(level, w * h * d * bppOf(internal, a[8] as number));
     recompute(o);
@@ -135,14 +149,14 @@ function installLedger() {
   wrap('compressedTexImage2D', (gl, a) => {
     const [target, level, internal, w, h] = a as number[];
     const t = bound(gl, target); if (!t) return;
-    const o = texObj(t);
+    const o = texObj(t, gl);
     if (level === 0) { o.w = w; o.h = h; o.fmt = internal; }
     o.levels.set(level, (a[6] as ArrayBufferView)?.byteLength ?? 0);
     recompute(o);
   });
   wrap('generateMipmap', (gl, a) => {
     const t = bound(gl, a[0] as number); if (!t) return;
-    const o = texObj(t);
+    const o = texObj(t, gl);
     if (o.levels.size <= 1 || [...o.levels.keys()].every((k) => k === 0 || k >= 1000)) { o.mip = true; recompute(o); }
   });
 
@@ -153,7 +167,7 @@ function installLedger() {
     const src = a[1];
     let bytes = typeof src === 'number' ? src : (src as ArrayBufferView | ArrayBuffer | null)?.byteLength ?? 0;
     if (a.length >= 5 && typeof a[4] === 'number' && a[4] > 0) bytes = (a[4] as number) * ((src as { BYTES_PER_ELEMENT?: number }).BYTES_PER_ELEMENT ?? 1);
-    L.buffers.set(b, { kind: 'buffer', bytes, w: 0, h: 0, d: 1, levels: new Map(), mip: false, fmt: a[0] as number });
+    L.buffers.set(b, { kind: 'buffer', bytes, w: 0, h: 0, d: 1, levels: new Map(), mip: false, fmt: a[0] as number, gl: gl as GpuObj['gl'] });
   });
 
   wrap('bindRenderbuffer', (gl, a) => { st(gl).rb = a[1] as WebGLRenderbuffer | null; });
@@ -161,12 +175,12 @@ function installLedger() {
   wrap('renderbufferStorage', (gl, a) => {
     const rb = st(gl).rb; if (!rb) return;
     const [, internal, w, h] = a as number[];
-    L.renderbuffers.set(rb, { kind: 'renderbuffer', bytes: w * h * bppOf(internal), w, h, d: 1, levels: new Map(), mip: false, fmt: internal });
+    L.renderbuffers.set(rb, { kind: 'renderbuffer', bytes: w * h * bppOf(internal), w, h, d: 1, levels: new Map(), mip: false, fmt: internal, gl: gl as GpuObj['gl'] });
   });
   wrap('renderbufferStorageMultisample', (gl, a) => {
     const rb = st(gl).rb; if (!rb) return;
     const [, samples, internal, w, h] = a as number[];
-    L.renderbuffers.set(rb, { kind: 'renderbuffer', bytes: w * h * bppOf(internal) * Math.max(1, samples), w, h, d: samples, levels: new Map(), mip: false, fmt: internal });
+    L.renderbuffers.set(rb, { kind: 'renderbuffer', bytes: w * h * bppOf(internal) * Math.max(1, samples), w, h, d: samples, levels: new Map(), mip: false, fmt: internal, gl: gl as GpuObj['gl'] });
   });
 }
 

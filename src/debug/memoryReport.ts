@@ -13,7 +13,7 @@
  * na falta dela, do nome dos grupos-raiz conhecidos.
  */
 import * as THREE from 'three';
-import { gpuLedger, wasmMemories } from './memProbe';
+import { gpuLedger, purgeLostContexts, purgedTotal, wasmMemories } from './memProbe';
 import { assetManager } from '../core/AssetManager';
 
 const MB = 1 / (1024 * 1024);
@@ -254,6 +254,7 @@ export function memoryReport(renderer: THREE.WebGLRenderer, scene: THREE.Scene, 
 
   // GPU real (livro-razão)
   let ledger: Record<string, number> | null = null;
+  if (gpuLedger) purgeLostContexts(); // rodada 11: contextos perdidos (prévia 3D descartada) não contam
   if (gpuLedger) {
     const sum = (m: Map<unknown, { bytes: number }>) => { let s = 0; for (const v of m.values()) s += v.bytes; return s; };
     const texTotal = sum(gpuLedger.textures), bufTotal = sum(gpuLedger.buffers), rbTotal = sum(gpuLedger.renderbuffers);
@@ -265,6 +266,8 @@ export function memoryReport(renderer: THREE.WebGLRenderer, scene: THREE.Scene, 
       /** texturas na GPU que não pertencem a nenhum material da cena (alvos de render internos: composer, PMREM, prévia…) */
       unattributedTexMB: r1((texTotal - attributedTex) * MB),
       totalMB: r1((texTotal + bufTotal + rbTotal) * MB),
+      /** acumulado já expurgado (objetos de contextos perdidos, liberados pelo navegador) */
+      purgedLostMB: r1(purgedTotal.bytes * MB), purgedLostObjects: purgedTotal.objects,
     };
   }
 
