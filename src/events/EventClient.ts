@@ -7,9 +7,10 @@
  *  - corrida      `race_def` → marcadores baratos (anéis instanciados de uma geometria só) para inscritos e quem
  *                 acompanha; `race` → painel (checkpoint, volta, posição, tempo); `evt_result` → classificação
  *  - caminhada    `walk` → painel (quanto falta / quanto você acompanhou); confronto: `clash` → placar por grupo
+ *  - rodada 12    `dyn` → sinais do mundo dinâmico (`dyn`, `onDyn`): áudio/minimapa leem daqui (nada decide no cliente)
  */
 import * as THREE from 'three';
-import type { AgendaEntry, AgendaMessage, ClashStateMessage, EventPointsMessage, EventResultMessage, RaceDefMessage, RaceProgress, WalkStateMessage } from './schedule';
+import type { AgendaEntry, AgendaMessage, ClashStateMessage, DynamicSignalWire, DynamicSignalsMessage, EventPointsMessage, EventResultMessage, RaceDefMessage, RaceProgress, WalkStateMessage } from './schedule';
 import { rallyPoints, RALLY_DEFAULT_WEIGHTS } from '../social/rally';
 import { worldClock } from '../net/clock';
 import { loadSupporterData, supAt, supporterData } from '../supporters/data'; // rodada 10 — concentrações de torcida
@@ -38,6 +39,10 @@ export class EventClient {
   groupName: (key: string) => string = (k) => k;
   done: string[] = [];
   points: EventPointsMessage['list'] = [];
+  /** rodada 12 — eventos dinâmicos vivos (`dyn`): tipo, posição, raio, escalada e intensidades 0..1 */
+  dyn: DynamicSignalWire[] = [];
+  dynMsgs = 0;
+  onDyn: ((l: DynamicSignalWire[]) => void) | null = null;
   private marks = new THREE.Group();
   private rings: THREE.InstancedMesh | null = null;
   private next: THREE.Mesh | null = null;
@@ -54,6 +59,8 @@ export class EventClient {
     hud.appendChild(this.panel);
     net.on('agenda', (m: AgendaMessage) => { this.list = m?.list ?? []; this.agendaMsgs++; this.onAgenda?.(this.list); this.pruneEnded(); });
     net.on('evt_pts', (m: EventPointsMessage) => this.onPoints(m));
+    // rodada 12 — sinais do MUNDO DINÂMICO (docs/DYNAMIC_WORLD.md): guardados para o áudio/minimapa (agente D liga)
+    net.on('dyn', (m: DynamicSignalsMessage) => { this.dyn = Array.isArray(m?.list) ? m.list.slice(0, 32) : []; this.dynMsgs++; this.onDyn?.(this.dyn); });
     net.on('evt_res', (m: { inst: string; ok: boolean; r?: string }) => { this.lastRes = m; if (!m.ok && m.r) this.flash(DENIAL[m.r] ?? `Inscrição negada (${m.r})`); });
     net.on('evt_done', (m: { inst: string }) => { this.done.push(m.inst); this.flash('Participação concluída no evento!'); });
     net.on('race_def', (m: RaceDefMessage) => this.onRaceDef(m));

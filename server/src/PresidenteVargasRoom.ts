@@ -97,6 +97,11 @@ import { isCombatProp } from '../../src/social/props.ts';
 // rodada 9 — eventos agendados (server/src/events: agenda, runners caminhada/corrida/confronto)
 import { EventRuntime } from './events/EventRuntime.ts';
 import { loadAgenda } from './events/agenda.ts';
+import { DynamicWorldDirector, EMPTY_WORLD_VIEW } from './world/DynamicWorldDirector.ts'; // rodada 12 — mundo dinâmico
+import { loadDynamicWorld } from './world/dynamicConfig.ts';
+import type { DynamicEventKind } from './autonomous/types.ts';
+import { zoneAt } from '../../src/world/zones.ts';
+import { ENTITY_KIND } from '../../src/world/entityKind.ts';
 import { FX } from '../../src/combat/types.ts';
 import { log } from './log.ts'; // rodada 9.1 — logs estruturados
 import { clientIp } from './http/clientIp.ts';
@@ -288,6 +293,8 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     item_drop: (client: Client) => this.gate(client, 'item.hold', () => this.items.onDrop(client.sessionId, Date.now())),
     qa_fx: (client: Client, m: unknown) => this.r9bQa(client.sessionId, 'fx', m),
     qa_status: (client: Client, m: unknown) => this.r9bQa(client.sessionId, 'status', m),
+    // rodada 12 — mundo dinâmico: forçar evento para QA (só PV_TEST=1; produção ignora)
+    qa_dyn: (client: Client, m: unknown) => this.r12DynQa(client.sessionId, m),
   };
 
   /** chat: destinatários decididos aqui (PROXIMIDADE pela grade espacial `this.grid`), sem trabalho por tick */
@@ -459,6 +466,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     { const tc = performance.now(); this.combat.update(dtMs); metrics.combat(performance.now() - tc); }
     this.r9bTick(now, dtMs); // rodada 9 — itens no mundo, proteção (expiração), efeitos de QA
     this.evt.tick(now, dtMs); // rodada 9 — eventos (agenda, estados, runners)
+    this.dyn.tick(now); // rodada 12 — mundo dinâmico (sondas ~2/s e eventos ~1 Hz, distribuídos; sinais `dyn` ≤ 1 Hz)
     this.r10sup.tick(dtMs); // rodada 10 — torcidas: pendências ao sair do evento, troca de grupo adiada
     this.r11titles.tick(dtMs); // rodada 11 — inventário: nível público (1 Hz, só quando muda)
     // grafites: área de interesse por superfície (fatiada, 2 Hz por cliente) e expiração (1 Hz)
@@ -640,7 +648,36 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
    * e `this.evt.onKnockdown(atacante, alvo)`. O cliente só PEDE inscrição/saída/acompanhar — nunca informa progresso.
    */
   evt!: EventRuntime;
+  /**
+   * rodada 12 — DIRETOR DO MUNDO DINÂMICO (server/src/world/DynamicWorldDirector.ts, docs/DYNAMIC_WORLD.md): eventos que
+   * nascem do estado do mundo. Entra na MESMA agenda (extraAgenda) e nos MESMOS pontos (extraRallies → evt_pts) do
+   * EventRuntime; sinais de áudio/HUD na mensagem `dyn`. Lê a WorldView dos autônomos (vazia até o sistema subir).
+   */
+  dyn!: DynamicWorldDirector;
+  private setupDynamicWorld(W: ServerWorld) {
+    const axis = (W.manifest.pvAxis ?? []) as [number, number][];
+    // rodada 12 — ligar à WorldView do AGENTE C: o sistema de autônomos chama `room.dyn.setView(view)` ao subir
+    const view = (this as unknown as { autonomous?: { view?: import('./autonomous/types.ts').AutonomousWorldView } }).autonomous?.view ?? EMPTY_WORLD_VIEW;
+    this.dyn = new DynamicWorldDirector(loadDynamicWorld(), view, {
+      broadcast: (type, msg) => { for (const c of this.clients) c.send(type, msg); },
+      zoneAt: (x, z) => zoneAt(this.zoneDefs, this.zoneAxis, x, z)?.id ?? '',
+      log: (m) => log.info('mundo', m),
+    }, { axis });
+  }
+
+  /** SÓ servidor de teste: `qa_dyn {kind, x?, z?, ack?}` força um evento dinâmico (padrão: na posição de quem pediu) */
+  private r12DynQa(sid: string, m: unknown) {
+    if (process.env.PV_TEST !== '1') return;
+    const o = (m && typeof m === 'object' ? m : {}) as { kind?: unknown; x?: unknown; z?: unknown; ack?: unknown };
+    const r = this.rt.get(sid);
+    const x = typeof o.x === 'number' && Number.isFinite(o.x) ? o.x : r?.last.x ?? this.spawn.x;
+    const z = typeof o.z === 'number' && Number.isFinite(o.z) ? o.z : r?.last.z ?? this.spawn.z;
+    const id = typeof o.kind === 'string' ? this.dyn.force(o.kind as DynamicEventKind, x, z) : null;
+    if (o.ack === true) this.clientBySid(sid)?.send('qa_dyn_res', { ok: !!id, id }); // resposta só a quem pede (roteiros/testes com ouvinte)
+  }
+
   private setupEvents(W: ServerWorld, ev: string) {
+    this.setupDynamicWorld(W); // rodada 12 — mundo dinâmico (antes do runtime: a agenda/pontos dele entram lá)
     const ag = loadAgenda(W.events.get(ev)?.agenda);
     this.evt = new EventRuntime(ag.defs, {
       participant: (sid) => {
@@ -668,7 +705,8 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
       protect: (sid, until) => { const now = Date.now(); if (until > now) this.applyProtection(sid, now, until - now); },
       log: (m) => log.info('eventos', m),
       // palco de debate (agente E) entra na MESMA agenda (Acontecendo agora, Agenda, telões) — integração rodada 9
-      extraAgenda: (now) => this.debate?.agenda(now) ?? [],
+      extraAgenda: (now) => [...(this.debate?.agenda(now) ?? []), ...this.dyn.agenda(now)], // rodada 12 — + eventos dinâmicos ("acontecendo agora")
+      extraRallies: () => this.dyn.rallies(), // rodada 12 — concentrações dinâmicas no mesmo evt_pts
       // inscrição é da IDENTIDADE (conta), não da conexão — mesma chave de autor do chat (rodada 9.1)
       participantKey: (sid) => authorKeyOf(sid, this.identities.get(sid)?.userId ?? null),
     }, (W.manifest.pvAxis ?? []) as [number, number][], { epoch: ag.epoch });
@@ -1055,6 +1093,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     this.chat.join(client.sessionId, id, client); // todas as conexões (espectador lê o GERAL)
     if (this.ads) client.send('ads', { slots: this.ads.snapshot(), full: true }); // rodada 9 — telões
     this.evt.hello(client.sessionId, (t, m) => client.send(t, m)); // rodada 9 — eventos: agenda e concentrações atuais
+    this.clock.setTimeout(() => this.dyn.hello((t, m) => client.send(t, m)), 1500); // rodada 12 — sinais do mundo dinâmico (com os ouvintes prontos)
     if (id.role === 'spectator') { this.savedLooks.delete(client.sessionId); this.joinSpectator(client, id, options); return; }
     // login duplicado: UMA entidade jogável por conta — a sessão nova assume (a antiga recebe session_replaced)
     this.evt.attach(client.sessionId); // rodada 9.1 — a inscrição em evento da conta passa para esta sessão (antes do takeOver)
@@ -1538,6 +1577,8 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     this.combat.onKnockdown(targetId); this.jump.reset(targetId, 0);
     metrics.knock(kind);
     this.evt.onKnockdown(by, targetId); // rodada 9 — eventos: derrubada entre inscritos de um confronto ativo pontua lá
+    // rodada 12 — mundo dinâmico: HUMANO derrubou um AUTÔNOMO → ele (e os amigos) podem reagir; nunca o contrário por conta própria
+    if (this.state.players.get(by)?.kind === ENTITY_KIND.HUMAN && tp.kind === ENTITY_KIND.AUTONOMOUS) this.dyn.onAggression(by, targetId, out.rx, out.rz, now);
     log.debug(`[room] queda (${kind}) ${targetId} por ${by} força ${strength.toFixed(1)}`);
   }
 
