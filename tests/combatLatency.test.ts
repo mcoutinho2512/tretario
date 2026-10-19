@@ -23,15 +23,20 @@ interface Peer { room: Room; sid: string; msgs: { type: string; m: any }[]; nid:
 const servers: ChildProcess[] = [];
 const rooms: Room[] = [];
 
-async function startServer(port: number, env: Record<string, string> = {}) {
+/** sobe o servidor; sob carga (suíte inteira + outros processos) a subida passa de 20 s, e a porta derivada do pid
+ * pode estar ocupada por outra suíte em paralelo → até 45 s por tentativa e, se o processo morrer, outra porta */
+async function startServer(port: number, env: Record<string, string> = {}, tries = 3): Promise<string> {
   const srv = spawn('npx', ['tsx', 'src/index.ts'], { cwd: 'server', env: { ...process.env, PORT: String(port), PV_TEST: '1', PV_STORE: 'memory', PV_GRAFFITI_STORE: 'memory', PV_EVENT: 'cotidiano', PV_PROTECT_MS: '300', DATABASE_URL: '', ...env }, stdio: ['ignore', 'pipe', 'pipe'], detached: true });
   servers.push(srv);
-  let ready = false;
+  let ready = false, dead = false;
   srv.stdout!.on('data', (d) => { if (String(d).includes('[pv3d-server]')) ready = true; });
   srv.stderr!.on('data', () => {});
-  for (let i = 0; i < 200 && !ready; i++) await w(100);
-  if (!ready) throw new Error('servidor de teste não subiu');
-  return `ws://127.0.0.1:${port}`;
+  srv.on('exit', () => { dead = true; });
+  for (let i = 0; i < 450 && !ready && !dead; i++) await w(100);
+  if (ready) return `ws://127.0.0.1:${port}`;
+  if (!dead && srv.pid) { try { process.kill(-srv.pid, 'SIGTERM'); } catch { /* */ } }
+  if (tries > 1) return startServer(port + 401, env, tries - 1);
+  throw new Error('servidor de teste não subiu');
 }
 
 async function join(ep: string, name: string, at: { x: number; z: number }, o: Record<string, unknown> = {}): Promise<Peer> {
@@ -83,5 +88,5 @@ describe.skipIf(skip)('confronto com latência simulada — acerto decidido no s
     expect(ms).toBeGreaterThanOrEqual(lat * 0.9 + 100);
     expect(ms).toBeLessThan(lat * 2 + 900);
     console.log(`[latência] RTT ${lat} ms → pedido→cbt_hit ${ms} ms`);
-  }, 40_000);
+  }, 150_000);
 });
