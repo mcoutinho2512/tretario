@@ -318,6 +318,8 @@ export interface RideableInstance {
   dyn: RideDyn;
   /** esterço do motorista LOCAL (entrada, −1..1) — o guidão gira mesmo parado */
   steerHint?: number;
+  /** rodada 12 — veículo PESSOAL: sessionId do dono ('' / ausente = veículo do mundo) — só o dono usa */
+  owner?: string;
 }
 
 /** cores genéricas (sem marcas): carros com paleta de rua, motos e bicicletas/patinetes compartilhados */
@@ -349,8 +351,10 @@ export class RideableSystem {
   readonly items: RideableInstance[] = [];
 
   readonly byId = new Map<string, RideableInstance>();
+  /** rodada 12 — quem é "eu" (veículo pessoal de outro não aparece como usável) */
+  selfId = '';
 
-  constructor(spawns: { id: string; kind: RideableKind; x: number; z: number; heading: number }[], heightAt: (x: number, z: number) => number, kinds: RideableKind[] = ['bicycle', 'scooter', 'car', 'moto', 'soundcar', 'trio']) {
+  constructor(spawns: { id: string; kind: RideableKind; x: number; z: number; heading: number }[], private heightAt: (x: number, z: number) => number, kinds: RideableKind[] = ['bicycle', 'scooter', 'car', 'moto', 'soundcar', 'trio']) {
     this.group.name = 'rideables';
     this.group.userData.category = 'vehicles/rideables';
     for (const sp of spawns) {
@@ -368,6 +372,41 @@ export class RideableSystem {
     }
     this.sync();
   }
+
+  /**
+   * rodada 12 — veículo PESSOAL: cria a instância de um veículo que não vem do manifest (surgiu no servidor). Mesmo
+   * modelo/cache das vagas (clone raso: nada de geometria nova). Idempotente.
+   */
+  addDynamic(id: string, kind: RideableKind, x: number, z: number, heading: number, owner: string): RideableInstance | null {
+    const had = this.byId.get(id);
+    if (had) { had.owner = owner; return had; }
+    const def = RIDEABLE_DEFS[kind];
+    if (!def || EVENT_VEHICLE_KINDS.has(kind)) return null;
+    const state: RideableState = { id, kind, x, y: this.heightAt(x, z), z, heading, speed: 0, occupant: null };
+    const pal = PALETTE[kind] ?? PALETTE.car;
+    const model = rideableModel(kind, pal[hashId(id) % pal.length]);
+    model.name = `rideable_${id}`;
+    this.group.add(model);
+    const it: RideableInstance = { state, def, model, netState: 0, design: 0, dyn: { lean: 0, steer: 0, crank: 0, speed: 0, accel: 0 }, owner };
+    this.items.push(it);
+    this.byId.set(id, it);
+    this.dynamicIds.add(id);
+    this.sync();
+    return it;
+  }
+  /** rodada 12 — some com o veículo pessoal (só os criados por addDynamic; as vagas do mundo ficam) */
+  removeDynamic(id: string): boolean {
+    const it = this.byId.get(id);
+    if (!it || !this.dynamicIds.has(id)) return false;
+    this.group.remove(it.model);
+    this.items.splice(this.items.indexOf(it), 1);
+    this.byId.delete(id);
+    this.dynamicIds.delete(id);
+    this.prev.delete(it); this.parts.delete(it);
+    return true;
+  }
+  isDynamic(id: string) { return this.dynamicIds.has(id); }
+  private dynamicIds = new Set<string>();
 
   /** estado vindo do servidor (veículos não controlados localmente): suavizado */
   applyServer(id: string, x: number, y: number, z: number, heading: number, occupant: string, localId: string, netState = 0, design = 0) {
@@ -401,6 +440,7 @@ export class RideableSystem {
     let best: RideableInstance | null = null, bd = range;
     for (const it of this.items) {
       if (it.state.occupant || it.netState === 2) continue; // ocupado ou voltando para a vaga
+      if (it.owner && it.owner !== this.selfId) continue; // rodada 12 — pessoal de outro jogador: só o dono usa
       const d = useDistance(it, x, z, range);
       if (d < bd) { bd = d; best = it; }
     }

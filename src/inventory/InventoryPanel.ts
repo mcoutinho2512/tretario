@@ -215,8 +215,8 @@ export class InventoryPanel {
     const busy = this.pending === it.key;
     let html = '';
     if (it.state === 'locked') html += `<button type="button" class="inv-btn" data-act="equip" disabled>BLOQUEADO</button>`;
-    else if (it.state === 'equipped') html += it.removable ? `<button type="button" class="inv-btn" data-act="unequip"${busy ? ' disabled' : ''}>DESEQUIPAR</button>` : '<button type="button" class="inv-btn" disabled>EM USO</button>';
-    else html += `<button type="button" class="inv-btn primary" data-act="equip"${busy ? ' disabled' : ''}>${busy ? 'AGUARDANDO…' : 'EQUIPAR'}</button>`;
+    else if (it.state === 'equipped') html += it.removable ? `<button type="button" class="inv-btn" data-act="unequip"${busy ? ' disabled' : ''}>${it.slot === 'VEHICLE' ? 'DESCER' : 'DESEQUIPAR'}</button>` : '<button type="button" class="inv-btn" disabled>EM USO</button>';
+    else html += `<button type="button" class="inv-btn primary" data-act="equip"${busy ? ' disabled' : ''}>${busy ? 'AGUARDANDO…' : it.slot === 'VEHICLE' ? 'USAR AGORA' : 'EQUIPAR'}</button>`; // rodada 12 — veículo pessoal: aparece e monta
     if (it.quickbar) {
       html += '<div class="inv-pin" role="group" aria-label="Fixar no acesso rápido"><span>Acesso rápido</span>';
       for (let i = 0; i < 5; i++) html += `<button type="button" class="inv-pin-b${this.layout[i] === it.key ? ' on' : ''}" data-act="pin" data-i="${i}" title="Fixar na tecla ${i + 1}">${i + 1}</button>`;

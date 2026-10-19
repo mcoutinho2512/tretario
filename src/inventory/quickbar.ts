@@ -6,6 +6,7 @@
 import type { InventoryItem, QuickbarLayout } from './types';
 import { PROP_BY_ID } from '../social/props';
 import { DESIGN_BY_KEY } from '../social/designs';
+import { isPersonalKind } from '../vehicles/personal'; // rodada 12
 
 export const QUICK_SLOTS = 5;
 const STORE = 'pv3d.quickbar';
@@ -17,6 +18,7 @@ export function isQuickKey(key: unknown): key is NonNullable<QuickbarLayout[numb
   if (typeof key !== 'string') return false;
   if (key.startsWith('prop:')) return PROP_BY_ID.has(Number(key.slice(5))) && /^prop:\d+$/.test(key);
   if (key.startsWith('design:')) { const d = DESIGN_BY_KEY.get(key.slice(7)); return !!d && d.targets.some((t) => t === 'flag' || t === 'sign' || t === 'banner'); }
+  if (key.startsWith('veh:')) return isPersonalKind(key.slice(4)); // rodada 12 — veículo pessoal
   return false;
 }
 
@@ -60,7 +62,8 @@ export function unpinQuick(l: QuickbarLayout, index: number): QuickbarLayout {
 }
 
 /** o item do slot está NA MÃO agora? */
-export function isActive(key: string, prop: number, design: number): boolean {
+export function isActive(key: string, prop: number, design: number, vehicle?: string | null): boolean {
+  if (key.startsWith('veh:')) return !!vehicle && key === `veh:${vehicle}`; // rodada 12 — montado no pessoal deste tipo
   if (key.startsWith('prop:')) return prop !== 0 && prop === Number(key.slice(5));
   if (key.startsWith('design:')) {
     const d = DESIGN_BY_KEY.get(key.slice(7)), p = PROP_BY_ID.get(prop);

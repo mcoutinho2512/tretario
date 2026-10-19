@@ -7,7 +7,9 @@
  *
  * Interface TOLERANTE: aceita a lista crua (array ou `{ events: [...] }`), ignora o que não entende, limita a 32 focos.
  * Campos opcionais `crowdIntensity`/`cheering`/`combatIntensity` (0..1) mandados pelo servidor têm prioridade sobre a
- * dedução por tipo + escalada. Mensagem esperada: `dyn_events` (src/core/Game.ts) — combinar com o AGENTE E.
+ * dedução por tipo + escalada. Fonte: mensagem `dyn` do AGENTE E (`DynamicSignalWire` em src/events/schedule.ts,
+ * guardada em `EventClient.dyn` e avisada por `onDyn`) — campos curtos `k`, `e` (0–3), `n`, `w`, `ci`, `ch`, `cb`
+ * aceitos ao lado dos longos.
  */
 
 export interface DynamicEventView {
@@ -39,15 +41,17 @@ export function normalizeDynamicEvents(msg: unknown): DynamicEventView[] {
     if (out.length >= DYN_MAX_EVENTS) break;
     if (!e || typeof e !== 'object') continue;
     const o = e as Record<string, unknown>;
+    const LV = ['CALMO', 'TENSAO', 'CONFRONTO', 'GENERALIZADO'];
+    const kind = o.kind ?? o.k, esc = o.escalation ?? (typeof o.e === 'number' ? LV[Math.max(0, Math.min(3, Math.round(o.e)))] : o.e);
     const x = num(o.x), z = num(o.z);
     if (x === undefined || z === undefined) continue;
     out.push({
       id: typeof o.id === 'string' ? o.id.slice(0, 64) : String(out.length),
-      kind: typeof o.kind === 'string' ? o.kind.slice(0, 32).toUpperCase() : 'CONCENTRACAO',
+      kind: typeof kind === 'string' ? kind.slice(0, 32).toUpperCase() : 'CONCENTRACAO',
       x, z, r: Math.max(4, Math.min(200, num(o.r) ?? 20)),
-      escalation: typeof o.escalation === 'string' ? o.escalation.toUpperCase() : undefined,
-      participants: num(o.participants), watchers: num(o.watchers),
-      crowdIntensity: unit(o.crowdIntensity), cheering: unit(o.cheering), combatIntensity: unit(o.combatIntensity),
+      escalation: typeof esc === 'string' ? esc.toUpperCase() : undefined,
+      participants: num(o.participants ?? o.n), watchers: num(o.watchers ?? o.w),
+      crowdIntensity: unit(o.crowdIntensity ?? o.ci), cheering: unit(o.cheering ?? o.ch), combatIntensity: unit(o.combatIntensity ?? o.cb),
     });
   }
   return out;

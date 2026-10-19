@@ -191,6 +191,12 @@ describe('eventos dinâmicos — minimapa agregado e áudio', () => {
     expect(normalizeDynamicEvents(Array.from({ length: 50 }, (_, i) => ({ x: i, z: i })))).toHaveLength(32);
     expect(normalizeDynamicEvents('nada')).toEqual([]);
   });
+  it('formato do fio do AGENTE E (DynamicSignalWire: k, e 0–3, n, w, ci, ch, cb)', () => {
+    const [d] = normalizeDynamicEvents([{ id: 'x', k: 'BRIGA', x: 1, z: 2, r: 10, e: 2, n: 6, w: 12, ci: 0.4, ch: 0, cb: 0.8 }]);
+    expect(d).toMatchObject({ kind: 'BRIGA', escalation: 'CONFRONTO', participants: 6, watchers: 12, crowdIntensity: 0.4, cheering: 0, combatIntensity: 0.8 });
+    expect(dynamicEventAudio(d)).toEqual({ crowd: 0.4, cheer: 0, combat: 0.8 });
+    expect(dynamicEventMark(d).color).toBe('#ff5a4a');
+  });
   it('escalada aumenta o confronto; festa comemora; campos explícitos do servidor mandam', () => {
     const calm = dynamicEventAudio({ id: '1', kind: 'BRIGA', x: 0, z: 0, r: 10, escalation: 'CALMO' });
     const gen = dynamicEventAudio({ id: '1', kind: 'BRIGA', x: 0, z: 0, r: 10, escalation: 'GENERALIZADO' });

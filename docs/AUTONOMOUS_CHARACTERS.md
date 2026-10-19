@@ -17,7 +17,7 @@ tolerante (ausente = 0 = humano). Nada aqui decide comportamento — só como a 
 | `NetPlayer.look` (u16) | nid do alvo para cabeça/tronco (pessoa; numa briga, o oponente) | olhar livre |
 | `NetPlayer.tag` (u8, **opcional, ainda não existe**) | 1 = sempre com nome · 2 = sem nome · 0 = regra do cliente | regra do cliente |
 | mensagem `crowd`, bit 6 das flags | não humano na multidão distante (src/net/crowdCodec.ts `npc`) | humano |
-| mensagem `dyn_events` (opcional) | focos do diretor de eventos → minimapa e áudio (src/events/dynamicPresentation.ts) | nada |
+| mensagem `dyn` (AGENTE E, `DynamicSignalWire`) | focos do diretor de eventos → minimapa e áudio (src/events/dynamicPresentation.ts) | nada |
 
 O bit 6 já é preenchido pela sala (`crowdTable.set(..., npc: p.kind !== 0)`); se os autônomos forem codificados por
 outro caminho, basta passar `npc: true`.
@@ -70,7 +70,7 @@ espectador no alto usa `spec_cells.players` do servidor — os autônomos devem 
 ### Minimapa e áudio
 
 Autônomos entram no calor da densidade e na multidão agregada do áudio como qualquer agente (nunca ponto/voz por
-pessoa). Focos do diretor (`dyn_events`) viram UMA marca agregada por foco e calor de multidão/comemoração/confronto
+pessoa). Focos do diretor (`dyn`) viram UMA marca agregada por foco e calor de multidão/comemoração/confronto
 na célula do áudio — ver docs/HUD.md e docs/AUDIO_SYSTEM.md (rodada 12).
 
 ### QA (servidor de teste)

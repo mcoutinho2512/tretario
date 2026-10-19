@@ -29,3 +29,22 @@ export const PERSONAL_RULES = {
   /** monta sozinho ao surgir */
   autoMount: { scooter: true, bicycle: true, moto: true, car: true } as Record<PersonalKind, boolean>,
 } as const;
+
+// ---- rodada 12 (agente B) — acréscimos (docs/PERSONAL_VEHICLES.md)
+/**
+ * monta sozinho só quando a entrada (porta/lado) está a ≤ N m do avatar: a animação de montagem da rodada 10 anda até
+ * a porta em ≤ 45 % do `enterMs` — mais longe que isso o corpo "deslizaria". Mais longe (carro na pista com o avatar
+ * no meio de uma calçada larga) o veículo APARECE ali, destacado, e o jogador entra com E/clique (`mounted: false`).
+ */
+export const PERSONAL_AUTOMOUNT_MAX_M = 3.0;
+/** prefixo dos ids de veículo pessoal (NetVehicle) — o dono está em `NetVehicle.owner` */
+export const PERSONAL_ID_PREFIX = 'pveh_';
+/** rótulos curtos da interface */
+export const PERSONAL_LABEL: Record<PersonalKind, string> = { scooter: 'Patinete', bicycle: 'Bicicleta', moto: 'Moto', car: 'Carro' };
+export const isPersonalKind = (k: unknown): k is PersonalKind => typeof k === 'string' && (PERSONAL_KINDS as readonly string[]).includes(k);
+/** texto curto da recusa (HUD) */
+export const PERSONAL_DENY_TEXT: Record<PersonalDenyReason, string> = {
+  tipo: 'Veículo indisponível', taxa: 'Devagar — espere um instante para pedir outro veículo', estado: 'Agora não dá: desça do veículo/trio primeiro',
+  sem_lugar: 'Sem lugar seguro aqui para o veículo — ande um pouco (carro e moto só na pista)', espectador: 'Espectador não usa veículo',
+  evento: 'Este evento não permite esse veículo', caido: 'Levante-se primeiro',
+};

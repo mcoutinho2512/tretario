@@ -197,7 +197,11 @@ export class NetworkClient {
   vehiclesInView() { return [...this.vehicleKinds.keys()]; }
   /** tipo de cada veículo (pela sincronização do servidor) — pose/altura do assento dos remotos */
   private vehicleKinds = new Map<string, string>();
-  onVehicle: ((id: string, v: { x: number; y: number; z: number; heading: number; occupant: string; kind: string; state: number; design: number }) => void) | null = null;
+  onVehicle: ((id: string, v: { x: number; y: number; z: number; heading: number; occupant: string; kind: string; state: number; design: number; owner?: string }) => void) | null = null;
+  /** rodada 12 — veículo saiu da vista / sumiu (o pessoal some de verdade; as vagas do mundo ficam no cenário) */
+  onVehicleGone: ((id: string) => void) | null = null;
+  /** rodada 12 — resposta ao pedido de veículo pessoal (`pveh_ok` / `pveh_denied`) */
+  onPersonal: ((ok: boolean, m: any) => void) | null = null;
   // ---- trio elétrico (plataforma)
   /** em cima de um trio: o jogo atualiza a posição LOCAL a cada quadro; o envio vira 'pmove' */
   platform: { id: string; lx: number; lz: number; lh: number; speed: number; loco: number } | null = null;
@@ -377,6 +381,9 @@ export class NetworkClient {
       room.onMessage('enter_ok', (d: { id: string; x: number; z: number; heading: number }) => { this.holdMoves = false; this.onEnter?.(true, d); });
       room.onMessage('enter_denied', (d: { id: string; reason: string }) => { this.holdMoves = false; this.lastDenial = `enter:${d.reason}`; this.onEnter?.(false, d); });
       room.onMessage('exit_ok', (d: { x: number; z: number }) => { this.holdMoves = false; this.onExit?.(d); });
+      // rodada 12 — veículo pessoal ("selecionou → aparece")
+      room.onMessage('pveh_ok', (d: unknown) => { this.holdMoves = false; this.pvehPending = false; this.onPersonal?.(true, d); });
+      room.onMessage('pveh_denied', (d: { reason?: string }) => { this.holdMoves = false; this.pvehPending = false; this.lastDenial = `pveh:${d?.reason}`; this.onPersonal?.(false, d); });
       room.onMessage('board_ok', (d: { id: string; lx: number; lz: number }) => { this.holdMoves = false; this.onBoard?.(true, d); });
       room.onMessage('board_denied', (d: { id: string; reason: string }) => { this.holdMoves = false; this.lastDenial = `board:${d.reason}`; this.onBoard?.(false, d); });
       room.onMessage('unboard_ok', (d: { x: number; z: number }) => { this.holdMoves = false; this.platform = null; this.onUnboard?.(d); });
@@ -417,12 +424,12 @@ export class NetworkClient {
       cb.onRemove('players', (_p: any, id: string) => this.removeRemote(id));
       cb.onAdd('vehicles', (v: any, id: string) => {
         this.vehicleKinds.set(id, v.kind);
-        const emit = () => this.onVehicle?.(id, { x: v.x, y: v.y, z: v.z, heading: v.heading, occupant: v.occupant, kind: v.kind, state: v.state ?? 0, design: v.design ?? 0 });
+        const emit = () => this.onVehicle?.(id, { x: v.x, y: v.y, z: v.z, heading: v.heading, occupant: v.occupant, kind: v.kind, state: v.state ?? 0, design: v.design ?? 0, owner: v.owner ?? '' });
         emit();
         cb.onChange(v, emit);
       });
       // área de interesse: o servidor tira da vista veículos distantes
-      cb.onRemove('vehicles', (_v: any, id: string) => { this.vehicleKinds.delete(id); });
+      cb.onRemove('vehicles', (_v: any, id: string) => { this.vehicleKinds.delete(id); this.onVehicleGone?.(id); });
       // sincronização rápida do relógio
       for (let i = 0; i < 5; i++) setTimeout(() => this.room?.send('ping', Date.now()), 150 * i);
     }
@@ -524,6 +531,13 @@ export class NetworkClient {
   /** entrar/sair levam o seq atual: o servidor descarta movimentos antigos ainda em trânsito */
   requestEnter(id: string) { this.holdMoves = true; this.send('enter', { id, seq: this.seq }); }
   requestExit() { this.holdMoves = true; this.send('exit', { seq: this.seq }); }
+  /** rodada 12 — pede o veículo pessoal (o servidor escolhe o ponto e monta): o seq descarta movimentos a pé antigos */
+  requestPersonal(kind: string) {
+    this.holdMoves = true; this.pvehPending = true;
+    this.send('pveh_req', { kind, seq: this.seq });
+    setTimeout(() => { if (this.pvehPending) { this.pvehPending = false; this.holdMoves = false; } }, 3000); // sem resposta: não trava o movimento
+  }
+  private pvehPending = false;
   /** subir/descer do trio (escada): mesma ideia do entrar/sair — o seq descarta movimentos antigos */
   requestBoard(id: string) { this.holdMoves = true; this.send('board', { id, seq: this.seq }); }
   requestUnboard() { this.holdMoves = true; this.send('unboard', { seq: this.seq }); }
