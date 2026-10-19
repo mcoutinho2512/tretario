@@ -22,6 +22,9 @@
  *                         (~1,1 m), um golpe/esquiva a cada 1,5–4 s (soco 55 %, chute 30 %, esquiva 15 %). Precisa de
  *                         zona com política de confronto: servidor de teste com PV_COMBAT_ZONES=* (ou a área de treino)
  *            --combat-dense  todos os bots em pares de confronto, ritmo de luta (um pedido a cada 0,7–1,4 s) — estresse
+ *            --vehicles=N rodada 10: os N primeiros bots (índice global) nascem ao lado de um veículo livre (carro, moto,
+ *                         bicicleta, patinete, alternados), pedem `enter` ao servidor e dirigem (vai e volta, ~70 % do
+ *                         limite do modo). A lista de veículos vem de uma conexão de reconhecimento (estado sincronizado).
  *
  * Movimento de multidão: caminhada lenta (0,5–1,4 m/s), paradas de 1–6 s, pequenas variações de rumo,
  * e volta para a área da concentração quando sai dela. Ao receber correção do servidor (parede), muda de rumo.
@@ -52,6 +55,9 @@ const GROUPS = !!flag('groups');
 const CHAT_PER_MIN = flagNum('chat', 0);
 const COMBAT_DENSE = !!flag('combat-dense');
 const COMBAT = COMBAT_DENSE ? 1 : flagNum('combat', 0);
+const VEHICLES = flagNum('vehicles', 0);
+const denyReasons: Record<string, number> = {};
+const RIDE_SPEED: Record<string, number> = { car: 5.5, moto: 5.5, bicycle: 4.5, scooter: 3.8 };
 const GROUP_KEYS = ['grupo-13', 'grupo-22', 'neutro'];
 const RANGE = (() => { const f = flag('range'); const v = f?.includes('=') ? f.split('=')[1].split(',').map(Number) : null; return v && v.length === 2 && v.every(Number.isFinite) ? v as [number, number] : null; })();
 const CHAT_LINES = ['bora pro trio', 'que dia bonito', 'alguém perto da Central?', 'chegando na Candelária', 'olha o carro de som', 'boa tarde', 'muita gente hoje', 'onde fica o palco?'];
@@ -93,6 +99,8 @@ interface Bot {
   speed: number; cruise: number; pause: number; home: { x: number; z: number }; r: () => number;
   role: SocialRole; nextAct: number; acts: number; denied: number;
   /** confronto (rodada 9): par, próximo golpe, contagens */
+  /** rodada 10: veículo que este bot dirige */
+  ride?: { id: string; kind: string; ok: boolean; dir: number; leg: number };
   fighter: boolean; partner: Bot | null; nextCbt: number; cbt: { sent: number; act: number; hitOut: number; hitIn: number; dodged: number; blocked: number; denied: Record<string, number> }; nid: number;
 }
 const bots: Bot[] = [];
@@ -114,6 +122,8 @@ async function startBot(i: number) {
   const r = rng(gi * 7919 + 13);
   const client = new Client(ENDPOINT);
   let sp = spawnPoint(gi, r);
+  const veh = gi < VEHICLES ? vehList[gi] : undefined;
+  if (veh) sp = { x: veh.x + Math.cos(veh.h) * 1.2, z: veh.z - Math.sin(veh.h) * 1.2 };
   const prevBot = bots[bots.length - 1];
   if (COMBAT > 0 && prevBot?.fighter && !prevBot.partner && sp) sp = { x: prevBot.home.x + 1.1, z: prevBot.home.z };
   // aparência sorteada como a dos NPCs num ato (peças variantes, ~20 % de camisas de futebol)
@@ -157,6 +167,12 @@ async function startBot(i: number) {
   const cb = Callbacks.get(room as any) as any;
   cb.onAdd('players', (p: any, id: string) => { b.detailed++; if (id === room.sessionId) b.nid = p.nid; });
   cb.onRemove('players', () => { b.detailed--; });
+  if (veh) {
+    b.ride = { id: veh.id, kind: veh.kind, ok: false, dir: 1, leg: 0 };
+    room.onMessage('enter_ok', (m: { id: string; x: number; z: number; heading: number }) => { if (b.ride && m.id === b.ride.id) { b.ride.ok = true; b.x = m.x; b.z = m.z; b.h = m.heading; } });
+    room.onMessage('enter_denied', (d: { reason?: string }) => { if (b.ride) { denyReasons[d?.reason ?? '?'] = (denyReasons[d?.reason ?? '?'] ?? 0) + 1; b.ride = undefined; } });
+    room.send('enter', { id: veh.id, seq: ++b.seq });
+  }
   bots.push(b);
 }
 
@@ -202,9 +218,21 @@ function fightBot(b: Bot, dt: number) {
   b.room.send('move', packMove({ x: b.x, y: 0, z: b.z, heading: b.h, speed: 0, loco: 0, seq: ++b.seq }));
 }
 
+/** dirige: vai e volta no próprio rumo (30–60 m), ~70 % do limite do modo; correção do servidor (parede) inverte */
+function rideBot(b: Bot, dt: number) {
+  const r = b.ride!;
+  const v = RIDE_SPEED[r.kind] ?? 3;
+  b.speed += (v - b.speed) * Math.min(1, dt * 1.5);
+  r.leg += b.speed * dt;
+  if (r.leg > 30 + (b.r() * 30)) { r.leg = 0; b.h += Math.PI; b.speed = 0.5; }
+  b.x += Math.sin(b.h) * b.speed * dt; b.z += Math.cos(b.h) * b.speed * dt;
+  b.room.send('move', packMove({ x: b.x, y: 0, z: b.z, heading: b.h, speed: b.speed, loco: 0, seq: ++b.seq }));
+}
+
 /** um passo de "multidão": anda devagar, para às vezes, varia o rumo, volta para a concentração */
 function stepBot(b: Bot, dt: number) {
   if (b.fighter) { fightBot(b, dt); return; }
+  if (b.ride) { if (b.ride.ok) rideBot(b, dt); return; }
   socialBot(b, dt);
   chatBot(b, dt);
   if (b.pause > 0) { b.pause -= dt; b.speed = Math.max(0, b.speed - dt * 2); }
@@ -218,6 +246,18 @@ function stepBot(b: Bot, dt: number) {
   } else if (Math.hypot(b.x - b.home.x, b.z - b.home.z) > 40) b.h = Math.atan2(b.home.x - b.x, b.home.z - b.z) + (b.r() - 0.5) * 0.8;
   b.x += Math.sin(b.h) * b.speed * dt; b.z += Math.cos(b.h) * b.speed * dt;
   b.room.send('move', packMove({ x: b.x, y: 0, z: b.z, heading: b.h, speed: b.speed, loco: b.speed > 0.05 ? 1 : 0, seq: ++b.seq }));
+}
+
+/** veículos livres (ordem estável entre processos: por id, tipos alternados) — só se algum bot deste processo dirige */
+let vehList: { id: string; kind: string; x: number; z: number; h: number }[] = [];
+if (VEHICLES > OFFSET) {
+  // lista do MUNDO (o estado sincronizado só mostra veículos dentro da AOI de quem conecta); mesmos ids da sala
+  const man = JSON.parse(readFileSync(new URL('../../public/world/manifest.json', import.meta.url), 'utf8')) as { vehicleSpawns?: { id: string; kind: string; x: number; z: number; heading: number }[] };
+  const byKind: Record<string, typeof vehList> = {};
+  for (const v of man.vehicleSpawns ?? []) if (RIDE_SPEED[v.kind]) (byKind[v.kind] ??= []).push({ id: v.id, kind: v.kind, x: v.x, z: v.z, h: v.heading });
+  for (const k of Object.keys(byKind)) byKind[k].sort((a, b) => a.id.localeCompare(b.id));
+  const kinds = Object.keys(RIDE_SPEED).filter((k) => byKind[k]?.length);
+  for (let i = 0; vehList.length < VEHICLES && kinds.some((k) => byKind[k].length); i++) { const k = kinds[i % kinds.length]; const v = byKind[k].shift(); if (v) vehList.push(v); }
 }
 
 const t0 = Date.now();
@@ -255,6 +295,7 @@ const res = {
   totals: { bytesIn: inB, bytesOut: outB, msgsIn: mIn, msgsOut: mOut },
   visiblePlayers: { min: Math.min(...vis), max: Math.max(...vis), avg: avg(visSamples), detailedAvg: avg(detSamples) },
   corrections: bots.reduce((s, b) => s + b.corrections, 0),
+  vehicles: { denied: denyReasons, requested: bots.filter((b) => b.ride).length + bots.filter((b, i) => OFFSET + i < VEHICLES && !b.ride).length, driving: bots.filter((b) => b.ride?.ok).length, kinds: Object.fromEntries(Object.keys(RIDE_SPEED).map((k) => [k, bots.filter((b) => b.ride?.ok && b.ride.kind === k).length])) },
   chat: { perMin: CHAT_PER_MIN, sent: chatSent }, groups: GROUPS,
   combat: (() => {
     const f = bots.filter((b) => b.fighter), sum = (k: 'sent' | 'act' | 'hitOut' | 'hitIn' | 'dodged' | 'blocked') => f.reduce((s, b) => s + b.cbt[k], 0);

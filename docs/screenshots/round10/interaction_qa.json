@@ -1,5 +1,5 @@
 {
- "when": "2026-10-19T01:31:52.619Z",
+ "when": "2026-10-19T01:44:07.865Z",
  "ok": 44,
  "total": 44,
  "results": [
@@ -26,7 +26,7 @@
   {
    "name": "desktop: W acelera o carro e o HUD mostra a velocidade",
    "ok": true,
-   "detail": "CARRO · 9 km/h"
+   "detail": "CARRO · 8 km/h"
   },
   {
    "name": "desktop car: SAIR (botão do HUD) desce pelo servidor",

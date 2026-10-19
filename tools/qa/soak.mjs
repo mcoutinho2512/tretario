@@ -22,6 +22,11 @@
  * `postMB`/`gpuNoPostMB` (alvos do pós-processamento seguem a resolução dinâmica) e o resumo `slopesPerMin`.
  * Medir com build de produção (`npx vite build && npx vite preview`): o HMR do dev recarrega a página.
  *
+ * Rodada 10 (SOAK_R10=1, implica SOAK_R9): troca de torcida (mensagem `sup`), carro/moto/patinete pelo
+ * InteractionSystem (mesmo caminho do clique/E: entrar → dirigir → sair, montagem visual), áudio liberado por um
+ * clique real no início e amostrado (AudioNodes vivos/criados, fontes, laços reais, vozes de multidão); bots com
+ * veículos (10) além dos sociais/confronto.
+ *
  * uso (com o dev server): node tools/qa/soak.mjs [minutos=60] [tag=soak] [bots=60]
  */
 import puppeteer from 'puppeteer-core';
@@ -35,7 +40,8 @@ const BOTS = Number(process.argv[4] ?? 60);
 const BASE = process.env.BASE ?? 'http://localhost:5173';
 const PORT = Number(process.env.PV_SOAK_PORT ?? 2690);
 const SAMPLE_S = Number(process.env.SOAK_SAMPLE_S ?? 120);
-const R9 = process.env.SOAK_R9 === '1';
+const R10 = process.env.SOAK_R10 === '1';
+const R9 = process.env.SOAK_R9 === '1' || R10;
 const chrome = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const w = (ms) => new Promise((r) => setTimeout(r, ms));
 mkdirSync('screenshots/soak', { recursive: true });
@@ -56,7 +62,7 @@ const srv = start('npx', ['tsx', 'src/index.ts'], { PORT: String(PORT), PV_TEST:
 const log = [];
 srv.stdout.on('data', (d) => log.push(d.toString()));
 for (let i = 0; i < 150 && !log.join('').includes('[pv3d-server]'); i++) await w(200);
-if (BOTS > 0) start('npx', ['tsx', 'tools/bots.ts', String(BOTS), String(MIN * 60 + 600), `ws://127.0.0.1:${PORT}`, 'spread', '--social=0.6', ...(R9 ? ['--groups', '--combat=0.08'] : [])]);
+if (BOTS > 0) start('npx', ['tsx', 'tools/bots.ts', String(BOTS), String(MIN * 60 + 600), `ws://127.0.0.1:${PORT}`, 'spread', '--social=0.6', ...(R9 ? ['--groups', '--combat=0.08'] : []), ...(R10 ? ['--vehicles=10'] : [])]);
 await w(4000);
 
 const m = JSON.parse(readFileSync('public/world/manifest.json', 'utf8'));
@@ -83,6 +89,10 @@ page.on('close', () => console.log(`[soak] página FECHADA no passo ${lastStep}`
 b.on('disconnected', () => console.log(`[soak] navegador DESCONECTADO no passo ${lastStep}`));
 await page.goto(`${BASE}/?autostart=1&welcome=0&welcome=0&quality=high&time=12:00&mem=1&mp=ws://127.0.0.1:${PORT}&name=Soak&spawn=${trio.x - 30},${trio.z}`);
 await page.waitForFunction('window.__pvReady === true && window.__pv.mp()?.session', { timeout: 240000 });
+if (R10) { // áudio só nasce de gesto real (autoplay): um clique de mouse na borda da tela
+  await page.mouse.click(8, 360); await w(1500);
+  console.log('[soak] áudio:', JSON.stringify(await page.evaluate(() => window.__pv.audio?.()?.ctxState ?? null).catch(() => null)));
+}
 // rodada 9.1 (SOAK_TRACK=1): pilhas de criação de geometrias/texturas enviadas à GPU (tools/qa/leak_track.mjs)
 if (process.env.SOAK_TRACK === '1') await page.evaluate(installLeakTrack);
 const cdp = await page.createCDPSession();
@@ -122,6 +132,10 @@ const heap = async () => {
     const pm = Object.fromEntries((await cdp.send('Performance.getMetrics')).metrics.map((m) => [m.name, m.value]));
     const x = await page.evaluate(() => ({ hud: (() => { const m = {}; for (const e of document.querySelectorAll('.hud > * > *')) { const k = `${e.parentElement.classList[0] ?? e.parentElement.tagName.toLowerCase()}>${e.classList[0] ?? e.tagName.toLowerCase()}`; m[k] = (m[k] ?? 0) + 1 + e.querySelectorAll('*').length; } return m; })(), dom: (() => { const m = {}; for (const e of document.querySelectorAll('body *')) { const ch = []; for (let n = e; n && n !== document.body; n = n.parentElement) ch.unshift(n); const k = ch.slice(0, 2).map((n) => (n.classList?.[0] ?? n.tagName.toLowerCase())).join('>'); m[k] = (m[k] ?? 0) + 1; } return m; })(), intervals: window.__pvIntervals?.() ?? null, ragdolls: window.__pv.r9b?.().ragdollsLive ?? null, remotes: window.__pv.mp()?.remotes?.length ?? null, items: window.__pv.r9b?.().items?.items?.length ?? null })).catch(() => ({}));
     r9 = { listeners: pm.JSEventListeners, nodes: pm.Nodes, ...x };
+    if (R10) {
+      const a = await page.evaluate(() => { const q = window.__pv.audio?.(); return q ? { audioState: q.ctxState, audioNodesLive: q.counters.nodesLive, audioNodesCreated: q.counters.nodesCreated, audioSourcesLive: q.counters.sourcesLive, audioPeakNodes: q.counters.peakNodes, audioLoopsReal: q.loops.real, audioLoopsLogical: q.loops.logical, audioCrowdVoices: q.crowd.voices } : {}; }).catch(() => ({}));
+      Object.assign(r9, a);
+    }
   }
   return { usedMB: +(u.usedSize / 1048576).toFixed(2), rawMB: +(raw.usedSize / 1048576).toFixed(2), gpuMB: gpu, ...post, gpuNoPostMB: gpu !== null && post.postMB !== undefined ? +(gpu - post.postMB).toFixed(1) : null, ...mt, ...r9, ...srvMem };
 };
@@ -177,6 +191,24 @@ function r9Steps() {
   ];
 }
 
+// rodada 10: torcida, veículos pelo InteractionSystem (entrar/dirigir/sair com montagem), áudio
+function r10Steps() {
+  const ride = (kind) => async () => {
+    const v = await ev((kd) => { const p = window.__pv.metrics().player; return window.__pv.vehicles('all').filter((i) => i.kind === kd && !i.occupant).sort((a, b) => Math.hypot(a.x - p.x, a.z - p.z) - Math.hypot(b.x - p.x, b.z - p.z))[0]; }, kind);
+    if (!v || v.err) return;
+    await ev((x, z, h) => window.__pv.teleport(x + Math.cos(h) * 1.6, z - Math.sin(h) * 1.6, h), v.x, v.z, v.heading); await w(1500);
+    await ev(() => window.__pv.ixUse()); await w(2000); // mesmo caminho do clique/E
+    await ev(() => window.__pv.press('KeyW', 4000)); await w(1000);
+    await ev(() => window.__pv.press('KeyA', 1200)); await w(3500);
+    await ev(() => window.__pv.ixUse()); await w(2000); // sair
+  };
+  let sup = 0;
+  return [
+    async () => { sup = (sup + 1) % 5; await ev((i) => window.__pv.netSend('sup', i), sup); await w(1500); },
+    ride('car'), ride('moto'), ride('scooter'),
+  ];
+}
+
 const steps = [
   // zonas e multidão
   ...zones.map((z) => async () => { const [x, zz, h] = along(z.anchor?.t ?? (z.from + z.to) / 2, 10); await ev((x, z, h) => window.__pv.teleport(x, z, h), x, zz, h); }),
@@ -213,6 +245,7 @@ const steps = [
   // espectador simultâneo (outra página): troca de câmera 1–6
   async () => { if (spec) await spec.evaluate((k) => window.dispatchEvent(new KeyboardEvent('keydown', { code: `Digit${k}`, key: String(k) })), 1 + (k % 6)).catch(() => {}); },
   ...(R9 ? r9Steps() : []),
+  ...(R10 ? r10Steps() : []),
   // longe de tudo (descarrega multidão/LOD) e volta
   async () => { const [x, z, h] = along(0.05, 0); await ev((x, z, h) => window.__pv.teleport(x, z, h), x, z, h); },
 ];

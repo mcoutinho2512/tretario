@@ -13,6 +13,7 @@
  *      (d = denso, s = espalhado, c = rodada 9: ESTRESSE DE CONFRONTO — todos em pares lutando, denso; p.ex. "100c")
  *      BOTS_COMBAT=F: fração de bots em confronto nos cenários d/s (realista). Com confronto, o servidor sobe com
  *      PV_COMBAT_ZONES=* (política COMBAT em todas as zonas) e PV_EVENT=cotidiano (modo interação permitido).
+ *      BOTS_VEHICLES=N (rodada 10): os N primeiros bots entram em veículos livres e dirigem (cenário de veículos).
  *      Mede também a validação de acerto (ms por janela ativa), pedidos/s e o custo do confronto no tick.
  * saída: docs/screenshots/loadtest.json (+ tabela no terminal)
  * Variáveis repassadas ao servidor: PV_AOI, PV_AOI_MAX, PV_CROWD_HZ, etc.
@@ -57,7 +58,7 @@ for (const sc of LIST) {
   const tJoin = Date.now();
   for (let k = 0; k < nProcs; k++) {
     const n = Math.min(BOTS_PER_PROC, sc.n - k * BOTS_PER_PROC);
-    const p = spawn('npx', ['tsx', 'tools/bots.ts', String(n), String(SECS), `ws://127.0.0.1:${PORT}`, sc.dense ? 'dense' : 'spread', `--offset=${k * BOTS_PER_PROC}`, `--total=${sc.n}`, '--wait-go', '--hold', ...(process.env.BOTS_SOCIAL ? [`--social=${process.env.BOTS_SOCIAL}`] : []), ...(process.env.BOTS_GROUPS ? ['--groups'] : []), ...(process.env.BOTS_CHAT ? [`--chat=${process.env.BOTS_CHAT}`] : []), ...(sc.fight ? ['--combat-dense'] : process.env.BOTS_COMBAT ? [`--combat=${process.env.BOTS_COMBAT}`] : [])], { stdio: ['pipe', 'pipe', 'inherit'], detached: true });
+    const p = spawn('npx', ['tsx', 'tools/bots.ts', String(n), String(SECS), `ws://127.0.0.1:${PORT}`, sc.dense ? 'dense' : 'spread', `--offset=${k * BOTS_PER_PROC}`, `--total=${sc.n}`, '--wait-go', '--hold', ...(process.env.BOTS_SOCIAL ? [`--social=${process.env.BOTS_SOCIAL}`] : []), ...(process.env.BOTS_GROUPS ? ['--groups'] : []), ...(process.env.BOTS_CHAT ? [`--chat=${process.env.BOTS_CHAT}`] : []), ...(process.env.BOTS_VEHICLES ? [`--vehicles=${process.env.BOTS_VEHICLES}`] : []), ...(sc.fight ? ['--combat-dense'] : process.env.BOTS_COMBAT ? [`--combat=${process.env.BOTS_COMBAT}`] : [])], { stdio: ['pipe', 'pipe', 'inherit'], detached: true });
     procs.push(p);
     outs.push('');
     const rl = createInterface({ input: p.stdout! });

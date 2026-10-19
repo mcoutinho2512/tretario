@@ -1,4 +1,4 @@
-# Produção BETA (rodada 9.1)
+# Produção BETA (rodada 9.1; rodada 10 no mesmo layout)
 
 Fonte única de portas, rotas, env e layout: [`deploy/CONTRACT.md`](../deploy/CONTRACT.md). Este documento descreve a
 arquitetura e os componentes; o passo a passo está em [DEPLOYMENT.md](DEPLOYMENT.md), a operação diária em
@@ -93,3 +93,16 @@ real da VPS desconhecida (a 500 o servidor envia ~84 Mbit/s). Subir o limite só
 | Indisponibilidade de um deploy (restart → ready) | 0,8–1,5 s (`releases.log`); rollback 1,5 s |
 | Deploy completo (npm ci + verify 619 testes + build) | 111–123 s |
 | Primeira visita: home / espectador no mundo / jogador no mundo | 0,2 s / 3,2 s / 6,9 s (Chrome desktop, rede doméstica) |
+
+## Rodada 10 (19/10/2026)
+
+- Mesmo layout, mesmos serviços e mesmo pipeline. Nenhuma porta, rota ou variável de ambiente nova.
+- **Migration** `20261018220000_round10_supporter_profile`: só `ALTER TABLE "Profile" ADD COLUMN` de três colunas
+  NULLABLE (`supporterGroup`, `supporterPending`, `supporterChangedAt`) — EXPAND puro, instantâneo no PostgreSQL 16
+  (sem reescrita da tabela), compatível com o release anterior (o rollback do app para a 9.1 continua seguro).
+- **Rotas novas** atrás do mesmo `/api/`: `GET/PUT /api/me/supporter`; mensagem de sala `user_report` (denúncia de
+  jogador) e `sup` (torcida de visitante sem conta, só em memória).
+- **Áudio**: 100 % gerado no navegador (Worker + WebAudio); nenhum arquivo de som servido, CSP inalterada.
+- **Capacidade** (mesma máquina de desenvolvimento, 9.1 × 10, `docs/bench/round10_compare_*.json`): servidor igual
+  dentro do ruído (500 bots densos: tick 8,9 → 9,1 ms, CPU 35 → 37 %; 50 veículos ativos: tick 0,87 → 0,84 ms). O
+  limite beta de 250 por sala continua.

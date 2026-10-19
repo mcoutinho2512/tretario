@@ -1,6 +1,65 @@
 # STATUS — Presidente Vargas 3D
 
-_Atualizado em 2026-10-18 (rodada 9.1: produção BETA em https://tretario.com.br e ajustes de jogabilidade pelos testes do dono)._
+_Atualizado em 2026-10-19 (rodada 10: torcidas, clique/toque, avatar nos veículos, áudio espacial, animações de combate)._
+
+## Rodada 10 — torcidas, interação direta, veículos montáveis, áudio e animação
+
+Cinco frentes em paralelo sobre contratos comuns (`src/supporters/types.ts`, `src/interaction/types.ts`,
+`src/vehicles/seats.ts`, `src/audio/bus.ts`), integradas no master. Detalhes: [SUPPORTER_GROUPS.md](SUPPORTER_GROUPS.md),
+[INTERACTION_SYSTEM.md](INTERACTION_SYSTEM.md), [VEHICLE_MOUNTING.md](VEHICLE_MOUNTING.md), [AUDIO_SYSTEM.md](AUDIO_SYSTEM.md),
+[COMBAT.md](COMBAT.md) ("Animação (rodada 10)"); visão de jogo em [GAMEPLAY.md](GAMEPLAY.md).
+
+- **Torcidas**: Flamengo, Vasco, Fluminense, Botafogo e Neutro por dados (`public/gameplay/supporters.json`); camisas
+  212–215 no shader a partir das referências do dono (sem escudo/fabricante/patrocinador), bandeiras/faixas 216–223;
+  4 corpos, todos os LODs e multidão VAT sem draw call/textura extra; torcida no perfil (migration expand-first),
+  troca pendente durante evento competitivo, `NetPlayer.sup`, concentrações e evento "Encontro das torcidas";
+  troca de grupo de evento no meio de confronto agora adiada (placar e fogo amigo consistentes).
+- **Interação**: `InteractionSystem` único (E/T, USAR, barra, clique, toque); alvo contextual por prioridade e
+  distância; painel da pessoa só com dados públicos; denúncia de jogador (`user_report`); HUD de veículo; brechas
+  fechadas em `onEnter` (veículo em RESETTING, eco do payload).
+- **Veículos**: avatar sentado/montado com IK leve (0,05 ms por corpo), entrar/sair visíveis, carro com vidro
+  translúcido e interior, pedalada pela distância, impulso no patinete, câmera por tipo, saída segura no servidor,
+  reconexão sem duplicar.
+- **Áudio**: 47 sons gerados por código (nenhum arquivo externo); orçamento 24 pontuais + 8 laços + 4 multidão + 2
+  ambiente; multidão agregada por célula (500 pessoas → 4 vozes); trio/carro de som espaciais; volumes e mute.
+- **Animação**: golpes nos tempos do `combat.json` (dados de combate intactos), máscara superior andando, cambaleio
+  direcional, levantar de costas/de bruços a partir do ragdoll (juntas com limite — fim das "pernas para o ar").
+
+**QA de integração (master integrado, 2026-10-18)**: `npm run verify` 759/759; `test:db` (PostgreSQL 16 real,
+migrations do zero) 21/21; 13 roteiros multiplayer, **389 verificações, 0 falhas** — walkthrough 36/36, vehicles 24/24,
+vehicle_mount 26/26, interaction 44/44, supporters 10/10, audio 27/27, combat 37/37, action_bar 38/38, social 12/12,
+trio 24/24, reconnect 18/18, items_zones 35/35, events 32/32.
+
+**Desempenho 9.1 × 10** (mesma máquina, mesma ferramenta, `docs/bench/round10_compare_*.json`):
+
+| Servidor | tick médio (ms) | tick máx (ms) | CPU | RSS pico | banda/cliente |
+|---|---|---|---|---|---|
+| 50 densos | 1,10 → 1,15 | 2,8 → 3,5 | 9 → 9 % | 200 → 190 MB | 7,4 → 7,7 KB/s |
+| 250 densos | 4,29 → 4,06 | 8,4 → 9,1 | 24 → 24 % | 197 → 195 MB | 14,3 → 14,4 KB/s |
+| 500 densos | 8,89 → 9,11 | 12,9 → 16,3 | 35 → 37 % | 354 → 340 MB | 22,4 → 22,4 KB/s |
+| 500 espalhados | 4,48 → 4,27 | 12,3 → 8,2 | 32 → 32 % | 309 → 243 MB | 10,4 → 10,2 KB/s |
+| 50 veículos ativos (13 carros, 12 motos, 13 bicicletas, 12 patinetes) | 0,87 → 0,84 | 2,8 → 6,7 | 9 → 10 % | 187 → 188 MB | 3,7 → 3,6 KB/s |
+
+| Cliente (M5 Pro, sem vsync) | FPS | CPU ms | GPU ms | draw calls |
+|---|---|---|---|---|
+| 250 bots LOW / MEDIUM / HIGH | 445→455 / 203→245 / 71→89 | 2,1→2,0 / 5,2→3,9 / 13,5→10,7 | 2,0→2,1 / 3,7→2,7 / 12,7→7,6 | 306→307 / 593→606 / 1511→1539 |
+| 500 bots LOW / MEDIUM / HIGH | 430→439 / 186→238 / 74→85 | 2,1→2,1 / 5,1→4,0 / 12,9→11,5 | 1,8→2,1 / 2,9→2,8 / 6,9→7,7 | 309→312 / 596→607 / 1477→1520 |
+
+Sem regressão: as diferenças estão no ruído da máquina (a 10 não ficou mais rápida de propósito). No banco do
+cliente o áudio fica desligado (sem gesto); o custo do áudio foi medido à parte (≈0,1 ms/quadro com 500 bots).
+
+**Soak de 48 min** (build de produção, 60 bots sociais/confronto + 10 dirigindo, torcida trocando, carro/moto/
+patinete pelo InteractionSystem, áudio ligado, espectador, chat, debate, eventos; `screenshots/soak/round10.json`):
+veredito **estabilizou**. Heap pós-GC 68 → ~100 MB nos primeiros 20 min e plano depois (97–101 MB); GPU sem as
+superfícies de pós-processamento 516 → ~700 MB estável; listeners 208–210; intervals 1–2; ragdolls 0; AudioNodes
+vivos 115–117 do início ao fim (3249 criados e reciclados); FPS 58; servidor RSS 141 → 150 MB. DOM 1276 → 1574:
+histórico do chat (limitado a 200 linhas) e etiquetas de nome de quem está perto — limitado, não é vazamento.
+
+**Limites conhecidos**: sem teste em aparelho físico (iPhone/Safari, Windows, Firefox); sons não avaliados de ouvido;
+porta do carro não abre (o corpo a atravessa na entrada/saída); cabines do trio/carro de som opacas; sem passageiros;
+passo na grama nunca escolhido (o mundo não distingue grama de calçada); siglas das concentrações se sobrepõem no
+minimapa expandido; VPS compartilhada, backup só na própria VPS, sem alerta externo.
+
 
 ## Rodada 9.1 — produção BETA ([PRODUCTION.md](PRODUCTION.md), [DEPLOYMENT.md](DEPLOYMENT.md), [OPERATIONS.md](OPERATIONS.md))
 

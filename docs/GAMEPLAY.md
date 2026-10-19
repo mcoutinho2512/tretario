@@ -64,6 +64,22 @@ volta pelos mesmos campos:
   Itens, Pichar, Confronto, Gestos, Personagem, Mapa — [HUD.md](HUD.md)); o item escolhido pode ser largado (Z/X,
   roda G ou barra). Tabela completa em [COMBAT.md](COMBAT.md#ações-dados).
 
+## Rodada 10 — torcidas, clique/toque, veículos de verdade, som
+
+- **Torcidas** (Flamengo, Vasco, Fluminense, Botafogo, ou nenhuma/neutro): identidade do perfil, escolhida na tela
+  TORCIDA, sem nenhuma vantagem mecânica; camisas e bandeiras por cores/padrões (sem escudo, fabricante ou
+  patrocinador). Concentrações de torcida com NPCs nas cores e o evento **Encontro das torcidas** (sem confronto).
+  Troca de torcida durante evento competitivo fica pendente até o fim. Detalhes: [SUPPORTER_GROUPS.md](SUPPORTER_GROUPS.md).
+- **Clicou/tocou → interagiu**: carro (Entrar), moto/bicicleta (Montar), patinete (Usar), item (Pegar), trio (Subir),
+  pessoa (painel com perfil público, gestos, silenciar, denunciar). O servidor continua decidindo distância,
+  ocupação e estado. [INTERACTION_SYSTEM.md](INTERACTION_SYSTEM.md).
+- **Avatar no veículo**: entra pela porta/perna, fica visível sentado ou montado, mãos no volante/guidão, pedala,
+  rema no patinete, sai em ponto seguro. [VEHICLE_MOUNTING.md](VEHICLE_MOUNTING.md).
+- **Som**: ambiente da avenida, multidão agregada por célula (nunca uma voz por pessoa), trio e carro de som
+  espaciais, motores, passos e golpes arcade — tudo gerado por código. [AUDIO_SYSTEM.md](AUDIO_SYSTEM.md).
+- **Confronto**: golpes e transições refinados (sem mudar dano, alcance, fôlego ou recarga). [COMBAT.md](COMBAT.md).
+- Regra de zonas inalterada (decisão do dono de 2026-10-18: avenida toda em confronto, só a proteção de 5 s).
+
 ## Neutralidade
 
 Grupos políticos, torcidas (nomes fictícios, só cores/padrões, sem escudos) e NEUTRO têm a MESMA mecânica: força,

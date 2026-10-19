@@ -13,12 +13,12 @@
   {
    "name": "car: B vê A MONTADO — pelve no banco, mãos no guidão/volante (IK no remoto)",
    "ok": true,
-   "detail": "{\"handL\":0,\"handR\":0.004,\"footL\":0.017,\"footR\":0.037,\"hip\":0}"
+   "detail": "{\"handL\":0,\"handR\":0.005,\"footL\":0.017,\"footR\":0.037,\"hip\":0}"
   },
   {
    "name": "car: B vê veículo andando com o corpo coerente (pelve presa ao banco em movimento)",
    "ok": true,
-   "detail": "v=2.26 esterço=0.63 incl=0.00 pedivela=0.00 err={\"handL\":0,\"handR\":0.052,\"footL\":0.017,\"footR\":0.037,\"hip\":0}"
+   "detail": "v=2.55 esterço=0.73 incl=0.00 pedivela=0.00 err={\"handL\":0,\"handR\":0.053,\"footL\":0.017,\"footR\":0.037,\"hip\":0}"
   },
   {
    "name": "car: B vê A SAINDO (fase exiting no remoto)",
@@ -43,12 +43,12 @@
   {
    "name": "moto: B vê A MONTADO — pelve no banco, mãos no guidão/volante (IK no remoto)",
    "ok": true,
-   "detail": "{\"handL\":0,\"handR\":0.015,\"footL\":0.021,\"footR\":0,\"hip\":0}"
+   "detail": "{\"handL\":0,\"handR\":0.014,\"footL\":0.014,\"footR\":0,\"hip\":0}"
   },
   {
    "name": "moto: B vê veículo andando com o corpo coerente (pelve presa ao banco em movimento)",
    "ok": true,
-   "detail": "v=2.65 esterço=0.65 incl=0.21 pedivela=0.00 err={\"handL\":0,\"handR\":0.061,\"footL\":0,\"footR\":0,\"hip\":0}"
+   "detail": "v=2.31 esterço=0.54 incl=0.19 pedivela=0.00 err={\"handL\":0,\"handR\":0.054,\"footL\":0,\"footR\":0,\"hip\":0}"
   },
   {
    "name": "moto: B vê A SAINDO (fase exiting no remoto)",
@@ -78,12 +78,12 @@
   {
    "name": "bicycle: B vê veículo andando com o corpo coerente (pelve presa ao banco em movimento)",
    "ok": true,
-   "detail": "v=2.42 esterço=0.45 incl=0.10 pedivela=1.40 err={\"handL\":0,\"handR\":0.045,\"footL\":0,\"footR\":0,\"hip\":0}"
+   "detail": "v=2.45 esterço=0.49 incl=0.14 pedivela=1.52 err={\"handL\":0,\"handR\":0.049,\"footL\":0,\"footR\":0,\"hip\":0}"
   },
   {
    "name": "bicycle: B vê a pedalada (pedivela gira com a velocidade)",
    "ok": true,
-   "detail": "3.41 → 5.40 rad"
+   "detail": "3.54 → 5.46 rad"
   },
   {
    "name": "bicycle: B vê A SAINDO (fase exiting no remoto)",
@@ -108,12 +108,12 @@
   {
    "name": "scooter: B vê A MONTADO — pelve no banco, mãos no guidão/volante (IK no remoto)",
    "ok": true,
-   "detail": "{\"handL\":0,\"handR\":0.083,\"footL\":0,\"footR\":0,\"hip\":0}"
+   "detail": "{\"handL\":0,\"handR\":0.084,\"footL\":0,\"footR\":0,\"hip\":0}"
   },
   {
    "name": "scooter: B vê veículo andando com o corpo coerente (pelve presa ao banco em movimento)",
    "ok": true,
-   "detail": "v=2.65 esterço=0.38 incl=0.10 pedivela=0.00 err={\"handL\":0,\"handR\":0.074,\"footL\":0,\"footR\":0,\"hip\":0}"
+   "detail": "v=2.72 esterço=0.44 incl=0.13 pedivela=0.00 err={\"handL\":0,\"handR\":0.079,\"footL\":0,\"footR\":0,\"hip\":0}"
   },
   {
    "name": "scooter: B vê A SAINDO (fase exiting no remoto)",
@@ -128,7 +128,7 @@
   {
    "name": "custo: 5 montados perto — solver < 1 ms por quadro",
    "ok": true,
-   "detail": "solver 0.152 ms/quadro (0.0503 ms por corpo, IK 726/726) · CPU do quadro a pé 5.987 → montados 6.096 → depois 5.742 ms"
+   "detail": "solver 0.155 ms/quadro (0.0507 ms por corpo, IK 732/732) · CPU do quadro a pé 5.487 → montados 4.857 → depois 4.62 ms"
   }
  ],
  "report": {
@@ -139,7 +139,7 @@
     "remoteMounted": {
      "err": {
       "handL": 0,
-      "handR": 0.004,
+      "handR": 0.005,
       "footL": 0.017,
       "footR": 0.037,
       "hip": 0
@@ -152,23 +152,23 @@
     "driving": {
      "dynB": {
       "lean": 0,
-      "steer": 0.6296938146891315,
+      "steer": 0.7297975756622468,
       "crank": 0,
-      "speed": 2.2593268575613603,
-      "accel": -0.9011401923007201,
-      "x": -669.5654346506493,
-      "z": 343.07608152562256,
-      "heading": 2.5248359848041773,
-      "occupant": "Pd1hFKo4C"
+      "speed": 2.550493633108447,
+      "accel": 0.3607222235524652,
+      "x": -669.5342207874756,
+      "z": 343.0656045706421,
+      "heading": 2.5238332828568657,
+      "occupant": "XbXUwvJcW"
      },
      "err": {
       "handL": 0,
-      "handR": 0.052,
+      "handR": 0.053,
       "footL": 0.017,
       "footR": 0.037,
       "hip": 0
      },
-     "torso": 0.145,
+     "torso": 0.141,
      "kickW": 0
     }
    },
@@ -178,36 +178,36 @@
     "remoteMounted": {
      "err": {
       "handL": 0,
-      "handR": 0.015,
-      "footL": 0.021,
+      "handR": 0.014,
+      "footL": 0.014,
       "footR": 0,
       "hip": 0
      },
      "kickW": 0,
-     "footDownW": 0.941,
-     "torso": 0.535,
+     "footDownW": 0.924,
+     "torso": 0.534,
      "ik": true
     },
     "driving": {
      "dynB": {
-      "lean": 0.21424185118689382,
-      "steer": 0.6499274400935697,
+      "lean": 0.19031392579353332,
+      "steer": 0.5411884955061224,
       "crank": 0,
-      "speed": 2.645186717307137,
-      "accel": 1.5160689795393434,
-      "x": -754.3823823571337,
-      "z": 374.20967809365334,
-      "heading": 2.1900835361316977,
-      "occupant": "Y-NtVDRDs"
+      "speed": 2.3089849639304574,
+      "accel": 0.04528531205659686,
+      "x": -754.37000666743,
+      "z": 374.19789942167415,
+      "heading": 2.1978878574076384,
+      "occupant": "VrjE3Bp6d"
      },
      "err": {
       "handL": 0,
-      "handR": 0.061,
+      "handR": 0.054,
       "footL": 0,
       "footR": 0,
       "hip": 0
      },
-     "torso": 0.503,
+     "torso": 0.512,
      "kickW": 0
     }
    },
@@ -224,29 +224,29 @@
      },
      "kickW": 0,
      "footDownW": 0,
-     "torso": 0.504,
+     "torso": 0.503,
      "ik": true
     },
     "driving": {
      "dynB": {
-      "lean": 0.10366812338059102,
-      "steer": 0.45467869779744635,
-      "crank": 1.4003058102989845,
-      "speed": 2.4247999428055307,
-      "accel": 2.987104841626656,
-      "x": -541.3681650299334,
-      "z": 553.3330546632506,
-      "heading": 0.15040982369187686,
-      "occupant": "31n_T9JJ9"
+      "lean": 0.13930834452838584,
+      "steer": 0.485376235755797,
+      "crank": 1.5205037452586878,
+      "speed": 2.450912766265976,
+      "accel": 2.663385789434877,
+      "x": -541.3629602570546,
+      "z": 553.3968156789992,
+      "heading": 0.17801937406903048,
+      "occupant": "WEpBV9Y4j"
      },
      "err": {
       "handL": 0,
-      "handR": 0.045,
+      "handR": 0.049,
       "footL": 0,
       "footR": 0,
       "hip": 0
      },
-     "torso": 0.468,
+     "torso": 0.461,
      "kickW": 0
     }
    },
@@ -256,7 +256,7 @@
     "remoteMounted": {
      "err": {
       "handL": 0,
-      "handR": 0.083,
+      "handR": 0.084,
       "footL": 0,
       "footR": 0,
       "hip": 0
@@ -268,31 +268,31 @@
     },
     "driving": {
      "dynB": {
-      "lean": 0.09920162524631095,
-      "steer": 0.38276529394388664,
+      "lean": 0.12578596309927906,
+      "steer": 0.4405026142243024,
       "crank": 0,
-      "speed": 2.6504104982018073,
-      "accel": 2.7817495646059207,
-      "x": -539.8691393029982,
-      "z": 553.4663339110621,
-      "heading": 0.17384875815057763,
-      "occupant": "khxYVOmpC"
+      "speed": 2.719610417141999,
+      "accel": 2.7720199509348586,
+      "x": -539.836077508626,
+      "z": 553.5464797138757,
+      "heading": 0.2412885593392894,
+      "occupant": "aHtT8SL0m"
      },
      "err": {
       "handL": 0,
-      "handR": 0.074,
+      "handR": 0.079,
       "footL": 0,
       "footR": 0,
       "hip": 0
      },
-     "torso": 0.35,
+     "torso": 0.336,
      "kickW": 0.997
     }
    }
   },
   "cost": {
    "before": {
-    "cpuMs": 5.987,
+    "cpuMs": 5.487,
     "solveMsPerCall": 0,
     "calls": 0,
     "ikCalls": 0,
@@ -300,22 +300,22 @@
     "frames": 180
    },
    "mounted": {
-    "cpuMs": 6.096,
-    "solveMsPerCall": 0.0503,
-    "calls": 726,
-    "ikCalls": 726,
-    "solveMsTotal": 36.5,
+    "cpuMs": 4.857,
+    "solveMsPerCall": 0.0507,
+    "calls": 732,
+    "ikCalls": 732,
+    "solveMsTotal": 37.1,
     "frames": 240
    },
    "after": {
-    "cpuMs": 5.742,
+    "cpuMs": 4.62,
     "solveMsPerCall": 0,
     "calls": 0,
     "ikCalls": 0,
     "solveMsTotal": 0,
     "frames": 180
    },
-   "solveMsPerFrame": 0.152
+   "solveMsPerFrame": 0.155
   }
  }
 }
