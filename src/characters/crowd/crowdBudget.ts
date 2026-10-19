@@ -12,6 +12,7 @@
  */
 import type { QualityLevel } from '../../core/settings';
 import type { Lod } from '../human/HumanAssets';
+import { animVariant, personSeed } from './animVariety';
 
 export interface CrowdBudget {
   /** personagens com esqueleto próprio (os mais próximos) */
@@ -72,6 +73,15 @@ export interface CrowdAgent {
   dist: number;
   // ---- estado da representação instanciada
   phase: number;
+  /**
+   * rodada 12 — individualidade (src/characters/crowd/animVariety.ts): semente estável (nid da rede / id) e o que sai
+   * dela — passada (cadência), andamento do parado, deslocamento e andamento das ações em laço. Use `setAgentSeed`.
+   */
+  seed: number;
+  stride: number;
+  idleRate: number;
+  actOff: number;
+  actRate: number;
   // ---- vida social (src/social): ação, início (s, relógio local), item e design — usados pelos instanciados
   act: number;
   actAt: number;
@@ -81,14 +91,24 @@ export interface CrowdAgent {
 
 let nextId = 1;
 export function createAgent(init: Partial<CrowdAgent> = {}): CrowdAgent {
-  return {
+  const a: CrowdAgent = {
     id: nextId++, x: 0, y: 0, z: 0, heading: 0, speed: 0, tilt: 0, body: 0, scale: 1,
     skin: 0xc68b62, hair: 0x222222, top: 0x2f6f8f, bottom: 0x2c3a52, look: 0, shirt: 0,
     maxTier: 2, priority: 1, skinReady: false,
-    tier: 1, lod: 3, animEvery: 1, inView: true, dist: 0, phase: Math.random(),
+    tier: 1, lod: 3, animEvery: 1, inView: true, dist: 0, phase: 0,
+    seed: 0, stride: 1, idleRate: 1, actOff: 0, actRate: 1,
     act: 0, actAt: 0, prop: 0, design: 0,
     ...init,
   };
+  setAgentSeed(a, init.seed ?? personSeed(a.id), init.phase === undefined);
+  return a;
+}
+
+/** rodada 12 — semente da individualidade; `resetPhase` também sorteia (deterministicamente) a fase do ciclo */
+export function setAgentSeed(a: CrowdAgent, seed: number, resetPhase = true) {
+  const v = animVariant(seed);
+  a.seed = seed; a.stride = v.stride; a.idleRate = v.idleRate; a.actOff = v.actOffset; a.actRate = v.actRate;
+  if (resetPhase) a.phase = v.phase0;
 }
 
 /** intervalo de atualização da animação do esqueleto pela distância */

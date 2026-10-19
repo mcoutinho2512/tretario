@@ -22,6 +22,8 @@
  *                         (~1,1 m), um golpe/esquiva a cada 1,5–4 s (soco 55 %, chute 30 %, esquiva 15 %). Precisa de
  *                         zona com política de confronto: servidor de teste com PV_COMBAT_ZONES=* (ou a área de treino)
  *            --combat-dense  todos os bots em pares de confronto, ritmo de luta (um pedido a cada 0,7–1,4 s) — estresse
+ *            --sync-clap=S rodada 12: a cada S s todos pedem palmas juntos (mesmo instante, mesma variação)
+ *            --names      rodada 12: apelidos no estilo dos personagens autônomos (QA visual dos nomes)
  *            --vehicles=N rodada 10: os N primeiros bots (índice global) nascem ao lado de um veículo livre (carro, moto,
  *                         bicicleta, patinete, alternados), pedem `enter` ao servidor e dirigem (vai e volta, ~70 % do
  *                         limite do modo). A lista de veículos vem de uma conexão de reconhecimento (estado sincronizado).
@@ -77,6 +79,15 @@ P.send = function (d: any, ...r: any[]) { const s = st(this); s.out += d?.byteLe
 P.emit = function (ev: string, d: any, ...r: any[]) { if (ev === 'message') { const s = st(this); s.in += d?.byteLength ?? d?.length ?? 0; s.mIn++; } return oEmit.call(this, ev, d, ...r); };
 
 const manifest = JSON.parse(readFileSync(new URL('../../public/world/manifest.json', import.meta.url), 'utf8'));
+/** rodada 12 — `--names`: apelidos no estilo dos autônomos (public/gameplay/autonomous.json `names`) para QA visual dos nomes */
+const NAMES = !!flag('names');
+const NAME_DATA = JSON.parse(readFileSync(new URL('../../public/gameplay/autonomous.json', import.meta.url), 'utf8')).names as { words: string[]; suffixWords: string[]; numbers: string[] };
+function cariocaName(i: number): string {
+  const w = NAME_DATA.words[(i * 7) % NAME_DATA.words.length];
+  const tail = i % 3 === 0 ? NAME_DATA.suffixWords[(i * 3) % NAME_DATA.suffixWords.length] : i % 3 === 1 ? NAME_DATA.numbers[(i * 5) % NAME_DATA.numbers.length] : '';
+  const n = `${w}${i % 8 === 0 && tail ? '_' : ''}${tail}`;
+  return (i % 4 === 0 ? n.toLowerCase() : n).slice(0, 18);
+}
 const axis: [number, number][] = manifest.pvAxis;
 
 /** centro da concentração: meio do trecho longo do eixo (pista larga, sem prédios a menos de ~25 m) */
@@ -129,7 +140,7 @@ async function startBot(i: number) {
   // aparência sorteada como a dos NPCs num ato (peças variantes, ~20 % de camisas de futebol)
   const app = randomAppearance(gi * 7919 + 13, (['homem', 'mulher', 'idoso', 'idosa'] as const)[gi % 4], { football: 0.2 });
   const room = await client.joinOrCreate(ROOM_NAME, {
-    ...app, name: `bot${gi}`, accessory: app.accessory ?? 'nenhum',
+    ...app, name: NAMES ? cariocaName(gi) : `bot${gi}`, accessory: app.accessory ?? 'nenhum',
     ...(sp ? { testSpawn: sp } : {}),
     ...(GROUPS ? { testGroup: GROUP_KEYS[gi % GROUP_KEYS.length] } : {}),
     bot: true,
@@ -268,6 +279,10 @@ for (let i = 0; i < N; i++) {
 const joinMs = Date.now() - t0;
 const dt = 1 / NET_TICK_HZ;
 const timer = setInterval(() => { for (const b of bots) stepBot(b, dt); }, dt * 1000);
+// rodada 12 — `--sync-clap=S`: a cada S s TODOS os bots param e pedem palmas no MESMO instante e com a MESMA variação
+// (pior caso do diretor de eventos: "todo mundo bate palma junto") — QA da variedade de fase no cliente
+const SYNC_CLAP = flagNum('sync-clap', 0);
+if (SYNC_CLAP > 0) setInterval(() => { for (const b of bots) { b.pause = Math.min(SYNC_CLAP * 0.6, 8); b.nextAct = SYNC_CLAP; b.room.send('act', { a: A('clap'), v: 0 }); } }, SYNC_CLAP * 1000);
 
 const stdinLines = createInterface({ input: process.stdin });
 const waitLine = (word: string) => new Promise<void>((res) => stdinLines.on('line', (l) => { if (l.trim() === word) res(); }));

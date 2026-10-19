@@ -245,7 +245,7 @@ export class AutonomousSystem implements AutonomousWorldView {
     const now = this.host.now();
     const stay = r.range(prof.stayMin[0], prof.stayMin[1]) * 60_000;
     return {
-      id: `${AUTONOMOUS_ID_PREFIX}${i + 1}`, idx: i, name, nameKey: nicknameKey(name), tag: r.chance(cfg.nametag.share) ? 0 : 1,
+      id: `${AUTONOMOUS_ID_PREFIX}${i + 1}`, idx: i, name, nameKey: nicknameKey(name), tag: r.chance(cfg.nametag.share) ? 1 : 2, // NetPlayer.tag: 1 sempre com nome · 2 nunca (sorteio pela fração dos dados)
       personality, prof, sup: supWire, app, title: hasTitle ? r.pick(titles) : '', lvl, prop, design,
       walk, runV: Math.max(3.2, Math.min(5.4, 4.3 + r.gauss() * 0.35)), turn: r.range(2.4, 3.6), accel: r.range(1.1, 1.8), space: BODY.personalSpace * prof.space * r.range(0.9, 1.15),
       gestureRate: Math.max(0.3, prof.gestures * r.range(0.55, 1.5)), phase: r.range(0, Math.PI * 2), reactMul: r.range(0.7, 1.5), vehicleAffinity,

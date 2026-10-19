@@ -68,7 +68,7 @@ const storeOrNull = () => { try { return services().store; } catch { return null
 import { ACTION_RULES, applyAction, applyProp, cancelsOnMove, onceFinished, validateAction, validateProp, type ActionActor } from '../../src/social/actionRules.ts';
 import { SpectatorSessions, type SpectatorSession } from './spectator/SpectatorSession.ts';
 import { CrowdCellAggregator, environmentCells, type CellPlayer, type CellSet, type EnvModel, type EnvRally } from './spectator/CrowdCellAggregator.ts';
-import { encodeCells } from '../../src/spectator/cellCodec.ts';
+import { encodeCells, cellKey, CELL_INDEX_MAX } from '../../src/spectator/cellCodec.ts';
 import { CROWD_CELL } from '../../src/spectator/tiers.ts';
 import { RALLY_SHAPE } from '../../src/social/rally.ts';
 import { PresenceTracker } from './presence/PresenceTracker.ts';
@@ -824,7 +824,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     const now = Date.now();
     for (const r of this.rt.values()) {
       const p = this.state.players.get(r.actor.id);
-      if (p) this.crowdTable.set(r.slot, { nid: r.nid, x: p.x, y: p.y, z: p.z, heading: p.heading, speed: p.speed, body: BODY_INDEX[p.body] ?? 0, status: p.status, vehicle: !!p.vehicle, social: { act: p.act, ageS: (now - p.actAt) / 1000, prop: p.prop, design: p.design }, app: { skin: p.skin, hair: p.hair, top: p.top, bottom: p.bottom } });
+      if (p) this.crowdTable.set(r.slot, { nid: r.nid, x: p.x, y: p.y, z: p.z, heading: p.heading, speed: p.speed, body: BODY_INDEX[p.body] ?? 0, status: p.status, vehicle: !!p.vehicle, npc: (p.kind ?? 0) !== 0, social: { act: p.act, ageS: (now - p.actAt) / 1000, prop: p.prop, design: p.design }, app: { skin: p.skin, hair: p.hair, top: p.top, bottom: p.bottom } }); // rodada 12: npc = bit 6 (fora da contagem pública no cliente)
     }
     for (const [id, r] of this.rt) {
       if (r.slot % slices !== phase) continue;
@@ -1077,11 +1077,23 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
   private currentCells(now: number): CellSet {
     if (this.cellSet && now - this.cellSet.t < 1000 / CROWD_CELL.hz - 50) return this.cellSet;
     const players: CellPlayer[] = [];
+    // rodada 12 — autônomos entram como AMBIENTE (env), nunca como `players`: o espectador não os conta como jogadores
+    let env: ReadonlyMap<number, number> = this.environment();
+    let envAuto: Map<number, number> | null = null;
     for (const [sid, p] of this.state.players) {
+      if (isAutonomousId(sid)) {
+        const cx = Math.floor(p.x / this.cellAgg.size), cz = Math.floor(p.z / this.cellAgg.size);
+        if (Math.abs(cx) > CELL_INDEX_MAX || Math.abs(cz) > CELL_INDEX_MAX) continue;
+        envAuto ??= new Map(env);
+        const k = cellKey(cx, cz);
+        envAuto.set(k, (envAuto.get(k) ?? 0) + 1);
+        continue;
+      }
       const act = p.vehicle ? 3 : p.act ? 2 : (p.speed > 0.3 || p.loco > 0) ? 1 : 0;
       players.push({ x: p.x, z: p.z, group: this.identities.get(sid)?.groupKey ?? '', activity: act });
     }
-    this.cellSet = this.cellAgg.build(players, this.environment(), now);
+    if (envAuto) env = envAuto;
+    this.cellSet = this.cellAgg.build(players, env, now);
     this.cellStats.sets++;
     this.cellStats.aggMs = +this.cellAgg.stats.ms.toFixed(3);
     return this.cellSet;
@@ -1143,7 +1155,10 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     p.y = 0; p.heading = taken?.heading ?? this.spawn.heading; p.loco = 0; p.vehicle = ''; p.platform = ''; p.interaction = 'pacifico'; p.status = STATUS.OK;
     p.link = LINK_WIRE.CONNECTED;
     p.nid = this.allocNid();
-    p.kind = id.bot ? ENTITY_KIND.LOAD_BOT : ENTITY_KIND.HUMAN; // rodada 12 — tipo de entidade (só HUMANO conta como jogador)
+    // rodada 12 — tipo da entidade: bot de carga = LOAD_BOT. SÓ servidor de teste: PV_QA_BOT_KIND=1 faz os bots se
+    // passarem por AUTÔNOMOS (kind 1) para desenvolver/medir a apresentação no cliente (nomes, painel, olhar)
+    p.kind = ENTITY_KIND.HUMAN; p.tag = 0; // rodada 12 — padrão explícito (o schema não inicia u8 em 0)
+    if (id.bot) p.kind = process.env.PV_TEST === '1' && process.env.PV_QA_BOT_KIND === '1' ? ENTITY_KIND.AUTONOMOUS : ENTITY_KIND.LOAD_BOT;
     this.state.players.set(client.sessionId, p);
     const view = new StateView();
     client.view = view;

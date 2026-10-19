@@ -384,6 +384,46 @@ caso) e multidão de bots: **17/17 sem sobreposição, sem corte e com o centro 
 - Avisos curtos (sem modal) pelo canal de sempre (`flash`): "Você não possui este item.", "<item>: bloqueado — Nível 3",
   "Taco não pode ser usado nesta zona." (zona de paz), "Título: …", "Torcida atualizada.".
 
+## Rodada 12 — nomes da população e minimapa (agente D; docs/AUTONOMOUS_CHARACTERS.md § Cliente)
+
+### Nomes
+
+- **Pool fixo de rótulos** (`src/net/NameTagPool.ts`): 18 nós `.name-label` no total (teto de 14 visíveis + folga),
+  emprestados a quem a decisão escolhe. Antes: um nó por remoto detalhado (até 64). Texto/classe só quando mudam;
+  por quadro só o `transform` dos emprestados e só quando muda de pixel.
+- **Autônomos** (`NetPlayer.kind = 1`): parte SEM nome (`autonomousTagged`: hash do nid × `autonomous.json`
+  `nametag.share` = 0,6; ou `NetPlayer.tag` se o servidor mandar); com nome: completo até 18 m, faixa média até 35 m,
+  nada além.
+- **Densidade**: faixa média (humanos 15–30 m, autônomos 18–35 m) com mais de 8 candidatos → só centro da tela,
+  interagindo ou em foco (PRÓXIMOS; TODOS ignora).
+- **Foco**: pessoa sob o cursor (hover do InteractionSystem) ou aberta no painel → apelido completo, prioridade × 0,1.
+- **Oclusão amostrada**: raio câmera → cabeça contra as paredes **≥ 3 m** do `CollisionWorld` (prédios; gradil e
+  mureta não escondem). `OcclusionCache`: ≤ 8 raios novos por decisão (5 Hz), resultado válido 400 ms, ocluir exige 2
+  bloqueios seguidos (sem piscar na quina), desocluir é imediato. Ocluído não gasta vaga do teto.
+
+Medição (`tools/qa/nametag_bench.mjs`, Chrome + Metal, M-series, preset ALTO com até 64 remotos detalhados — o resto
+vira multidão distante, sem nome; dados completos em docs/bench/round12_nametags.json). "antes" = master df8028f.
+
+| pessoas na área | 50 | 250 | 500 |
+|---|---|---|---|
+| nós `.name-label` antes → depois | 50 → **18** | 64 → **18** | 64 → **18** |
+| rótulos visíveis (autônomos) | 2,6 | 14 | 14 |
+| decisão (5 Hz), ms antes → depois | 0,014 → 0,025 | 0,037 → 0,056 | 0,035 → 0,044 |
+| transform por quadro, ms | 0,010 | 0,034 | 0,028 |
+| raios de oclusão por decisão | ≤ 8 | ≤ 8 | ≤ 8 |
+| update dos remotos (interp. + esqueletos + olhar + rótulos), ms: sem variedade/olhar → com (32 olhando) | 0,34 → 0,42 | 0,79 → 1,12 | 1,05 → 1,05 |
+
+Sintético (`tools/qa/nametag_synth.ts`, só a decisão com 50/250/500 candidatos + oclusão): 0,012 / 0,017 / 0,028 ms.
+CPU do quadro inteiro variou ±3 ms entre execuções (máquina compartilhada) — sem diferença atribuível.
+
+### Minimapa
+
+A população (autônomos inclusive) continua SÓ no calor da densidade (`DensityGrid`, células de 10 m) — nunca um
+ponto por pessoa. Novo: `Minimap.dynamicMarks` — **uma marca agregada por foco** de evento dinâmico
+(`dynamicEventMark`): tamanho pela massa, âmbar (ato/concentração), dourado (festa), vermelho (confusão), anel
+pulsando pela intensidade; rótulo genérico (Concentração, Caminhada, Ato, Torcidas, Agito, Confusão, Corrida, Festa)
+só no mapa expandido. A escalada interna nunca aparece como texto. Alimentado pela mensagem `dyn` do AGENTE E (`EventClient.onDyn`; concentrações agendadas continuam por `evt_pts`).
+
 ## Veículo pessoal no HUD (rodada 12)
 
 Barra (Veículos → Seu veículo), inventário (VEÍCULOS → USAR AGORA) e acesso rápido (`veh:<tipo>` fixado) PEDEM o

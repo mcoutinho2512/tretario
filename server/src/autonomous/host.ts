@@ -18,7 +18,7 @@ export interface Hotspot { id: string; kind: HotspotKind; x: number; z: number; 
 /** aparência/identidade pública do autônomo ao aparecer (a sala valida a aparência pelo validador único) */
 export interface AgentLook {
   name: string; appearance: CharacterAppearance; sup: number; title: string; lvl: number;
-  /** NetPlayer.tag: 0 apelido visível · 1 sem nametag */
+  /** NetPlayer.tag: 0 regra padrão do cliente · 1 sempre mostrar o apelido · 2 nunca mostrar */
   tag: number;
   prop: number; design: number;
 }

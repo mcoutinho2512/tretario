@@ -1,0 +1,52 @@
+{
+  "tag": "antes",
+  "extra": "r12var=0",
+  "seconds": 300,
+  "bots": 120,
+  "samples": 1411,
+  "sampleMs": 200,
+  "serverSameInstant": {
+    "actStartsMax": 48,
+    "actStartsHist": {
+      "0": 1312,
+      "1": 82,
+      "2": 1,
+      "3": 1,
+      "48": 15
+    },
+    "walkStartsMax": 29
+  },
+  "turns": {
+    "maxPerSample": 5,
+    "hist": {
+      "0": 1035,
+      "1": 296,
+      "2": 67,
+      "3": 11,
+      "4": 1,
+      "5": 1
+    }
+  },
+  "visualPhase": {
+    "loopActions": {
+      "groups": 1411,
+      "meanN": 28.5,
+      "meanR": 0.994,
+      "maxR": 1,
+      "meanCluster": 0.976,
+      "maxCluster": 1
+    },
+    "walk": null,
+    "idle": null,
+    "instancedWalk": {
+      "groups": 853,
+      "meanN": 14.5,
+      "meanR": 0.23,
+      "maxR": 0.767,
+      "meanCluster": 0.198,
+      "maxCluster": 0.444
+    }
+  },
+  "note": "R: 0 = fases espalhadas, 1 = uníssono; cluster = maior fração das pessoas dentro de 1/30 do ciclo (\"no mesmo quadro\")",
+  "when": "2026-10-19T22:52:07.191Z"
+}

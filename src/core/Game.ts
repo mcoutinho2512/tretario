@@ -110,6 +110,8 @@ import { noticeForJoinError } from '../ui/netNotice'; // rodada 9.1 — versão 
 import { ProgressionUI } from '../ui/progress/ProgressionUI'; // rodada 9 — progressão
 import { InventoryController } from '../inventory/InventoryController'; // rodada 11 — inventário
 import { AudioWorld } from '../audio/AudioWorld'; // rodada 10 — áudio
+import { autonomousTagged, npcRanges } from '../net/nameLod'; // rodada 12 — nomes dos autônomos
+import { dynamicEventMark, normalizeDynamicEvents } from '../events/dynamicPresentation'; // rodada 12 — eventos dinâmicos
 import { mountAgendaDebate, type AgendaDebate } from '../ui/agendaDebateMount'; // rodada 9 — agenda/debate/telões
 // rodada 9 — confronto (src/combat; carregado com o multiplayer)
 import type { CombatClient } from '../combat/CombatClient';
@@ -379,7 +381,7 @@ export class Game {
     this.scenery.applyEvent(this.events.current);
     for (const it of this.rideables.eventItems()) this.scenery.addScreens(it.model, it.state.id);
     this.scene.add(this.scenery.group);
-    screenFeed().info = () => ({ time: this.simTime.toTimeString().slice(0, 5), players: (this.spectator ? 0 : 1) + (this.net?.remoteCount ?? 0) + (this.net?.farCount ?? 0) });
+    screenFeed().info = () => ({ time: this.simTime.toTimeString().slice(0, 5), players: this.net ? this.net.humanCount(!this.spectator) : this.spectator ? 0 : 1 }); // rodada 12 — só HUMANOS (autônomos/bots nunca somam)
     this.cam = new ThirdPersonCamera(this.camera, this.collision);
     // intro: começa olhando a Central, depois gira para a avenida (direção da Candelária)
     const central = this.manifest.landmarks.find((l) => l.key === 'LANDMARK_CENTRAL')!;
@@ -868,6 +870,7 @@ export class Game {
     this.r9?.attach(this.net); // rodada 9 — agenda/debate/telões
     // quem fala ganha prioridade de nome acima da cabeça por alguns segundos (LOD de nomes)
     this.net.on('chat', (m: { nid: number }) => { const id = this.net?.idByNid(m.nid); if (id) this.net!.markSpeaking(id); });
+    this.r12Net(this.net); // rodada 12 — apresentação da população (nomes, olhar, eventos dinâmicos)
     this.scene.add(this.net.group);
     (window as any).__pvRemotes = () => this.net?.remotesInfo();
     // rodada 9 — eventos: agenda, concentrações (NPCs simulados), corrida/caminhada/confronto (src/events/EventClient.ts)
@@ -875,6 +878,9 @@ export class Game {
       const { EventClient } = await import('../events/EventClient');
       const evc = new EventClient(this.net, this.scene, this.hud, (m) => this.flash(m), this.hudShell.minimap);
       (window as any).__pvEvents = evc;
+      // rodada 12 — sinais do mundo dinâmico (`dyn`): focos agregados no minimapa + intensidades no áudio
+      evc.onDyn = (l) => { this.r12Dyn?.(l); };
+      if (evc.dyn.length) this.r12Dyn?.(evc.dyn);
       evc.groupName = (k) => this.events.current?.groups?.find((g) => g.id === k)?.name ?? k;
       // QA (tools/qa/events_mp.mjs): aponta o veículo em uso para (x,z); o roteiro dirige com W (o servidor valida o resto)
       (evc as unknown as { qaAim: (x: number, z: number) => boolean }).qaAim = (x, z) => { const v = this.riding; if (!v) return false; v.state.heading = Math.atan2(x - v.state.x, z - v.state.z); return true; };
@@ -1124,6 +1130,62 @@ export class Game {
     void fetch(`${import.meta.env.BASE_URL}gameplay/supporters.json`).then((r) => (r.ok ? r.json() : null)).then((d: { groups?: { displayName?: string }[] } | null) => {
       this.supporterNames = (d?.groups ?? []).map((g) => String(g.displayName ?? ''));
     }).catch(() => { /* sem dados: o painel mostra "sem torcida" */ });
+  }
+
+  // ------------------------------------------------------------------ rodada 12 — apresentação da população (agente D)
+  /**
+   * nomes: foco (hover do cursor / pessoa no painel), oclusão pelo mundo de colisão, regras dos autônomos
+   * (public/gameplay/autonomous.json `nametag`); eventos dinâmicos (`dyn` → EventClient.onDyn) → minimapa agregado e áudio.
+   */
+  private r12Dyn: ((m: unknown) => number) | null = null;
+  private r12Net(net: NetworkClient) {
+    net.nameFocus = () => {
+      const h = this.ix?.hover;
+      return { hover: h && h.key.startsWith('person:') ? h.key.slice(7) : null, selected: this.personPanel?.selectedId ?? null };
+    };
+    net.occluder = (ax, ay, az, bx, by, bz) => this.collision.raycast(ax, ay, az, bx, by, bz, 3); // só prédio (≥ 3 m) esconde nome
+    void fetch(`${import.meta.env.BASE_URL}gameplay/autonomous.json`).then((r) => (r.ok ? r.json() : null)).then((j: { nametag?: { share?: number; nearM?: number; midM?: number } } | null) => {
+      const t = j?.nametag;
+      if (!t) return;
+      const share = Number(t.share), near = Number(t.nearM), mid = Number(t.midM);
+      net.npcNames = {
+        share: Number.isFinite(share) ? Math.max(0, Math.min(1, share)) : net.npcNames.share,
+        ranges: npcRanges(Number.isFinite(near) && near > 0 ? near : undefined, Number.isFinite(mid) && mid > 0 ? mid : undefined),
+      };
+    }).catch(() => { /* sem dados: padrão do código */ });
+    const applyDyn = (m: unknown) => {
+      const list = normalizeDynamicEvents(m);
+      this.hudShell.minimap.dynamicMarks = list.map(dynamicEventMark);
+      this.audioWorld.setDynamicEvents(list);
+      return list.length;
+    };
+    this.r12Dyn = applyDyn; // ligado ao `EventClient.onDyn` (mensagem `dyn` do AGENTE E) quando ele existe
+    // QA: injeta focos dinâmicos sem servidor (minimapa + áudio) e força o olhar dos remotos
+    (window as any).__pvR12 = {
+      dyn: applyDyn,
+      look: (fn: ((nid: number) => number) | null) => { net.qaLook = fn; },
+      lookAtMe: (on = true) => { net.qaLook = on ? () => net.selfNid : null; },
+      labels: () => ({ ...net.labelStats, inUse: net.tags.inUse, pool: net.tags.nodes, domNodes: document.querySelectorAll('.name-label').length, shownNames: [...document.querySelectorAll('.name-label')].filter((e) => !(e as HTMLElement).hidden).map((e) => (e as HTMLElement).textContent) }),
+      lookStats: () => ({ ...net.lookStats }),
+      netMs: () => +net.updateMs.toFixed(3),
+      sample: () => net.humanizationSample(),
+      labelDebug: () => net.labelDebug(),
+      /** QA (capturas C_com_e_sem_nomes): pessoas à vista em px, tipo, se tem nome pela regra e se o rótulo aparece */
+      people: () => {
+        const out: { name: string; kind: number; tagged: boolean; shown: boolean; px: number; py: number; d: number }[] = [];
+        const shown = new Set([...document.querySelectorAll('.name-label')].filter((e) => !(e as HTMLElement).hidden).map((e) => (e as HTMLElement).textContent ?? ''));
+        const v = new THREE.Vector3(), w = this.canvas.clientWidth, h = this.canvas.clientHeight;
+        net.forEachPerson((id, nid, name, x, y, z) => {
+          v.set(x, y + 1.0, z).project(this.camera);
+          if (v.z >= 1 || Math.abs(v.x) > 1 || Math.abs(v.y) > 1) return;
+          const kind = net.kindOf(id);
+          const tagged = kind !== 1 || autonomousTagged(nid, net.npcNames.share);
+          out.push({ name, kind, tagged, shown: [...shown].some((t) => t === name || name.startsWith(t.replace('…', ''))), px: Math.round(((v.x + 1) / 2) * w), py: Math.round(((1 - v.y) / 2) * h), d: +Math.hypot(x - this.camera.position.x, z - this.camera.position.z).toFixed(1) });
+        });
+        return out;
+      },
+      humans: () => net.humanCount(!this.spectator),
+    };
   }
 
   private r10Net(net: NetworkClient) {
