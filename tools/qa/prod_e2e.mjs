@@ -5,6 +5,9 @@
  *   node tools/qa/prod_e2e.mjs <https://dominio> register <email> <apelido>      → conta PENDENTE (beta)
  *   node tools/qa/prod_e2e.mjs <https://dominio> play     <email>               → entra no mundo, anda, ganha XP
  *   node tools/qa/prod_e2e.mjs <https://dominio> progress <email>               → login e confere o progresso salvo
+ *   node tools/qa/prod_e2e.mjs <https://dominio> r10      <email>               → rodada 10: torcida (API + rede),
+ *        áudio liberado por clique real, anda até o veículo livre mais perto, entra pelo InteractionSystem (caminho
+ *        do clique/E), dirige, sai; logout/login e a torcida continua salva
  *
  * Senha da conta de QA: variável PV_QA_PASSWORD (nunca no repositório). Perfil do navegador por e-mail em
  * screenshots/prod_e2e/<email>/ (cookie de sessão entre as fases). Saída: N/N e JSON com tempos/medidas.
@@ -68,6 +71,46 @@ try {
     check('conta fica PENDENTE (beta) — sem código mostrado', r.status === 201 && !JSON.stringify(r.body).match(/\b\d{6}\b|code|codigo/i), '');
     const t = await api('/api/session/ticket', 'POST', {});
     check('sem aprovação: não recebe ticket de jogador', t.status !== 200 || !t.body?.ticket, `status ${t.status} ${t.body?.error ?? ''}`);
+  } else if (PHASE === 'r10') {
+    await p.goto(`${BASE}/?welcome=0`, { waitUntil: 'domcontentloaded' });
+    let me = await api('/api/me');
+    if (me.status !== 200 || !me.body?.user) { const l = await api('/api/auth/login', 'POST', { email: EMAIL, password: PASS }); check('login', l.status === 200, `status ${l.status}`); }
+    const data = await p.evaluate(async () => (await fetch('/gameplay/supporters.json')).json());
+    const pick = data.groups[1 % data.groups.length];
+    const put = await api('/api/me/supporter', 'PUT', { group: pick.id });
+    check('torcida escolhida pela API', put.status === 200 && (put.body?.current ?? put.body?.supporter?.current ?? put.body?.group) !== undefined, `${put.status} ${JSON.stringify(put.body).slice(0, 120)}`);
+    await p.waitForFunction('typeof window.__pvLaunch === "function"', { timeout: 60000 });
+    await w(3000);
+    await p.evaluate(() => window.__pvLaunch({ role: 'player' }));
+    await p.waitForFunction('window.__pvReady === true && window.__pv?.mp()?.session', { timeout: 180000 });
+    await w(3000);
+    const supIdx = await p.evaluate(() => { const n = window.__pvEvents?.net; const st = n?.room?.state?.players?.get?.(n.sessionId); return st ? Number(st.sup) : null; }); // estado sincronizado (o que os outros leem)
+    check('torcida chega pela rede (NetPlayer.sup)', supIdx === data.groups.indexOf(pick) + 1, `sup=${supIdx} esperado ${data.groups.indexOf(pick) + 1}`);
+    await p.mouse.click(8, 360); await w(2000);
+    const au = await p.evaluate(() => { const q = window.__pv.audio?.(); return q ? { st: q.ctxState, nodes: q.counters.nodesLive, crowd: q.crowd.voices } : null; });
+    check('áudio liberado por gesto e tocando', au?.st === 'running', JSON.stringify(au));
+    const v = await p.evaluate(() => { const pl = window.__pv.metrics().player; return window.__pv.vehicles('all').filter((i) => ['bicycle', 'scooter', 'moto', 'car'].includes(i.kind) && !i.occupant && i.state === 0).map((i) => ({ ...i, d: Math.hypot(i.x - pl.x, i.z - pl.z) })).sort((a, b) => a.d - b.d)[0]; });
+    out.vehicle = v;
+    if (v) {
+      await p.evaluate((x, z) => window.__pv.walkTo(x, z, true), v.x, v.z);
+      let d = 99; for (let i = 0; i < 60 && d > 1.8; i++) { await w(1000); d = await p.evaluate((x, z) => { const pl = window.__pv.metrics().player; return Math.hypot(pl.x - x, pl.z - z); }, v.x, v.z); }
+      await p.evaluate(() => window.__pv.stopWalk()); await w(800);
+      const tgt = await p.evaluate(() => window.__pv.ix?.());
+      await p.evaluate(() => window.__pv.ixUse()); await w(2500);
+      const inV = await p.evaluate(() => window.__pv.mp()?.self?.vehicle ?? '');
+      check(`entra no veículo (${v.kind}) pelo InteractionSystem`, inV === v.id, `alvo ${JSON.stringify(tgt)?.slice(0, 100)} · veículo ${inV} · andou até ${d.toFixed(1)} m`);
+      await p.evaluate(() => window.__pv.press('KeyW', 3000)); await w(3500);
+      const mi = await p.evaluate(() => window.__pv.mount?.()?.local ?? null);
+      check('avatar montado (fase de montagem)', !!mi && mi.phase !== 'none', JSON.stringify(mi)?.slice(0, 120));
+      await shot('R10_veiculo');
+      await p.evaluate(() => window.__pv.ixUse()); await w(2500);
+      check('sai do veículo', (await p.evaluate(() => window.__pv.mp()?.self?.vehicle ?? '')) === '');
+    } else check('veículo livre por perto', false);
+    check('nenhuma violação de CSP / erro de página', csp.length === 0 && errors.length === 0, [...csp, ...errors].slice(0, 2).join(' | '));
+    const lo = await api('/api/auth/logout', 'POST', {});
+    const l2 = await api('/api/auth/login', 'POST', { email: EMAIL, password: PASS });
+    const g2 = await api('/api/me/supporter');
+    check('logout/login: torcida continua salva', lo.status < 300 && l2.status === 200 && JSON.stringify(g2.body).includes(pick.id), JSON.stringify(g2.body).slice(0, 120));
   } else if (PHASE === 'play' || PHASE === 'progress') {
     await p.goto(`${BASE}/?welcome=0`, { waitUntil: 'domcontentloaded' });
     let me = await api('/api/me');

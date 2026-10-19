@@ -55,6 +55,14 @@ superfícies de pós-processamento 516 → ~700 MB estável; listeners 208–210
 vivos 115–117 do início ao fim (3249 criados e reciclados); FPS 58; servidor RSS 141 → 150 MB. DOM 1276 → 1574:
 histórico do chat (limitado a 200 linhas) e etiquetas de nome de quem está perto — limitado, não é vazamento.
 
+**Produção (2026-10-19 03:18 UTC)**: commit `7bb36962ceca` em https://tretario.com.br pelo pipeline oficial —
+verificação na VPS 759/759, backup pré-deploy `tretario-20261019T031801-7bb36962ceca.dump` (sha256 ok), guarda de
+migration "sem comandos destrutivos", migration `20261018220000_round10_supporter_profile` aplicada, 137 s de deploy,
+**1,5 s fora do ar**, health pronto, smoke do pipeline ok; release anterior (9f15cd7) guardado para rollback. Smoke
+pela internet (`tools/qa/prod_e2e.mjs`): visitante 6/6, cadastro beta 3/3 (conta de QA nova aprovada), jogador +
+XP + logout/login 5/5, **fase r10 8/8** (torcida pela API e na rede, áudio tocando, patinete pelo InteractionSystem,
+avatar montado, saída, torcida salva após logout/login).
+
 **Limites conhecidos**: sem teste em aparelho físico (iPhone/Safari, Windows, Firefox); sons não avaliados de ouvido;
 porta do carro não abre (o corpo a atravessa na entrada/saída); cabines do trio/carro de som opacas; sem passageiros;
 passo na grama nunca escolhido (o mundo não distingue grama de calçada); siglas das concentrações se sobrepõem no
