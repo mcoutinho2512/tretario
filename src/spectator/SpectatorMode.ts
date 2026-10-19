@@ -16,20 +16,13 @@ export class SpectatorMode {
   readonly badge = new SpectatorBadge();
   /** texto de estado ("MODO ESPECTADOR · câmera") para o HUD geral (HudShell.setMode), quando não se usa o selo próprio */
   onLabel: ((text: string) => void) | null = null;
-  private drag: { x: number; y: number; id: number } | null = null;
 
   private constructor(readonly cam: SpectatorCamera, canvas: HTMLCanvasElement, private input: InputManager) {
     this.switcher.onSelect = (m) => this.select(m);
     this.switcher.setActive(cam.mode);
-    // arrastar com o mouse gira a câmera (sem precisar travar o ponteiro); no toque, o TouchControls já faz isso
-    canvas.addEventListener('pointerdown', (e) => { if (e.pointerType === 'mouse' && !input.pointerLocked) this.drag = { x: e.clientX, y: e.clientY, id: e.pointerId }; });
-    window.addEventListener('pointermove', (e) => {
-      const d = this.drag;
-      if (!d || e.pointerId !== d.id || input.pointerLocked) return;
-      input.addLook(e.clientX - d.x, e.clientY - d.y);
-      d.x = e.clientX; d.y = e.clientY;
-    });
-    window.addEventListener('pointerup', () => { this.drag = null; });
+    // arrastar com o mouse gira a câmera: rodada 11 — o InputManager faz isso para todos (botão direito, ou esquerdo
+    // passando do limiar de clique; src/input/mouseGesture.ts); no toque, o TouchControls
+    void canvas;
   }
 
   /** monta o modo: âncoras das zonas (public/world/zones.json) e dos marcos/palco do manifesto */

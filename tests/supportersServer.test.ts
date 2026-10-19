@@ -14,9 +14,10 @@ import { join as pjoin } from 'node:path';
 import { Client, type Room } from '@colyseus/sdk';
 import { pointOnAxis } from '../src/world/zones';
 import type { AgendaEntry } from '../src/events/schedule';
+import { freePortBlock } from './fixtures/freePort';
 
 const skip = process.env.PV_SKIP_NET_TESTS === '1';
-const PORT = 26100 + (process.pid % 400) * 2;
+const PORT = await freePortBlock(2);
 const w = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const APP = { body: 'homem', skin: 1, hair: 1, top: 1, bottom: 1, shoes: 1 };
 const SUP = JSON.parse(readFileSync('public/gameplay/supporters.json', 'utf8')) as { neutralId: string; groups: { id: string }[] };

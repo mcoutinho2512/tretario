@@ -15,9 +15,10 @@ import { Client, type Room } from '@colyseus/sdk';
 import { packMove } from '../src/net/rules';
 import { pointOnAxis, type ZoneDefinition } from '../src/world/zones';
 import type { ProgressionMessage, ProgressionNotice } from '../src/progression/types';
+import { freePortBlock } from './fixtures/freePort';
 
 const skip = process.env.PV_SKIP_NET_TESTS === '1';
-const PORT = 29100 + (process.pid % 400) * 2;
+const PORT = await freePortBlock(2);
 const w = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const APP = { body: 'homem', skin: 1, hair: 1, top: 1, bottom: 1, shoes: 1 };
 const QUIET = ['crowd', 'gf', 'gf_del', 'gf_res', 'pong', 'resume', 'denied', 'chat_hello', 'chat', 'chat_mutes', 'spawn'];

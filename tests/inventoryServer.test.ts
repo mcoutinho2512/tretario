@@ -14,10 +14,11 @@ import { Client, type Room } from '@colyseus/sdk';
 import { packMove } from '../src/net/rules';
 import { pointOnAxis, type ZoneDefinition } from '../src/world/zones';
 import { DESIGN_BY_KEY } from '../src/social/designs';
+import { freePortBlock } from './fixtures/freePort';
 import type { ProgressionMessage } from '../src/progression/types';
 
 const skip = process.env.PV_SKIP_NET_TESTS === '1';
-const PORT = 27100 + (process.pid % 400) * 2;
+let PORT = 0; // bloco livre de verdade (tests/fixtures/freePort.ts)
 const w = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const APP = { body: 'homem', skin: 1, hair: 1, top: 1, bottom: 1, shoes: 1 };
 const manifest = JSON.parse(readFileSync('public/world/manifest.json', 'utf8')) as { pvAxis: [number, number][] };
@@ -71,6 +72,7 @@ const serverRoom = () => [...rooms][0] as { items: { free: boolean } };
 
 describe.skipIf(skip)('inventário — sala real e clientes forjados', () => {
   beforeAll(async () => {
+    PORT = await freePortBlock(2);
     Object.assign(process.env, { PV_TEST: '1', PV_STORE: 'memory', PV_GRAFFITI_STORE: 'memory' });
     const { MemoryDataStore } = await import('../server/src/data/memory');
     const { TicketService } = await import('../server/src/identity/tickets');

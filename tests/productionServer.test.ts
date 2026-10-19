@@ -16,8 +16,9 @@ import { createServer, request, type Server } from 'node:http';
 import { connect } from 'node:net';
 import { Client, type Room } from '@colyseus/sdk';
 import { JOIN_ERROR, PROTOCOL_VERSION } from '../src/net/protocol';
+import { freePortBlock } from './fixtures/freePort';
 
-const PORT = 28300 + (process.pid % 300) * 4;
+const PORT = await freePortBlock(4);
 const PROXY = PORT + 2;
 const API = `http://127.0.0.1:${PORT + 1}`;
 const EP = `ws://127.0.0.1:${PROXY}/game`;

@@ -22,7 +22,7 @@ import { loadSupporterData } from '../supporters/data';
 import { setLocalSupporter } from '../supporters/session';
 import type { SupporterData } from '../supporters/types';
 import { accountApi, errorText } from '../identity/client';
-import { pushEsc } from '../ui/escStack';
+import { EscSlot } from '../ui/escStack';
 import { buildInventory, type InventoryContext, type InventoryEntry } from './catalog';
 import { planEquip, planUnequip, type EquipPlan } from './equipRules';
 import { isActive, loadQuickbar, pinQuick, saveQuickbar } from './quickbar';
@@ -70,7 +70,7 @@ export class InventoryController {
   private acc = 0;
   private sup: SupporterData | null = null;
   private preview: InventoryPreview | null = null;
-  private releaseEsc: (() => void) | null = null;
+  private esc = new EscSlot('inventory', 100, () => this.close());
   private titleWait: ((m: { ok: boolean; title?: string | null; reason?: string }) => void) | null = null;
   private supWait: ((m: { ok: boolean; r?: string; retryInS?: number; deferred?: boolean }) => void) | null = null;
   /** QA */
@@ -106,7 +106,7 @@ export class InventoryController {
     this.refresh(true);
     this.panel.show();
     this.panel.update(this.items, this.layout, true);
-    this.releaseEsc = pushEsc({ id: 'inventory', priority: 100, close: () => this.close() });
+    this.esc.set(true); // pilha única do Esc (prioridade de painel)
     this.h.onModal(true);
     this.h.setMoveBlocked(true);
     this.syncPreview();
@@ -117,7 +117,7 @@ export class InventoryController {
     if (!this.open) return;
     this.stats.closes++;
     this.panel.hide();
-    this.releaseEsc?.(); this.releaseEsc = null;
+    this.esc.set(false);
     this.preview?.dispose(); this.preview = null; // um renderer só, e só com o painel aberto
     this.h.setMoveBlocked(false);
     this.h.onModal(false);

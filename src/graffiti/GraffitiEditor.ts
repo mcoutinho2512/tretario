@@ -2,6 +2,7 @@
  * Modo de desenho (DOM): traço livre, paleta, espessuras, símbolos e texto curto. Funciona com mouse e toque
  * (pointer events), fecha com Esc ou ✕. O desenho é LOCAL até "PICHAR": só então vira um gf_new (vetor compacto).
  */
+import { EscSlot } from '../ui/escStack'; // rodada 11 — entrada
 import './graffiti.css';
 import { CANVAS_H, CANVAS_W, PALETTE, SYMBOLS, encodeGraffiti, simplifyStroke, type GraffitiItem } from './codec';
 import { drawGraffiti, drawItem } from './raster';
@@ -37,6 +38,7 @@ export class GraffitiEditor {
   private size = 1;
   private busy = false;
   isOpen = false;
+  private esc = new EscSlot('pichar', 200, () => this.close());
   onSubmit: ((r: EditorResult) => void) | null = null;
   onClose: (() => void) | null = null;
 
@@ -108,13 +110,14 @@ export class GraffitiEditor {
     this.title.textContent = title;
     this.setStatus('Desenhe com o dedo ou o mouse. Nada é enviado até você tocar em PICHAR.');
     this.el.classList.add('open');
-    if (document.pointerLockElement) document.exitPointerLock();
+    this.esc.set(true); // rodada 11 — entrada (Esc pela pilha única; sem pointer lock)
     this.refresh();
   }
 
   close() {
     if (!this.isOpen) return;
     this.isOpen = false;
+    this.esc.set(false);
     this.el.classList.remove('open');
     this.textIn.blur();
     this.onClose?.();
@@ -128,8 +131,7 @@ export class GraffitiEditor {
   get draft(): readonly GraffitiItem[] { return this.items; }
 
   private onKey = (e: KeyboardEvent) => {
-    if (!this.isOpen) return;
-    if (e.key === 'Escape') { e.preventDefault(); this.close(); }
+    if (!this.isOpen || e.key === 'Escape') return; // Esc: pilha única
     e.stopPropagation();
   };
 

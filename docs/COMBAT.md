@@ -138,9 +138,10 @@ clipes `jump_start`/`jump_land` da biblioteca nas transições (HumanAnimator); 
 
 ## Cliente
 
-- **Entrada** (desktop; não colide com WASD/Shift/Espaço/E/K/F/G/M/H/P/F1/F3/Enter/Tab/1–4): **clique esquerdo** (com
-  o mouse capturado — o 1º clique só captura) ou **R** = soco (ou golpe do item na mão); **clique direito** ou **Q** =
-  chute; **C** = esquiva (na direção do movimento; parado: para trás); **F** continua empurrão. Ajuda: F1.
+- **Entrada** (desktop; não colide com WASD/Shift/Espaço/E/K/F/G/M/H/P/I/1–5/F1/F3/Enter/Tab): **R** = soco (ou golpe
+  do item na mão); **Q** = chute; **C** = esquiva (na direção do movimento; parado: para trás); **F** continua
+  empurrão. **Rodada 11** (docs/DESKTOP_CONTROLS.md): o cursor fica sempre visível — **clique esquerdo NUNCA é soco**
+  (é seleção/interação) e o **botão direito é a câmera** (não chuta mais). Teclas remapeáveis na tela de controles (F1).
 - **Buffer** de 180 ms: o golpe apertado durante a recuperação sai quando ela termina (previsão local da tabela).
 - **Previsão**: só a animação (e o deslocamento da esquiva), com contexto de confronto (com `combatConsent: "none"`,
   sempre); na regra antiga, em zona de paz nada é previsto e o servidor responde `zona_paz`. O resultado SEMPRE vem do servidor: `cbt_hit` (cambaleio + empurrão no

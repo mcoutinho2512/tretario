@@ -27,6 +27,10 @@ import { HudPrefsStore } from './hudPrefs';
 import { AutoHide, RateGate, TextSlot, setClass } from './throttle';
 import type { ZoneCombatPolicy } from '../../combat/policy';
 import type { ActionBar } from './ActionBar';
+import { ControlsScreen } from './ControlsScreen'; // rodada 11 — entrada
+import { GameMenu, type SettingsTab } from './GameMenu'; // rodada 11 — entrada
+import { EscSlot, installEscKey, setEscMenu } from '../escStack'; // rodada 11 — entrada
+import './desktop.css';
 
 /** rodada 9 — rótulo discreto da política de confronto da zona (aviso de zona e legenda do minimapa) */
 export const POLICY_LABEL: Record<ZoneCombatPolicy, string> = { PEACE: 'Zona de paz', CONTESTED: 'Disputa', COMBAT: 'Zona de confronto' };
@@ -64,8 +68,14 @@ export class HudShell {
   readonly settings: SettingsPanel;
   readonly zones: ZoneTracker;
   readonly hooks: HudHooks = {};
-  /** soltar/recapturar o mouse quando um painel abre/fecha */
+  /** um painel/menu abriu ou fechou (rodada 11: o mouse nunca é capturado — só avisa; o jogo pode reagir) */
   onModal?: (open: boolean) => void;
+  /** rodada 11 — tela de controles (F1) e menu do jogo (Esc sem nada aberto) */
+  readonly controls: ControlsScreen;
+  readonly gameMenu: GameMenu;
+  private escMenu = new EscSlot('menu-hud', 50, () => this.toggleMenu(false));
+  private escClean = new EscSlot('hud-limpo', 50, () => this.toggleClean(false));
+  private escBar = new EscSlot('barra-acoes', 50, () => this.bar?.close());
   clean = false;
   private touchUi = false;
 
@@ -88,7 +98,6 @@ export class HudShell {
   private flashUntil = 0;
   private menu: HTMLDivElement;
   private menuBtn: HTMLButtonElement;
-  private helpEl: HTMLDivElement;
   private chatSlot: HTMLDivElement;
   private specSlot: HTMLDivElement;
   private nowSlot: HTMLDivElement;
@@ -183,12 +192,19 @@ export class HudShell {
     this.settings.onToggle = (open) => { this.poke(); this.onModal?.(open || !this.menu.hidden); };
     gear.addEventListener('click', () => this.settings.toggle());
     this.menuBtn.addEventListener('click', () => this.toggleMenu());
-    this.helpEl = div('hud-help');
-    this.helpEl.hidden = true;
-    this.helpEl.innerHTML = opts.touch
-      ? '<b>Controles</b><br>Joystick: andar (até o fim corre) · Arraste: câmera · Pinça: zoom<br>PULAR · USAR (quando há algo perto) · CHAT · CORRER · ☰ menu<br>Barra de ícones acima dos botões: veículos, itens, pichar, confronto, gestos, personagem, mapa<br>SOCO · CHUTE · ESQUIVA: só onde há confronto (zona de combate, treino, evento ou modo interação)'
-      : '<b>Controles</b><br><kbd>WASD</kbd> andar · <kbd>Shift</kbd> correr · <kbd>Espaço</kbd> pular · <kbd>Mouse</kbd> câmera · <kbd>Roda</kbd> zoom<br><kbd>E</kbd> usar / subir no trio / pichar · <kbd>G</kbd> ações · <kbd>K</kbd> modo · <kbd>F</kbd> empurrar (modo interação)<br><kbd>Clique</kbd>/<kbd>R</kbd> soco · <kbd>Q</kbd>/botão direito chute · <kbd>C</kbd> esquiva (zonas de combate e treino)<br><kbd>T</kbd> pegar/trocar item · <kbd>Z</kbd> largar · <kbd>X</kbd> guardar/sacar<br>Barra de ações embaixo (solte o mouse com <kbd>Esc</kbd>) · <kbd>M</kbd> mapa · <kbd>H</kbd>/<kbd>P</kbd> HUD limpo · <kbd>F1</kbd> controles · <kbd>F3</kbd> debug · <kbd>Esc</kbd> soltar o mouse';
-    this.helpEl.addEventListener('click', () => this.toggleHelp(false));
+    // rodada 11 — entrada: tela de controles gerada do mapa único (F1 / menu) e menu do jogo (Esc sem nada aberto)
+    this.controls = new ControlsScreen(opts.touch);
+    root.appendChild(this.controls.el);
+    this.controls.onToggle = (open) => { this.poke(); this.onModal?.(open); };
+    this.gameMenu = new GameMenu({
+      openSettings: (tab) => this.openSettings(tab),
+      openControls: () => this.toggleHelp(true),
+      exit: () => { location.href = location.pathname; },
+    });
+    root.appendChild(this.gameMenu.el);
+    this.gameMenu.onToggle = (open) => { this.poke(); this.onModal?.(open); };
+    installEscKey();
+    setEscMenu(() => this.gameMenu.toggle(true));
     const restore = document.createElement('button');
     restore.type = 'button';
     restore.className = 'hud-restore';
@@ -196,20 +212,17 @@ export class HudShell {
     restore.addEventListener('click', () => this.toggleClean(false));
     root.appendChild(restore);
     const hint = div('hud-hint hud-fadeable');
-    hint.textContent = opts.touch ? '☰ menu · toque no mapa para expandir' : 'F1 controles · M mapa · G ações · H HUD limpo';
+    hint.textContent = opts.touch ? '☰ menu · toque no mapa para expandir' : 'Clique interage · botão direito + arrastar gira a câmera · F1 controles · Esc menu';
     setTimeout(() => hint.remove(), 9000);
 
     // ---- auto-ocultar: volta ao mexer no HUD / mouse solto / teclas de HUD
     this.autoHide.enabled = this.prefs.value.hudAutoHide;
     this.prefs.onChange((p) => { this.autoHide.enabled = p.hudAutoHide; this.chat?.setCollapsed?.(p.chatCollapsed); this.poke(); });
     const poke = () => this.poke();
-    document.addEventListener('pointermove', () => { if (!document.pointerLockElement) poke(); }, { passive: true });
+    document.addEventListener('pointermove', poke, { passive: true });
     root.addEventListener('pointerdown', poke, { passive: true });
-    window.addEventListener('keydown', (e) => {
-      if (MOVE_KEYS.has(e.code)) return;
-      poke();
-      if (e.code === 'Escape') { this.toggleMenu(false); this.toggleHelp(false); this.bar?.close(); }
-    });
+    // rodada 11: Esc é da pilha única (src/ui/escStack.ts) — nada de listener próprio aqui
+    window.addEventListener('keydown', (e) => { if (!MOVE_KEYS.has(e.code)) poke(); });
     document.addEventListener('pointerdown', (e) => { if (!this.menu.hidden && !this.menu.contains(e.target as Node) && e.target !== this.menuBtn) this.toggleMenu(false); });
     this.poke();
   }
@@ -262,15 +275,15 @@ export class HudShell {
 
   /**
    * rodada 9.1 — barra de ações (src/ui/hud/ActionBar.ts) no centro inferior; a ação contextual e o HUD de confronto
-   * sobem (classe `has-bar`); no toque substitui o botão AÇÕES. Popover aberto = modal (solta o mouse, não esmaece).
+   * sobem (classe `has-bar`); no toque substitui o botão AÇÕES. Popover aberto = modal (camada do Esc, não esmaece).
    */
   mountActionBar(bar: ActionBar) {
     this.bar = bar;
     this.root.appendChild(bar.el);
     setClass(this.root, 'has-bar', true);
     bar.onPoke = () => this.poke();
-    // abrir solta o mouse; fechar NÃO recaptura (a barra é para clicar de novo; clicar no cenário recaptura, como sempre)
-    bar.onModal = (open) => { this.poke(); if (open) this.onModal?.(true); };
+    // popover aberto = camada do Esc (rodada 11: o cursor está sempre visível, nada a soltar/recapturar)
+    bar.onModal = (open) => { this.poke(); this.escBar.set(open); this.onModal?.(open); };
   }
 
   /** seletor de câmeras do espectador (agente D), acima da ação contextual */
@@ -336,8 +349,9 @@ export class HudShell {
   toggleClean(v = !this.clean) {
     if (v === this.clean) return;
     this.clean = v;
+    this.escClean.set(v);
     setClass(this.root, 'photo', v);
-    if (v) { this.toggleMenu(false); this.settings.toggle(false); this.toggleHelp(false); this.minimap.toggleExpanded(false); this.bar?.close(); }
+    if (v) { this.toggleMenu(false); this.settings.toggle(false); this.toggleHelp(false); this.gameMenu.toggle(false); this.minimap.toggleExpanded(false); this.bar?.close(); }
     this.chat?.setCollapsed?.(v || this.prefs.value.chatCollapsed);
     this.poke();
   }
@@ -349,17 +363,29 @@ export class HudShell {
     this.poke();
   }
 
-  toggleHelp(v = this.helpEl.hidden) { this.helpEl.hidden = !v; }
+  /** rodada 11: F1 / menu → tela de controles (gerada do mapa de teclas, com remapeamento) */
+  toggleHelp(v = !this.controls.open) { this.controls.toggle(v); }
+
+  /**
+   * rodada 11 — abre os ajustes numa aba (menu do jogo: CONFIGURAÇÕES/ÁUDIO/GRÁFICOS).
+   * rodada 11 — integrar aba: o painel com abas é do agente D (`openSettings(tab)`); até lá abre o painel atual.
+   */
+  openSettings(tab: SettingsTab = 'geral') {
+    const s = this.settings as unknown as { openTab?: (t: SettingsTab) => void };
+    if (s.openTab) s.openTab(tab);
+    else this.settings.toggle(true);
+  }
 
   toggleMenu(v = this.menu.hidden) {
     if (v === !this.menu.hidden) return;
     this.menu.hidden = !v;
+    this.escMenu.set(v);
     this.menuBtn.setAttribute('aria-expanded', String(v));
     if (v) this.menu.querySelector<HTMLElement>('button')?.focus({ preventScroll: true });
     this.onModal?.(v || this.settings.open);
   }
 
-  get anyModal() { return !this.menu.hidden || this.settings.open || !!this.bar?.open; }
+  get anyModal() { return !this.menu.hidden || this.settings.open || !!this.bar?.open || this.gameMenu.open || this.controls.open; }
 
   /** ação contextual atual (o texto já mostrado; a barra de ações reaproveita) */
   get prompt() { return this.promptText.value; }

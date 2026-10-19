@@ -8,6 +8,7 @@
  * Custo: nada por quadro. Os relógios ("começa em 03:42") andam por um intervalo de 1 s que só existe enquanto há
  * algo para mostrar; cada linha escreve no DOM só quando o texto muda (TextSlot). Formatação: src/events/agendaFormat.ts.
  */
+import { EscSlot } from './escStack'; // rodada 11 — entrada
 import './agenda.css';
 import type { AgendaEntry, AgendaMessage } from '../events/schedule';
 import { JOIN_DENIAL_TEXT, STATE_LABEL, agendaSections, entryLine, joinAction, pickNow, type AgendaSectionKey } from '../events/agendaFormat';
@@ -126,6 +127,7 @@ export class AgendaPanel {
   private timer = 0;
   private sections: { key: AgendaSectionKey; label: string; list: HTMLElement; empty: HTMLElement; rows: { row: Row; btn: HTMLButtonElement; li: HTMLElement }[] }[] = [];
   onToggle?: (open: boolean) => void;
+  private esc = new EscSlot('agenda', 100, () => this.toggle(false));
 
   constructor(private feed: AgendaFeed, private onPick: (e: AgendaEntry) => void, private zoneName?: (id: string) => string | undefined) {
     this.el = el('section', 'agenda-panel');
@@ -153,7 +155,7 @@ export class AgendaPanel {
     const foot = el('p', 'ap-foot', 'Horários e inscrições decididos pelo servidor. Toque num item para ver no mapa.');
     this.body.appendChild(foot);
     this.el.addEventListener('pointerdown', (e) => e.stopPropagation());
-    this.el.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Escape') this.toggle(false); });
+    this.el.addEventListener('keydown', (e) => e.stopPropagation()); // Esc: pilha única (rodada 11)
     feed.onChange(() => { if (!this.el.hidden) this.render(); });
   }
 
@@ -162,6 +164,7 @@ export class AgendaPanel {
   toggle(v = this.el.hidden) {
     if (v === !this.el.hidden) return;
     this.el.hidden = !v;
+    this.esc.set(v);
     if (v) { this.render(); this.timer = window.setInterval(() => this.render(), 1000); this.el.querySelector<HTMLElement>('.ap-x')?.focus({ preventScroll: true }); }
     else { clearInterval(this.timer); this.timer = 0; }
     this.onToggle?.(v);

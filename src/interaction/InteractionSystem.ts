@@ -5,16 +5,19 @@
  *    grafite) — objetos reaproveitados, nada alocado por quadro;
  *  - UM alvo contextual (select.ts: alcance → estado → prioridade → distância/mira) para a tecla E, o botão USAR e o
  *    realce discreto (anel leve no chão + rótulo curto "CARRO · Entrar") — só nele;
- *  - clique (desktop, mouse solto: o ponto do cursor; mouse capturado: o centro da tela) e toque (celular, separado do
- *    arrasto da câmera em TouchControls) escolhem o candidato pela projeção na tela, com alvo mínimo confortável;
+ *  - clique (desktop: o ponto do cursor — rodada 11: o cursor está SEMPRE visível, sem pointer lock; arrasto não é
+ *    clique, ver src/input/mouseGesture.ts) e toque (celular, separado do arrasto da câmera em TouchControls) escolhem
+ *    o candidato pela projeção na tela, com alvo mínimo confortável;
  *  - `activate()` do candidato só PEDE ao servidor pela mensagem já existente (enter/exit/board/unboard/item_pick…).
  *
  * Custo: coleta + escolha por quadro (dezenas de candidatos, aritmética simples); projeção só para clique/toque/hover;
- * DOM só quando o texto/posição em px muda.
+ * DOM só quando o texto/posição em px muda. Rodada 11: SEM raycast contra malhas — o hover projeta só os candidatos
+ * já filtrados por distância (COLLECT_RADIUS_M) com UMA atualização de matriz por quadro — medido em `perf`
+ * (__pv.ix().perf; docs/INTERACTION_SYSTEM.md).
  */
 import * as THREE from 'three';
 import type { Interactable, InteractionPlayerState, InteractionProvider } from './types';
-import { COLLECT_RADIUS_M, MOUSE_MIN_PX, TOUCH_MIN_PX, chooseContext, highlightText, inReach, pickScreen, type ScreenHit } from './select';
+import { COLLECT_RADIUS_M, MOUSE_MIN_PX, TOUCH_MIN_PX, chooseContext, distOf, farFor, highlightText, inReach, pickScreen, type ScreenHit } from './select';
 import { TextSlot, setClass } from '../ui/hud/throttle';
 import { sfx } from '../audio/bus';
 import './interaction.css';
@@ -31,6 +34,8 @@ export interface InteractionHost {
   touch: boolean;
   /** aviso curto (fora de alcance, em uso) */
   notify(msg: string): void;
+  /** rodada 11: girando a câmera com o mouse agora (sem realce/hover durante o arrasto) */
+  looking?(): boolean;
 }
 
 export type ActivationVia = 'key' | 'click' | 'aim' | 'tap' | 'label' | 'type';
@@ -41,9 +46,11 @@ export class InteractionSystem {
   readonly cands: Interactable[] = [];
   /** alvo contextual (E / USAR / realce) */
   current: Interactable | null = null;
-  /** alvo sob o cursor (desktop com mouse solto) */
+  /** alvo sob o cursor (desktop; o cursor está sempre visível) */
   hover: Interactable | null = null;
   readonly stats = { activations: 0, denied: 0, clicks: 0, taps: 0, misses: 0, labelWrites: 0 };
+  /** rodada 11 — custo da seleção (QA: __pv.ix().perf): ms por quadro do hover, candidatos projetados, reaproveitados */
+  readonly perf = { frames: 0, hoverMs: 0, hoverMaxMs: 0, picks: 0, projected: 0, candsSum: 0, candsMax: 0, collectMs: 0 };
   last: { key: string; type: string; via: ActivationVia; t: number } | null = null;
   /** primeira vez que algo interativo apareceu (dica de onboarding) */
   onFirstTarget?: () => void;
@@ -82,7 +89,7 @@ export class InteractionSystem {
     hudRoot.appendChild(lb);
     window.addEventListener('resize', () => { this.rect = null; });
     if (!host.touch) {
-      host.canvas.addEventListener('mousemove', (e) => { if (document.pointerLockElement) return; this.mouse = { x: e.clientX, y: e.clientY }; });
+      host.canvas.addEventListener('mousemove', (e) => { this.mouse = { x: e.clientX, y: e.clientY }; });
       host.canvas.addEventListener('mouseleave', () => { this.mouse = null; });
     }
   }
@@ -93,14 +100,25 @@ export class InteractionSystem {
   update(dt: number) {
     this.t += dt;
     const st = this.host.state(), p = this.host.pos();
+    const t0 = performance.now();
     this.cands.length = 0;
     if (st !== 'spectator') for (const pr of this.providers) pr.collect(p.x, p.z, st, this.cands);
     const aim = this.host.aim();
     this.current = st === 'down' || st === 'spectator' ? null : chooseContext(this.cands, p.x, p.z, st, aim.x, aim.z);
-    // mouse solto sobre o canvas: recalcula todo quadro (a câmera/objetos andam sob o cursor parado)
-    this.hover = this.mouse && !document.pointerLockElement ? this.pick(this.mouse.x, this.mouse.y) : null;
-    // sobre alvo válido: cursor de clique (só escreve quando muda)
-    const cur = this.hover && this.hover.availability === 'available' && inReach(this.hover, p.x, p.z) ? 'pointer' : '';
+    const t1 = performance.now();
+    // cursor sobre o canvas: recalcula todo quadro (a câmera/objetos andam sob o cursor parado) — só os candidatos já
+    // coletados perto do jogador, uma atualização de matriz; girando a câmera (botão direito) não há hover
+    if (this.mouse && !this.host.looking?.()) {
+      this.host.camera.updateMatrixWorld();
+      this.hover = this.pick(this.mouse.x, this.mouse.y, false, true);
+    } else this.hover = null;
+    const t2 = performance.now();
+    const pf = this.perf;
+    pf.frames++; pf.collectMs += t1 - t0; pf.hoverMs += t2 - t1; pf.hoverMaxMs = Math.max(pf.hoverMaxMs, t2 - t1);
+    pf.candsSum += this.cands.length; pf.candsMax = Math.max(pf.candsMax, this.cands.length);
+    // cursor contextual (só escreve quando muda): seta normal; mão em objeto interativo ao alcance; "interação" em pessoa
+    const ok = this.hover && this.hover.availability === 'available' && inReach(this.hover, p.x, p.z);
+    const cur = ok ? (this.hover!.interactionType === 'person' ? 'context-menu' : 'pointer') : '';
     if (cur !== this.cursor) { this.cursor = cur; this.host.canvas.style.cursor = cur; }
     // o veículo em uso tem o próprio HUD (SAIR): sem anel nele
     const show = this.hover ?? (this.current && this.current.interactionType !== 'exit_vehicle' ? this.current : null);
@@ -122,7 +140,7 @@ export class InteractionSystem {
 
   /**
    * clique/toque em (x, y) da tela. true = consumido (havia um objeto ali: interagiu ou explicou por que não);
-   * false = nada ali (o chamador segue: capturar o mouse, soco, olhar…). `aim` = mouse capturado (centro da tela):
+   * false = nada ali (o chamador segue). `aim` = mira no centro da tela (legado, sem uso desde a rodada 11):
    * pessoas não contam — clique capturado perto de alguém continua sendo soco.
    */
   pointAt(x: number, y: number, via: 'click' | 'tap' | 'aim'): boolean {
@@ -136,11 +154,13 @@ export class InteractionSystem {
     return true;
   }
 
-  /** candidato na tela (sem ativar) */
-  pick(x: number, y: number, noPeople = false): Interactable | null {
+  /** candidato na tela (sem ativar). `fresh` = a matriz da câmera já foi atualizada neste quadro */
+  pick(x: number, y: number, noPeople = false, fresh = false): Interactable | null {
     const minPx = this.host.touch ? TOUCH_MIN_PX : MOUSE_MIN_PX;
     const list = noPeople ? this.cands.filter((c) => c.interactionType !== 'person') : this.cands;
-    return pickScreen(list, this.host.state(), x, y, minPx, (c) => this.project(c));
+    if (!fresh) this.host.camera.updateMatrixWorld();
+    this.perf.picks++;
+    return pickScreen(list, this.host.state(), x, y, minPx, (c) => { this.perf.projected++; return this.project(c, 'pick', true); });
   }
 
   /** ativa se der; senão explica (fora de alcance / em uso). Devolve se pediu ao servidor */
@@ -163,9 +183,9 @@ export class InteractionSystem {
    * e a altura do realce `y`) — é onde o dedo/cursor mira; `'label'`: a altura do realce (o rótulo fica acima do
    * objeto, sem cobrir o próprio alvo).
    */
-  project(c: Interactable, at: 'pick' | 'label' = 'pick'): ScreenHit | null {
+  project(c: Interactable, at: 'pick' | 'label' = 'pick', fresh = false): ScreenHit | null {
     const cam = this.host.camera;
-    cam.updateMatrixWorld();
+    if (!fresh) cam.updateMatrixWorld();
     const g = at === 'pick' ? this.host.ground(c.x, c.z) : 0;
     const v = this.v.set(c.x, at === 'pick' ? g + (c.y - g) * 0.55 : c.y, c.z);
     const dist = cam.position.distanceTo(v);
@@ -192,7 +212,7 @@ export class InteractionSystem {
     this.ring.position.set(c.x, this.host.ground(c.x, c.z) + 0.035, c.z);
     (this.ring.material as THREE.MeshBasicMaterial).opacity = (reach ? 0.42 : 0.22) + 0.1 * Math.sin(this.t * 3.2);
     const keyHint = !this.host.touch && c === this.current ? 'E · ' : '';
-    if (this.labelText.set(keyHint + highlightText(c, reach))) this.stats.labelWrites++;
+    if (this.labelText.set(keyHint + highlightText(c, reach, distOf(c, px, pz) > farFor(c)))) this.stats.labelWrites++;
     setClass(this.label, 'dim', !reach || c.availability !== 'available');
     const h = this.project(c, 'label');
     if (!h) { if (!this.label.hidden) this.label.hidden = true; return; }
@@ -201,13 +221,24 @@ export class InteractionSystem {
     if (this.label.hidden) this.label.hidden = false;
   }
 
+  /** rodada 11 — médias da seleção desde o último `perfReset` */
+  perfInfo() {
+    const f = Math.max(1, this.perf.frames);
+    return {
+      frames: this.perf.frames, hoverMsAvg: +(this.perf.hoverMs / f).toFixed(4), hoverMsMax: +this.perf.hoverMaxMs.toFixed(3),
+      collectMsAvg: +(this.perf.collectMs / f).toFixed(4), candsAvg: +(this.perf.candsSum / f).toFixed(1), candsMax: this.perf.candsMax,
+      projectedPerFrame: +(this.perf.projected / f).toFixed(1), picks: this.perf.picks,
+    };
+  }
+  perfReset() { for (const k of Object.keys(this.perf) as (keyof InteractionSystem['perf'])[]) this.perf[k] = 0; }
+
   /** QA (tools/qa/interaction_mp.mjs, __pv.ix()) */
   info() {
     const p = this.host.pos();
     const sh = (c: Interactable | null) => (c ? { key: c.key, type: c.interactionType, label: c.interactionLabel, target: c.targetLabel, reach: inReach(c, p.x, p.z), availability: c.availability } : null);
     return {
       state: this.host.state(), current: sh(this.current), hover: sh(this.hover), shown: sh(this.shown), label: this.label.hidden ? '' : this.labelText.value,
-      cursor: this.cursor, stats: { ...this.stats }, last: this.last, count: this.cands.length,
+      cursor: this.cursor, stats: { ...this.stats }, last: this.last, count: this.cands.length, perf: this.perfInfo(),
       cands: this.cands.map((c) => ({ ...sh(c)!, screen: this.project(c) })),
     };
   }

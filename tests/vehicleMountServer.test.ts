@@ -14,8 +14,9 @@ import { Client, type Room } from '@colyseus/sdk';
 import { distToVehicle, packMove } from '../src/net/rules';
 import { pointOnAxis } from '../src/world/zones';
 import { exitCandidates } from '../src/vehicles/exitSafety';
+import { freePortBlock } from './fixtures/freePort';
 
-const PORT = 3300 + (process.pid % 45) * 2;
+const PORT = await freePortBlock(2);
 const EP = `ws://127.0.0.1:${PORT}`;
 const w = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const APP = { body: 'homem', skin: 1, hair: 1, top: 1, bottom: 1, shoes: 1 };
