@@ -120,6 +120,7 @@ import { loadFpsChoice, resolveFpsLimit, type FpsChoice } from './fpsChoice';
 import { isReduceMotion, setUiPrefs, uiPrefs, type UiPrefs } from '../ui/uiPrefs';
 import { openSettings, type SettingsTab } from '../ui/settingsApi';
 import { notifyBlocked } from '../ui/notify';
+import { PersonalVehicleClient } from '../vehicles/PersonalVehicleClient'; // rodada 12 — veículo pessoal
 
 export { DEFAULT_PLAYER_APPEARANCE } from '../characters/bodyTypes';
 
@@ -493,6 +494,7 @@ export class Game {
     this.mountActionBar(shell); // rodada 9.1 — barra de ações (só jogador)
     this.r10Mount(shell, relock); // rodada 10 — interação
     this.r11Mount(shell, relock); // rodada 11 — inventário
+    this.r12Mount(shell); // rodada 12 — veículo pessoal
     if (this.spec) {
       // seletor de câmeras no encaixe do HUD (HudShell.mountSpectator); zona/minimapa seguem o foco da câmera
       const spec = this.spec;
@@ -518,6 +520,8 @@ export class Game {
       // o texto da ação contextual já calculado em updateMovement (E — USAR…, SUBIR NO TRIO, DESCER…)
       vehiclePrompt: () => (near() && !this.pendingEnter && !this.pendingBoard ? shell.prompt : ''),
       vehicles: () => nearbyVehicles(this.rideables.items.map((i) => ({ id: i.state.id, kind: i.def.kind, x: i.state.x, z: i.state.z, free: i.netState !== 2 && (i.def.kind === 'trio' || !i.state.occupant) })), this.player.x, this.player.z),
+      personal: () => (this.r12pv ? this.r12pv.kinds().map((k) => ({ kind: k, label: this.r12pv!.label(k), active: this.r12pv!.ridingKind() === k })) : []), // rodada 12
+      requestVehicle: (k) => this.r12pv?.toggle(k),
       vehicleLabel: (k) => (k === 'trio' ? 'Trio elétrico (escada)' : RIDEABLE_DEFS[k as RideableKind]?.label ?? k),
       use: () => this.input.queueToggle('use'),
       showTarget: (x, z, label, d) => {
@@ -741,6 +745,7 @@ export class Game {
       this.cam.update(this.avatar.root.position, dt);
       this.r10Frame(dt); // rodada 10 — interação (alvo contextual, realce, painel, HUD de veículo)
       this.r11Frame(dt); // rodada 11 — inventário (I, acesso rápido 1–5)
+      this.r12pv?.frame(); // rodada 12 — veículo pessoal (offline: ociosidade)
     }
     mark('movimento');
     const ppos = this.avatar.root.position;
@@ -885,7 +890,9 @@ export class Game {
       if (this.riding) { this.riding.state.x = this.player.x; this.riding.state.z = this.player.z; if (reason === 'collision') this.riding.state.speed = 0; }
       this.player.y = Math.max(abs.y, this.collision.groundHeight(this.player.x, this.player.z));
     };
-    this.net.onVehicle = (id, v) => this.rideables.applyServer(id, v.x, v.y, v.z, v.heading, v.occupant, this.net!.sessionId, v.state, v.design);
+    this.net.onVehicle = (id, v) => { this.r12pv?.onVehicle(id, v); this.rideables.applyServer(id, v.x, v.y, v.z, v.heading, v.occupant, this.net!.sessionId, v.state, v.design); }; // rodada 12 — veículo pessoal surge
+    this.net.onVehicleGone = (id) => this.r12pv?.onGone(id); // rodada 12
+    this.net.onPersonal = (ok, m) => this.r12pv?.onServer(ok, m); // rodada 12
     // trio elétrico: passageiros presos à pose do trio COMO ESTE CLIENTE O DESENHA
     this.net.platformPose = (id) => { const it = this.rideables.byId.get(id); return it ? it.state : null; };
     this.net.vehicleSource = (id) => this.rideables.byId.get(id) ?? null; // rodada 10 — montagem
@@ -1066,6 +1073,7 @@ export class Game {
       items: () => this.rideables.items, riding: () => this.riding, platform: () => this.trio.state?.id ?? null,
       pending: () => !!this.pendingEnter || this.pendingBoard,
       enter: (it) => this.r10Enter(it), board: (it) => this.r10Board(it), exit: () => this.r10Exit(),
+      self: () => this.net?.sessionId ?? '', // rodada 12 — veículo pessoal de outro não é alvo
     }));
     ix.register(new ItemProvider({
       forEach: (fn) => this.items?.view.forEach(fn),
@@ -1189,6 +1197,8 @@ export class Game {
       notify: (m) => this.flash(m),
       onModal: (open) => { shell.poke(); relock(open); },
       setMoveBlocked: (on) => this.input.setMoveBlocked(on),
+      requestVehicle: (k) => (k ? this.r12pv?.toggle(k) : this.r10Exit()), // rodada 12 — veículo pessoal
+      personalVehicle: () => this.r12pv?.ridingKind() ?? null,
     }));
     shell.mountOverlay({ el: inv.quickbar.el });
     shell.mountOverlay(inv.panel);
@@ -1219,6 +1229,37 @@ export class Game {
     inv.frame(dt);
   }
   // fim rodada 11 — inventário ---------------------------------------------------------------------------------------
+
+  // rodada 12 — veículo pessoal: "selecionou → aparece" (src/vehicles/PersonalVehicleClient.ts) ------------------------
+  r12pv: PersonalVehicleClient | null = null;
+  private r12Mount(shell: HudShell) {
+    if (this.spectator) return;
+    const pv = (this.r12pv = new PersonalVehicleClient({
+      online: () => this.mpOnline,
+      send: (k) => this.net?.requestPersonal(k),
+      selfId: () => (this.rideables.selfId = this.net?.sessionId || this.player.id),
+      rideables: this.rideables,
+      player: () => ({ x: this.player.x, z: this.player.z, heading: this.player.heading }),
+      riding: () => this.riding,
+      busy: () => (this.trio.active ? 'Desça do trio primeiro' : this.avatar.isDown ? 'Levante-se primeiro' : this.graffiti.editing ? 'Termine o grafite primeiro' : this.pendingEnter ? 'Aguardando o servidor…' : null),
+      mountLocal: (it) => this.mountLocal(it),
+      dismountLocal: () => this.dismountLocal(),
+      exit: () => this.r10Exit(),
+      world: () => ({ bounds: this.manifest.bounds as [number, number, number, number], clear: (ax, az, bx, bz) => this.collision.raycast(ax, 0.6, az, bx, 0.6, bz) >= 1, surface: (x, z) => (this.collision.isRoad(x, z) ? 'road' : this.collision.isPedestrianWalkable(x, z) ? 'walk' : 'blocked') }),
+      obstacles: (x, z) => ({ vehicles: this.rideables.items.filter((o) => Math.hypot(o.state.x - x, o.state.z - z) < 24).map((o) => ({ x: o.state.x, z: o.state.z, heading: o.state.heading, kind: o.def.kind })), people: this.peds.nearby(x, z, 16) }),
+      flash: (m) => this.flash(m),
+      showTarget: (x, z, label) => shell.minimap.setTarget({ x, z, label }),
+    }));
+    // QA (tools/qa/personal_vehicles_mp.mjs)
+    (window as any).__pvPveh = {
+      request: (k: string) => pv.request(k), toggle: (k: string) => pv.toggle(k), stats: () => pv.stats, active: () => pv.active,
+      riding: () => (this.riding ? { id: this.riding.state.id, kind: this.riding.def.kind, owner: this.riding.owner ?? '' } : null),
+      mount: () => this.avatar.mountInfo,
+      dynamic: () => this.rideables.items.filter((i) => i.owner).map((i) => ({ id: i.state.id, kind: i.def.kind, owner: i.owner, x: +i.state.x.toFixed(2), z: +i.state.z.toFixed(2), occupant: i.state.occupant })),
+      raw: (m: unknown) => this.net?.send('pveh_req', m),
+    };
+  }
+  // fim rodada 12 — veículo pessoal ----------------------------------------------------------------------------------
 
   /** QA (tools/qa/interaction_mp.mjs) */
   private r10Qa() {

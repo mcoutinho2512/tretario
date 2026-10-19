@@ -43,6 +43,9 @@ import { validateMoveInWorld } from '../../src/net/authority.ts';
 import { RULES, STATUS, VEHICLE_BOX, VEHICLE_STATE, EVENT_VEHICLE_KINDS, boxesOverlap, canPush, canEnter, impactAllowed, knockdownOutcome, pushOutOfBox, shouldResetVehicle, vehicleBlock, vehicleImpact, unpackMove, type Actor, type Mode, type VehicleKind } from '../../src/net/rules.ts';
 import { TRIO, canBoard, localToWorld, unpackPlatformMove, validatePlatformMove } from '../../src/vehicles/platform.ts';
 import { findSafeExit } from '../../src/vehicles/exitSafety.ts'; // rodada 10 — montagem
+import { PersonalVehicles } from './vehicles/PersonalVehicles.ts'; // rodada 12 — veículo pessoal
+import { surfaceIndex } from './vehicles/surfaceIndex.ts'; // rodada 12 — veículo pessoal
+import { CURB_HEIGHT } from '../../src/world/types.ts'; // rodada 12 — veículo pessoal
 import { DESIGN_BY_KEY } from '../../src/social/designs.ts';
 import { metrics } from './metrics.ts';
 import { SpatialGrid, selectInterest, selectInterestSlots, InterestScratch, makeSlotView, type SlotView } from '../../src/net/spatialGrid.ts';
@@ -245,6 +248,8 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     mode: (client: Client, m: Mode) => this.gate(client, 'world.play', () => this.onMode(client, m)),
     enter: (client: Client, m: { id?: unknown; seq?: number } | string) => this.gate(client, 'vehicle.use', () => this.withNet(client, false, () => this.onEnter(client, typeof m === 'string' ? m : m?.id, typeof m === 'object' && m ? m.seq : undefined))),
     exit: (client: Client, m?: { seq?: number }) => this.gate(client, 'vehicle.use', () => this.withNet(client, false, () => this.onExit(client, m?.seq))),
+    // rodada 12 — veículo pessoal: "selecionou → aparece" (server/src/vehicles/PersonalVehicles.ts)
+    pveh_req: (client: Client, m: unknown) => (this.identities.get(client.sessionId)?.role === 'spectator' ? this.r12Request(client, m) : this.gate(client, 'vehicle.use', () => this.withNet(client, false, () => this.r12Request(client, m)))),
     push: (client: Client, target: string) => this.gate(client, 'push', () => this.withNet(client, false, () => this.onPush(client, target))),
     // ações sociais (emotes) e itens seguráveis: só ids pequenos — os outros clientes tocam a animação localmente
     act: (client: Client, m: { a?: unknown; v?: unknown }) => this.gate(client, 'action.perform', () => this.onAct(client, m)),
@@ -333,6 +338,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
       this.vehIds.push(s.id);
     }
     this.rebuildVehicleGrid();
+    this.r12Setup(W, allowed); // rodada 12 — veículo pessoal
     this.setupCombat(W); // rodada 9 — confronto
     this.specs = new SpectatorSessions(W.manifest.bounds as [number, number, number, number]);
     const evDef = W.events.get(ev) as (Parameters<typeof environmentCrowdFor>[0] & { name?: string }) | undefined;
@@ -452,7 +458,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     if (this.cellAcc >= 1000 / CROWD_CELL.hz) { this.cellAcc = 0; this.sendCells(now); }
     // veículos: grade (AOI) e retorno à vaga dos abandonados (1 Hz)
     this.vehAcc += dtMs;
-    if (this.vehAcc >= 1000) { this.vehAcc = 0; this.rebuildVehicleGrid(); this.resetAbandoned(now); }
+    if (this.vehAcc >= 1000) { this.vehAcc = 0; this.rebuildVehicleGrid(); this.resetAbandoned(now); this.r12pv.tick(now); } // rodada 12 — veículo pessoal (ociosidade)
     // zonas por jogador (2 Hz, fatiado): base de missões de exploração, política de confronto e eventos
     this.updateZones(this.tickN % ZONE_SLICES, ZONE_SLICES, now);
     // rodada 9 — confronto: janelas ativas, regeneração, cambaleio, fx, cbt_self (≤ 5 Hz) e bonecos
@@ -691,7 +697,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
   private resetAbandoned(now: number) {
     this.state.vehicles.forEach((v, id) => {
       const rt = this.vehRT.get(id);
-      if (!rt) return;
+      if (!rt || v.owner) return; // rodada 12 — veículo pessoal não tem vaga: some pela ociosidade (PersonalVehicles)
       if (v.state === VEHICLE_STATE.RESETTING) {
         v.x = rt.spawnX; v.z = rt.spawnZ; v.heading = rt.spawnHeading; v.speed = 0; v.y = 0;
         v.state = VEHICLE_STATE.AVAILABLE; rt.idleSince = now;
@@ -1223,6 +1229,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
       if (v && v.occupant === sid) { v.occupant = ''; v.speed = 0; v.state = VEHICLE_STATE.AVAILABLE; const rt = this.vehRT.get(p.vehicle); if (rt) rt.idleSince = Date.now(); }
     }
     if (p?.platform) this.riders.get(p.platform)?.delete(sid);
+    this.r12pv?.release(sid); // rodada 12 — veículo pessoal some com o dono (saída de vez; na graça fica)
     const leaving = this.rt.get(sid);
     if (leaving) {
       const { nid, slot } = leaving;
@@ -1324,38 +1331,51 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     if (v && v.state === VEHICLE_STATE.RESETTING && !v.occupant) { client.send('enter_denied', { id, reason: 'indisponivel' }); metrics.denied(); return; }
     const c = canEnter({ x: r.last.x, z: r.last.z, status: p.status, vehicle: p.vehicle }, v ? { x: v.x, z: v.z, occupant: v.occupant, heading: v.heading, kind: v.kind } : undefined);
     if (!c.ok) { client.send('enter_denied', { id, reason: c.reason }); metrics.denied(); log.debug(`[room] entrar negado ${client.sessionId} → ${JSON.stringify(id)}: ${c.reason}`); return; }
-    v!.occupant = client.sessionId;
-    v!.state = VEHICLE_STATE.OCCUPIED;
-    p.vehicle = id;
-    if (p.act !== 0) this.setAct(p, r, 0, Date.now()); // ação social termina ao entrar no veículo
-    r.actor.vehicle = id;
-    // o ocupante "assume" a posição do veículo (autoritativa)
-    // movimentos a pé ainda em trânsito (seq ≤ seq do pedido) passam a ser descartados
-    r.last = { x: v!.x, y: v!.y, z: v!.z, t: Date.now(), seq: Math.max(r.last.seq, Number.isFinite(seq) ? (seq as number) : r.last.seq) };
-    p.x = v!.x; p.z = v!.z;
+    if (v!.owner && v!.owner !== client.sessionId) { client.send('enter_denied', { id, reason: 'pessoal' }); metrics.denied(); return; } // rodada 12 — veículo pessoal: só o dono
+    this.mountVehicle(client.sessionId, id, seq);
     client.send('enter_ok', { id, x: v!.x, z: v!.z, heading: v!.heading });
-    this.r9.e.vehicle(client.sessionId, v!.kind); // rodada 9 — progressão
     log.debug(`[room] ${client.sessionId} entrou em ${id}`);
   }
 
+  /** entrar (validado antes): o MESMO caminho do `enter` e do veículo pessoal (rodada 12) — autônomo pode não ter rt */
+  private mountVehicle(sid: string, id: string, seq?: number) {
+    const p = this.state.players.get(sid), r = this.rt.get(sid), v = this.state.vehicles.get(id);
+    if (!p || !v) return;
+    v.occupant = sid;
+    v.state = VEHICLE_STATE.OCCUPIED;
+    p.vehicle = id;
+    if (r && p.act !== 0) this.setAct(p, r, 0, Date.now()); // ação social termina ao entrar no veículo
+    // o ocupante "assume" a posição do veículo (autoritativa)
+    // movimentos a pé ainda em trânsito (seq ≤ seq do pedido) passam a ser descartados
+    if (r) { r.actor.vehicle = id; r.last = { x: v.x, y: v.y, z: v.z, t: Date.now(), seq: Math.max(r.last.seq, Number.isFinite(seq) ? (seq as number) : r.last.seq) }; }
+    p.x = v.x; p.z = v.z;
+    this.r9.e.vehicle(sid, v.kind); // rodada 9 — progressão (missões `vehicle_enter` contam também no pessoal)
+  }
+
   private onExit(client: Client, seq?: number) {
-    const p = this.state.players.get(client.sessionId);
-    const r = this.rt.get(client.sessionId);
-    if (!p || !r || !p.vehicle) return;
+    const out = this.dismountVehicle(client.sessionId, seq);
+    if (out) client.send('exit_ok', out);
+  }
+
+  /** sair (saída segura): o MESMO caminho do `exit` e da troca de veículo pessoal (rodada 12) */
+  private dismountVehicle(sid: string, seq?: number): { x: number; z: number } | null {
+    const p = this.state.players.get(sid);
+    const r = this.rt.get(sid);
+    if (!p || !p.vehicle) return null;
     const vid = p.vehicle;
     const v = this.state.vehicles.get(vid);
-    p.vehicle = ''; r.actor.vehicle = '';
-    if (v) {
-      v.occupant = ''; v.speed = 0; v.state = VEHICLE_STATE.AVAILABLE;
-      const vrt = this.vehRT.get(vid);
-      if (vrt) vrt.idleSince = Date.now();
-      // rodada 10 — montagem: saída SEGURA (src/vehicles/exitSafety.ts) — porta do motorista → outro lado → frente →
-      // trás → anel; nunca dentro de parede, de outro veículo, colado em outra pessoa nem fora do mapa
-      const out = this.safeExitFor(client.sessionId, vid, v);
-      p.x = out.x; p.z = out.z;
-      r.last = { x: out.x, y: 0, z: out.z, t: Date.now(), seq: Math.max(r.last.seq, Number.isFinite(seq) ? (seq as number) : r.last.seq) };
-      client.send('exit_ok', { x: out.x, z: out.z });
-    }
+    p.vehicle = ''; if (r) r.actor.vehicle = '';
+    if (!v) return null;
+    v.occupant = ''; v.speed = 0; v.state = VEHICLE_STATE.AVAILABLE;
+    const vrt = this.vehRT.get(vid);
+    if (vrt) vrt.idleSince = Date.now();
+    if (v.owner) this.r12pv.onExit(sid, vid); // rodada 12 — veículo pessoal: começa a contar a ociosidade
+    // rodada 10 — montagem: saída SEGURA (src/vehicles/exitSafety.ts) — porta do motorista → outro lado → frente →
+    // trás → anel; nunca dentro de parede, de outro veículo, colado em outra pessoa nem fora do mapa
+    const out = this.safeExitFor(sid, vid, v);
+    p.x = out.x; p.z = out.z;
+    if (r) r.last = { x: out.x, y: 0, z: out.z, t: Date.now(), seq: Math.max(r.last.seq, Number.isFinite(seq) ? (seq as number) : r.last.seq) };
+    return { x: out.x, z: out.z };
   }
 
   // rodada 10 — montagem: ponto de saída seguro (paredes, mapa, outros veículos, pessoas a pé por perto)
@@ -1692,4 +1712,64 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     const res = this.jump.request(client.sessionId, m?.seq, Date.now(), { status: p.status, vehicle: p.vehicle, platform: p.platform });
     if (!res.ok) client.send('jump_denied', { seq: typeof m?.seq === 'number' ? m.seq : 0, reason: res.reason });
   }
+
+  // rodada 12 — veículo pessoal ------------------------------------------------------------------------------------
+  /** "selecionou → aparece" (server/src/vehicles/PersonalVehicles.ts). `spawnPersonalVehicle` é a função reutilizável */
+  r12pv!: PersonalVehicles;
+  /** slots livres da grade de veículos (os pessoais entram e saem) */
+  private vehFree: number[] = [];
+
+  private r12Setup(W: ServerWorld, allowed: ReadonlySet<string>) {
+    const bounds = W.manifest.bounds as [number, number, number, number];
+    const dummies = (W.combat.dummies ?? []).map((d) => ({ x: d.x, z: d.z, r: 0.5 }));
+    const surf = () => surfaceIndex(W.manifest);
+    this.r12pv = new PersonalVehicles({
+      now: () => Date.now(),
+      allowedKinds: () => allowed,
+      actor: (sid) => { const p = this.state.players.get(sid); if (!p) return null; const r = this.rt.get(sid); return { x: r?.last.x ?? p.x, z: r?.last.z ?? p.z, heading: p.heading, status: p.status, vehicle: p.vehicle, platform: p.platform }; },
+      isSpectator: (sid) => this.identities.get(sid)?.role === 'spectator',
+      world: { bounds, clear: (ax, az, bx, bz) => W.walls.raycast(ax, 0.6, az, bx, 0.6, bz) >= 1, surface: (x, z) => surf().surface(x, z) },
+      obstacles: (x, z, r, self) => {
+        const vehicles: { id: string; x: number; z: number; heading: number; kind: string }[] = [];
+        this.state.vehicles.forEach((v, id) => { if (Math.hypot(v.x - x, v.z - z) < r + 8) vehicles.push({ id, x: v.x, z: v.z, heading: v.heading, kind: v.kind }); });
+        // corpos: TODOS os de state.players (humanos, autônomos, em graça), exceto o dono e quem está dentro de veículo
+        const people: { x: number; z: number }[] = [];
+        this.state.players.forEach((p, sid) => { if (sid !== self && !p.vehicle && Math.hypot(p.x - x, p.z - z) < r + 2) people.push({ x: p.x, z: p.z }); });
+        const objects = surf().objectsNear(x, z, r + 2);
+        for (const d of dummies) if (Math.hypot(d.x - x, d.z - z) < r + 2) objects.push(d);
+        for (const e of W.manifest.eventSpots ?? []) if (Math.hypot(e.x - x, e.z - z) < r + 10) objects.push({ x: e.x, z: e.z, r: e.kind === 'screen' ? 1.5 : 4 });
+        return { vehicles, people, objects };
+      },
+      addVehicle: (id, kind, x, z, heading, owner) => {
+        const v = new NetVehicle();
+        v.kind = kind; v.x = x; v.z = z; v.y = surf().surface(x, z) === 'walk' ? CURB_HEIGHT : 0; v.heading = heading; v.speed = 0; v.occupant = ''; v.state = VEHICLE_STATE.AVAILABLE; v.design = 0; v.owner = owner;
+        this.state.vehicles.set(id, v);
+        const vslot = this.vehFree.length ? this.vehFree.pop()! : this.vehIds.length;
+        this.vehIds[vslot] = id;
+        this.vehRT.set(id, { spawnX: x, spawnZ: z, spawnHeading: heading, idleSince: Date.now(), vslot });
+        this.vgrid.insert(vslot, x, z);
+        // quem está perto vê surgir JÁ (não espera a fatia da AOI nem a grade de 1 Hz)
+        this.grid.forEachInRadius(x, z, AOI_RADIUS, (sl) => { const sid = this.slotIds[sl], r = sid ? this.rt.get(sid) : undefined, me = sid ? this.state.players.get(sid) : undefined; if (r && me) this.interestAt(r, me.x, me.z, me.vehicle || me.platform || (sid === owner ? id : '')); });
+      },
+      removeVehicle: (id) => {
+        const v = this.state.vehicles.get(id), rt = this.vehRT.get(id);
+        for (const r of [...this.rt.values(), ...this.specs.values()]) if (r.vehInView.delete(id) && v) r.view.remove(v);
+        if (rt) { this.vgrid.remove(rt.vslot); this.vehIds[rt.vslot] = ''; this.vehFree.push(rt.vslot); }
+        this.vehRT.delete(id);
+        this.state.vehicles.delete(id);
+      },
+      occupant: (id) => this.state.vehicles.get(id)?.occupant,
+      mount: (sid, id, seq) => { this.mountVehicle(sid, id, seq); const r = this.rt.get(sid), me = this.state.players.get(sid); if (r && me) this.interestAt(r, me.x, me.z, id); },
+      dismount: (sid, seq) => { const out = this.dismountVehicle(sid, seq); if (out) this.clientBySid(sid)?.send('exit_ok', out); return out; },
+    });
+    // aquece o índice do chão (chunks) fora do caminho do 1º pedido
+    this.clock.setTimeout(() => { const t = surf(); log.debug(`[room] chão p/ veículo pessoal: ${t.stats.polys} polígonos, ${t.stats.objects} objetos (${t.stats.loadMs} ms)`); }, 0);
+  }
+
+  private r12Request(client: Client, m: unknown) {
+    const r = this.r12pv.request(client.sessionId, m);
+    if (r.ok) { const { ok: _ok, d: _d, ms: _ms, ...msg } = r; client.send('pveh_ok', msg); this.pres.activity(client.sessionId, Date.now()); }
+    else { const { ok: _ok, ...msg } = r; client.send('pveh_denied', msg); }
+  }
+  // fim rodada 12 — veículo pessoal ---------------------------------------------------------------------------------
 }

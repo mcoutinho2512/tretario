@@ -77,7 +77,7 @@ try {
   await w(400);
   const info0 = await E(A, () => window.__pvInv.info());
   out.categories = info0.byCat;
-  check('categorias só com conteúdo', JSON.stringify(info0.panel.cats) === JSON.stringify(['ROUPAS', 'ACESSORIOS', 'ITENS', 'MANIFESTACAO', 'BANDEIRAS', 'EQUIPAMENTOS', 'TORCIDA', 'TITULOS']), info0.panel.cats.join(','));
+  check('categorias só com conteúdo', JSON.stringify(info0.panel.cats) === JSON.stringify(['ROUPAS', 'ACESSORIOS', 'ITENS', 'MANIFESTACAO', 'BANDEIRAS', 'EQUIPAMENTOS', 'VEICULOS', 'TORCIDA', 'TITULOS']), info0.panel.cats.join(','));
   // o mundo não pausa: quadros continuam sendo desenhados com o painel aberto
   const fr = await E(A, async () => { let n = 0; const t0 = performance.now(); await new Promise((r) => { const f = () => { n++; if (performance.now() - t0 < 1000) requestAnimationFrame(f); else r(); }; requestAnimationFrame(f); }); return n; });
   check('o mundo não pausa com o inventário aberto', fr > 10, `${fr} quadros em 1 s`);

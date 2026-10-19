@@ -32,7 +32,7 @@ describe('catálogo do inventário', () => {
   const items = buildInventory(ctx());
 
   it('só categorias com conteúdo (sem COSMÉTICOS vazios), na ordem da interface', () => {
-    expect(categoriesWithContent(items)).toEqual(['ROUPAS', 'ACESSORIOS', 'ITENS', 'MANIFESTACAO', 'BANDEIRAS', 'EQUIPAMENTOS', 'TORCIDA', 'TITULOS']);
+    expect(categoriesWithContent(items)).toEqual(['ROUPAS', 'ACESSORIOS', 'ITENS', 'MANIFESTACAO', 'BANDEIRAS', 'EQUIPAMENTOS', 'VEICULOS', 'TORCIDA', 'TITULOS']); // rodada 12: + VEÍCULOS
     expect(categoriesWithContent(buildInventory(ctx({ supporters: null, progression: null })))).not.toContain('TORCIDA');
   });
 
@@ -163,7 +163,7 @@ describe('acesso rápido 1–5', () => {
   const get = (k: string) => items.find((i) => i.key === k)!;
 
   it('só itens de gameplay (seguráveis, confronto e artes de mão) — nunca roupa', () => {
-    expect(items.filter((i) => i.quickbar).every((i) => i.slot === 'HAND')).toBe(true);
+    expect(items.filter((i) => i.quickbar).every((i) => i.slot === 'HAND' || i.slot === 'VEHICLE')).toBe(true); // rodada 12: + veículo pessoal
     expect(items.filter((i) => i.category === 'ROUPAS' || i.category === 'ACESSORIOS' || i.category === 'TITULOS').some((i) => i.quickbar)).toBe(false);
     expect(isQuickKey('prop:1')).toBe(true);
     expect(isQuickKey('design:paz')).toBe(true);
