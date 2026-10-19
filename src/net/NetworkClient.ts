@@ -19,6 +19,10 @@
  *                sala antiga → entra de novo (entidade nova, conta/progresso preservados) com backoff; versão nova
  *                (4010) / sala cheia (4011) param e avisam (`onJoinRefused`) — docs/SHARED_WORLD.md § Reinício
  */
+import { BODY, type BodyRef } from '../physics/bodies'; // rodada 12 — colisão
+import { ENTITY_KIND } from '../world/entityKind'; // rodada 12 — colisão
+/** rodada 12 — colisão: penetração que o jogador local pode fazer num autônomo (o servidor o empurra para fora) */
+const AUTONOMOUS_SOFT = 0.12;
 import './netWebSocket'; // precisa vir ANTES do SDK (instrumenta globalThis.WebSocket)
 import * as THREE from 'three';
 import { Client, Callbacks, type Room } from '@colyseus/sdk';
@@ -128,6 +132,8 @@ interface Remote {
   /** rodada 9 — efeitos (NetPlayer.fx) e entrada na queda sem duplicar (knock × status) */
   fx: number;
   fall: FallSync;
+  /** rodada 12 — tipo de entidade (NetPlayer.kind: 0 humano, 1 autônomo, 2 bot de carga) — colisão */
+  kind: number;
 }
 
 export interface KnockMsg { target: string; by: string; kind: 'push' | 'impact' | 'combat'; dx: number; dz: number; strength: number; rx: number; rz: number; downMs: number; getupMs: number }
@@ -523,6 +529,28 @@ export class NetworkClient {
     return best;
   }
 
+  /**
+   * rodada 12 — colisão (src/physics/LocalBodies.ts): corpos remotos A PÉ e de pé a ≤ r de (x, z), na posição
+   * interpolada. Humano/bot = duro; autônomo (kind 1) cede um pouco (`soft`, abaixo da tolerância do servidor).
+   * Caído/levantando, em veículo ou no trio: sem corpo (igual ao servidor). Reaproveita objetos (sem alocar por quadro).
+   */
+  bodiesNear(x: number, z: number, r: number, out: BodyRef[]): BodyRef[] {
+    out.length = 0;
+    const r2 = r * r;
+    let i = 0;
+    for (const rm of this.remotes.values()) {
+      if (rm.vehicle || rm.platform || (rm.status !== 0 && rm.status !== 3)) continue;
+      const dx = rm.state.x - x, dz = rm.state.z - z;
+      if (dx * dx + dz * dz > r2) continue;
+      const b = this.bodyPool[i] ?? (this.bodyPool[i] = { id: '', x: 0, z: 0, r: BODY.radius });
+      i++;
+      b.id = rm.id; b.x = rm.state.x; b.z = rm.state.z; b.r = BODY.radius; b.soft = rm.kind === ENTITY_KIND.AUTONOMOUS ? AUTONOMOUS_SOFT : 0;
+      out.push(b);
+    }
+    return out;
+  }
+  private bodyPool: BodyRef[] = [];
+
   remotesForObstacles(): { x: number; z: number; interaction: string; status: number; vehicle: string; platform: string }[] {
     return [...this.remotes.values()].map((r) => ({ x: r.state.x, z: r.state.z, interaction: r.interaction, status: r.status, vehicle: r.vehicle, platform: r.platform }));
   }
@@ -546,7 +574,7 @@ export class NetworkClient {
       id, nid, visual: null, app, agent, state: createPlayerState(id, p.x, p.y, p.z, p.heading), buf: [], label, labelTier: 'hidden', labelPos: '', speakingUntil: 0, name: p.name, body: p.body, accessory: p.accessory || 'nenhum',
       interaction: p.interaction, status: p.status, vehicle: p.vehicle, platform: p.platform ?? '', link: 0, lastArrival: performance.now(), lastStamp: 0,
       soc: { act: p.act ?? 0, actAt: p.actAt ?? 0, actVar: p.actVar ?? 0, prop: p.prop ?? 0, design: p.design ?? 0 }, socApplied: null,
-      fx: p.fx ?? 0, fall: new FallSync(),
+      fx: p.fx ?? 0, fall: new FallSync(), kind: Number(p.kind) || 0,
     };
     this.remotes.set(id, r);
     if (!this.crowd) this.acquire(r);

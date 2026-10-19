@@ -154,6 +154,16 @@ export function constrainMove(id: string, r: number, fromX: number, fromZ: numbe
     }
     if (!changed) break;
   }
+  // fresta impossível (dois contatos puxando para lados opostos): se ainda viola algum, não anda — fica onde estava
+  for (let i = 0; i < neighbors.length; i++) {
+    const n = neighbors[i];
+    if (n.id === id) continue;
+    const R = r + n.r - (n.soft ?? 0);
+    if (R <= 0) continue;
+    const d0 = Math.hypot(fromX - n.x, fromZ - n.z);
+    const allowed = d0 >= R ? R : Math.min(R, d0 + depen);
+    if (Math.hypot(x - n.x, z - n.z) < allowed - 1e-4) { x = fromX; z = fromZ; break; }
+  }
   let contacts = 0, maxPen = 0;
   for (let i = 0; i < neighbors.length; i++) {
     const n = neighbors[i];

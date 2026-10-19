@@ -10,6 +10,7 @@
  *   (total de humanos limitado pelo preset).
  * Os mesmos personagens esqueletais do jogador → base pronta para NPCs autoritativos no servidor (fase 3/4).
  */
+import { BODY, type BodyRef } from '../physics/bodies'; // rodada 12 — colisão
 import { staggerClipFor } from '../combat/animSelect';
 import * as THREE from 'three';
 import type { CollisionWorld } from '../physics/CollisionWorld';
@@ -210,6 +211,28 @@ export class PedestrianSystem implements NpcHittable {
       return 0;
     }
     return st.tilt;
+  }
+
+  /**
+   * rodada 12 — colisão (src/physics/LocalBodies.ts): pedestres a ≤ r de (x, z) CEDEM ao corpo do jogador (empurrados
+   * para fora até `maxStep` m por chamada, só para chão de pedestre) e entram em `out` como corpos MACIOS — multidão
+   * densa resiste (cada um sai devagar), sem travar para sempre. Caído não é corpo. Devolve quantos.
+   */
+  yieldBodies(x: number, z: number, selfR: number, r: number, maxStep: number, soft: number, out: BodyRef[]): number {
+    let n = 0;
+    for (let i = 0; i < this.peds.length; i++) {
+      const p = this.peds[i];
+      if (!p.active || p.react?.kind === 'down' || Math.abs(p.x - x) > r || Math.abs(p.z - z) > r) continue;
+      const dx = p.x - x, dz = p.z - z, d = Math.hypot(dx, dz), R = selfR + BODY.radius;
+      if (d < R && d > 1e-4) {
+        const st = Math.min(R - d, maxStep);
+        const nx = p.x + (dx / d) * st, nz = p.z + (dz / d) * st;
+        if (this.world.isPedestrianWalkable(nx, nz)) { p.x = nx; p.z = nz; }
+      }
+      out.push({ id: `ped:${i}`, x: p.x, z: p.z, r: BODY.radius, soft });
+      n++;
+    }
+    return n;
   }
 
   /** posições de pedestres na pista (para os veículos frearem) */

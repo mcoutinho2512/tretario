@@ -51,6 +51,8 @@ export interface CombatClientDeps {
   consent: CombatConsent;
   /** golpe local chegou à janela ativa: NPCs de ambiente à frente reagem (devolve quantos) */
   npcHit?: (x: number, z: number, h: number, def: CombatActionDefinition) => number;
+  /** rodada 12 — colisão: esquiva/avanço não atravessam corpos (para no contato, ainda no alcance) */
+  bodies?: (p: { x: number; z: number }, fromX: number, fromZ: number, dt: number) => void;
   /** rodada 9.1 — mira assistida: alvos (jogadores e NPCs) a até r m de (x, z) */
   aimTargets?: (x: number, z: number, r: number, out: { x: number; z: number }[]) => void;
 }
@@ -144,6 +146,7 @@ export class CombatClient {
       const step = Math.min(this.dash.left, 11 * dt);
       const q = { x: p.x + this.dash.dx * step, y: p.y, z: p.z + this.dash.dz * step };
       this.d.collision.resolveCircle(q, 0.32, 1.78);
+      this.d.bodies?.(q, p.x, p.z, dt); // rodada 12 — colisão
       p.x = q.x; p.z = q.z;
       this.dash.left -= step;
       if (this.dash.left <= 1e-3) this.dash = null;
