@@ -1,0 +1,266 @@
+{
+ "soco": {
+  "slideCm": 0.03,
+  "moving": false
+ },
+ "queda_costas_levantar": {
+  "feetMaxGetup": 0.392,
+  "headMinGetup": -0.154,
+  "frames": [
+   {
+    "t": 0.25,
+    "feetMax": 0.345,
+    "headMin": 1.693,
+    "pelvisMax": 1.178,
+    "down": true,
+    "yaw": 0
+   },
+   {
+    "t": 0.7,
+    "feetMax": 0.345,
+    "headMin": 0.289,
+    "pelvisMax": 1.142,
+    "down": true,
+    "yaw": 0
+   },
+   {
+    "t": 1.5,
+    "feetMax": 0.14,
+    "headMin": 0.02,
+    "pelvisMax": 0.273,
+    "down": true,
+    "yaw": 0
+   },
+   {
+    "t": 2.5,
+    "feetMax": 0.06,
+    "headMin": 0.16,
+    "pelvisMax": 0.162,
+    "down": true,
+    "yaw": 0
+   },
+   {
+    "t": 2.6,
+    "feetMax": 0.06,
+    "headMin": 0.16,
+    "pelvisMax": 0.148,
+    "down": true,
+    "yaw": 0
+   },
+   {
+    "t": 2.72,
+    "feetMax": 0.283,
+    "headMin": 0.093,
+    "pelvisMax": 0.308,
+    "down": true,
+    "yaw": 0
+   },
+   {
+    "t": 2.85,
+    "feetMax": 0.392,
+    "headMin": -0.154,
+    "pelvisMax": 0.21,
+    "down": true,
+    "yaw": 0
+   },
+   {
+    "t": 3,
+    "feetMax": 0.339,
+    "headMin": -0.094,
+    "pelvisMax": 0.164,
+    "down": true,
+    "yaw": 0
+   },
+   {
+    "t": 3.2,
+    "feetMax": 0.146,
+    "headMin": 0.596,
+    "pelvisMax": 0.322,
+    "down": true,
+    "yaw": 0
+   },
+   {
+    "t": 3.45,
+    "feetMax": 0.085,
+    "headMin": 0.821,
+    "pelvisMax": 0.619,
+    "down": true,
+    "yaw": 0
+   },
+   {
+    "t": 3.7,
+    "feetMax": 0.092,
+    "headMin": 1.053,
+    "pelvisMax": 0.933,
+    "down": true,
+    "yaw": 0
+   },
+   {
+    "t": 4.1,
+    "feetMax": 0.092,
+    "headMin": 1.56,
+    "pelvisMax": 1.01,
+    "down": false,
+    "yaw": 0
+   }
+  ]
+ },
+ "soco2": {
+  "slideCm": 0.03,
+  "moving": false
+ },
+ "chute": {
+  "slideCm": 2.99,
+  "moving": false
+ },
+ "chute_final": {
+  "slideCm": 3.01,
+  "moving": false
+ },
+ "esquiva": {
+  "slideCm": 4.99,
+  "moving": false
+ },
+ "taco": {
+  "slideCm": 0.03,
+  "moving": false
+ },
+ "barra": {
+  "slideCm": 0.03,
+  "moving": false
+ },
+ "spray": {
+  "slideCm": 0.03,
+  "moving": false
+ },
+ "cambaleio": {
+  "slideCm": 0.03,
+  "moving": false
+ },
+ "npc_queda_levantar": {
+  "slideCm": 9.21,
+  "moving": false
+ },
+ "andar_soco": {
+  "slideCm": 2.91,
+  "moving": true
+ },
+ "correr_soco": {
+  "slideCm": 19.58,
+  "moving": true
+ },
+ "andar_chute": {
+  "slideCm": 18.38,
+  "moving": true
+ },
+ "parado_andar_taco": {
+  "slideCm": 12.54,
+  "moving": false
+ },
+ "combo": {
+  "slideCm": 2.97,
+  "moving": false
+ },
+ "queda_brucos_levantar": {
+  "feetMaxGetup": 1.025,
+  "headMinGetup": 0.146,
+  "frames": [
+   {
+    "t": 0.25,
+    "feetMax": 0.309,
+    "headMin": 1.695,
+    "pelvisMax": 1.153,
+    "down": true,
+    "yaw": 0
+   },
+   {
+    "t": 0.7,
+    "feetMax": 0.31,
+    "headMin": 0.229,
+    "pelvisMax": 1.12,
+    "down": true,
+    "yaw": 0
+   },
+   {
+    "t": 1.5,
+    "feetMax": 0.096,
+    "headMin": 0.063,
+    "pelvisMax": 0.193,
+    "down": true,
+    "yaw": 0
+   },
+   {
+    "t": 2.5,
+    "feetMax": 0.06,
+    "headMin": 0.143,
+    "pelvisMax": 0.163,
+    "down": true,
+    "yaw": 0
+   },
+   {
+    "t": 2.6,
+    "feetMax": 0.06,
+    "headMin": 0.145,
+    "pelvisMax": 0.16,
+    "down": true,
+    "yaw": 0
+   },
+   {
+    "t": 2.72,
+    "feetMax": 0.436,
+    "headMin": 0.146,
+    "pelvisMax": 0.319,
+    "down": true,
+    "yaw": 0
+   },
+   {
+    "t": 2.85,
+    "feetMax": 1.025,
+    "headMin": 0.319,
+    "pelvisMax": 0.221,
+    "down": true,
+    "yaw": 0
+   },
+   {
+    "t": 3,
+    "feetMax": 1.023,
+    "headMin": 0.582,
+    "pelvisMax": 0.172,
+    "down": true,
+    "yaw": 0
+   },
+   {
+    "t": 3.2,
+    "feetMax": 0.364,
+    "headMin": 0.72,
+    "pelvisMax": 0.325,
+    "down": true,
+    "yaw": 0
+   },
+   {
+    "t": 3.45,
+    "feetMax": 0.085,
+    "headMin": 0.824,
+    "pelvisMax": 0.619,
+    "down": true,
+    "yaw": 0
+   },
+   {
+    "t": 3.7,
+    "feetMax": 0.092,
+    "headMin": 1.054,
+    "pelvisMax": 0.933,
+    "down": true,
+    "yaw": 0
+   },
+   {
+    "t": 4.1,
+    "feetMax": 0.092,
+    "headMin": 1.56,
+    "pelvisMax": 1.01,
+    "down": false,
+    "yaw": 0
+   }
+  ]
+ }
+}

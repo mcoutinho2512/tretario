@@ -273,9 +273,10 @@ ou do chão. Cada jogador POSSUI no máximo um item do mundo.
   (`src/items/GroundItemsView.ts`); largado tem um anel discreto no chão.
 
 ### 3. Estados físicos (visual)
-- `STAGGERED` (status 3): clipe `stagger` em camada (`AvatarVisual.setPhys`).
-- `KNOCKED_DOWN` (1) / `RAGDOLL` (4): ragdoll Rapier existente; `GETTING_UP` (2): o levantar existente (slerp da pose
-  do chão para a animada).
+- `STAGGERED` (status 3): clipe `stagger` (`AvatarVisual.setPhys`) — desde a rodada 10 **direcional** pelo `cbt_hit`
+  (`stagger` / `stagger_back` / `stagger_side`(`~m`); ver "Animação (rodada 10)").
+- `KNOCKED_DOWN` (1) / `RAGDOLL` (4): ragdoll Rapier; `GETTING_UP` (2): clipe `getup` ou `getup_prone` escolhido pela
+  pose real do chão (rodada 10).
 - **Queda por status** (antes só pela mensagem `knock`): `src/player/fallSync.ts` decide `start/refine/ignore` —
   quem chegar primeiro (knock ou NetPlayer.status) começa; o outro, dentro de 1,5 s, não recomeça (o `knock` atrasado
   só corrige o repouso). Vale para remotos (`NetworkClient.pushSnapshot`) e para o próprio (`onSelfStatusFall`).
@@ -356,6 +357,84 @@ previsão, botões de toque, F e o bloqueio previsto do carro; as áreas derivad
 - Capturas: `docs/screenshots/round9/` E_taco, F_barra, G_spray (+ desorientado normal/reduzido), H_queda_ragdoll,
   J_zona_de_paz (regra antiga), J_zona_central (2026-10-18: a Central já é confronto), K_zona_de_confronto,
   L_npc_queda (NPC deitado depois do taco).
+
+## Animação (rodada 10)
+
+Golpes e reações refeitos para cara de produto comercial, **sem mudar nenhum dado de combate** (`combat.json` igual:
+dano, fôlego, alcance, cooldown, preparação/janela/recuperação — a animação se adapta aos tempos). Código:
+`src/characters/human/proceduralClips.ts` (poses), `src/characters/human/HumanAnimator.ts` (camadas/crossfades),
+`src/player/AvatarVisual.ts` (escolha de variante, levantar), `src/combat/animSelect.ts` (escolha pura),
+`src/physics/Ragdoll.ts` (juntas).
+
+**Tempos = dados.** Cada clipe de golpe declara `cbt: [preparação, janela, recuperação]` (s) iguais ao `combat.json`;
+`dur` = soma e o estalo cai no fim da preparação (o punho chega à extensão máxima dentro da janela ativa — teste). O
+crossfade sai dos mesmos tempos (`clipFades`): entrada ≈ 55 % da preparação (0,06–0,14 s), saída ≈ 45 % da
+recuperação (0,10–0,22 s). Antes: 0,08 s fixos na entrada e 0,32 s na saída (o golpe "estalava" da locomoção para a
+guarda e o fim invadia o golpe seguinte). No combo, o golpe anterior sai no tempo de entrada do novo (as duas poses
+partem da guarda).
+
+**Camada adaptativa** (`adaptive`): soco, soco 2, taco, barra, spray e cambaleio são de corpo inteiro **parado**
+(quadril gira, peso passa de um pé ao outro, joelhos dobram, calcanhar de trás gira na bola do pé) e só tronco
+**andando/correndo** (as pernas ficam com a locomoção — máscara superior com a coluna baixa seguindo a passada). O
+peso das pernas do clipe é `peso × (1 − andando)`. Chute, chute final e esquiva são sempre de corpo inteiro (a perna é
+o golpe). O ajuste de base dos pés do parado (`narrowStance`) continua por baixo dos golpes de corpo inteiro (antes
+desligava e os pés escorregavam ~3 cm para fora na entrada do chute).
+
+**Pés plantados.** IK com o polo do joelho do próprio idle (`Poser.baseKnee`) — a mistura osso a osso na entrada/saída
+não tira o pé do lugar — e calcanhar girando exatamente em torno da bola do pé (`plant(…, ballPivot)`); o chute
+circular gira o pé de apoio na bola (`plantTurn`). Deslizamento de pé apoiado por quadro (parado → golpe → parado,
+`tools/qa/anim_r10.mjs`, `anim_antes.json`/`anim_depois.json`): soco 0,18 cm (antes 0,03 — o soco antigo não mexia as
+pernas), soco 2 0,20, taco 0,18, barra 0,11, spray 0,06; o teste puro exige ≤ 1 cm de deriva do pé de apoio no clipe
+inteiro (soco, taco, barra, spray, perna de apoio dos chutes, pé parado do cambaleio) e o pé do chute volta ao ponto de
+partida (≤ 5 mm). Nos chutes/esquiva/cambaleio o número da QA inclui o pé que sai do chão.
+
+| clipe | o que mudou |
+|---|---|
+| `cbt_punch` / `cbt_punch2` | antecipação (tronco e quadril giram para trás, punho recua ao queixo, joelhos dobram) → estalo com quadril+tronco+ombro, peso ao pé da frente, calcanhar de trás gira, punho fechado (polegar por cima) com leve sobre-extensão → segura → guarda; braço de trás protege o rosto; cabeça fica no alvo |
+| `cbt_kick` | peso passa ao pé de apoio e o corpo afunda → joelho engatilha → canela estende (sola à frente) → recolhe → o pé volta exatamente ao lugar; pelve e tronco inclinam para trás no impacto, braço do chute desce como contrapeso |
+| `cbt_kick_final` | agora **chute circular** (fim de sequência): joelho engatilha para o lado, pelve gira 0,6 rad com o pé de apoio pivotando na bola, canela varre na altura do peito e atravessa; peito e cabeça continuam no alvo |
+| `cbt_dodge` (+ `_fwd`, `_side`, `_side~m`) | salto baixo no tempo do deslocamento (2,2 m a 11 m/s ≈ 0,2 s: agacha → pés saem do chão → pousa agachado → guarda), em vez de deslizar com os pés plantados; variante pela direção do deslocamento relativa ao corpo (trás = parado, frente = passa por baixo, lado = tomba o tronco) |
+| `cbt_bat` | **duas mãos no mesmo cabo**: a direita guia (posição + direção do taco pela pegada real `HAND_GRIP`, `aimHand`), a esquerda fica 9,5 cm abaixo no eixo do taco (`secondGrip`); pronto sobre o ombro → carrega (taco para trás) → varre plano pela direita até a frente na altura do peito → acompanha e enrola sobre o ombro esquerdo; o taco não atravessa tronco/cabeça |
+| `cbt_bar` | direção da barra pela pegada: sobe acima do ombro apontando para trás → vertical → desce num estalo à frente com o tronco dobrando e o peso indo à frente → acompanha até a cintura |
+| `cbt_spray` | lata em pé (bico à frente) na mão estendida, dedo no bico, varre; corpo gira um pouco |
+| `stagger` (+ `_back`, `_side`, `_side~m`) | **direcional** pelo sentido do empurrão (`cbt_hit` dx/dz; NPC: `npcHits`): tranco do tronco no sentido do golpe, cabeça atrasa, um passo de equilíbrio que sai do chão e pousa, braços abrem. Jogador: se o status chega antes do `cbt_hit`, começa `stagger` e troca na mesma fase (`HumanAnimator.swapClip`, ≤ 0,25 s) |
+| `getup` | começa **deitado de costas** (pelve no chão atrás dos pés, tronco quase horizontal) → senta apoiando as mãos atrás → recolhe os pés → agacha com as mãos nos joelhos → endireita |
+| `getup_prone` (novo) | de bruços: mãos sob os ombros → empurra e traz os joelhos (de quatro) → planta o pé direito → agacha → endireita |
+| `npc_down` | = primeira pose do `getup` (agora deitado de costas, joelhos dobrados; a queda do NPC sem pés escorregando) |
+
+**Queda → ragdoll → levantar.** Causa do "pernas para o ar" (medido em `dev/knock.html?tl=1`): as juntas do ragdoll
+eram todas esféricas **sem limite** — o quadril girava até ~180° em relação ao peito e as pernas dobravam para o lado
+da cabeça (joelho a 0,5 m do pé, perna cruzada); o levantar misturava essa torção e as pernas subiam 0,39 m (de costas)
+e **1,03 m** (de bruços). Agora (`Ragdoll.ts`): coluna rígida (juntas `fixed` quadril–lombar–peito) e quadril/joelho em
+**dobradiça** no eixo lateral com limites (quadril −100°/+30°, joelho só para trás até 130°; o zero do Rapier é
+compensado para a pose do início da queda); ombros, cotovelos e cabeça continuam soltos. Na hora de levantar,
+`AvatarVisual` lê a pose real do chão (normal do quadril e eixo das pernas — `getupClipFor`): de costas → `getup`
+virado para onde os pés apontam; de bruços → `getup_prone` virado para onde a cabeça aponta; a pose do chão sai em
+0,35 s (o clipe já começa deitado) e o rumo do servidor volta depois pelo giro limitado. Altura máxima dos pés no
+levantar: **0,39 → 0,21 m** (de costas) e **1,03 → 0,40 m** (de bruços; o joelho dobrado/ajoelhar).
+
+**Remotos e NPCs** usam os mesmos clipes: `cbt_act` traz o rumo (`h`) → mesma variante de esquiva; o `cbt_hit` de
+terceiros (`combatVisual(tgt)`) dá a direção do cambaleio; pedestres e multidão com esqueleto chamam
+`staggerClipFor`. LOD com esqueleto: mesmo clipe (o LOD só reduz a frequência de atualização); a multidão VAT não
+assa clipe de confronto e os 38 clipes de emotes/itens/danças (47 com os espelhados) ficaram **idênticos** (comparados valor a valor com a
+versão anterior; o `Poser` só ganhou métodos novos e um parâmetro opcional).
+
+**Custo** (`tools/qa/anim_cost_r10.mjs`, 20 lutadores LOD0 trocando golpes a cada 0,4 s, ms de CPU por quadro de
+toda a animação, mediana de 5, M5 Pro): parados **0,53 → 0,59**, andando **0,44 → 0,47** (+0,003 ms por lutador: os
+golpes de mão agora animam as pernas parado). Geração sob demanda de cada clipe novo por corpo: 1,6–4,8 ms uma vez
+(cache por corpo).
+
+QA: `node tools/qa/anim_r10.mjs <devBase> <antes|depois>` (folhas de 12 quadros por linha do tempo determinística —
+`dev/human.html?tl=1`, `dev/knock.html?tl=1&dir=back|front|side`), `node tools/qa/anim_cost_r10.mjs <devBase> 20`,
+`node tools/qa/confronto_contextual_r10.mjs <base>` (dois jogadores trocando golpes no CENTRO perto dos NPCs);
+testes `tests/combatAnim.test.ts`. Imagens: `docs/screenshots/round10/anim/` (`*_antes.jpg` / `*_depois.jpg`,
+`W_confronto_contextual.jpg`).
+
+Pendências (rodada 10): a pelve ainda desliza do ponto onde o ragdoll parou até a posição do servidor durante o
+levantar (0,9 s; a física local não coincide com o repouso decidido no servidor); no levantar de bruços o joelho
+ajoelhado chega a 0,40 m; na saída do golpe de taco (volta à pose de carregar) o taco passa rente à frente do peito;
+numa captura com a câmera livre do próprio cliente (HUD escondido) remotos e multidão não apareciam — a captura usa a
+vista do outro jogador (não investigado). Sem som nesta parte (o AGENTE D liga os sons de combate pelo `audio/bus`).
 
 ## Integração (rodada 9)
 

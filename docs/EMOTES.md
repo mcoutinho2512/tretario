@@ -108,6 +108,13 @@ Ossos de pegada: `hand_r`/`hand_l` (punho; a palma fica ~6 cm além, na direçã
    duração vem do registro via `onceDur`), `layer` igual ao da ação, `mirror` se for gesto de uma mão sem item e a
    função `pose(c)` usando `c.bone/limb/twist/reach/plant/hips/fingers/thumbUp/life`. Loops: só frequências
    inteiras sobre `c.u`.
+   **Golpes e reações (rodada 10, docs/COMBAT.md "Animação"):** `cbt: [preparação, janela, recuperação]` (s, iguais
+   ao `combat.json`; `dur` = soma; crossfade por `clipFades`), `fadeIn`/`fadeOut` separados e `adaptive` (corpo inteiro
+   parado, só tronco andando). Ferramentas novas do `Poser`: `aimHand` (item aponta numa direção pela pegada real
+   `HAND_GRIP`), `secondGrip` (segunda mão no mesmo cabo), `plant(…, ballPivot)` (calcanhar girando na bola do pé),
+   `plantTurn` (pé gira no chão), `baseKnee` (polo do joelho do idle: entrada/saída sem tirar o pé do lugar) e
+   `updateFloorRel`/`floorRel` (mão apoiada no chão). Os parâmetros novos são opcionais: emotes, itens e danças
+   antigos geram exatamente os mesmos quadros. Teste: `tests/combatAnim.test.ts`.
 3. Se tiver `crowdClip` novo: quadros em `CROWD_ACTION_FRAMES` (`CrowdRenderer.ts`).
 4. Conferir: `npm test` (o teste `tests/proceduralClips.test.ts` exige que todo clipe citado exista, só anime ossos
    do rig, emende e não afunde os pés), `node tools/qa/emote_sheet.mjs` (folha de contato dos 4 corpos, frente/costas;

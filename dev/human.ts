@@ -137,10 +137,12 @@ if (sheet) {
   sun.shadow.camera.right = sun.shadow.camera.top = w;
   sun.shadow.camera.updateProjectionMatrix();
 } else {
-  const lods: Lod[] = mode === 'lods' ? [0, 1, 2, 3] : [Number(q.get('lod') ?? 0) as Lod];
+  const nf = Number(q.get('fighters') ?? 0);
+  const lods: Lod[] = mode === 'lods' ? [0, 1, 2, 3] : nf > 0 ? Array.from({ length: nf }, () => Number(q.get('lod') ?? 0) as Lod) : [Number(q.get('lod') ?? 0) as Lod];
   lods.forEach((l, i) => {
     const h = new HumanCharacter(app, { lod: l });
-    h.root.position.x = mode === 'lods' ? (i - 1.5) * 1.1 : 0;
+    h.root.position.x = mode === 'lods' ? (i - 1.5) * 1.1 : nf > 0 ? ((i % 5) - 2) * 1.0 : 0;
+    if (nf > 0) h.root.position.z = -Math.floor(i / 5) * 1.2;
     h.root.rotation.y = Number(q.get('yaw') ?? 0.3);
     scene.add(h.root);
     chars.push(h);
@@ -238,10 +240,41 @@ if (cbtClip) actT = Number(q.get('t') ?? 0.2);
     return { foot: Math.min(y('ball_l'), y('ball_r'), y('foot_l'), y('foot_r')), pelvis: y('pelvis'), handR: y('hand_r'), head: y('head') };
   }),
 };
+/**
+ * rodada 10 — linha do tempo DETERMINÍSTICA (&tl=1): o laço não avança a animação; o QA chama `__human.tl.step` com
+ * passos fixos (transições idle/andar/correr → golpe → volta, queda/levantar do NPC) e mede os pés entre os passos.
+ * &fighters=N: N personagens lado a lado (custo de CPU da animação com N lutadores perto).
+ */
+const tlMode = q.get('tl') === '1';
+const tlFeet = () => chars.map((c) => ['ball_l', 'ball_r', 'foot_l', 'foot_r'].map((n) => c.bones.get(n)!.getWorldPosition(new THREE.Vector3())));
+(window as any).__human.tl = {
+  speed: (v: number) => { speed = v; },
+  prop: (kind: string | null) => { const p = kind ? PROP_BY_KIND.get(kind as PropKind) : undefined; propKind = (kind as PropKind) || null; for (const c of chars) c.setSocial({ act: 0, phase: 0, variation: 0, prop: p?.id ?? 0, design: 0 }); },
+  combat: (name: string) => chars.map((c) => c.animator?.playCombat(name)),
+  clip: (name: string, loop = false) => chars.map((c) => c.animator?.playClip(name, loop)),
+  stop: (name?: string) => chars.forEach((c) => c.animator?.stopClip(name)),
+  /** avança n passos de dt; devolve o maior deslizamento horizontal (m) de um pé APOIADO (y < chão + 3 cm) */
+  step: (dt: number, n = 1) => {
+    let slide = 0;
+    for (let k = 0; k < n; k++) {
+      const before = tlFeet();
+      for (const c of chars) { c.animator?.update(speed, true, dt); c.updateProps(dt); }
+      const after = tlFeet();
+      before.forEach((fs, i) => fs.forEach((b, j) => { const a = after[i][j]; if (Math.max(a.y, b.y) < 0.03 + 0.012) slide = Math.max(slide, Math.hypot(a.x - b.x, a.z - b.z)); }));
+    }
+    updateProxy();
+    renderer.render(scene, cam);
+    return slide;
+  },
+  /** custo de CPU (ms) de `n` quadros de animação de todos os personagens */
+  bench: (n: number, dt = 1 / 60) => { const t = performance.now(); for (let k = 0; k < n; k++) for (const c of chars) { c.animator?.update(speed, true, dt); c.updateProps(dt); } return (performance.now() - t) / n; },
+  feet: () => tlFeet()[0].map((v) => v.toArray().map((x) => +x.toFixed(4))),
+};
 function frame() {
   const now = performance.now();
   const dt = Math.min(0.05, (now - t0) / 1000);
   t0 = now;
+  if (tlMode) { renderer.render(scene, cam); requestAnimationFrame(frame); return; }
   for (const c of chars) {
     if (pose && !c.userData) { c.animator?.setShow(pose as never); (c as any).userData = 1; }
     const a = c.animator;

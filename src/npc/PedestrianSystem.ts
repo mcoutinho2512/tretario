@@ -10,6 +10,7 @@
  *   (total de humanos limitado pelo preset).
  * Os mesmos personagens esqueletais do jogador → base pronta para NPCs autoritativos no servidor (fase 3/4).
  */
+import { staggerClipFor } from '../combat/animSelect';
 import * as THREE from 'three';
 import type { CollisionWorld } from '../physics/CollisionWorld';
 import { createCharacter } from '../characters/CharacterMesh';
@@ -183,7 +184,8 @@ export class PedestrianSystem implements NpcHittable {
     p.rig.setSocial({ act: 0, phase: 0, variation: 0, prop: p.schedule.profile.prop, design: p.schedule.profile.design });
     p.agent.act = 0; p.agent.prop = 0; // instanciado inclinado: sem item solto no ar
     p.agent.priority = 0.5; // como jogador caído: disputa o esqueleto com vantagem
-    if (kind !== 'down') p.rig.playClip(kind === 'flinch' ? 'disoriented' : 'stagger');
+    // rodada 10: cambaleio direcional (golpe de frente/costas/lado pelo sentido do empurrão)
+    if (kind !== 'down') p.rig.playClip(kind === 'flinch' ? 'disoriented' : staggerClipFor(dx, dz, p.face));
     else { p.rig.stopClip('getup'); p.rig.playClip('npc_down'); p.downPhase = 'down'; } // cai sentado (clipe), não rígido
     this.stats.hits++;
   }

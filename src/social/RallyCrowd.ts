@@ -11,6 +11,7 @@
  *  - Rodada 9.1: os mais PRÓXIMOS da câmera disputam o esqueleto no orçamento (como pedestres e remotos) e ganham um
  *    HumanCharacter de um pool por corpo — antes eram sempre instanciados (LOD2/LOD3 a 2–5 m do jogador: facetados).
  */
+import { staggerClipFor } from '../combat/animSelect';
 import * as THREE from 'three';
 import type { CollisionWorld } from '../physics/CollisionWorld';
 import { HumanCharacter } from '../characters/human/HumanCharacter';
@@ -288,7 +289,7 @@ export class RallyCrowd implements NpcHittable {
         // com esqueleto: sem ação/item durante a reação e o mesmo clipe dos pedestres (cambaleio / desorientado)
         if (m.skin) {
           m.skin.human.setSocial({ act: 0, phase: 0, variation: 0, prop: 0, design: 0 }); m.skin.social = '';
-          if (k !== 'down') m.skin.human.animator?.playClip(k === 'flinch' ? 'disoriented' : 'stagger');
+          if (k !== 'down') m.skin.human.animator?.playClip(k === 'flinch' ? 'disoriented' : staggerClipFor(dx, dz, m.heading)); // rodada 10: direcional
         }
         this.stats.hits++;
       } });

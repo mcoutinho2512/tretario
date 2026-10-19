@@ -1,0 +1,290 @@
+{
+ "soco": {
+  "slideCm": 0.18,
+  "moving": false
+ },
+ "soco2": {
+  "slideCm": 0.2,
+  "moving": false
+ },
+ "chute": {
+  "slideCm": 1.12,
+  "moving": false
+ },
+ "chute_final": {
+  "slideCm": 1.35,
+  "moving": false
+ },
+ "esquiva": {
+  "slideCm": 2.48,
+  "moving": false
+ },
+ "taco": {
+  "slideCm": 0.18,
+  "moving": false
+ },
+ "barra": {
+  "slideCm": 0.11,
+  "moving": false
+ },
+ "spray": {
+  "slideCm": 0.06,
+  "moving": false
+ },
+ "cambaleio": {
+  "slideCm": 2.52,
+  "moving": false
+ },
+ "npc_queda_levantar": {
+  "slideCm": 7.39,
+  "moving": false
+ },
+ "esquiva_frente": {
+  "slideCm": 2.73,
+  "moving": false
+ },
+ "esquiva_lado": {
+  "slideCm": 2.91,
+  "moving": false
+ },
+ "cambaleio_costas": {
+  "slideCm": 1.67,
+  "moving": false
+ },
+ "cambaleio_lado": {
+  "slideCm": 4.12,
+  "moving": false
+ },
+ "levantar_brucos_clipe": {
+  "slideCm": 33.7,
+  "moving": false
+ },
+ "andar_soco": {
+  "slideCm": 2.91,
+  "moving": true
+ },
+ "correr_soco": {
+  "slideCm": 19.58,
+  "moving": true
+ },
+ "andar_chute": {
+  "slideCm": 16.31,
+  "moving": true
+ },
+ "parado_andar_taco": {
+  "slideCm": 10.17,
+  "moving": true
+ },
+ "combo": {
+  "slideCm": 1.08,
+  "moving": false
+ },
+ "queda_costas_levantar": {
+  "feetMaxGetup": 0.21,
+  "headMinGetup": 0.271,
+  "frames": [
+   {
+    "t": 0.25,
+    "feetMax": 0.353,
+    "headMin": 1.698,
+    "pelvisMax": 1.145,
+    "down": true,
+    "yaw": 0
+   },
+   {
+    "t": 0.7,
+    "feetMax": 0.353,
+    "headMin": 0.254,
+    "pelvisMax": 1.099,
+    "down": true,
+    "yaw": 0
+   },
+   {
+    "t": 1.5,
+    "feetMax": 0.128,
+    "headMin": 0.144,
+    "pelvisMax": 0.29,
+    "down": true,
+    "yaw": 0
+   },
+   {
+    "t": 2.5,
+    "feetMax": 0.043,
+    "headMin": 0.24,
+    "pelvisMax": 0.205,
+    "down": true,
+    "yaw": 0
+   },
+   {
+    "t": 2.6,
+    "feetMax": 0.042,
+    "headMin": 0.271,
+    "pelvisMax": 0.152,
+    "down": true,
+    "yaw": 0
+   },
+   {
+    "t": 2.72,
+    "feetMax": 0.21,
+    "headMin": 0.271,
+    "pelvisMax": 0.323,
+    "down": true,
+    "yaw": 0
+   },
+   {
+    "t": 2.85,
+    "feetMax": 0.083,
+    "headMin": 0.488,
+    "pelvisMax": 0.215,
+    "down": true,
+    "yaw": 0
+   },
+   {
+    "t": 3,
+    "feetMax": 0.094,
+    "headMin": 0.772,
+    "pelvisMax": 0.165,
+    "down": true,
+    "yaw": 0
+   },
+   {
+    "t": 3.2,
+    "feetMax": 0.113,
+    "headMin": 0.663,
+    "pelvisMax": 0.176,
+    "down": true,
+    "yaw": 0
+   },
+   {
+    "t": 3.45,
+    "feetMax": 0.104,
+    "headMin": 0.697,
+    "pelvisMax": 0.611,
+    "down": true,
+    "yaw": 0
+   },
+   {
+    "t": 3.7,
+    "feetMax": 0.081,
+    "headMin": 1.065,
+    "pelvisMax": 0.888,
+    "down": true,
+    "yaw": 0
+   },
+   {
+    "t": 4.1,
+    "feetMax": 0.089,
+    "headMin": 1.499,
+    "pelvisMax": 1.012,
+    "down": false,
+    "yaw": 0
+   }
+  ]
+ },
+ "queda_brucos_levantar": {
+  "feetMaxGetup": 0.397,
+  "headMinGetup": 0.115,
+  "frames": [
+   {
+    "t": 0.25,
+    "feetMax": 0.344,
+    "headMin": 1.651,
+    "pelvisMax": 1.148,
+    "down": true,
+    "yaw": 0
+   },
+   {
+    "t": 0.7,
+    "feetMax": 0.43,
+    "headMin": 0.03,
+    "pelvisMax": 1.103,
+    "down": true,
+    "yaw": 0
+   },
+   {
+    "t": 1.5,
+    "feetMax": 0.499,
+    "headMin": -0.01,
+    "pelvisMax": 0.47,
+    "down": true,
+    "yaw": 0
+   },
+   {
+    "t": 2.5,
+    "feetMax": 0.169,
+    "headMin": 0.114,
+    "pelvisMax": 0.14,
+    "down": true,
+    "yaw": 0
+   },
+   {
+    "t": 2.6,
+    "feetMax": 0.17,
+    "headMin": 0.114,
+    "pelvisMax": 0.138,
+    "down": true,
+    "yaw": 0
+   },
+   {
+    "t": 2.72,
+    "feetMax": 0.385,
+    "headMin": 0.115,
+    "pelvisMax": 0.305,
+    "down": true,
+    "yaw": 0
+   },
+   {
+    "t": 2.85,
+    "feetMax": 0.397,
+    "headMin": 0.225,
+    "pelvisMax": 0.216,
+    "down": true,
+    "yaw": 0
+   },
+   {
+    "t": 3,
+    "feetMax": 0.079,
+    "headMin": 0.379,
+    "pelvisMax": 0.285,
+    "down": true,
+    "yaw": 0
+   },
+   {
+    "t": 3.2,
+    "feetMax": 0.036,
+    "headMin": 0.524,
+    "pelvisMax": 0.441,
+    "down": true,
+    "yaw": 0
+   },
+   {
+    "t": 3.45,
+    "feetMax": 0.143,
+    "headMin": 0.784,
+    "pelvisMax": 0.611,
+    "down": true,
+    "yaw": 0
+   },
+   {
+    "t": 3.7,
+    "feetMax": 0.143,
+    "headMin": 0.998,
+    "pelvisMax": 0.743,
+    "down": true,
+    "yaw": 0
+   },
+   {
+    "t": 4.1,
+    "feetMax": 0.113,
+    "headMin": 1.257,
+    "pelvisMax": 1.015,
+    "down": false,
+    "yaw": 0
+   }
+  ]
+ },
+ "levantar_costas_clipe": {
+  "slideCm": 25.24,
+  "moving": false
+ }
+}

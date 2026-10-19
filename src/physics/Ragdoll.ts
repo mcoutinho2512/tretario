@@ -48,6 +48,14 @@ const PARENT: Partial<Record<BoneName, BoneName>> = {
   LeftUpperLeg: 'Hips', LeftLowerLeg: 'LeftUpperLeg', RightUpperLeg: 'Hips', RightLowerLeg: 'RightUpperLeg',
 };
 
+/**
+ * rodada 10 — limites (rad) das dobradiças das pernas em torno do eixo lateral (+ = esquerda do corpo): quadril
+ * flexiona para a frente (−) até ~100° e estende 30°; joelho só dobra para trás (+) até ~130°
+ */
+const HINGE: Partial<Record<BoneName, [number, number]>> = {
+  LeftUpperLeg: [-1.75, 0.5], RightUpperLeg: [-1.75, 0.5], LeftLowerLeg: [0, 2.3], RightLowerLeg: [0, 2.3],
+};
+
 export interface RagdollParams {
   /** direção (mundo) e força do impulso */
   dirX: number; dirZ: number; strength: number;
@@ -107,14 +115,39 @@ export class Ragdoll {
       this.world.createCollider(cd.setDensity(name === 'Hips' || name === 'Chest' ? 1100 : 900).setFriction(0.8).setCollisionGroups(BODY), body);
       this.bodies.set(name, body);
     }
-    // juntas esféricas na origem do osso filho
+    // juntas na origem do osso filho (esféricas; coluna rígida e pernas em dobradiça — rodada 10)
+    const lateral = posOf('LeftUpperLeg').sub(posOf('RightUpperLeg')).normalize();
+    const hingeZero = new Map<BoneName, number>();
     for (const [name] of BODIES) {
       const parent = PARENT[name];
       if (!parent) continue;
       const pb = this.bodies.get(parent)!, cb = this.bodies.get(name)!;
       const Pp = posOf(parent), Qp = b[parent].getWorldQuaternion(new THREE.Quaternion());
-      const anchor = posOf(name).sub(Pp).applyQuaternion(Qp.invert());
-      const j = this.world.createImpulseJoint(RP.JointData.spherical({ x: anchor.x, y: anchor.y, z: anchor.z }, { x: 0, y: 0, z: 0 }), pb, cb, true);
+      const anchor = posOf(name).sub(Pp).applyQuaternion(Qp.clone().invert());
+      // rodada 10: a coluna (quadril–lombar–peito) é RÍGIDA. Com juntas esféricas sem limite o quadril girava até
+      // ~180° em relação ao peito (peito para cima, quadril de lado/para baixo) e o levantar misturava essa torção:
+      // pernas a 0,4–1,2 m do chão. As demais juntas continuam esféricas (queda solta de braços, pernas e cabeça).
+      let jd;
+      if (name === 'Spine' || name === 'Chest') {
+        const Qc = b[name].getWorldQuaternion(new THREE.Quaternion());
+        const f1 = Qp.clone().invert(), f2 = Qc.invert();
+        jd = RP.JointData.fixed({ x: anchor.x, y: anchor.y, z: anchor.z }, { x: f1.x, y: f1.y, z: f1.z, w: f1.w }, { x: 0, y: 0, z: 0 }, { x: f2.x, y: f2.y, z: f2.z, w: f2.w });
+      } else if (HINGE[name]) {
+        // quadril e joelho: dobradiça no eixo lateral do corpo, com limites (as pernas dobravam para o lado da
+        // cabeça e cruzavam — "pernas para o ar" no levantar). Ângulo 0 = pose do início da queda.
+        const Qc = b[name].getWorldQuaternion(new THREE.Quaternion());
+        const a1 = lateral.clone().applyQuaternion(Qp.clone().invert()), a2 = lateral.clone().applyQuaternion(Qc.invert());
+        jd = RP.JointData.revoluteWithAxes({ x: anchor.x, y: anchor.y, z: anchor.z }, { x: 0, y: 0, z: 0 }, { x: a1.x, y: a1.y, z: a1.z }, { x: a2.x, y: a2.y, z: a2.z });
+        // o ângulo 0 do Rapier é o dos referenciais mínimos x→eixo de cada corpo, não a pose atual: compensa
+        const X = new THREE.Vector3(1, 0, 0);
+        const f1 = Qp.clone().multiply(new THREE.Quaternion().setFromUnitVectors(X, a1.clone().normalize()));
+        const f2 = Qc.clone().multiply(new THREE.Quaternion().setFromUnitVectors(X, a2.clone().normalize()));
+        const rel = f1.invert().multiply(f2);
+        hingeZero.set(name, 2 * Math.atan2(rel.x, rel.w));
+      } else jd = RP.JointData.spherical({ x: anchor.x, y: anchor.y, z: anchor.z }, { x: 0, y: 0, z: 0 });
+      const j = this.world.createImpulseJoint(jd, pb, cb, true);
+      const lim = HINGE[name], z0 = hingeZero.get(name) ?? 0;
+      if (lim && 'setLimits' in j) (j as unknown as { setLimits(a: number, b: number): void }).setLimits(z0 + lim[0], z0 + lim[1]);
       j.setContactsEnabled(false);
     }
     // impulso: corpo inteiro na direção, com componente vertical; tronco recebe mais (tropeça para trás)
