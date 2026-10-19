@@ -40,7 +40,12 @@ import { packLook } from '../characters/garments';
 import { createAgent, type CrowdAgent } from '../characters/crowd/crowdBudget';
 import type { CrowdDirector } from '../characters/crowd/CrowdDirector';
 import type { SocialState } from '../social/types';
-import { NAME_LOD, selectNames, shortName, type NameCandidate, type NameTier, type NamesMode } from './nameLod';
+import { NAME_LOD, OcclusionCache, autonomousTagged, npcRanges, rayBlocks, selectNames, shortName, type NameCandidate, type NameRanges, type NameTier, type NamesMode } from './nameLod';
+import { NameTagPool, TAG_CLS, type TagSlot } from './NameTagPool';
+import { ENTITY_KIND } from '../world/entityKind';
+import { countHumans } from './population';
+import { personSeed } from '../characters/crowd/animVariety';
+import { setAgentSeed } from '../characters/crowd/crowdBudget';
 import { RateGate } from '../ui/hud/throttle';
 import type { IdentityJoinOptions, WorldRole } from '../identity/types';
 import { LinkMachine, RECONNECT, backoffDelay, retriesForGrace, type LinkEvent, type LinkState } from './reconnect';
@@ -54,7 +59,7 @@ const bodyIndex = (b: string) => Math.max(0, BODY_LIST.indexOf(b as (typeof BODY
 const FAR_DELAY_MS = 650;
 
 interface FarSnap { t: number; x: number; y: number; z: number; heading: number; speed: number }
-interface FarRemote { nid: number; agent: CrowdAgent; a: FarSnap; b: FarSnap; seen: number }
+interface FarRemote { nid: number; agent: CrowdAgent; a: FarSnap; b: FarSnap; seen: number; npc: boolean }
 
 /** estado social → `SocialState` com a fase no relógio comum (todos tocam a mesma fase) */
 function socialOf(s: { act: number; actAt: number; actVar: number; prop: number; design: number }): SocialState {
@@ -104,10 +109,16 @@ interface Remote {
   /** rodada 9.1: posição DESENHADA (filtrada) — `state` continua a interpolação crua usada pelas regras */
   view?: PlayerState;
   buf: Snapshot[];
-  label: HTMLDivElement;
-  /** faixa atual do rótulo (LOD dos apelidos, src/net/nameLod.ts) e último transform escrito */
+  /** rodada 12 — rótulo emprestado do pool fixo (src/net/NameTagPool.ts; null = sem rótulo agora) */
+  tag: TagSlot | null;
+  /** faixa atual do rótulo (LOD dos apelidos, src/net/nameLod.ts) */
   labelTier: NameTier;
-  labelPos: string;
+  /** rodada 12 — objeto sincronizado do servidor (leitura tolerante de kind/look/sup/tag) */
+  st: Record<string, unknown>;
+  /** rodada 12 — tipo (src/world/entityKind.ts: 0 humano · 1 autônomo · 2 bot de carga; ausente = 0) */
+  kind: number;
+  /** rodada 12 — semente da individualidade da animação (estável por pessoa) */
+  seed: number;
   /** falando no chat até (ms, performance.now) — rótulo ganha prioridade */
   speakingUntil: number;
   name: string;
@@ -145,6 +156,8 @@ export class NetworkClient {
   private sendAcc = 0;
   private pingAcc = 0;
   private labels: HTMLDivElement;
+  /** rodada 12 — pool fixo de rótulos (o DOM não cresce com a população) */
+  readonly tags: NameTagPool;
   private history = new Map<number, { x: number; z: number }>();
   private jitterMs = 0;
   interpDelay = 120;
@@ -251,7 +264,35 @@ export class NetworkClient {
     this.labels = document.createElement('div');
     this.labels.className = 'name-labels';
     hudRoot.prepend(this.labels); // por baixo do HUD (menu, minimapa, ajustes)
+    this.tags = new NameTagPool(this.labels, NAME_LOD.cap + 4);
   }
+
+  // ---------------------------------------------------------------- rodada 12 — população (apresentação)
+  /** remoto detalhado pelo nid (olhar, chat) */
+  private byNid = new Map<number, Remote>();
+  /** quem está sob o cursor / selecionado no painel (o rótulo ganha prioridade e aparece completo) */
+  nameFocus: (() => { hover: string | null; selected: string | null }) | null = null;
+  /** raio contra o mundo de colisão (fração 0..1 do segmento livre) — oclusão dos rótulos atrás de prédio */
+  occluder: ((ax: number, ay: number, az: number, bx: number, by: number, bz: number) => number) | null = null;
+  readonly occlusion = new OcclusionCache(400, 8);
+  /** autônomos: fração com nome e faixas (public/gameplay/autonomous.json `nametag`) */
+  npcNames: { share: number; ranges: NameRanges } = { share: 0.6, ranges: npcRanges() };
+  /** olhar (NetPlayer.look) calculado só para quem está a menos disto (m) da câmera e tem esqueleto no LOD <= 1 */
+  lookMaxDist = 22;
+  /** QA: sobrescreve o alvo do olhar (nid do remoto -> nid do alvo; 0 = nada) — sem servidor que mande `look` */
+  qaLook: ((nid: number) => number) | null = null;
+  /** QA/medição: remotos com olhar ativo no último quadro e ms gastos */
+  lookStats = { active: 0, ms: 0 };
+
+  /** HUMANOS vistos por este cliente (o próprio + remotos kind 0 + multidão distante não marcada) — contagem pública */
+  humanCount(includeSelf: boolean): number {
+    const kinds: number[] = [], far: boolean[] = [];
+    for (const r of this.remotes.values()) kinds.push(r.kind);
+    for (const f of this.far.values()) far.push(f.npc);
+    return countHumans(kinds, far, includeSelf);
+  }
+  /** tipo de um remoto (ausente = humano) */
+  kindOf(id: string): number { return this.remotes.get(id)?.kind ?? 0; }
 
   get remoteCount() { return this.remotes.size; }
   /** jogadores da multidão distante (sem estado completo) */
@@ -551,18 +592,17 @@ export class NetworkClient {
     const nid = Number(p.nid) || 0;
     if (nid) { this.remoteNids.add(nid); this.far.delete(nid); }
     const agent = createAgent({ x: p.x, y: p.y, z: p.z, heading: p.heading, body: bodyIndex(app.body), skin: app.skin, hair: app.hair, top: app.top, bottom: app.bottom, look: packLook(app), shirt: app.shirtDesign ?? 0 });
-    const label = document.createElement('div');
-    label.className = 'name-label';
-    label.textContent = p.name || 'Visitante';
-    label.hidden = true;
-    this.labels.appendChild(label);
+    // rodada 12 — individualidade estável por pessoa (mesma semente no esqueleto e no instanciado; todos os clientes iguais)
+    const seed = personSeed(nid || id);
+    setAgentSeed(agent, seed);
     const r: Remote = {
-      id, nid, visual: null, app, agent, state: createPlayerState(id, p.x, p.y, p.z, p.heading), buf: [], label, labelTier: 'hidden', labelPos: '', speakingUntil: 0, name: p.name, body: p.body, accessory: p.accessory || 'nenhum',
+      id, nid, visual: null, app, agent, state: createPlayerState(id, p.x, p.y, p.z, p.heading), buf: [], tag: null, labelTier: 'hidden', st: p, kind: Number(p.kind ?? 0) || 0, seed, speakingUntil: 0, name: p.name, body: p.body, accessory: p.accessory || 'nenhum',
       interaction: p.interaction, status: p.status, vehicle: p.vehicle, platform: p.platform ?? '', link: 0, lastArrival: performance.now(), lastStamp: 0,
       soc: { act: p.act ?? 0, actAt: p.actAt ?? 0, actVar: p.actVar ?? 0, prop: p.prop ?? 0, design: p.design ?? 0 }, socApplied: null,
       fx: p.fx ?? 0, fall: new FallSync(),
     };
     this.remotes.set(id, r);
+    if (nid) this.byNid.set(nid, r);
     if (!this.crowd) this.acquire(r);
     this.pushSnapshot(id, p);
   }
@@ -573,6 +613,7 @@ export class NetworkClient {
     let v = list?.pop();
     if (v) { v.resetForReuse(); v.setAppearance(r.app); }
     else v = new AvatarVisual(r.app, { lod: 2, castShadow: false });
+    if (NetworkClient.variety) v.setVariant(r.seed); // rodada 12 — fase/cadência/parado/laços próprios (animVariety.ts)
     this.group.add(v.root);
     r.visual = v;
     return v;
@@ -583,6 +624,7 @@ export class NetworkClient {
     if (!v) return;
     r.visual = null;
     r.agent.skinReady = false;
+    v.setLook(null);
     this.group.remove(v.root);
     let list = this.pool.get(r.app.body);
     if (!list) this.pool.set(r.app.body, (list = []));
@@ -621,7 +663,7 @@ export class NetworkClient {
     }
   }
   /** perfil público de um remoto: apelido e torcida (`NetPlayer.sup`, lido de forma tolerante: ausente = 0) */
-  publicProfile(id: string): { name: string; sup: number; x: number; z: number; lvl: number; title: string } | null {
+  publicProfile(id: string): { name: string; sup: number; x: number; z: number; lvl: number; title: string; kind: number } | null {
     const r = this.remotes.get(id);
     if (!r) return null;
     const st = (this.room?.state as { players?: { get?(k: string): { sup?: unknown; lvl?: unknown; title?: unknown } | undefined } } | undefined)?.players?.get?.(id);
@@ -629,7 +671,8 @@ export class NetworkClient {
     const s = r.view ?? r.state;
     // rodada 11 — nível e título equipado (públicos; ausentes = 0 / '')
     const lvl = Number(st?.lvl ?? 0);
-    return { name: r.name || 'Visitante', sup: Number.isInteger(sup) && sup > 0 ? sup : 0, x: s.x, z: s.z, lvl: Number.isInteger(lvl) && lvl > 0 ? lvl : 0, title: typeof st?.title === 'string' ? st.title.slice(0, 48) : '' };
+    // rodada 12 — `kind` (0 humano · 1 autônomo · 2 bot de carga): o painel decide o que oferecer (nunca rotula)
+    return { name: r.name || 'Visitante', sup: Number.isInteger(sup) && sup > 0 ? sup : 0, x: s.x, z: s.z, lvl: Number.isInteger(lvl) && lvl > 0 ? lvl : 0, title: typeof st?.title === 'string' ? st.title.slice(0, 48) : '', kind: r.kind };
   }
 
   /** rodada 11 — inventário: o que o SERVIDOR aplicou na própria entidade (aparência, torcida, nível, título) */
@@ -651,10 +694,10 @@ export class NetworkClient {
       let f = this.far.get(e.nid);
       if (!f) {
         const app = this.farApp.get(e.nid);
-        f = { nid: e.nid, agent: createAgent({ maxTier: 1, body: e.body, x: e.x, y: e.y, z: e.z, heading: e.heading, ...(app ?? {}) }), a: snap, b: snap, seen: stamp };
+        f = { nid: e.nid, agent: createAgent({ maxTier: 1, body: e.body, x: e.x, y: e.y, z: e.z, heading: e.heading, seed: personSeed(e.nid), ...(app ?? {}) }), a: snap, b: snap, seen: stamp, npc: !!e.npc };
         this.far.set(e.nid, f);
       } else {
-        f.a = f.b; f.b = snap; f.seen = stamp;
+        f.a = f.b; f.b = snap; f.seen = stamp; f.npc = !!e.npc;
         if (e.app) Object.assign(f.agent, e.app);
       }
       f.agent.body = e.body;
@@ -689,13 +732,14 @@ export class NetworkClient {
     if ((p.fx ?? 0) !== r.fx) { r.fx = p.fx ?? 0; r.visual?.setFx(r.fx); }
     r.visual?.setPhys(p.status);
     r.interaction = p.interaction; r.status = p.status; r.vehicle = p.vehicle; r.platform = p.platform ?? '';
-    if ((p.link ?? 0) !== r.link) { r.link = p.link ?? 0; r.label.classList.toggle('away', r.link !== 0); if (r.labelTier !== 'hidden') this.setLabelTier(r, r.labelTier, true); }
+    if ((p.link ?? 0) !== r.link) { r.link = p.link ?? 0; if (r.labelTier !== 'hidden') this.setLabelTier(r, r.labelTier, true); }
+    r.kind = Number(p.kind ?? 0) || 0; // rodada 12 — tolerante (servidor antigo: ausente = humano)
     const so = r.soc;
     if (so.act !== p.act || so.actAt !== p.actAt || so.prop !== p.prop || so.design !== p.design || so.actVar !== p.actVar) {
       r.soc = { act: p.act, actAt: p.actAt, actVar: p.actVar, prop: p.prop, design: p.design };
       r.socApplied = null;
     }
-    r.label.classList.toggle('combat', p.interaction === 'interacao');
+    if (r.tag && ((r.tag.cls & TAG_CLS.combat) !== 0) !== (p.interaction === 'interacao')) this.setLabelTier(r, r.labelTier, true);
     if (p.name && p.name !== r.name) { r.name = p.name; if (r.labelTier !== 'hidden') this.setLabelTier(r, r.labelTier, true); }
   }
 
@@ -703,9 +747,9 @@ export class NetworkClient {
     const r = this.remotes.get(id);
     if (!r) return;
     this.release(r);
-    r.label.remove();
+    this.tags.release(r.tag); r.tag = null;
     this.shownLabels.delete(r);
-    if (r.nid) this.remoteNids.delete(r.nid);
+    if (r.nid) { this.remoteNids.delete(r.nid); if (this.byNid.get(r.nid) === r) this.byNid.delete(r.nid); this.occlusion.forget(r.nid); }
     this.remotes.delete(id);
   }
 
@@ -737,7 +781,16 @@ export class NetworkClient {
   statusFalls = 0;
 
   // ---------------------------------------------------------------- por frame
+  /** rodada 12 — QA/medição A/B: ?r12var=0 desliga a individualidade da animação dos remotos (comparação de custo) */
+  static variety = typeof location === 'undefined' || new URLSearchParams(location.search).get('r12var') !== '0';
+  /** rodada 12 — medição: ms (média móvel) do update por quadro — interpolação, animação dos esqueletos, olhar, rótulos */
+  updateMs = 0;
   update(dt: number, local: PlayerState, riding: string | null, camera: THREE.Camera, viewport: { w: number; h: number }) {
+    const tU = performance.now();
+    this.updateInner(dt, local, riding, camera, viewport);
+    this.updateMs = this.updateMs * 0.95 + (performance.now() - tU) * 0.05;
+  }
+  private updateInner(dt: number, local: PlayerState, riding: string | null, camera: THREE.Camera, viewport: { w: number; h: number }) {
     if (this.room && this.status === 'online' && this.role === 'spectator') this.sendSpectatorCam(dt);
     if (this.room && this.status === 'online' && this.spawned && !this.holdMoves) {
       this.sendAcc += dt;
@@ -821,8 +874,13 @@ export class NetworkClient {
         const def = RIDEABLE_DEFS[(this.vehicleKinds.get(c.vehicle) ?? 'bicycle') as RideableKind] ?? RIDEABLE_DEFS.bicycle;
         const seat = seatWorld(def, s.x, s.z, s.heading); // carro de som/trio: banco na cabine, longe do centro
         visual.updateRiding(seat.x, s.y, seat.z, s.heading, def.pose, s.speed, def.seatHeight, dt, this.vehicleSource?.(c.vehicle) ?? undefined); // rodada 10 — montagem
-      } else visual.update(this.viewOf(r, !!c.platform, dt), dt, crowd ? visual.root.visible && crowd.shouldAnimate(ag) : undefined);
+      } else {
+        if (visual.root.visible && (this.qaLook || Number(r.st.look ?? 0))) this.applyLook(r, visual, d, local);
+        visual.update(this.viewOf(r, !!c.platform, dt), dt, crowd ? visual.root.visible && crowd.shouldAnimate(ag) : undefined);
+      }
     }
+    this.lookStats.active = this.lookActive; this.lookStats.ms = +(this.lookStats.ms * 0.9 + this.lookMs * 0.1).toFixed(4);
+    this.lookActive = 0; this.lookMs = 0;
     this.updateLabels(camera, viewport, nowP);
     // multidão distante: interpolação simples entre as duas últimas posições (2 Hz), só instanciada
     if (crowd) {
@@ -841,6 +899,33 @@ export class NetworkClient {
     }
   }
   private lastCam = new THREE.Vector3();
+  private lookActive = 0;
+  private lookMs = 0;
+  private lookTarget = { x: 0, y: 0, z: 0 };
+
+  /**
+   * rodada 12 — olhar (NetPlayer.look = nid do alvo): resolve o alvo LOCALMENTE (remoto detalhado, o próprio, multidão
+   * distante) e passa o ponto da cabeça ao animador, que limita e suaviza. Só perto (LOD <= 1, < lookMaxDist).
+   */
+  private applyLook(r: Remote, v: AvatarVisual, d: number, local: PlayerState) {
+    const t0 = performance.now();
+    const target = this.qaLook ? this.qaLook(r.nid) : Number(r.st.look ?? 0) || 0;
+    let p: { x: number; y: number; z: number } | null = null;
+    if (target && d < this.lookMaxDist && r.agent.lod <= 1 && !r.vehicle && r.status === 0) {
+      const lt = this.lookTarget;
+      if (target === this.selfNid) { lt.x = local.x; lt.y = local.y + 1.6; lt.z = local.z; p = lt; }
+      else {
+        const o = this.byNid.get(target);
+        const s = o ? o.view ?? o.state : null;
+        const f = !s ? this.far.get(target) : null;
+        if (s) { lt.x = s.x; lt.y = s.y + 1.6; lt.z = s.z; p = lt; }
+        else if (f) { lt.x = f.agent.x; lt.y = f.agent.y + 1.6; lt.z = f.agent.z; p = lt; }
+      }
+    }
+    v.setLook(p);
+    if (p) this.lookActive++;
+    this.lookMs += performance.now() - t0;
+  }
 
   /**
    * rodada 9.1 — posição desenhada do remoto: as amostras chegam com o ritmo irregular de quem as enviou (quadros do
@@ -881,7 +966,7 @@ export class NetworkClient {
   private labelScratch: { c: NameCandidate; t: NameTier; p: number }[] = [];
   private labelV = new THREE.Vector3();
   /** QA: rótulos visíveis, decisões e escritas de transform por segundo */
-  labelStats = { shown: 0, candidates: 0, decisions: 0, decideMs: 0, transforms: 0 };
+  labelStats = { shown: 0, candidates: 0, decisions: 0, decideMs: 0, transforms: 0, frameMs: 0, rays: 0, nodes: 0 };
 
   /** o chat (agente C) avisa quem falou: o rótulo ganha prioridade/aparece até 50 m por `ms` */
   /** id da entidade remota pelo id curto (nid) — mensagens de chat trazem só o nid */
@@ -900,19 +985,22 @@ export class NetworkClient {
 
   private setLabelTier(r: Remote, t: NameTier, force = false) {
     if (r.labelTier === t && !force) return;
-    const was = r.labelTier;
     r.labelTier = t;
-    if (t === 'hidden') { r.label.hidden = true; r.labelPos = ''; this.shownLabels.delete(r); return; }
+    if (t === 'hidden') { this.tags.release(r.tag); r.tag = null; this.shownLabels.delete(r); return; }
+    // rodada 12 — rótulo do POOL fixo (src/net/NameTagPool.ts): esgotado = não mostra (o teto já é NAME_LOD.cap)
+    if (!r.tag) r.tag = this.tags.acquire(r);
+    if (!r.tag) { r.labelTier = 'hidden'; return; }
     const name = r.name || 'Visitante';
-    r.label.textContent = (t === 'short' ? shortName(name) : name) + (r.link ? ' · reconectando…' : ''); // caiu: em graça
-    if (t === 'short' || was === 'short' || force) r.label.classList.toggle('short', t === 'short');
-    r.label.hidden = false;
+    const text = (t === 'short' ? shortName(name) : name) + (r.link ? ' · reconectando…' : ''); // caiu: em graça
+    this.tags.set(r.tag, text, (t === 'short' ? TAG_CLS.short : 0) | (r.link ? TAG_CLS.away : 0) | (r.interaction === 'interacao' ? TAG_CLS.combat : 0));
     this.shownLabels.add(r);
   }
 
   /**
-   * decisões (quem tem rótulo e em que faixa) a 5 Hz; por quadro só o transform dos escolhidos (≤ NAME_LOD.cap),
+   * decisões (quem tem rótulo e em que faixa) a 5 Hz; por quadro só o transform dos escolhidos (<= NAME_LOD.cap),
    * e só quando muda de pixel — nada de display/texto/classe por quadro.
+   * Rodada 12: autônomos (parte sem nome, faixas próprias), foco (hover/seleção), densidade da faixa média e oclusão
+   * amostrada (raio câmera → cabeça contra as paredes do mundo de colisão, <= 8 raios novos por decisão).
    */
   private updateLabels(camera: THREE.Camera, viewport: { w: number; h: number }, now: number) {
     const cam = camera.position, v = this.labelV;
@@ -923,17 +1011,31 @@ export class NetworkClient {
       if (this.namesMode !== 'NENHUM') {
         // "interagindo" = falou no chat ou COMEÇOU uma ação há pouco (dançar sem parar não acende rótulo a 50 m)
         const srvNow = worldClock.now();
+        const foc = this.nameFocus?.() ?? null;
+        const hover = foc?.hover ?? null, sel = foc?.selected ?? null;
+        const share = this.npcNames.share;
         for (const r of this.remotes.values()) {
           const s = r.state;
           const d = Math.hypot(s.x - cam.x, s.z - cam.z);
           // tier 0 = fora do orçamento (não desenhado): sem rótulo flutuando no vazio
           if (d > NAME_LOD.max + NAME_LOD.hyst || (r.agent.tier === 0 && !r.visual)) continue;
+          const npc = r.kind === ENTITY_KIND.AUTONOMOUS;
+          const tagged = !npc || autonomousTagged(r.nid, share, Number(r.st.tag ?? 0) || 0);
+          if (!tagged) { if (r.labelTier !== 'hidden') this.setLabelTier(r, 'hidden'); continue; }
           v.set(s.x, s.y + 2.1, s.z).project(camera);
-          cands.push({ key: refs.length, dist: d, nx: v.x, ny: v.y, front: v.z < 1, interacting: r.speakingUntil > now || (r.soc.act !== 0 && srvNow - r.soc.actAt < 4000), prev: r.labelTier });
+          cands.push({ key: refs.length, dist: d, nx: v.x, ny: v.y, front: v.z < 1, interacting: r.speakingUntil > now || (r.soc.act !== 0 && srvNow - r.soc.actAt < 4000), prev: r.labelTier, kind: r.kind, tagged, focus: r.id === hover || r.id === sel });
           refs.push(r);
         }
       }
-      const pick = selectNames(cands, this.namesMode, NAME_LOD.cap, this.labelScratch);
+      const occ = this.occluder, oc = this.occlusion;
+      oc.begin();
+      const pick = selectNames(cands, this.namesMode, NAME_LOD.cap, this.labelScratch, occ ? (k) => {
+        const r = refs[k], s = r.state;
+        return oc.test(r.nid || k + 100000, now, () => {
+          const hy = s.y + 1.75, len = Math.hypot(s.x - cam.x, hy - cam.y, s.z - cam.z);
+          return rayBlocks(occ(cam.x, cam.y, cam.z, s.x, hy, s.z), len);
+        });
+      } : undefined, this.npcNames.ranges);
       const keep = new Set<Remote>();
       for (const k of pick.keys()) keep.add(refs[k]);
       for (const r of [...this.shownLabels]) if (!keep.has(r)) this.setLabelTier(r, 'hidden');
@@ -941,17 +1043,37 @@ export class NetworkClient {
       const st = this.labelStats;
       st.shown = this.shownLabels.size; st.candidates = cands.length; st.decisions++;
       st.decideMs = +(st.decideMs * 0.8 + (performance.now() - t0) * 0.2).toFixed(3);
+      st.rays = oc.rays; st.nodes = this.tags.nodes;
     }
+    const t1 = performance.now();
     for (const r of this.shownLabels) {
       const s = r.state;
       v.set(s.x, s.y + 2.1, s.z).project(camera);
-      if (v.z >= 1) continue; // atrás da câmera: a próxima decisão esconde
-      const pos = `translate3d(${Math.round(((v.x + 1) / 2) * viewport.w)}px,${Math.round(((1 - v.y) / 2) * viewport.h)}px,0) translate(-50%,-100%)`;
-      if (pos === r.labelPos) continue;
-      r.labelPos = pos;
-      r.label.style.transform = pos;
-      this.labelStats.transforms++;
+      if (v.z >= 1 || !r.tag) continue; // atrás da câmera: a próxima decisão esconde
+      if (this.tags.move(r.tag, Math.round(((v.x + 1) / 2) * viewport.w), Math.round(((1 - v.y) / 2) * viewport.h))) this.labelStats.transforms++;
     }
+    const st = this.labelStats;
+    st.frameMs = +(st.frameMs * 0.95 + (performance.now() - t1) * 0.05).toFixed(4);
+  }
+
+  /**
+   * rodada 12 — QA (tools/qa/humanization_probe.mjs): por remoto detalhado — tipo, ação, velocidade, rumo, com
+   * esqueleto, fases normalizadas (caminhada, parado, ação em laço; instanciado: fase do VAT) e o olhar
+   */
+  humanizationSample() {
+    const out: { nid: number; kind: number; act: number; actAt: number; speed: number; heading: number; skinned: boolean; walk: number | null; idle: number | null; actPhase: number | null; vat: number; look: number }[] = [];
+    for (const r of this.remotes.values()) {
+      if (!r.buf.length) continue;
+      const ph = r.visual?.phaseDebug ?? null;
+      out.push({ nid: r.nid, kind: r.kind, act: r.soc.act, actAt: r.soc.actAt, speed: +r.state.speed.toFixed(2), heading: +r.state.heading.toFixed(3), skinned: !!r.visual, walk: ph?.walk ?? null, idle: ph?.idle ?? null, actPhase: ph?.actPhase ?? null, vat: +r.agent.phase.toFixed(3), look: r.visual?.lookDebug?.w ?? 0 });
+    }
+    return out;
+  }
+
+  /** rodada 12 — QA: por remoto detalhado, distância à câmera, tipo, nome pela regra, faixa do rótulo e oclusão */
+  labelDebug() {
+    const c = this.lastCam;
+    return [...this.remotes.values()].map((r) => ({ name: r.name, kind: r.kind, d: +Math.hypot(r.state.x - c.x, r.state.z - c.z).toFixed(1), tier: r.labelTier, agentTier: r.agent.tier, visual: !!r.visual, tagged: r.kind !== ENTITY_KIND.AUTONOMOUS || autonomousTagged(r.nid, this.npcNames.share, Number(r.st.tag ?? 0) || 0), occluded: this.occlusion.peek(r.nid) ?? null }));
   }
 
   /** para QA */
@@ -987,7 +1109,7 @@ export class NetworkClient {
   forEachRemoteAudio(fn: (nid: number, x: number, z: number, speed: number, status: number, sup: number, riding: boolean) => void) {
     for (const r of this.remotes.values()) {
       if (!r.buf.length) continue;
-      const sup = Number((r as unknown as { sup?: number }).sup ?? (r.app as unknown as { sup?: number }).sup ?? 0) || 0;
+      const sup = Number(r.st.sup ?? 0) || 0; // rodada 12 — lido do estado sincronizado (antes: campo inexistente = sempre 0)
       fn(r.nid, r.state.x, r.state.z, Math.abs(r.state.speed), r.status, sup, !!(r.vehicle || r.platform));
     }
   }

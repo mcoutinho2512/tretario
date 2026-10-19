@@ -8,14 +8,40 @@
  * administrativo: o painel não recebe nada disso. Silenciar = mute por identidade do chat (`chat_mute {nid}`, o
  * servidor resolve a conta); denunciar = `user_report {nid, category}` (o servidor valida, limita e guarda a
  * evidência; a resposta não traz ids).
+ *
+ * Rodada 12 — personagem AUTÔNOMO do mundo (NetPlayer.kind = 1; docs/AUTONOMOUS_CHARACTERS.md § Cliente): o painel
+ * mostra apelido, título (quando houver) e torcida, e oferece VER PERFIL e INTERAGIR — sem SILENCIAR/DENUNCIAR (não
+ * fazem sentido para um personagem do mundo; não há chat nem conta). Nunca rotula ninguém como "bot" nem afirma que
+ * é humano: o texto é o mesmo de qualquer pessoa, só faltam as ações de moderação. Humano: igual à rodada 11.
  */
 import { EscSlot } from './escStack'; // rodada 11 — entrada
 import { REPORT_CATEGORIES, REPORT_LABELS, type ReportCategory } from '../chat/protocol';
+import { ENTITY_KIND } from '../world/entityKind';
+
+/** rodada 12 — personagem autônomo do mundo (sem moderação no painel) */
+export const isAutonomous = (kind: number | undefined) => (kind ?? 0) === ENTITY_KIND.AUTONOMOUS;
+
+export type PersonAction = 'profile' | 'interact' | 'mute' | 'report';
+/** rodada 12 — ações do painel por tipo (puro): autônomo sem SILENCIAR/DENUNCIAR; humano/bot de carga como na rodada 11 */
+export function personActions(kind: number | undefined): PersonAction[] {
+  return isAutonomous(kind) ? ['profile', 'interact'] : ['profile', 'interact', 'mute', 'report'];
+}
+/** rodada 12 — linha de baixo do nome (puro): título · nível (só humano) · torcida — nunca "bot"/"NPC"/"humano" */
+export function personSubtitle(p: { kind?: number; title?: string; lvl?: number }, supporter: string | null): string {
+  return [p.title ?? '', !isAutonomous(p.kind) && p.lvl ? `Nível ${p.lvl}` : '', supporter ? `Torcida: ${supporter}` : 'Sem torcida escolhida'].filter(Boolean).join(' · ');
+}
+/** rodada 12 — linhas de VER PERFIL (puro) */
+export function personProfileRows(p: { kind?: number; name: string; title?: string; lvl?: number }, supporter: string | null): [string, string][] {
+  const rows: [string, string][] = [['Apelido', p.name], ['Título', p.title || 'Nenhum']];
+  if (!isAutonomous(p.kind)) rows.push(['Nível', p.lvl ? String(p.lvl) : '—']); // rodada 11 (autônomo: sem progressão)
+  rows.push(['Torcida', supporter ?? 'Nenhuma']);
+  return rows;
+}
 
 export interface PersonPanelDeps {
   touch: boolean;
   /** dados públicos da pessoa (null = saiu do mundo / da área) */
-  profile(id: string): { name: string; sup: number; lvl?: number; title?: string } | null;
+  profile(id: string): { name: string; sup: number; lvl?: number; title?: string; kind?: number } | null;
   /** distância atual (m) até a pessoa; null = sumiu */
   distance(id: string): number | null;
   /** nome de exibição da torcida pelos dados (sup = índice + 1; 0 = sem torcida) */
@@ -40,7 +66,7 @@ export class PersonPanel {
   private body: HTMLDivElement;
   private nameEl: HTMLDivElement;
   private subEl: HTMLDivElement;
-  private target: { id: string; nid: number; name: string; sup: number; lvl: number; title: string } | null = null;
+  private target: { id: string; nid: number; name: string; sup: number; lvl: number; title: string; kind: number } | null = null;
   private view: View = 'main';
   private acc = 0;
   private esc = new EscSlot('pessoa', 100, () => this.close());
@@ -74,7 +100,7 @@ export class PersonPanel {
   show(id: string, nid: number) {
     const p = this.d.profile(id);
     if (!p) { this.d.flash('Essa pessoa saiu daqui'); return; }
-    this.target = { id, nid, name: p.name, sup: p.sup, lvl: p.lvl ?? 0, title: p.title ?? '' }; // rodada 11 — nível e título
+    this.target = { id, nid, name: p.name, sup: p.sup, lvl: p.lvl ?? 0, title: p.title ?? '', kind: p.kind ?? 0 }; // rodada 11 — nível e título; rodada 12 — tipo
     this.view = 'main';
     this.render();
     const was = this.open;
@@ -115,29 +141,32 @@ export class PersonPanel {
     if (!t) return;
     const sup = this.d.supporter(t.sup);
     this.nameEl.textContent = t.name;
-    // rodada 11 — título equipado e nível (públicos) antes da torcida
-    this.subEl.textContent = [t.title, t.lvl ? `Nível ${t.lvl}` : '', sup ? `Torcida: ${sup}` : 'Sem torcida escolhida'].filter(Boolean).join(' · ');
+    // rodada 11 — título equipado e nível (públicos) antes da torcida; rodada 12 — autônomo: título e torcida
+    const npc = isAutonomous(t.kind);
+    this.subEl.textContent = personSubtitle(t, sup);
     const b = this.body;
     b.replaceChildren();
     if (this.view === 'main') {
       const g = document.createElement('div'); g.className = 'pp-grid';
-      const muted = this.d.muted(t.name);
-      g.append(
-        this.btn('VER PERFIL', () => this.go('profile')),
-        this.btn('INTERAGIR', () => this.go('interact')),
-        this.btn(muted ? 'DESSILENCIAR' : 'SILENCIAR', () => { this.d.setMuted(t.nid, t.name, !muted); this.log.push(muted ? 'unmute' : 'mute'); this.close(); }),
-        this.btn('DENUNCIAR', () => this.go('report'), 'warn'),
-      );
+      // rodada 12 — moderação só para pessoas com conta/chat (personagem do mundo: sem silenciar/denunciar)
+      for (const a of personActions(t.kind)) {
+        if (a === 'profile') g.append(this.btn('VER PERFIL', () => this.go('profile')));
+        else if (a === 'interact') g.append(this.btn('INTERAGIR', () => this.go('interact')));
+        else if (a === 'mute') { const muted = this.d.muted(t.name); g.append(this.btn(muted ? 'DESSILENCIAR' : 'SILENCIAR', () => { this.d.setMuted(t.nid, t.name, !muted); this.log.push(muted ? 'unmute' : 'mute'); this.close(); })); }
+        else g.append(this.btn('DENUNCIAR', () => this.go('report'), 'warn'));
+      }
       b.append(g);
     } else if (this.view === 'profile') {
       const row = (k: string, v: string) => { const r = document.createElement('div'); r.className = 'pp-row'; const a = document.createElement('span'); a.textContent = k; const c = document.createElement('span'); c.textContent = v; r.append(a, c); return r; };
-      b.append(row('Apelido', t.name), row('Título', t.title || 'Nenhum'), row('Nível', t.lvl ? String(t.lvl) : '—'), row('Torcida', sup ?? 'Nenhuma')); // rodada 11
+      for (const [k, v] of personProfileRows(t, sup)) b.append(row(k, v));
       const n = document.createElement('div'); n.className = 'pp-note'; n.textContent = 'Só dados públicos. Conta, e-mail e localização real nunca aparecem.';
       b.append(n, this.back());
     } else if (this.view === 'interact') {
       const l = document.createElement('div'); l.className = 'pp-list';
       for (const gst of this.d.gestures) l.append(this.btn(gst.label, () => { this.d.gesture(t.id, gst.id); this.log.push(`gesture:${gst.id}`); this.close(); }));
       b.append(l, this.back());
+    } else if (npc) {
+      this.view = 'main'; this.render(); // rodada 12 — sem denúncia para personagem do mundo
     } else {
       const l = document.createElement('div'); l.className = 'pp-list';
       const k = document.createElement('div'); k.className = 'pp-sub'; k.textContent = `Denunciar ${t.name} por:`;
@@ -151,5 +180,7 @@ export class PersonPanel {
   private go(v: View) { this.view = v; this.log.push(`view:${v}`); this.render(); (this.body.querySelector('button') as HTMLButtonElement | null)?.focus({ preventScroll: true }); }
 
   /** QA */
-  info() { return { open: this.open, view: this.view, name: this.target?.name ?? null, title: this.target?.title ?? null, lvl: this.target?.lvl ?? null, text: this.open ? this.el.innerText : '', log: this.log.slice(-20) }; }
+  info() { return { open: this.open, view: this.view, name: this.target?.name ?? null, title: this.target?.title ?? null, lvl: this.target?.lvl ?? null, kind: this.target?.kind ?? null, selected: this.open ? this.target?.id ?? null : null, text: this.open ? this.el.innerText : '', log: this.log.slice(-20) }; }
+  /** rodada 12 — pessoa selecionada (o rótulo dela ganha foco) */
+  get selectedId(): string | null { return this.open ? this.target?.id ?? null : null; }
 }

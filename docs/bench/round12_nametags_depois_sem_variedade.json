@@ -1,0 +1,63 @@
+{
+  "when": "2026-10-19T22:56:03.831Z",
+  "base": "http://localhost:5214",
+  "results": [
+    {
+      "label": "depois_sem_variedade",
+      "kind": 1,
+      "N": 50,
+      "remotes": 50,
+      "far": 0,
+      "cpuMs": 8.5288,
+      "fps": 59.7,
+      "p95FrameMs": 18.4,
+      "crowdMs": 0.07,
+      "skinned": 24,
+      "netUpdateMs": 0.338,
+      "lookActive": 0,
+      "labelsShown": 2.6,
+      "labelDecideMs": 0.0201,
+      "labelFrameMs": 0.0061,
+      "occlusionRaysTotal": 90,
+      "domLabelNodes": 18
+    },
+    {
+      "label": "depois_sem_variedade",
+      "kind": 1,
+      "N": 250,
+      "remotes": 64,
+      "far": 176,
+      "cpuMs": 11.9232,
+      "fps": 59.9,
+      "p95FrameMs": 17.7,
+      "crowdMs": 0.12,
+      "skinned": 32,
+      "netUpdateMs": 0.7861,
+      "lookActive": 0,
+      "labelsShown": 14,
+      "labelDecideMs": 0.0476,
+      "labelFrameMs": 0.0241,
+      "occlusionRaysTotal": 438,
+      "domLabelNodes": 18
+    },
+    {
+      "label": "depois_sem_variedade",
+      "kind": 1,
+      "N": 500,
+      "remotes": 64,
+      "far": 415,
+      "cpuMs": 16.9615,
+      "fps": 56.4,
+      "p95FrameMs": 20.9,
+      "crowdMs": 0.21,
+      "skinned": 32,
+      "netUpdateMs": 1.0478,
+      "lookActive": 0,
+      "labelsShown": 14,
+      "labelDecideMs": 0.0555,
+      "labelFrameMs": 0.0274,
+      "occlusionRaysTotal": 654,
+      "domLabelNodes": 18
+    }
+  ]
+}

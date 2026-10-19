@@ -137,6 +137,14 @@ export class AvatarVisual {
     this.root.rotation.set(0, 0, 0);
   }
 
+  /** rodada 12 — individualidade da animação (semente estável por pessoa: src/characters/crowd/animVariety.ts) */
+  setVariant(seed: number) { this.human?.setVariant(seed); }
+  /** rodada 12 — cabeça/tronco olhando para um ponto de MUNDO (null = olhar livre); só tem efeito de perto (LOD ≤ 1) */
+  setLook(target: { x: number; y: number; z: number } | null) { this.human?.animator?.setLook(target); }
+  get lookDebug() { return this.human?.animator?.lookDebug ?? null; }
+  get variantDebug() { return this.human?.animator?.variantDebug ?? null; }
+  get phaseDebug() { return this.human?.animator?.phaseDebug ?? null; }
+
   /** nível de detalhe fixo (jogador local) */
   setDetail(lod: Lod) { this.human?.setLod(lod); }
 
