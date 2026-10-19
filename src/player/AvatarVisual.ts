@@ -18,6 +18,7 @@ import { FX } from '../combat/types';
 import { STATUS } from '../net/rules';
 import { ProtectedAura } from '../combat/fxVisuals';
 import { angleDelta, turnToward } from '../npc/gait';
+import { dodgeClipFor, staggerClipFor, getupClipFor } from '../combat/animSelect';
 
 /** ossos do ragdoll (nomes do rig antigo) → rig "game_engine" do personagem humano */
 const HUMAN_BONES: Record<BoneName, string> = {
@@ -115,6 +116,7 @@ export class AvatarVisual {
     this.ragdoll = null;
     this.human?.propAttachment?.setVisible(true);
     this.fx = 0; this.phys = STATUS.OK; this.aura?.set(false); this.human?.animator?.stopClip();
+    this.staggerClip = null; this.hitDir = null; this.getupClip = false;
     this.fall = { phase: 'none', t: 0, down: 0, getup: 0, captured: [], hipsFrom: new THREE.Vector3() };
     const pivot = this.human?.armature ?? this.legacy?.rig.mesh;
     if (pivot) { pivot.rotation.x = 0; pivot.rotation.z = 0; }
@@ -183,7 +185,7 @@ export class AvatarVisual {
     { const pv = this.human?.armature; if (pv) { pv.rotation.x = 0; pv.rotation.z = 0; } this.gait.roll = this.gait.pitch = 0; }
     // item na mão: some durante a queda (o servidor larga o de confronto; o social volta ao levantar)
     this.human?.propAttachment?.setVisible(false);
-    this.human?.animator?.stopClip('stagger');
+    this.stopStagger();
     const rig = this.rigForRagdoll();
     if (!rig) return;
     try {
@@ -208,7 +210,15 @@ export class AvatarVisual {
     if (status === this.phys) return;
     const prev = this.phys;
     this.phys = status;
-    if (status === STATUS.STAGGER && prev !== STATUS.STAGGER && !this.isDown) { this.human?.animator?.playClip('stagger'); this.staggers++; }
+    if (status === STATUS.STAGGER && prev !== STATUS.STAGGER && !this.isDown) {
+      // rodada 10: direção do golpe (cbt_hit recente) escolhe a variante; sem ela, golpe de frente
+      const d = this.hitDir && performance.now() - this.hitDir.at < 600 ? this.hitDir : null;
+      this.stopStagger();
+      this.staggerClip = d ? staggerClipFor(d.dx, d.dz, this.gait.face) : 'stagger';
+      this.staggerAt = performance.now();
+      this.human?.animator?.playClip(this.staggerClip);
+      this.staggers++;
+    }
   }
 
   /** efeitos (NetPlayer.fx): proteção = brilho sutil; desorientado = mãos no rosto (loop até o bit sair) */
@@ -225,7 +235,7 @@ export class AvatarVisual {
   }
 
   /** QA: estado físico/efeitos aplicados e clipes avulsos ativos */
-  get fxDebug() { return { fx: this.fx, phys: this.phys, aura: !!this.aura?.on, clips: this.human?.animator?.fxClips ?? [], staggers: this.staggers, ragdoll: !!this.ragdoll, fall: this.fall.phase }; }
+  get fxDebug() { return { fx: this.fx, phys: this.phys, aura: !!this.aura?.on, clips: this.human?.animator?.fxClips ?? [], staggers: this.staggers, ragdoll: !!this.ragdoll, fall: this.fall.phase, getup: this.getupName }; }
 
   /** atualiza queda; retorna true enquanto controla a pose */
   private updateFall(x: number, y: number, z: number, heading: number, dt: number): boolean {
@@ -250,36 +260,86 @@ export class AvatarVisual {
         const pivot = this.human?.armature ?? this.legacy?.rig.mesh;
         this.root.updateMatrixWorld(true);
         const hipsWorld = hips.getWorldPosition(new THREE.Vector3());
+        const hipsWorldQ = hips.getWorldQuaternion(new THREE.Quaternion());
+        // rodada 10 — levantar a partir da pose REAL do chão: de costas ou de bruços (pela normal do peito) e virado
+        // para onde o corpo caiu (o rumo do servidor volta depois, com giro limitado) — sem girar o corpo deitado
+        const pick = this.human ? this.groundPose() : null;
         if (pivot) pivot.rotation.x = 0;
+        if (pick) { this.gait.face = pick.yaw; this.root.rotation.y = pick.yaw; }
         this.root.position.set(x, y, z);
         this.root.updateMatrixWorld(true);
         f.hipsFrom = hipsWorld.applyMatrix4(hips.parent!.matrixWorld.clone().invert());
         f.captured = this.allBones().map((b) => b.quaternion.clone());
+        // a pelve guarda a orientação de MUNDO do chão (o referencial girou para o rumo do corpo deitado)
+        const hi = this.allBones().indexOf(hips);
+        if (hi >= 0 && hips.parent) f.captured[hi] = hips.parent.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(hipsWorldQ);
         this.fallGen++; // um Ragdoll.create ainda pendente será descartado
         this.ragdoll?.dispose();
         this.ragdoll = null;
         f.phase = 'getup';
         f.t = 0;
         // rodada 9.1: clipe de levantar (senta → agacha apoiando → endireita); a pose do chão só mistura no começo
-        this.getupClip = !!this.human?.animator?.playClip('getup');
+        this.getupName = pick?.clip ?? 'getup';
+        this.getupClip = !!this.human?.animator?.playClip(this.getupName);
       }
       return true;
     }
     // levantar: anima idle (a partir do repouso: ossos sem trilha não podem herdar a pose do ragdoll)
     // e mistura a partir da pose capturada
     this.root.position.set(x, y, z);
-    this.root.rotation.y = heading;
+    // rodada 10: o corpo levanta virado para onde caiu; depois o rumo do servidor volta pelo giro limitado (steer)
+    this.root.rotation.y = this.getupClip ? this.gait.face : heading;
     this.human?.resetPose();
     this.animate(0, true, dt);
     // com o clipe: rotações da pose do chão saem em 0,5 s (o clipe já começa sentado); a pelve volta ao lugar do
     // servidor mais devagar (0,9 s) — o ragdoll pode ter rolado e o corpo não "desliza" de uma vez
     const smooth = (x: number) => { const k = Math.min(1, x); return k * k * (3 - 2 * k); };
-    const e = smooth(f.t / (this.getupClip ? Math.min(f.getup, 0.5) : f.getup));
+    // rodada 10: o clipe já começa deitado como o ragdoll (de costas ou de bruços) → a pose do chão sai em 0,35 s
+    const e = smooth(f.t / (this.getupClip ? Math.min(f.getup, 0.35) : f.getup));
     const eh = smooth(f.t / (this.getupClip ? Math.min(f.getup, 0.9) : f.getup));
     this.allBones().forEach((bone, i) => { if (f.captured[i]) bone.quaternion.copy(f.captured[i].clone().slerp(bone.quaternion, e)); });
     if (hips) hips.position.lerpVectors(f.hipsFrom, hips.position.clone(), eh);
     if (f.t >= f.getup) { f.phase = 'none'; this.getupClip = false; this.human?.propAttachment?.setVisible(true); }
     return true;
+  }
+  /** clipe de levantar em uso (QA) */
+  private getupName = 'getup';
+
+  /**
+   * rodada 10 — pose do ragdoll no chão (espaço do mundo): de costas/de bruços pela normal do peito e o rumo em que o
+   * clipe de levantar deve começar (de costas: pés à frente; de bruços: cabeça à frente)
+   */
+  private groundPose(): { clip: string; yaw: number } | null {
+    const h = this.human;
+    const g = (n: string) => h?.bones.get(n)?.getWorldPosition(new THREE.Vector3());
+    const pel = g('pelvis'), sp = g('spine_01'), tl = g('thigh_l'), tr = g('thigh_r'), kl = g('calf_l'), kr = g('calf_r');
+    if (!pel || !sp || !tl || !tr || !kl || !kr) return null;
+    // referencial RÍGIDO da pelve (o ragdoll não tem limites de junta: tronco e ombros podem estar torcidos)
+    const up = sp.sub(pel), left = tl.sub(tr);
+    const front = left.clone().cross(up).normalize();
+    // pernas: pelve → meio dos joelhos (para onde os pés apontam)
+    const legs = kl.add(kr).multiplyScalar(0.5).sub(pel);
+    // QA: última escolha (normal do peito/quadril, eixo das pernas) — tools/qa/anim_r10.mjs
+    (globalThis as any).__pvGetupPick = { front: front.toArray().map((x) => +x.toFixed(2)), legs: legs.toArray().map((x) => +x.toFixed(2)), pel: pel.toArray().map((x) => +x.toFixed(2)), head: g('head')?.toArray().map((x) => +x.toFixed(2)), foot: g('foot_l')?.toArray().map((x) => +x.toFixed(2)), root: this.root.position.toArray() };
+    return getupClipFor(front.y, -legs.x, -legs.z);
+  }
+
+  /** rodada 10 — cambaleio em curso (nome do clipe, com variante direcional) e quando começou (QA/troca) */
+  private staggerClip: string | null = null;
+  private staggerAt = -1e9;
+  private hitDir: { dx: number; dz: number; at: number } | null = null;
+  private stopStagger() { if (this.staggerClip) this.human?.animator?.stopClip(this.staggerClip); this.staggerClip = null; }
+  /**
+   * direção do golpe recebido (cbt_hit: dx, dz = sentido do empurrão no mundo). Chega antes ou depois da mudança de
+   * status: antes → o cambaleio já começa direcional; depois (≤ 0,25 s) → troca o clipe na mesma fase, sem recomeçar
+   */
+  hitFrom(dx: number, dz: number) {
+    const now = performance.now();
+    this.hitDir = { dx, dz, at: now };
+    if (this.staggerClip && now - this.staggerAt < 250) {
+      const want = staggerClipFor(dx, dz, this.gait.face);
+      if (want !== this.staggerClip && this.human?.animator?.swapClip(this.staggerClip, want)) this.staggerClip = want;
+    }
   }
 
   /**
@@ -314,9 +374,13 @@ export class AvatarVisual {
     else this.pushT = 0.45;
   }
 
-  /** confronto (rodada 9): clipe do golpe/esquiva/cambaleio (combat.json `animation`); 'push' = empurrão da biblioteca */
-  playCombat(name: string) {
+  /**
+   * confronto (rodada 9): clipe do golpe/esquiva/cambaleio (combat.json `animation`); 'push' = empurrão da biblioteca.
+   * rodada 10: `dir` = rumo da ação no mundo (cbt h): a esquiva escolhe a variante pela direção relativa ao corpo
+   */
+  playCombat(name: string, dir?: number) {
     if (name === 'push') { this.playPush(); return; }
+    if (name === 'cbt_dodge' && dir !== undefined) name = dodgeClipFor(angleDelta(this.gait.face, dir));
     this.human?.animator?.playCombat(name);
   }
 

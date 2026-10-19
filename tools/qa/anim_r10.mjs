@@ -35,6 +35,13 @@ const SEQ = [
   ['spray', { yaw: 0.9, prop: 'spray', steps: [{ c: 'cbt_spray' }, { shots: sp(1.1) }] }],
   ['cambaleio', { yaw: 1.3, steps: [{ clip: 'stagger' }, { shots: sp(0.9) }] }],
   ['npc_queda_levantar', { yaw: 1.3, steps: [{ clip: 'npc_down', loop: true }, { shots: [0, 0.1, 0.2, 0.35, 1.2] }, { stop: 'npc_down' }, { clip: 'getup' }, { shots: [0.05, 0.25, 0.45, 0.7, 0.95, 1.2, 1.6] }] }],
+  // rodada 10: variantes novas (só existem no "depois")
+  ['esquiva_frente', { yaw: 1.3, steps: [{ c: 'cbt_dodge_fwd' }, { shots: sp(0.7) }] }],
+  ['esquiva_lado', { yaw: 0.2, steps: [{ c: 'cbt_dodge_side' }, { shots: sp(0.7) }] }],
+  ['cambaleio_costas', { yaw: 1.3, steps: [{ clip: 'stagger_back' }, { shots: sp(0.9) }] }],
+  ['cambaleio_lado', { yaw: 0.2, steps: [{ clip: 'stagger_side' }, { shots: sp(0.9) }] }],
+  ['levantar_costas_clipe', { yaw: 1.3, steps: [{ clip: 'getup' }, { shots: sp(1.45) }] }],
+  ['levantar_brucos_clipe', { yaw: 1.3, steps: [{ clip: 'getup_prone' }, { shots: sp(1.45) }] }],
   // transições
   ['andar_soco', { pre: 1.4, yaw: 0.9, steps: [{ shots: [0, 0.1] }, { c: 'cbt_punch' }, { shots: [0, 0.05, 0.1, 0.15, 0.2, 0.3, 0.4, 0.5, 0.65, 0.8] }] }],
   ['correr_soco', { pre: 5.0, yaw: 0.9, steps: [{ shots: [0, 0.08] }, { c: 'cbt_punch' }, { shots: [0, 0.05, 0.1, 0.15, 0.2, 0.3, 0.4, 0.5, 0.65, 0.8] }] }],
@@ -80,8 +87,8 @@ for (const [name, s] of SEQ) {
   }
   await pg.close();
   execFileSync('python3', ['tools/qa/contact_sheet.py', `${OUT}/${name}_${TAG}.jpg`, '6', '300', ...files]);
-  log[name] = { slideCm: +(slide * 100).toFixed(2), moving: !!s.pre };
-  console.log(name, s.pre ? '' : `deslizamento ${(slide * 100).toFixed(2)} cm`);
+  log[name] = { slideCm: +(slide * 100).toFixed(2), moving: !!s.pre || s.steps.some((x) => x.speed) };
+  console.log(name, log[name].moving ? '(andando: passada no lugar)' : `deslizamento ${(slide * 100).toFixed(2)} cm/quadro`);
 }
 for (const [name, dir] of KNOCK) {
   if (only.size && !only.has(name)) continue;

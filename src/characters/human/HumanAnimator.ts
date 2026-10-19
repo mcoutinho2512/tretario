@@ -8,7 +8,9 @@ import * as THREE from 'three';
 import { EMPTY_SOCIAL, type SocialState } from '../../social/types';
 import { ACTION_BY_ID, type ActionDefinition } from '../../social/actions';
 import { PROP_BY_ID } from '../../social/props';
-import { MIRROR_SUFFIX, UPPER_MOVING_WEIGHT, clipFloor, ease, proceduralClip, specFor } from './proceduralClips';
+import { MIRROR_SUFFIX, UPPER_BONES, UPPER_MOVING_WEIGHT, clipFloor, clipFades, ease, proceduralClip, specFor } from './proceduralClips';
+
+const UPPER_SET = new Set(UPPER_BONES);
 
 const LOCO = ['idle', 'walk', 'jog', 'sprint'] as const;
 type Loco = (typeof LOCO)[number];
@@ -41,9 +43,18 @@ interface ActLayer {
   target: number;
   /** correção vertical (corpo inteiro) */
   ground: number;
-  /** duração do crossfade (s) */
-  fade: number;
-  tracks: { b: THREE.Object3D; pos: boolean; it: THREE.Interpolant; spine: number }[];
+  /** duração do crossfade de entrada e de saída (s) — rodada 10: separados (golpe entra no tempo da preparação e
+   * sai no tempo da recuperação, ver `clipFades`) */
+  fadeIn: number;
+  fadeOut: number;
+  /**
+   * rodada 10 — corpo inteiro só PARADO: pernas/pelve do clipe (peso, giro do quadril, pés plantados) valem na
+   * proporção do parado; andando/correndo a locomoção fica com as pernas e o clipe só com o tronco (máscara superior)
+   */
+  adaptive: boolean;
+  /** peso efetivo de corpo inteiro neste quadro (contato com o chão, ajustes da locomoção) */
+  fw: number;
+  tracks: { b: THREE.Object3D; pos: boolean; it: THREE.Interpolant; spine: number; lower: boolean }[];
 }
 
 /** pose de repouso de todos os ossos (o mixer não reescreve ossos sem trilha: medições e jogo partem do repouso) */
@@ -305,7 +316,8 @@ export class HumanAnimator {
       if (bn === 'Root' || prop === 'scale' || (prop === 'position' && !(full && bn === 'pelvis'))) continue;
       const b = this.bones.get(bn);
       if (!b) continue;
-      tracks.push({ b, pos: prop === 'position', it: tr.createInterpolant(), spine: full ? 1 : UPPER_MOVING_WEIGHT[bn] ?? 1 });
+      const adaptive = !!spec?.adaptive;
+      tracks.push({ b, pos: prop === 'position', it: tr.createInterpolant(), spine: full && !adaptive ? 1 : UPPER_MOVING_WEIGHT[bn] ?? 1, lower: !UPPER_SET.has(bn) });
     }
     let ground = 0;
     if (full) {
@@ -317,19 +329,28 @@ export class HumanAnimator {
       ground = this.layerGround.get(key)!;
     }
     const v = variation & 7;
+    const fades = spec ? clipFades(spec) : { fadeIn: ACT_FADE, fadeOut: ACT_FADE };
     return {
       kind, id, variation, full, loop, dur: onceDur ?? clip.duration, phase: 0,
       offset: loop && v ? ((v * 0.381966) % 1) * clip.duration : 0,
       rate: loop && v ? 1 + (((v * 5) % 8) - 3.5) * 0.008 : 1,
-      w: 0, target: 1, ground, tracks, fade: spec?.fade ?? ACT_FADE,
+      w: 0, target: 1, ground, tracks, fadeIn: spec ? fades.fadeIn : ACT_FADE, fadeOut: spec ? fades.fadeOut : ACT_FADE,
+      adaptive: !!spec?.adaptive, fw: 0,
     };
   }
 
-  /** peso atual (suavizado) das camadas de corpo inteiro e superior */
+  /**
+   * peso atual (suavizado) das camadas de corpo inteiro e superior. `social`: só as ações sociais de corpo inteiro
+   * (dança, sentar) — os golpes/reações de corpo inteiro (rodada 10) mantêm o ajuste de base dos pés do parado
+   * (narrowStance), senão os pés escorregavam ~3 cm para fora na entrada do chute/esquiva
+   */
   private actWeights() {
-    let full = 0, upper = 0;
-    for (const l of this.layers) { const e = ease(l.w); if (l.full) full = Math.max(full, e); else upper = Math.max(upper, e); }
-    return { full, upper };
+    let full = 0, upper = 0, social = 0;
+    for (const l of this.layers) {
+      const e = ease(l.w);
+      if (l.full) { full = Math.max(full, l.fw); if (l.kind === 'act') social = Math.max(social, e); upper = Math.max(upper, e - l.fw); } else upper = Math.max(upper, e);
+    }
+    return { full, upper, social };
   }
 
   /** avança fases/pesos e mistura as camadas sobre a pose da locomoção (depois do mixer) */
@@ -339,8 +360,8 @@ export class HumanAnimator {
     for (const l of this.layers) {
       l.phase = l.hold ?? l.phase + dt;
       // pose de carregar só sem ação ativa; ação `once` sai sozinha no fim da duração
-      const want = l.target > 0 && (l.kind === 'carry' ? !busy : l.loop || l.phase < l.dur - l.fade);
-      l.w = want ? Math.min(1, l.w + dt / l.fade) : Math.max(0, l.w - dt / l.fade);
+      const want = l.target > 0 && (l.kind === 'carry' ? !busy : l.loop || l.phase < l.dur - l.fadeOut);
+      l.w = want ? Math.min(1, l.w + dt / l.fadeIn) : Math.max(0, l.w - dt / l.fadeOut);
       if (l.kind !== 'carry' && !l.loop && l.phase >= l.dur) l.target = 0;
     }
     this.layers = this.layers.filter((l) => l.w > 0 || l.target > 0);
@@ -348,11 +369,13 @@ export class HumanAnimator {
     const moving = THREE.MathUtils.clamp(1 - (this.w.idle ?? 0), 0, 1);
     for (const l of this.layers) {
       const ew = ease(l.w);
+      l.fw = l.full ? (l.adaptive ? ew * (1 - moving) : ew) : 0;
       if (ew <= 0) continue;
       const time = l.loop ? (((l.phase * l.rate + l.offset) % l.dur) + l.dur) % l.dur : Math.min(l.phase, l.dur);
       for (const tr of l.tracks) {
         const v = tr.it.evaluate(time);
-        const w = ew * (1 + (tr.spine - 1) * moving);
+        const w = l.adaptive && tr.lower ? l.fw : ew * (1 + (tr.spine - 1) * moving);
+        if (w <= 0) continue;
         if (tr.pos) {
           if (!this.adjustedP) { this.adjustedP = tr.b; this.adjustedPos.copy(tr.b.position); }
           tr.b.position.lerp(this.tmpV.set(v[0], v[1], v[2]), w);
@@ -447,6 +470,20 @@ export class HumanAnimator {
     return true;
   }
 
+  /**
+   * rodada 10 — troca um clipe avulso em andamento por outro na MESMA fase e peso (cambaleio genérico → direcional
+   * quando a direção do golpe chega depois do estado): sem recomeçar nem piscar
+   */
+  swapClip(from: string, to: string): boolean {
+    const cur = this.layers.find((l) => l.kind === 'fx' && l.name === from && l.target > 0);
+    if (!cur || from === to) return false;
+    const l = this.makeLayer('fx', -1, to, false, 0, cur.loop ? undefined : specFor(to)?.dur ?? cur.dur);
+    if (!l) return false;
+    l.name = to; l.phase = cur.phase; l.w = cur.w; l.hold = cur.hold;
+    this.layers[this.layers.indexOf(cur)] = l;
+    return true;
+  }
+
   /** encerra (com crossfade) um clipe avulso — ou todos */
   stopClip(name?: string) { for (const l of this.layers) if (l.kind === 'fx' && (!name || l.name === name)) l.target = 0; }
 
@@ -460,10 +497,11 @@ export class HumanAnimator {
    */
   playCombat(name: string, dur?: number): boolean {
     const spec = specFor(name);
-    for (const l of this.layers) if (l.kind === 'combat') l.target = 0;
+    // o golpe anterior (combo) sai no tempo de entrada do novo: as duas poses partem da guarda (sem estalo)
     const l = this.makeLayer('combat', 0, name, false, 0, dur ?? spec?.dur ?? 0.6);
+    for (const o of this.layers) if (o.kind === 'combat' && o.target > 0) { o.target = 0; if (l) o.fadeOut = Math.min(o.fadeOut, l.fadeIn * 1.5); }
     if (!l) return false;
-    l.fade = Math.min(l.fade, 0.08);
+    // rodada 10: entrada/saída pelos tempos de preparação/recuperação (clipFades), não mais 0,08 s fixos
     this.layers.push(l);
     return true;
   }
@@ -570,7 +608,7 @@ export class HumanAnimator {
     const swayOn = this.vary.on && HumanAnimator.sway && this.detail && (idleW > 0.01 || walkW > 0.01);
     if (this.detail && ((this.w.idle ?? 0) > 0.01 || runW > 0.01 || this.show === 'acenando' || swayOn)) {
       this.root.updateMatrixWorld(true);
-      this.narrowStance(1 - aw.full);
+      this.narrowStance(1 - aw.social);
       this.uprightRun(runW);
       if (this.show === 'acenando') this.wave();
       if (swayOn) this.sway(idleW, walkW);
@@ -626,7 +664,7 @@ export class HumanAnimator {
     // camada de corpo inteiro (dança, sentar, pulo): a correção dela substitui a da locomoção na proporção do peso
     if (full > 0) {
       let g = 0, gw = 0;
-      for (const l of this.layers) if (l.full) { const e = ease(l.w); g += l.ground * e; gw += e; }
+      for (const l of this.layers) if (l.full && l.fw > 0) { g += l.ground * l.fw; gw += l.fw; }
       if (gw > 0) corr = corr * (1 - full) + (g / gw) * full;
     }
     const base = this.baseY + corr;

@@ -239,7 +239,7 @@ export class CombatClient {
     this.last = { id: def.id, activeEnd };
     this.stamina -= def.staminaCost;
     this.predictedAt = now;
-    this.d.avatar.playCombat(def.animation);
+    this.d.avatar.playCombat(def.animation, h); // rodada 10: rumo da ação (variante da esquiva)
     if (def.kind !== 'dodge') this.npcPending = { def, h, at: now + def.windupMs };
     if (def.kind === 'dodge') { this.lockUntil = 0; if (def.dashM) this.dash = { dx: Math.sin(h), dz: Math.cos(h), left: def.dashM }; }
   }
@@ -265,13 +265,13 @@ export class CombatClient {
     if (m.by === this.d.net.selfNid) {
       // confirmado pelo servidor; sem previsão (contexto local divergiu): anima agora (e os NPCs reagem na janela)
       if (performance.now() - this.predictedAt > 400) {
-        this.d.avatar.playCombat(def.animation);
+        this.d.avatar.playCombat(def.animation, m.h);
         if (def.kind !== 'dodge') this.npcPending = { def, h: m.h, at: performance.now() + def.windupMs };
       }
       this.last = { id: def.id, activeEnd: performance.now() + def.windupMs + def.activeMs };
       return;
     }
-    this.d.net.combatVisual(m.by)?.visual.playCombat(def.animation);
+    this.d.net.combatVisual(m.by)?.visual.playCombat(def.animation, m.h);
   }
 
   private onHit(m: CombatHitEvent) {
@@ -280,10 +280,13 @@ export class CombatClient {
     this.stats.lastHit = m;
     if (m.dummy) { this.stats.dummyHits++; this.dummies.get(m.tgt)?.hit(m.dx, m.dz, m.st); if (m.by === this.d.net.selfNid) { this.recentAt = now; this.d.hud.pulse(); } return; }
     const self = this.d.net.selfNid;
+    // rodada 10: sentido do golpe para o cambaleio direcional (o clipe sai pela mudança de status; vale para todos)
+    if (m.r === 'hit' && m.tgt !== self) this.d.net.combatVisual(m.tgt, false)?.visual.hitFrom(m.dx, m.dz);
     if (m.tgt === self) {
       this.recentAt = now;
       if (m.r === 'dodged') { this.stats.dodgedIn++; this.d.flash('Esquivou!'); return; }
       if (m.r !== 'hit') return;
+      this.d.avatar.hitFrom(m.dx, m.dz);
       this.stats.hitsIn++;
       this.d.hud.pulse();
       this.dash = null;

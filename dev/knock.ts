@@ -37,7 +37,7 @@ if (q.get('cam') === 'side') { cam.position.set(7, 2.0, 0); cam.lookAt(0, 0.35, 
 if (q.get('tl') === '1') {
   const h = (av as any).human;
   const y = (n: string) => h.bones.get(n).getWorldPosition(new THREE.Vector3()).y;
-  (window as any).__knock = {
+  (window as any).__knock = { av,
     knock: () => av.knockdown({ dirX: kd[0], dirZ: kd[1], strength: 1.4, groundY: 0, walls: [], downMs: 2600, getupMs: 1400 }),
     step: (dt: number, n = 1) => {
       let feetMax = -1, headMin = 9, pelvisMax = -1;
