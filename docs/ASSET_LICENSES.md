@@ -113,6 +113,30 @@ apesar de estarem num pacote rotulado CC0) e `toigo_maga_hat` (conteúdo políti
 Veículos, vegetação, mobiliário, materiais de prédios/chão e landmarks da rodada 5: ver as seções acrescentadas
 pelas respectivas passadas (`docs/licenses/*.md`).
 
+## Áudio (rodada 10)
+
+**Todo som do jogo é gerado por código neste projeto** (licença do projeto). Não há arquivo de áudio no repositório
+nem baixado em tempo de execução: nenhuma gravação, amostra, banco de sons, música comercial, canto/música de torcida
+ou discurso real. As receitas ficam em `src/audio/sounds.ts` (primitivas em `src/audio/dsp.ts`: ruído
+branco/rosa/marrom, osciladores, filtros biquad, envelopes, formantes de vogais genéricas) e são sintetizadas uma vez
+no navegador (Worker `src/audio/synth.worker.ts`). `npx tsx tools/audio/render_sounds.ts` exporta tudo em WAV para
+ouvir (saída em `screenshots/tmp/audio/`, fora do versionamento).
+
+| Som (chave) | Gerador (`src/audio/sounds.ts`) | Origem | Licença | Uso |
+|---|---|---|---|---|
+| `step_asphalt`, `step_sidewalk`, `step_grass` | ruído filtrado + baque grave curto | gerado por código no projeto | do projeto | passos (superfície do CollisionWorld) |
+| `jump`, `land`, `fall`, `getup`, `push` | sopro de ruído com banda varrida, baques senoidais, "roupa" (ruído em banda) | gerado por código no projeto | do projeto | corpo do jogador/remotos |
+| `punch`, `kick`, `impact`, `whoosh`, `dodge`, `bat`, `bar`, `spray`, `blocked` | "pum" senoidal/quadrado que desliza + estalo; "tok" ressonante (taco); parciais inarmônicos curtos (barra); chiado (spray); bipe duplo (bloqueado) — estética arcade, sem som de ferimento | gerado por código no projeto | do projeto | confronto |
+| `pickup`, `drop`, `ui_click`, `ui_open`, `ui_close`, `ui_denied`, `ui_ok` | bipes/notas curtas (triângulo/quadrada/seno) | gerado por código no projeto | do projeto | itens e interface |
+| `veh_door`, `veh_mount`, `veh_brake`, `bike_brake`, `veh_horn`, `bike_bell` | baque + trinco; cliques metálicos; chiado tonal de freio; duas notas quadradas (buzina genérica); parciais de sino | gerado por código no projeto | do projeto | veículos |
+| `car_engine`, `moto_engine`, `scooter_motor`, `bike_roll` (laços de 1 s) | trem de pulsos harmônicos na frequência de ignição + ruído (carro/moto); zumbido harmônico (motor elétrico); ruído de rolagem + cliques da catraca (bicicleta) | gerado por código no projeto | do projeto | motor/rolagem (taxa pela velocidade) |
+| `trio_music`, `soundcar_music` (laços de 4 compassos) | batida PRÓPRIA procedural: bumbo, palma, chimbal, baixo (progressão fixa de graus) e acordes curtos/arpejo — composição gerada, sem melodia de terceiros | gerado por código no projeto | do projeto | trio elétrico e carro de som (espacial) |
+| `crowd_bed` | 14 "vozes" sintéticas (pulso glotal + 3 formantes de vogais aleatórias, sem palavras) + ruído rosa | gerado por código no projeto | do projeto | murmúrio das células de multidão |
+| `layer:<perfil>` (ex. `layer:manifestacao`, `layer:torcida_a`) | percussão própria (surdo senoidal, caixa de ruído, repique, palmas) com andamento/acentos tirados do HASH da chave do perfil — nenhum ritmo/canto de torcida real | gerado por código no projeto | do projeto | camada rítmica das células (perfil de `supporters.json` / evento) |
+| `whistle`, `clap`, `cheer`, `shout`, `surdo`, `megaphone` | apito (seno com trilo), rajadas de palmas, "êêê/ôôô" de vozes sintéticas numa vogal, golpe de surdo; megafone = fala sintética ININTELIGÍVEL (vogais aleatórias) em banda estreita com saturação — nunca discurso | gerado por código no projeto | do projeto | reações pontuais da multidão |
+| `amb_wind`, `amb_city` (laços de 12 s) | ruído rosa/marrom filtrado com modulação periódica; murmúrio distante e baques abafados | gerado por código no projeto | do projeto | ambiente da Pres. Vargas |
+| `ir` | ruído decaindo com passa-baixa variável (resposta ao impulso) | gerado por código no projeto | do projeto | reverberação simples (ConvolverNode) |
+
 ## Dependências de software
 
 | Pacote | Uso | Licença |
