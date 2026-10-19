@@ -23,12 +23,12 @@
     {
       "name": "diagonal: desliza pela tangente e passa por B (sem atravessar)",
       "ok": true,
-      "detail": "C.z 285.52 (B em 283.17) · ao lado de B: {\"lateral\":0.573,\"d\":0.64}"
+      "detail": "C.z 285.51 (B em 283.17) · ao lado de B: {\"lateral\":0.57,\"d\":0.64}"
     },
     {
       "name": "desvio local: os 16 atravessam contornando B (≥ 12 chegam)",
       "ok": true,
-      "detail": "{\"mode\":\"flow\",\"n\":16,\"done\":16,\"corrections\":0,\"minD\":0.6170871714494512,\"stuck\":[]}"
+      "detail": "{\"mode\":\"flow\",\"n\":16,\"done\":16,\"corrections\":0,\"minD\":0.6168884896397132,\"stuck\":[]}"
     },
     {
       "name": "desvio local: ninguém entra em B além da tolerância do servidor",
@@ -48,7 +48,7 @@
     {
       "name": "sem teleporte falso: empurrar a multidão não pede \"unstuck\" (tem saída para trás)",
       "ok": true,
-      "detail": "{\"frames\":587,\"avgMs\":0.0157,\"maxMs\":1.2,\"avgNeighbors\":2.46,\"avgContacts\":1.59,\"blockedFrames\":463,\"stuckRequests\":0,\"minDist\":0.64,\"stuckS\":1.67}"
+      "detail": "{\"frames\":585,\"avgMs\":0.0162,\"maxMs\":0.2,\"avgNeighbors\":2.45,\"avgContacts\":1.59,\"blockedFrames\":461,\"stuckRequests\":0,\"minDist\":0.64,\"stuckS\":1.63}"
     },
     {
       "name": "sem deadlock: sai da multidão pela diagonal para trás",
@@ -58,7 +58,7 @@
     {
       "name": "custo da colisão no cliente < 0,2 ms/quadro (média)",
       "ok": true,
-      "detail": "{\"frames\":1312,\"avgMs\":0.0121,\"maxMs\":1.2,\"avgNeighbors\":1.16,\"avgContacts\":0.72,\"blockedFrames\":465,\"stuckRequests\":0,\"minDist\":0.64,\"stuckS\":0}"
+      "detail": "{\"frames\":1311,\"avgMs\":0.011,\"maxMs\":0.2,\"avgNeighbors\":1.16,\"avgContacts\":0.72,\"blockedFrames\":463,\"stuckRequests\":0,\"minDist\":0.64,\"stuckS\":0}"
     },
     {
       "name": "encostados (0,64–0,7 m): o soco acerta (condição de B cai)",
@@ -72,18 +72,18 @@
       "correcoes": {},
       "cliente": {
         "frames": 397,
-        "avgMs": 0.0154,
+        "avgMs": 0.0121,
         "maxMs": 0.2,
         "avgNeighbors": 0.84,
         "avgContacts": 0.8,
-        "blockedFrames": 258,
+        "blockedFrames": 260,
         "stuckRequests": 0,
         "minDist": 0.64,
         "stuckS": 0
       }
     },
     "contorno": {
-      "lateral": 0.573,
+      "lateral": 0.57,
       "d": 0.64
     },
     "fluxo": {
@@ -91,20 +91,20 @@
       "n": 16,
       "done": 16,
       "corrections": 0,
-      "minD": 0.6170871714494512,
+      "minD": 0.6168884896397132,
       "stuck": []
     },
     "multidao": {
       "cliente": {
-        "frames": 587,
-        "avgMs": 0.0157,
-        "maxMs": 1.2,
-        "avgNeighbors": 2.46,
+        "frames": 585,
+        "avgMs": 0.0162,
+        "maxMs": 0.2,
+        "avgNeighbors": 2.45,
         "avgContacts": 1.59,
-        "blockedFrames": 463,
+        "blockedFrames": 461,
         "stuckRequests": 0,
         "minDist": 0.64,
-        "stuckS": 1.67
+        "stuckS": 1.63
       },
       "bots": {
         "mode": "wall",
@@ -237,20 +237,20 @@
       }
     },
     "custoCliente": {
-      "frames": 1312,
-      "avgMs": 0.0121,
-      "maxMs": 1.2,
+      "frames": 1311,
+      "avgMs": 0.011,
+      "maxMs": 0.2,
       "avgNeighbors": 1.16,
       "avgContacts": 0.72,
-      "blockedFrames": 465,
+      "blockedFrames": 463,
       "stuckRequests": 0,
       "minDist": 0.64,
       "stuckS": 0
     },
     "servidor": {
-      "collisionMs": 0,
-      "collisionMaxMs": 0,
-      "neighborQueries": 0,
+      "collisionMs": 0.0415,
+      "collisionMaxMs": 0.497,
+      "neighborQueries": 12.2,
       "bodyCorrections": 0,
       "unstucks": 0
     }

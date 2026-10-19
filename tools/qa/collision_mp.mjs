@@ -32,6 +32,7 @@ const log = [];
 server.stdout.on('data', (d) => log.push(...d.toString().split('\n').filter(Boolean)));
 server.stderr.on('data', (d) => log.push(...d.toString().split('\n').filter(Boolean)));
 for (let i = 0; i < 150 && !log.some((l) => l.includes('[pv3d-server]')); i++) await w(200);
+await fetch(`http://127.0.0.1:${PORT + 1}/metrics`).catch(() => {}); // abre a janela de métricas deste roteiro
 const browsers = [];
 const kids = [];
 const cleanup = async () => { for (const b of browsers) await b.close().catch(() => {}); for (const k of kids) { try { process.kill(-k.pid, 'SIGTERM'); } catch { /* */ } } try { process.kill(-server.pid, 'SIGTERM'); } catch { /* */ } };
