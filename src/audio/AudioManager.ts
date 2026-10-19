@@ -68,7 +68,7 @@ export class AudioManager implements AudioSink {
   private megaphoneAt = -1e9;
   /** instrumentação (QA: window.__pvAudio()) */
   readonly counters = { nodesCreated: 0, nodesLive: 0, sourcesLive: 0, sfxCalls: 0, sfxInaudible: 0, sfxNoBuffer: 0, sfxRateLimited: 0, crowdCalls: 0, crowdEvents: 0,
-    unlockAttempts: 0, buffersReady: 0, bufferBytes: 0, genMs: 0, updateMs: 0, updateMsMax: 0, peakSources: 0, peakNodes: 0 };
+    unlockAttempts: 0, badParams: 0, buffersReady: 0, bufferBytes: 0, genMs: 0, updateMs: 0, updateMsMax: 0, peakSources: 0, peakNodes: 0 };
   readonly byId: Record<string, number> = {};
 
   constructor(private settings: AudioSettingsStore, budget: Partial<AudioBudget> = {}) {
@@ -257,9 +257,14 @@ export class AudioManager implements AudioSink {
     }
     this.buffers.set(m.key, list);
     if (m.key === 'ir' && this.convolver && list[0] && list[1] && !this.convolver.buffer) {
-      const ir = ctx.createBuffer(2, list[0].length, list[0].sampleRate);
-      ir.getChannelData(0).set(list[0].getChannelData(0)); ir.getChannelData(1).set(list[1].getChannelData(0));
-      this.convolver.buffer = ir;
+      // o ConvolverNode exige a taxa do contexto: reamostra a resposta gerada (linear; é ruído decaindo)
+      const k = ctx.sampleRate / list[0].sampleRate, n = Math.floor(list[0].length * k);
+      const ir = ctx.createBuffer(2, n, ctx.sampleRate);
+      for (let c = 0; c < 2; c++) {
+        const src = list[c].getChannelData(0), dst = ir.getChannelData(c);
+        for (let i = 0; i < n; i++) { const x = i / k, j = Math.floor(x), f = x - j; dst[i] = (src[j] ?? 0) * (1 - f) + (src[j + 1] ?? 0) * f; }
+      }
+      try { this.convolver.buffer = ir; } catch { /* navegador recusou: segue sem reverberação */ }
     }
     if (m.key === 'amb_wind' || m.key === 'amb_city') this.startAmbience();
   }
@@ -295,6 +300,8 @@ export class AudioManager implements AudioSink {
     const last = this.lastByKey.get(spec.key) ?? -1;
     if (now - last < (spec.bus === 'ui' ? 0.03 : 0.025)) { this.counters.sfxRateLimited++; return false; }
     const positional = !!spec.falloff && o?.x !== undefined && o?.z !== undefined;
+    if (positional && (!Number.isFinite(o!.x!) || !Number.isFinite(o!.z!) || (o!.y !== undefined && !Number.isFinite(o!.y)))) { this.counters.badParams++; return false; }
+    if (o?.gain !== undefined && !Number.isFinite(o.gain)) { this.counters.badParams++; return false; }
     const dist = positional ? distTo(this.L, o!.x!, o!.y, o!.z!) : 0;
     const att = positional ? attenuation(dist, spec.falloff!) : 1;
     const g = (o?.gain ?? 1) * att;
@@ -327,20 +334,31 @@ export class AudioManager implements AudioSink {
   }
 
   loop(kind: LoopKind, o: { x: number; y?: number; z: number }): LoopHandle {
-    const e: LoopEntry = { id: this.nextLoopId++, kind, x: o.x, y: o.y, z: o.z, rate: 1, gain: 1, intensity: 1, aud: 0, dead: false, t0: this.ctx?.currentTime ?? 0 };
+    const e: LoopEntry = { id: this.nextLoopId++, kind, x: Number.isFinite(o.x) ? o.x : 0, y: Number.isFinite(o.y) ? o.y : undefined, z: Number.isFinite(o.z) ? o.z : 0, rate: 1, gain: 1, intensity: 1, aud: 0, dead: false, t0: this.ctx?.currentTime ?? 0 };
     this.loops.set(e.id, e);
     this.request(LOOPS[kind].key);
     return {
-      set: (p) => { if (e.dead) return; e.x = p.x; e.z = p.z; if (p.y !== undefined) e.y = p.y; if (p.rate !== undefined) e.rate = p.rate; if (p.gain !== undefined) e.gain = p.gain; if (p.intensity !== undefined) e.intensity = p.intensity; },
+      set: (p) => {
+        if (e.dead) return;
+        // valores inválidos do dono são ignorados campo a campo (um NaN nunca chega a um AudioParam)
+        const ok = (v: number | undefined) => v !== undefined && Number.isFinite(v);
+        if (!ok(p.x) || !ok(p.z)) { this.counters.badParams++; return; }
+        e.x = p.x; e.z = p.z;
+        if (ok(p.y)) e.y = p.y; if (ok(p.rate)) e.rate = Math.min(4, Math.max(0.05, p.rate!)); if (ok(p.gain)) e.gain = Math.max(0, p.gain!); if (ok(p.intensity)) e.intensity = Math.max(0, p.intensity!);
+      },
       stop: () => { e.dead = true; },
     };
   }
 
   private cells: readonly CrowdAudioCell[] = [];
-  crowd(cells: readonly CrowdAudioCell[]) { this.counters.crowdCalls++; this.cells = cells; }
+  crowd(cells: readonly CrowdAudioCell[]) {
+    this.counters.crowdCalls++;
+    this.cells = cells.filter((c) => Number.isFinite(c.x) && Number.isFinite(c.z) && Number.isFinite(c.density) && Number.isFinite(c.activity));
+  }
 
   listener(x: number, y: number, z: number, yaw: number) {
     const L = this.L;
+    if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z) || !Number.isFinite(yaw)) { this.counters.badParams++; return; }
     if (Math.hypot(x - L.x, y - L.y, z - L.z) > 25 && this.ctx) this.jumpUntil = this.ctx.currentTime + 0.35; // troca de câmera: rampas mais longas
     L.x = x; L.y = y; L.z = z; L.yaw = yaw;
   }
@@ -511,7 +529,7 @@ export class AudioManager implements AudioSink {
       state: this.state, ctxState: this.ctx?.state ?? null, sampleRate: this.ctx?.sampleRate ?? null, baseLatency: this.ctx?.baseLatency ?? null, hidden: this.hidden,
       budget: this.budget, counters: { ...this.counters, updateMs: +this.counters.updateMs.toFixed(3), updateMsMax: +this.counters.updateMsMax.toFixed(3), genMs: +this.counters.genMs.toFixed(0) },
       oneShots: { ...this.pool.stats, busy: this.pool.busy(now) },
-      loops: { ...this.sched.stats, logical: this.loops.size, real: this.loopSlots.filter((s) => s.src).length, kinds: [...this.loops.values()].reduce((m, e) => { m[e.kind] = (m[e.kind] ?? 0) + 1; return m; }, {} as Record<string, number>), playing: this.loopSlots.filter((s) => s.src).map((s) => s.key) },
+      loops: { ...this.sched.stats, logical: this.loops.size, real: this.loopSlots.filter((s) => s.src).length, kinds: [...this.loops.values()].reduce((m, e) => { m[e.kind] = (m[e.kind] ?? 0) + 1; return m; }, {} as Record<string, number>), playing: this.loopSlots.filter((s) => s.src).map((s) => ({ key: s.key, g: +Math.max(0, s.target.g).toFixed(3), rate: +s.target.r.toFixed(2), pan: +s.target.p.toFixed(2), cutoff: Math.round(s.target.f) })) },
       crowd: { cellsIn: this.cells.length, voices: this.crowdVoices.filter((v) => v.live).length, layers: this.crowdVoices.filter((v) => v.layer).map((v) => v.layerKey), loud: this.crowdVoices.map((v) => +v.loud.toFixed(3)), cells: this.cells.map((c) => ({ x: Math.round(c.x), z: Math.round(c.z), density: c.density, profile: c.profile, share: +c.profileShare.toFixed(2), activity: +c.activity.toFixed(2), ev: c.eventType ?? null })) },
       buffers: { ready: this.counters.buffersReady, pending: this.pending.size, MB: +(this.counters.bufferBytes / 1e6).toFixed(1), worker: !!this.worker },
       listener: { x: +this.L.x.toFixed(1), y: +this.L.y.toFixed(1), z: +this.L.z.toFixed(1), yaw: +this.L.yaw.toFixed(2) },

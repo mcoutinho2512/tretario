@@ -123,7 +123,8 @@ export class AudioWorld {
     cam.getWorldDirection(this.dir);
     const yaw = Math.atan2(this.dir.x, this.dir.z);
     const ap = d.avatarPos();
-    if (d.spectator) this.lp.copy(cam.position);
+    // câmera longe do corpo (espectador, câmera livre/aérea): o ouvinte é a câmera
+    if (d.spectator || cam.position.distanceTo(ap) > 30) this.lp.copy(cam.position);
     else this.lp.copy(cam.position).lerp(ap, 0.6);
     audioListener(this.lp.x, this.lp.y, this.lp.z, yaw);
 
@@ -236,6 +237,8 @@ export class AudioWorld {
       if (dist > range) { if (v) { v.h?.stop(); this.veh.delete(s.id); } continue; }
       if (!v) { v = { h: null, px: s.x, pz: s.z, speed: 0, occ: s.occupant, brakeAt: -1e9, seen: f }; this.veh.set(s.id, v); }
       v.seen = f;
+      const gy = Number.isFinite(s.y) ? s.y : undefined; // y do servidor pode faltar (só x/z): som no chão
+      const at = (dy: number) => (gy === undefined ? undefined : gy + dy);
       // velocidade: do estado (dirigido aqui) ou estimada pelo deslocamento suavizado (remotos)
       const prev = v.speed;
       const est = dt > 0 ? Math.hypot(s.x - v.px, s.z - v.pz) / dt : 0;
@@ -243,14 +246,14 @@ export class AudioWorld {
       v.px = s.x; v.pz = s.z;
       if (s.occupant !== v.occ) {
         const door = kind === 'car' || kind === 'soundcar' || kind === 'trio';
-        sfx(door ? 'veh_door' : 'veh_mount', { x: s.x, y: s.y + 0.8, z: s.z, gain: 0.8 });
+        sfx(door ? 'veh_door' : 'veh_mount', { x: s.x, y: at(0.8), z: s.z, gain: 0.8 });
         v.occ = s.occupant;
       }
       const decel = dt > 0 ? (prev - v.speed) / dt : 0;
       const now = performance.now();
       if (decel > it.def.brake * 0.55 && prev > 2 && now - v.brakeAt > 1200) {
         v.brakeAt = now;
-        sfx(kind === 'bicycle' || kind === 'scooter' ? ('bike_brake' as never) : 'veh_brake', { x: s.x, y: s.y + 0.4, z: s.z, gain: Math.min(1, prev / it.def.maxSpeed) });
+        sfx(kind === 'bicycle' || kind === 'scooter' ? ('bike_brake' as never) : 'veh_brake', { x: s.x, y: at(0.4), z: s.z, gain: Math.min(1, prev / it.def.maxSpeed) });
       }
       const music = kind === 'trio' || kind === 'soundcar';
       const engineOn = music || !!s.occupant || v.speed > 0.3;
@@ -260,8 +263,9 @@ export class AudioWorld {
       if (kind === 'car' || kind === 'moto') { rate = 0.62 + k * 0.85; gain = 0.55 + 0.45 * k; }
       else if (kind === 'scooter') { rate = 0.5 + k * 0.9; gain = Math.min(1, 0.15 + k); }
       else if (kind === 'bicycle') { rate = 0.4 + k * 0.9; gain = Math.min(1, k * 1.2); }
-      if (!v.h) v.h = audioLoop(LOOP_OF[kind], { x: s.x, y: s.y + (music ? 3 : 0.6), z: s.z });
-      v.h.set({ x: s.x, y: s.y + (music ? 3 : 0.6), z: s.z, rate, gain });
+      const pos = { x: s.x, y: at(music ? 3 : 0.6), z: s.z };
+      if (!v.h) v.h = audioLoop(LOOP_OF[kind], pos);
+      v.h.set({ ...pos, rate, gain });
     }
     if (f % 90 === 0) for (const [id, v] of this.veh) if (f - v.seen > 30) { v.h?.stop(); this.veh.delete(id); }
   }

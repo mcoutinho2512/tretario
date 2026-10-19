@@ -123,6 +123,17 @@ describe('multidão agregada (células)', () => {
     expect(c.eventType).toBe('caminhada');
   });
 
+  it('agente sem velocidade/inclinação (multidão distante) não contamina a célula com NaN', () => {
+    const a = new CrowdAudioAggregator();
+    a.begin(0, 0);
+    for (let i = 0; i < 30; i++) a.addAgent(3, 3, i % 2 ? NaN : 1, 0, NaN, 0, 0);
+    a.addAgent(NaN, 0, 1, 0, 0, 0, 0);
+    const [c] = a.end();
+    expect(c.density).toBe(30);
+    expect(Number.isFinite(c.activity)).toBe(true);
+    expect(Number.isFinite(c.combatIntensity)).toBe(true);
+  });
+
   it('células longe demais não viram voz; a grade é presa ao mundo', () => {
     const a = new CrowdAudioAggregator();
     a.begin(0, 0);

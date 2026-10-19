@@ -97,11 +97,13 @@ export class CrowdAudioAggregator {
 
   /** um humano (NPC/remoto): velocidade, ação social (≠ 0 = gesticulando/comemorando), caído, design da camisa/item */
   addAgent(x: number, z: number, speed: number, act: number, tilt: number, shirt: number, design: number) {
+    if (!Number.isFinite(x) || !Number.isFinite(z)) return;
     const i = this.idx(x, z);
     if (i < 0) return;
     this.lastAdded++;
     const p = this.profileOfDesign(shirt) || this.profileOfDesign(design);
-    this.addAt(i, x, z, 1, Math.abs(speed), act ? 1 : 0, Math.abs(tilt) > 0.5 ? 1 : 0, p);
+    // agentes da multidão distante podem não ter velocidade/inclinação (NaN/ausente): contam como parados
+    this.addAt(i, x, z, 1, Number.isFinite(speed) ? Math.abs(speed) : 0, act ? 1 : 0, Number.isFinite(tilt) && Math.abs(tilt) > 0.5 ? 1 : 0, p);
   }
 
   /** voto de perfil de um jogador (NetPlayer.sup: 0 neutro, i+1 grupo i) — sem somar densidade (já veio como agente) */
