@@ -150,14 +150,16 @@ Toque inalterado (joystick, arrasto = câmera, toque = interação pelo `TapTrac
 
 ## QA (`tools/qa/desktop_input.mjs`, Chrome real 1280×720 e 1920×1080)
 
-**45/45** (`docs/screenshots/round11/desktop_input.json`): cursor visível e `pointerLockElement === null` em 13 pontos
-(entrada, clique, arrasto, carro, moto, bicicleta, patinete, combate, menu, evento, 1920×1080); nenhuma chamada de `requestPointerLock`; botão direito + arrasto gira e
+**46/46** (`docs/screenshots/round11/desktop_input.json`): cursor visível e `pointerLockElement === null` em 14 pontos
+(entrada, clique, arrasto, carro, moto, bicicleta, patinete, combate, menu, evento, espectador, 1920×1080); nenhuma chamada de `requestPointerLock`; botão direito + arrasto gira e
 soltar para; menu de contexto bloqueado; esquerdo arrastando não clica; HUD consome clique/direito/roda; carro distante
 identificado e não usado; hover → mão; clique entra; dirigir com W; olhar em volta + retorno; SAIR (clique) e E;
 moto/bicicleta/patinete; R/Q/C agem e clique esquerdo não soca; chat (Enter, WASD não move, Esc, clique fora, canais);
 Esc fecha só o topo e abre o menu; menu não pausa nem desconecta; SAIR confirma; controles agrupados; remapeamento
 (N abre o mapa), conflito avisado, restaurar padrão; cursor de interação em pessoa; arrastar sobre o jogador não abre
-o painel e o clique abre; girar com o painel aberto não fecha; Esc fecha o painel. Custo da seleção com 500 entidades:
+o painel e o clique abre; girar com o painel aberto não fecha; Esc fecha o painel; espectador gira arrastando
+(esquerdo e direito). Celular sem regressão: `tools/qa/interaction_mp.mjs` 44/44 (só o "Esc por garantia" do roteiro
+passou a apertar Esc apenas com uma camada aberta — sem nada aberto, Esc agora abre o menu). Custo da seleção com 500 entidades:
 `tools/qa/selection_500.mjs` (docs/INTERACTION_SYSTEM.md). O Chrome headless não desenha o
 cursor do sistema: nas capturas, uma seta branca marca a posição do mouse.
 

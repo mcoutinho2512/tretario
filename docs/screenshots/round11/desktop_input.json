@@ -1,6 +1,6 @@
 {
-  "ok": 45,
-  "total": 45,
+  "ok": 46,
+  "total": 46,
   "results": [
     {
       "name": "entrou: cursor visível, sem pointer lock, nenhum requestPointerLock",
@@ -65,12 +65,12 @@
     {
       "name": "dirigindo: botão direito olha em volta (câmera fora do rumo enquanto segura)",
       "ok": true,
-      "detail": "desvio=1.28 rad"
+      "detail": "desvio=1.27 rad"
     },
     {
       "name": "soltou: espera ~1 s (0,5 s depois ainda olhando) e volta atrás do veículo suavemente",
       "ok": true,
-      "detail": "0,5 s: 1.28 · 2,4 s: 0.04 rad"
+      "detail": "0,5 s: 1.27 · 2,4 s: 0.04 rad"
     },
     {
       "name": "dirigindo: WASD com o cursor visível, sem pointer lock",
@@ -145,7 +145,7 @@
     {
       "name": "menu aberto: mundo não pausa e não desconecta",
       "ok": true,
-      "detail": "status online→online · quadros=2377"
+      "detail": "status online→online · quadros=2376"
     },
     {
       "name": "SAIR pede confirmação; Esc cancela só ela (menu continua)",
@@ -201,6 +201,11 @@
       "name": "evento/agenda: sem pointer lock em nenhum momento",
       "ok": true,
       "detail": "11 pontos checados"
+    },
+    {
+      "name": "espectador: arrasto (esquerdo ou direito) continua girando a câmera, sem pointer lock",
+      "ok": true,
+      "detail": "{\"x\":-705.7,\"y\":40.2,\"z\":312.4} → {\"x\":-757.5,\"y\":40.2,\"z\":285.5} → {\"x\":-713.8,\"y\":40.2,\"z\":310.3}"
     },
     {
       "name": "1920×1080: entrou sem pointer lock, cursor visível",
@@ -321,6 +326,15 @@
     },
     {
       "where": "evento",
+      "lock": null,
+      "canvas": "auto",
+      "body": "auto",
+      "calls": 0,
+      "seen": 0,
+      "hidden": false
+    },
+    {
+      "where": "espectador",
       "lock": null,
       "canvas": "auto",
       "body": "auto",

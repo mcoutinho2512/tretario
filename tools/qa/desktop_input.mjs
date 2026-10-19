@@ -39,12 +39,8 @@ process.on('exit', killAll);
 
 const S = [-540, 255];
 
-async function open(name, { width = 1280, height = 720, spawnAt = S } = {}) {
-  const browser = await puppeteer.launch({ executablePath: chrome, headless: 'new', protocolTimeout: 600000, args: ['--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist'], defaultViewport: { width, height } });
-  browsers.push(browser);
-  const p = await browser.newPage();
-  p.on('pageerror', (e) => console.log(`[${name}] ERR`, e.message));
-  // conta pedidos de pointer lock e menus de contexto que passaram (não deveriam existir)
+/** conta pedidos de pointer lock e menus de contexto que passaram (não deveriam existir) */
+async function hooks(p) {
   await p.evaluateOnNewDocument(() => {
     window.__lockCalls = 0;
     const orig = Element.prototype.requestPointerLock;
@@ -54,6 +50,14 @@ async function open(name, { width = 1280, height = 720, spawnAt = S } = {}) {
     window.__lockSeen = 0;
     document.addEventListener('pointerlockchange', () => { if (document.pointerLockElement) window.__lockSeen++; });
   });
+}
+
+async function open(name, { width = 1280, height = 720, spawnAt = S } = {}) {
+  const browser = await puppeteer.launch({ executablePath: chrome, headless: 'new', protocolTimeout: 600000, args: ['--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist'], defaultViewport: { width, height } });
+  browsers.push(browser);
+  const p = await browser.newPage();
+  p.on('pageerror', (e) => console.log(`[${name}] ERR`, e.message));
+  await hooks(p);
   await p.goto(`${base}/?autostart=1&welcome=0&quality=low&time=10:30&mp=ws://127.0.0.1:${PORT}&name=${name}&spawn=${spawnAt[0]},${spawnAt[1]}`);
   await p.waitForFunction('window.__pvReady === true && window.__pv.mp()?.session', { timeout: 240000 });
   await w(2500);
@@ -359,6 +363,30 @@ try {
   check('evento/agenda: sem pointer lock em nenhum momento', await noLock(A, 'evento'), `${lockLog.length} pontos checados`);
 
   // 500 entidades: custo da seleção → tools/qa/selection_500.mjs (servidor e bots próprios)
+
+  // ============================================================ espectador: continua girando por arrasto (sem lock)
+  {
+    const browser = await puppeteer.launch({ executablePath: chrome, headless: 'new', protocolTimeout: 600000, args: ['--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist'], defaultViewport: { width: 1280, height: 720 } });
+    browsers.push(browser);
+    const P = await browser.newPage();
+    await hooks(P);
+    await P.goto(`${base}/?quality=low&time=10:30&mp=ws://127.0.0.1:${PORT}`);
+    await P.waitForFunction('typeof window.__pvLaunch === "function"', { timeout: 60000 });
+    await P.evaluate(() => { void window.__pvLaunch({ role: 'spectator' }); });
+    await P.waitForFunction('window.__pvReady === true && window.__pv.mp()?.session', { timeout: 120000 });
+    await w(2500);
+    const cam = () => ev(P, () => window.__pv.spectator().camera);
+    const k0 = await cam();
+    await P.mouse.move(500, 400); await P.mouse.down(); for (let i = 1; i <= 10; i++) { await P.mouse.move(500 + i * 25, 400); await w(30); } await P.mouse.up();
+    await w(600);
+    const k1 = await cam();
+    await rightDrag(P, 500, 400, -250, 0, 10); await P.mouse.up({ button: 'right' });
+    await w(600);
+    const k2 = await cam();
+    const moved = (a, b) => Math.hypot(a.x - b.x, a.z - b.z) > 0.2;
+    check('espectador: arrasto (esquerdo ou direito) continua girando a câmera, sem pointer lock', moved(k0, k1) && moved(k1, k2) && (await noLock(P, 'espectador')), `${JSON.stringify(k0)} → ${JSON.stringify(k1)} → ${JSON.stringify(k2)}`);
+    await browser.close();
+  }
 
   // ============================================================ 1920×1080
   const H = await open('MesaHD', { width: 1920, height: 1080 });
