@@ -339,7 +339,7 @@ export class InventoryController {
     }
     return {
       open: this.open, panel: this.panel.info(), layout: [...this.layout], byCat, stats: { ...this.stats },
-      preview: { created: previewStats.created, disposed: previewStats.disposed, live: previewStats.live, has: !!this.preview },
+      preview: { created: previewStats.created, disposed: previewStats.disposed, live: previewStats.live, has: !!this.preview, memory: previewStats.memory() },
       quick: this.quickbar.info(), log: this.log.slice(-30),
       equipped: this.items.filter((i) => i.state === 'equipped').map((i) => i.key),
     };

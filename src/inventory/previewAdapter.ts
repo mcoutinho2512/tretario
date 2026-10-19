@@ -16,8 +16,16 @@ export interface InventoryPreview extends AvatarPreviewHandle {
 }
 
 /** QA (tools/qa/inventory_mp.mjs): prévias criadas/descartadas e quantas estão vivas */
-export const previewStats = { created: 0, disposed: 0, get live() { return this.created - this.disposed; } };
+export const previewStats = {
+  created: 0, disposed: 0, get live() { return this.created - this.disposed; },
+  /** memória do renderer da prévia viva (texturas/geometrias/programas do three.js); null = nenhuma */
+  memory(): { textures: number; geometries: number; programs: number } | null {
+    const r = (currentRaw as unknown as { renderer?: { info: { memory: { textures: number; geometries: number }; programs?: unknown[] } } } | null)?.renderer;
+    return r ? { textures: r.info.memory.textures, geometries: r.info.memory.geometries, programs: r.info.programs?.length ?? 0 } : null;
+  },
+};
 let current: InventoryPreview | null = null;
+let currentRaw: AvatarPreview | null = null;
 
 export function createInventoryPreview(container: HTMLElement, app: CharacterAppearance): InventoryPreview {
   current?.dispose(); // nunca dois renderers de prévia
@@ -47,9 +55,10 @@ export function createInventoryPreview(container: HTMLElement, app: CharacterApp
       p.dispose();
       canvas.remove();
       previewStats.disposed++;
-      if (current === h) current = null;
+      if (current === h) { current = null; currentRaw = null; }
     },
   };
   current = h;
+  currentRaw = p;
   return h;
 }

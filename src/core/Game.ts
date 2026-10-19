@@ -1183,7 +1183,19 @@ export class Game {
     // inventário aberto: o clique no cenário não vira interação nem captura do mouse
     const pf = this.input.pointFilter;
     this.input.pointFilter = (x, y, locked) => (inv.open ? true : pf?.(x, y, locked) ?? false);
-    (window as any).__pvInv = { inv, info: () => inv.info(), entries: () => inv.entries(), handSync: () => this.r10Qa().handSync() };
+    // QA (tools/qa/inventory_mp.mjs): estado, entidades vistas por este cliente e o painel da pessoa por apelido
+    const players = () => {
+      const out: Record<string, unknown>[] = [];
+      (this.net as unknown as { room?: { state?: { players?: Map<string, Record<string, unknown>> } } } | null)?.room?.state?.players?.forEach((p, sid) => out.push({ sid, self: sid === this.net?.sessionId, name: p.name, topStyle: p.topStyle, accessory: p.accessory, shirtDesign: p.shirtDesign, prop: p.prop ?? 0, design: p.design ?? 0, sup: p.sup ?? 0, lvl: p.lvl ?? 0, title: p.title ?? '' }));
+      return out;
+    };
+    const showPerson = (name: string) => {
+      let hit: [string, number] | null = null;
+      this.net?.forEachPerson((id, nid, n) => { if (n === name) hit = [id, nid]; });
+      if (hit) this.personPanel?.show(hit[0], hit[1]);
+      return !!hit;
+    };
+    (window as any).__pvInv = { inv, info: () => inv.info(), entries: () => inv.entries(), handSync: () => this.r10Qa().handSync(), players, showPerson, send: (t: string, m: unknown) => this.net?.send(t, m) };
   }
   private r11Frame(dt: number) {
     const inv = this.inv;
