@@ -19,6 +19,9 @@
  *                sala antiga → entra de novo (entidade nova, conta/progresso preservados) com backoff; versão nova
  *                (4010) / sala cheia (4011) param e avisam (`onJoinRefused`) — docs/SHARED_WORLD.md § Reinício
  */
+import { BODY, type BodyRef } from '../physics/bodies'; // rodada 12 — colisão
+/** rodada 12 — colisão: penetração que o jogador local pode fazer num autônomo (o servidor o empurra para fora) */
+const AUTONOMOUS_SOFT = 0.12;
 import './netWebSocket'; // precisa vir ANTES do SDK (instrumenta globalThis.WebSocket)
 import * as THREE from 'three';
 import { Client, Callbacks, type Room } from '@colyseus/sdk';
@@ -577,6 +580,28 @@ export class NetworkClient {
     }
     return best;
   }
+
+  /**
+   * rodada 12 — colisão (src/physics/LocalBodies.ts): corpos remotos A PÉ e de pé a ≤ r de (x, z), na posição
+   * interpolada. Humano/bot = duro; autônomo (kind 1) cede um pouco (`soft`, abaixo da tolerância do servidor).
+   * Caído/levantando, em veículo ou no trio: sem corpo (igual ao servidor). Reaproveita objetos (sem alocar por quadro).
+   */
+  bodiesNear(x: number, z: number, r: number, out: BodyRef[]): BodyRef[] {
+    out.length = 0;
+    const r2 = r * r;
+    let i = 0;
+    for (const rm of this.remotes.values()) {
+      if (rm.vehicle || rm.platform || (rm.status !== 0 && rm.status !== 3)) continue;
+      const dx = rm.state.x - x, dz = rm.state.z - z;
+      if (dx * dx + dz * dz > r2) continue;
+      const b = this.bodyPool[i] ?? (this.bodyPool[i] = { id: '', x: 0, z: 0, r: BODY.radius });
+      i++;
+      b.id = rm.id; b.x = rm.state.x; b.z = rm.state.z; b.r = BODY.radius; b.soft = rm.kind === ENTITY_KIND.AUTONOMOUS ? AUTONOMOUS_SOFT : 0;
+      out.push(b);
+    }
+    return out;
+  }
+  private bodyPool: BodyRef[] = [];
 
   remotesForObstacles(): { x: number; z: number; interaction: string; status: number; vehicle: string; platform: string }[] {
     return [...this.remotes.values()].map((r) => ({ x: r.state.x, z: r.state.z, interaction: r.interaction, status: r.status, vehicle: r.vehicle, platform: r.platform }));

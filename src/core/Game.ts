@@ -122,6 +122,7 @@ import { loadFpsChoice, resolveFpsLimit, type FpsChoice } from './fpsChoice';
 import { isReduceMotion, setUiPrefs, uiPrefs, type UiPrefs } from '../ui/uiPrefs';
 import { openSettings, type SettingsTab } from '../ui/settingsApi';
 import { notifyBlocked } from '../ui/notify';
+import { LocalBodies } from '../physics/LocalBodies'; // rodada 12 — colisão
 import { PersonalVehicleClient } from '../vehicles/PersonalVehicleClient'; // rodada 12 — veículo pessoal
 
 export { DEFAULT_PLAYER_APPEARANCE } from '../characters/bodyTypes';
@@ -694,6 +695,17 @@ export class Game {
   private wheel: ActionWheel | null = null;
   private chat: ChatPanel | null = null;
   private rallyCrowd: RallyCrowd | null = null;
+  // rodada 12 — colisão: corpos contra o jogador local (remotos, autônomos, NPCs locais) — src/physics/LocalBodies.ts
+  private r12Bodies: LocalBodies | null = null;
+  private r12MakeBodies() {
+    return new LocalBodies({
+      remotes: (x, z, r, out) => { if (this.net) return this.net.bodiesNear(x, z, r, out); out.length = 0; return out; },
+      npcs: () => [this.peds, this.rallyCrowd],
+      walls: (p) => { const q = { x: p.x, y: this.player.y, z: p.z }; this.collision.resolveCircle(q, 0.32, 1.78); const hit = Math.hypot(q.x - p.x, q.z - p.z) > 1e-3; p.x = q.x; p.z = q.z; return hit; },
+      onStuck: () => this.net?.send('unstuck', 1), // o servidor confere e escolhe o ponto livre ('correct' livre)
+      clear: (ax, az, bx, bz) => this.collision.raycast(ax, 0.6, az, bx, 0.6, bz) >= 1,
+    });
+  }
   readonly social = new SocialController((s) => this.avatar.setSocial(s), () => (this.mpOnline ? this.net! : null), (m) => this.flash(m));
   /** quadros longos (> 34 ms de CPU) com a divisão por etapa */
   private hitchLog: { t: number; ms: number; parts: Record<string, number>; novos: Record<string, number> }[] = [];
@@ -1255,7 +1267,7 @@ export class Game {
       selfPlayer: () => this.net?.selfPlayer() ?? null,
       titles: () => this.r11prog?.p?.titles ?? [],
       progression: () => this.r11prog?.cat ?? null,
-      zonePolicy: () => this.combat?.policyAt(this.player.x, this.player.z) ?? 'PEACE',
+      zonePolicy: () => this.combat?.policyAt(this.player.x, this.player.z) ?? 'COMBAT', // rodada 12 — colisão/zonas: sem zona de paz
       notify: (m) => this.flash(m),
       onModal: (open) => { shell.poke(); relock(open); },
       setMoveBlocked: (on) => this.input.setMoveBlocked(on),
@@ -1472,6 +1484,7 @@ export class Game {
         speedFactor: this.avatar.speedFactor,
       };
       const steps = Math.max(1, Math.ceil(dt / (1 / 120)));
+      const px0 = this.player.x, pz0 = this.player.z; // rodada 12 — colisão
       for (let i = 0; i < steps; i++) stepPlayer(this.player, intent, dt / steps, this.collision);
       for (const it of this.rideables.items) if (BOXED_KINDS.has(it.def.kind) && it !== this.riding) {
         // carros, motos, carros de som e o trio (estacionados ou andando) são sólidos
@@ -1479,6 +1492,9 @@ export class Game {
         const o = pushOutOfBox(this.player.x, this.player.z, { x: it.state.x, z: it.state.z, heading: it.state.heading, kind: it.def.kind }, 0.35);
         if (o) { this.player.x = o.x; this.player.z = o.z; }
       }
+      // rodada 12 — colisão: não atravessa pessoas (desliza pela tangente; multidão de NPC cede devagar)
+      { const want = Math.hypot(intent.dirX, intent.dirZ) > 0.1 ? Math.max(0.01, Math.hypot(this.player.x - px0, this.player.z - pz0), 1.2 * dt) : 0;
+        (this.r12Bodies ??= this.r12MakeBodies()).step(this.player, px0, pz0, dt, want); }
       this.avatar.update(this.player, dt);
       // rodada 10 — interação: o texto vem do alvo contextual (veículo, escada do trio, item, grafite)
       this.hudShell.setPrompt(this.pendingEnter || this.pendingBoard ? 'Aguardando o servidor…' : this.ix?.current ? ixPromptText(this.ix.current) : this.graffiti.promptText());
@@ -1495,9 +1511,10 @@ export class Game {
     try {
       const [{ CombatClient }, { CombatHud }, { loadCombatTable }] = await Promise.all([import('../combat/CombatClient'), import('../combat/CombatHud'), import('../combat/data')]);
       const hud = (this.combatHud = new CombatHud());
-      this.hudShell.mountCombat(hud, hud.peaceEl);
+      this.hudShell.mountCombat(hud); // rodada 12: sem aviso de zona de paz
       this.combat = new CombatClient({
         net: this.net!, table: await loadCombatTable(import.meta.env.BASE_URL), avatar: this.avatar, input: this.input, collision: this.collision, scene: this.scene,
+        bodies: (q, fx, fz, dt) => { (this.r12Bodies ??= this.r12MakeBodies()).step(q, fx, fz, dt, 0, false); }, // rodada 12 — colisão
         zone: () => this.hudShell.zones.current, flash: (m) => this.flash(m), touch: this.touchCtl, hud,
         consent: this.combatRules.combatConsent,
         // NPCs de ambiente são locais: o golpe neles não vai ao servidor (src/combat/npcHits.ts)
@@ -1687,6 +1704,8 @@ export class Game {
       // rodada 9 — confronto (QA: tools/qa/combat_mp.mjs)
       combat: () => (this.combat ? { ...this.combat.qa(), context: this.combat.context(this.player), policy: this.combat.policyAt(this.player.x, this.player.z), touch: this.touchCtl?.combatVisible ?? null } : null),
       cbt: (k: 'cbt_punch' | 'cbt_kick' | 'cbt_dodge') => this.combat?.press(k),
+      /** rodada 12 — colisão (QA: tools/qa/collision_mp.mjs): custo por quadro, vizinhos, contatos, distância mínima */
+      bodies: (reset = false) => { const i = this.r12Bodies?.info() ?? null; if (reset) this.r12Bodies?.reset(); return i; },
       /** NPCs de ambiente perto (QA do golpe em NPC): posição, distância e reação em curso */
       npcs: (r = 12) => {
         const out: { x: number; z: number; d: number; src: string }[] = [];

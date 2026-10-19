@@ -1,11 +1,11 @@
 /**
  * Rodada 12 — ADAPTADOR FINO de corpos para os autônomos, escrito contra o CONTRATO src/physics/bodies.ts (BODY,
- * BodyIndex, BodyRef). A grade e a resolução abaixo são provisórias:
- * // rodada 12 — trocar pela API do AGENTE A (src/physics/bodyResolve.ts: grade + resolução progressiva)
- * Na integração, `createBodyIndex`/`resolvePenetration` passam a delegar para a implementação do agente A; o resto do
- * sistema de autônomos só conhece a interface.
+ * BodyIndex, BodyRef). A COLISÃO é a do agente A: `constrainStep` = constrainMove (src/physics/bodyResolve.ts) e, na
+ * sala, room.bodies.grid + resolveAutonomous + sync (server/src/collision/RoomBodies.ts). A grade abaixo é só a
+ * PERCEPÇÃO do desvio (vizinhos com velocidade para antecipar), reconstruída pelo próprio sistema.
  */
 import { BODY, type BodyIndex, type BodyRef } from '../../../src/physics/bodies';
+import { constrainMove } from '../../../src/physics/bodyResolve';
 
 export { BODY };
 export type { BodyIndex, BodyRef };
@@ -17,7 +17,6 @@ export interface MutableBodyIndex extends BodyIndex {
   readonly size: number;
 }
 
-// rodada 12 — trocar pela API do AGENTE A
 export function createBodyIndex(cell = 4): MutableBodyIndex {
   const cells = new Map<number, BodyRef[]>();
   const pool: BodyRef[][] = [];
@@ -46,22 +45,11 @@ export function createBodyIndex(cell = 4): MutableBodyIndex {
 }
 
 /**
- * penetração entre o corpo `self` e os vizinhos: devolve o deslocamento PROGRESSIVO (≤ BODY.maxPushPerStep) para sair.
- * Só o próprio autônomo se move (humanos são autoridade do próprio movimento validado; corpos `fixed` não cedem).
+ * passo de UM autônomo entre os vizinhos: a função PURA do agente A (src/physics/bodyResolve.ts constrainMove) —
+ * ninguém termina mais perto de um vizinho que o contato, desliza em volta, sobreposição antiga sai devagar. A sala
+ * aplica a mesma função contra a grade autoritativa (room.bodies.grid) e resolve os autônomos com resolveAutonomous.
  */
-// rodada 12 — trocar pela API do AGENTE A
-export function resolvePenetration(self: BodyRef, near: readonly BodyRef[], out: { x: number; z: number }) {
-  let px = 0, pz = 0;
-  for (const o of near) {
-    if (o.id === self.id) continue;
-    const dx = self.x - o.x, dz = self.z - o.z, d = Math.hypot(dx, dz), min = self.r + o.r;
-    if (d >= min) continue;
-    const pen = min - d;
-    if (d < 1e-4) { px += pen; continue; } // empilhados: sai para um lado fixo
-    px += (dx / d) * pen; pz += (dz / d) * pen;
-  }
-  const l = Math.hypot(px, pz);
-  const k = l > BODY.maxPushPerStep ? BODY.maxPushPerStep / l : 1;
-  out.x = px * k; out.z = pz * k;
-  return out;
+export function constrainStep(id: string, fromX: number, fromZ: number, toX: number, toZ: number, near: readonly BodyRef[], dt: number): { x: number; z: number; blocked: boolean } {
+  const r = constrainMove(id, BODY.radius, fromX, fromZ, toX, toZ, near, dt);
+  return { x: r.x, z: r.z, blocked: r.blocked };
 }

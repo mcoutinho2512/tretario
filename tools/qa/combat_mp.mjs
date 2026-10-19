@@ -139,7 +139,7 @@ try {
     const hit = await until(B, () => window.__pv.combat().stats.hitsIn >= 1, 3000);
     const b = await cb(B), a = await cb(A);
     check('spawn: A pacífico soca B pacífico → impacto decidido pelo servidor', hit && b.condition < 100, `condição ${b.condition}`);
-    check('spawn: B vê o golpe de A (cbt_act) e nada é negado por zona', b.stats.acts > acts0 && !a.stats.denied.includes('zona_paz') && !a.hud.peace, JSON.stringify(a.stats.denied));
+    check('spawn: B vê o golpe de A (cbt_act) e nada é negado por zona', b.stats.acts > acts0 && !a.stats.denied.includes('zona_paz'), JSON.stringify(a.stats.denied));
     await until(B, () => window.__pv.mp().self.status === 0 && !window.__pv.combat().locked, 3000);
   }
 

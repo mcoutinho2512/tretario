@@ -1,6 +1,6 @@
 /**
  * Rodada 9 — CONFRONTO (server/src/combat/CombatSystem.ts) e PULO (JumpValidator) com um "host" falso (sem Colyseus):
- * soco/chute/empurrão/esquiva, combos, stamina, cooldown, alcance, orientação, zona de paz × combate, itens (taco,
+ * soco/chute/empurrão/esquiva, combos, stamina, cooldown, alcance, orientação, sem zona de paz (rodada 12), itens (taco,
  * barra e spray com props de mentira), queda → levantar → proteção, bonecos de treino, campos forjados ignorados.
  */
 import { describe, expect, it, beforeEach } from 'vitest';
@@ -9,7 +9,8 @@ import { CombatSystem, type CombatActorView, type CombatHost } from '../server/s
 import { JumpValidator } from '../server/src/combat/JumpValidator';
 import { CombatTable, JUMP, JUMP_FLIGHT_MS, JUMP_PEAK, inArc, parseCombatData } from '../src/combat/data';
 import { FX, PHYS } from '../src/combat/types';
-import type { ZoneCombatPolicy, PeaceArea, CombatEventRules } from '../src/combat/policy';
+import type { ZoneCombatPolicy, CombatEventRules } from '../src/combat/policy';
+import { BODY } from '../src/physics/bodies';
 import type { GameplayEvent } from '../src/gameplay/events';
 
 const DATA = parseCombatData(JSON.parse(readFileSync('public/gameplay/combat.json', 'utf8')));
@@ -22,7 +23,8 @@ type P = CombatActorView & { zone: string | null };
 class World {
   t = 1_000_000;
   players = new Map<string, P>();
-  zones: Record<string, { combatPolicy?: ZoneCombatPolicy; peaceAreas?: PeaceArea[] }> = { ARENA: { combatPolicy: 'COMBAT' }, PRACA: { combatPolicy: 'PEACE' }, DISPUTA: { combatPolicy: 'CONTESTED' } };
+  // PRACA: zona de dados antiga marcada 'PEACE' — rodada 12: vale COMBAT (não existem áreas de paz)
+  zones: Record<string, { combatPolicy?: ZoneCombatPolicy }> = { ARENA: { combatPolicy: 'COMBAT' }, PRACA: { combatPolicy: 'PEACE' as never }, DISPUTA: { combatPolicy: 'CONTESTED' } };
   sent: { sid: string; type: string; msg: any }[] = [];
   aoi: { subject: string; type: string; msg: any }[] = [];
   events: { sid: string; ev: GameplayEvent }[] = [];
@@ -211,17 +213,24 @@ describe('golpes (servidor decide)', () => {
     expect(W.sent.find((m) => m.type === 'cbt_hit')?.msg.r).toBe('blocked');
   });
 
-  it('zona de paz: atacante é negado com zona_paz; alvo em área de paz também', () => {
-    W.players.get('A')!.zone = 'PRACA';
-    expect(C.request('A', { a: ID('soco'), h: 0, seq: 1 })).toEqual({ ok: false, reason: 'zona_paz' });
-    expect(denials('A')).toEqual(['zona_paz']);
-    W.players.get('A')!.zone = 'ARENA';
-    W.zones.ARENA.peaceAreas = [{ id: 'palco', x: 0, z: 1.2, r: 0.5 }];
-    W.t += 1000;
-    C.request('A', { a: ID('soco'), h: 0, seq: 2 });
+  it('rodada 12 — não existe zona de paz: zona antiga "PEACE" e fora de zona acertam como COMBAT', () => {
+    W.players.get('A')!.zone = 'PRACA'; W.players.get('B')!.zone = null;
+    expect(C.request('A', { a: ID('soco'), h: 0, seq: 1 }).ok).toBe(true);
     step(300);
-    expect(C.fighter('B')!.condition).toBe(100);
-    expect(denials('A')).toEqual(['zona_paz', 'zona_paz']);
+    expect(C.fighter('B')!.condition).toBe(100 - 12);
+    expect(denials('A')).toEqual([]);
+  });
+
+  it('rodada 12 — corpos ENCOSTADOS (2 × BODY.radius = 0,64 m) continuam dentro do alcance de soco e chute', () => {
+    W.players.get('B')!.z = 2 * BODY.radius;
+    expect(C.request('A', { a: ID('soco'), h: 0, seq: 1 }).ok).toBe(true);
+    step(300);
+    expect(hits()[0]).toMatchObject({ r: 'hit', tgt: 2 });
+    W.t += 2000; step(20);
+    W.players.get('B')!.z = 2 * BODY.radius; W.players.get('B')!.status = 0;
+    expect(C.request('A', { a: ID('chute'), h: 0, seq: 2 }).ok).toBe(true);
+    step(400);
+    expect(hits().filter((h) => h.r === 'hit')).toHaveLength(2);
   });
 
   it('CONTESTED só com evento ativo dos dois (provedor injetado combatEventFor)', () => {
@@ -329,11 +338,11 @@ describe('boneco de treino', () => {
     expect(C.dummy(d.id)).toEqual({ st: PHYS.NORMAL, cond: d.conditionMax });
     expect(W.aoi.some((m) => m.type === 'cbt_dummy')).toBe(true);
   });
-  it('fora da área (zona de paz) o atacante é negado', () => {
+  it('rodada 12 — fora da área de treino (zona antiga "PEACE") o golpe também sai: não existe zona de paz', () => {
     W = new World();
     C = new CombatSystem(TABLE, W.host());
     W.add('A', { x: 0, z: 0, zone: 'PRACA' }); C.join('A');
-    expect(C.request('A', { a: ID('soco'), h: 0 })).toEqual({ ok: false, reason: 'zona_paz' });
+    expect(C.request('A', { a: ID('soco'), h: 0 }).ok).toBe(true);
   });
 });
 
@@ -401,13 +410,13 @@ describe('sem consentimento (zones.json combatConsent "none" — decisão do don
     expect(W.sent.find((m) => m.type === 'cbt_hit')?.msg.r).toBe('blocked');
   });
 
-  it('atacante fora de zona de combate: o golpe sai e anima (sem "nada acontece"); o impacto é que é bloqueado', () => {
+  it('rodada 12 — sem zona de paz: atacante em zona antiga "PEACE" ou fora de zona acerta qualquer um', () => {
     W.players.get('A')!.zone = 'PRACA';
     expect(C.request('A', { a: ID('soco'), h: 0, seq: 1 }).ok).toBe(true);
     expect(W.aoi.some((m) => m.type === 'cbt_act')).toBe(true);
     step(300);
-    expect(C.fighter('B')!.condition).toBe(100);
-    expect(denials('A')).toEqual(['zona_paz']); // aviso discreto da janela ativa
+    expect(C.fighter('B')!.condition).toBeLessThan(100);
+    expect(denials('A')).toEqual([]);
   });
 
   it('empurrão antigo (F): pacíficos passam pela política única', () => {
@@ -419,15 +428,14 @@ describe('sem consentimento (zones.json combatConsent "none" — decisão do don
 });
 
 describe('empurrão antigo (push, tecla F) obedece à mesma política', () => {
-  it('zona de paz, área de paz e pacífico negam; zona de combate com consentimento permite', () => {
+  it('pacífico nega (consentimento antigo); zona antiga "PEACE" já não nega (rodada 12); combate com consentimento permite', () => {
     setup();
     expect(C.pushPolicy('A', 'B')).toEqual({ ok: true });
     W.players.get('B')!.zone = 'PRACA';
-    expect(C.pushPolicy('A', 'B')).toEqual({ ok: false, reason: 'zona_paz' });
+    expect(C.pushPolicy('A', 'B')).toEqual({ ok: true });
+    W.players.get('B')!.zone = null;
+    expect(C.pushPolicy('A', 'B')).toEqual({ ok: true });
     W.players.get('B')!.zone = 'ARENA';
-    W.zones.ARENA.peaceAreas = [{ id: 'palco', x: 0, z: 0, r: 5 }];
-    expect(C.pushPolicy('A', 'B')).toEqual({ ok: false, reason: 'zona_paz' });
-    W.zones.ARENA.peaceAreas = [];
     W.players.get('B')!.mode = 'pacifico';
     expect(C.pushPolicy('A', 'B')).toEqual({ ok: false, reason: 'politica' });
   });

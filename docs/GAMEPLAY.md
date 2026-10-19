@@ -13,7 +13,7 @@ ENTRAR → VER O QUE ESTÁ ACONTECENDO → ESCOLHER → PARTICIPAR → PROGREDIR
 | Etapa | O que o jogador vê | Onde |
 |---|---|---|
 | Entrar | cartão "BEM-VINDO À PRESIDENTE VARGAS — Explore a avenida" (um objetivo só); depois as atividades aparecem aos poucos | [PROGRESSION.md](PROGRESSION.md) |
-| Ver o que acontece | **Acontecendo agora** (até 3 linhas no HUD), **Agenda da avenida** (☰), telões e painéis, minimapa com marcas de evento, aviso de zona com a política (paz / disputa / confronto) | [EVENTS.md](EVENTS.md), [HUD.md](HUD.md), [AD_SLOTS.md](AD_SLOTS.md) |
+| Ver o que acontece | **Acontecendo agora** (até 3 linhas no HUD), **Agenda da avenida** (☰), telões e painéis, minimapa com marcas de evento, indicador da região (nome da zona; rodada 12: sem zona de paz) e aviso de zona "Zona de confronto" | [EVENTS.md](EVENTS.md), [HUD.md](HUD.md), [AD_SLOTS.md](AD_SLOTS.md) |
 | Escolher | missão em destaque, inscrição num evento, ir ao palco, à área de treino, pegar bicicleta/patinete | [MISSIONS.md](MISSIONS.md) |
 | Participar | caminhada, corridas, debate, concentração, trio, confronto (opcional), pichação, chat | abaixo |
 | Progredir | objetivos avançam pelo servidor; XP, níveis 1–10, conquistas | [PROGRESSION.md](PROGRESSION.md) |
@@ -35,14 +35,18 @@ ENTRAR → VER O QUE ESTÁ ACONTECENDO → ESCOLHER → PARTICIPAR → PROGREDIR
 Missões: 10 (exploração, social, mobilidade, evento, debate, confronto opcional). Conquistas: 11. Um caminho
 **pacífico**, sem confronto nem eventos agendados, chega ao nível 6 (teste `tests/progression.test.ts`).
 
-## Confronto: a avenida toda (decisão do dono, 2026-10-18)
+## Confronto: a avenida toda — NÃO EXISTEM ÁREAS DE PAZ (definitivo, rodada 12)
 
 Decisão do dono, literal: **"Avenida toda, sem nenhuma área de paz"** + **"bater em todos"** (NPCs da multidão e outros
-jogadores, sem modo interação/K) + taco/barra/spray direto. Tudo por dados — o código das regras antigas continua e
-volta pelos mesmos campos:
+jogadores, sem modo interação/K) + taco/barra/spray direto. Na rodada 12 virou **definitivo**: o conceito de zona onde o
+confronto é proibido saiu do código (docs/COMBAT.md, topo).
 
-- **Zonas** (`public/world/zones.json`): as 6 zonas são **COMBAT**, sem `peaceAreas`; `derivedPeaceAreas: false`
-  desliga as áreas de paz do spawn, do palco, dos anéis do trio/carros de som e dos retornos de evento.
+- **Zonas** (`public/world/zones.json`): as 6 zonas são **COMBAT**, e **fora de qualquer zona também é COMBAT**. Não há
+  áreas de paz — nem nos dados, nem derivadas (spawn, palco, anéis do trio/carros de som, retornos de evento).
+- **Proteção temporária de retorno (5 s)** — não é zona: ao entrar, reconectar e levantar da queda o jogador fica
+  imune por 5 s (brilho de proteção); depois disso vale a regra geral.
+- **Corpos sólidos** (rodada 12): ninguém atravessa ninguém — jogador, personagem autônomo ou NPC; multidão densa
+  resiste; encostado continua no alcance do soco/chute (docs/CROWD_COLLISION.md).
 - **Sem consentimento** (`combatConsent: "none"`): **jogador pacífico também pode ser atingido em qualquer lugar** —
   golpe, empurrão (F) e carro/moto. K continua existindo, mas não protege. **Só a proteção de retorno de 5 s** (entrar,
   reconectar, levantar, retorno de evento) bloqueia impacto; regras de evento (`friendlyFire`) continuam valendo.
@@ -51,7 +55,7 @@ volta pelos mesmos campos:
   (~4 s), ou cobrem os olhos (spray). São locais de cada cliente; não afetam ninguém mais.
 - **Itens**: taco, barra e spray direto da roda de ações (ITENS), em qualquer lugar (`freeCombatProps`); os pontos de
   apoio e o chão continuam funcionando. Espectador não segura item nem golpeia.
-- Regra anterior (até 2026-10-18, religável): CIDADE_NOVA COMBAT; CENTRAL, CENTRO e CANDELARIA PEACE; CAMPO_DE_SANTANA e
+- Regra anterior (até 2026-10-18, histórico — não religável desde a rodada 12): CIDADE_NOVA COMBAT; CENTRAL, CENTRO e CANDELARIA PEACE; CAMPO_DE_SANTANA e
   RIO_BRANCO CONTESTED; impacto só entre quem estava em modo interação (K) ou inscrito num evento de confronto.
 - **Arcade**: soco, chute, empurrão, esquiva, combos, taco/barra/spray (spray = desorientação abstrata curta),
   condição e fôlego abstratos, queda e levantar, proteção de retorno. Sem sangue, lesão, morte, arma de fogo.

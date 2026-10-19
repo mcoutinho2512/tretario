@@ -114,7 +114,7 @@ só local, em silêncio.
 ```ts
 game.hudShell.mountChat(panel)          // ChatPanelLike { el; toggle(open?); setCollapsed?(c) } — botão CHAT do celular chama toggle()
 game.hudShell.mountSpectator(panel)     // HudPanel { el; setCollapsed?(c) } — acima da ação contextual
-game.hudShell.mountCombat(panel, aviso) // rodada 9: HUD de confronto (acima do centro inferior) + aviso ZONA DE PAZ
+game.hudShell.mountCombat(panel, aviso?) // rodada 9: HUD de confronto (acima do centro inferior); rodada 12: sem aviso de zona de paz
 game.hudShell.mountHand(panel)          // rodada 9: MÃOS / ITEM ATUAL (canto inferior direito, acima de Ações)
 game.hudShell.setFocusProvider(() => ({ x, z }))  // câmera do espectador define zona/minimapa; null = jogador
 game.hudShell.onZoneChange(({ from, to }) => …)   // ZoneDefinition | null
@@ -199,22 +199,21 @@ Detalhes em [INTERACTION_SYSTEM.md](INTERACTION_SYSTEM.md). No HUD:
 
 ## HUD de confronto (rodada 9)
 
-`src/combat/CombatHud.ts`, montado por `hudShell.mountCombat(hud, hud.peaceEl)` acima do centro inferior (detalhes do
+`src/combat/CombatHud.ts`, montado por `hudShell.mountCombat(hud)` acima do centro inferior (detalhes do
 sistema em [COMBAT.md](COMBAT.md)):
 
-- **painel** (discreto, some sozinho): estado da zona (ZONA DE COMBATE / ÁREA DE TREINO / ZONA DE DISPUTA / ZONA DE PAZ,
+- **painel** (discreto, some sozinho): estado da região (ZONA DE CONFRONTO / ÁREA DE TREINO / ZONA DE DISPUTA de evento — rodada 12: não existe zona de paz,
   `· PROTEGIDO` com a proteção de retorno), barras de **CONDIÇÃO** e **FÔLEGO** (stamina) e o item de confronto na mão.
   Só aparece quando importa: golpe/acerto/esquiva nos últimos 8 s, fx ENGAGED do servidor, valores abaixo do máximo
   num contexto de confronto, ou item de confronto na mão numa zona de confronto. Fora disso, opacidade 0;
-- **aviso "ZONA DE PAZ"**: pílula verde curta (1,6 s) quando o servidor nega um golpe com `zona_paz` — desde
-  2026-10-18 (avenida toda COMBAT, sem áreas de paz) não aparece na avenida; fica para quando os dados religarem;
+- (rodada 12: o aviso "ZONA DE PAZ" e a negativa `zona_paz` saíram — não existem áreas de paz);
 - **toque**: SOCO / CHUTE / ESQUIVA (`TouchControls.setCombatVisible`) aparecem com contexto de confronto — com
   `combatConsent: "none"` (dados atuais) **sempre** para jogador; na regra antiga só em zona COMBAT/CONTESTED, área de
   treino, evento de confronto ou modo interação — os fixos (PULAR, CHAT, CORRER; AÇÕES virou a barra na 9.1) não mudam;
 - HUD limpo (H/P) esconde tudo.
 
 Custo: `set()` roda a ≤ 10 Hz (RateGate) e só escreve o que mudou (TextSlot/setClass; barras por `transform` só quando
-o valor inteiro muda). Parado e cheio: zero escritas. QA: `__pv.combat().hud` (`shown`, `peace`, `writes`).
+o valor inteiro muda). Parado e cheio: zero escritas. QA: `__pv.combat().hud` (`shown`, `writes`).
 
 ## Custo medido
 
@@ -306,9 +305,9 @@ reduzir movimento), `src/ui/notify.ts` (`notifyBlocked`), `src/ui/settingsApi.ts
 ### Indicador de zona
 
 Pílula pequena no alto ao centro, **sempre visível** (não esmaece com o HUD, não some no auto-ocultar): ponto colorido
-+ palavra — **PAZ** (verde), **CONTESTADA** (âmbar), **CONFRONTO** (vermelho, fundo levemente avermelhado). A palavra
-garante leitura sem depender da cor. Fora de zona nomeada vale a regra padrão (PAZ). `title` com o nome da zona e a
-política por extenso. O aviso grande de zona (nome do lugar) continua aparecendo só na troca (3,4 s), menor (18–26 px)
++ **nome da REGIÃO** (rodada 12: "CAMPO DE SANTANA", "CENTRAL DO BRASIL"…; fora de zona nomeada "CENTRO DO RIO"). Não
+existe zona de paz: o indicador não sugere proibição — a cor só distingue confronto (vermelho, o padrão) de disputa de
+evento (âmbar). `title` com o nome da região e a política por extenso ("Zona de confronto"). O aviso grande de zona (nome do lugar) continua aparecendo só na troca (3,4 s), menor (18–26 px)
 e logo abaixo do indicador; em telas baixas perde a linha "PRESIDENTE VARGAS". A legenda do minimapa continua.
 
 ### Ação bloqueada — `notifyBlocked(texto)`
@@ -316,7 +315,7 @@ e logo abaixo do indicador; em telas baixas perde a linha "PRESIDENTE VARGAS". A
 Contrato para qualquer sistema (inventário, veículos, confronto, interação): `import { notifyBlocked } from
 'src/ui/notify'`. Toast curto (1,8 s) no fim da coluna do alto ao centro, sem modal, sem roubar o foco nem soltar o
 mouse; o próximo substitui o atual (não enfileira); a mesma frase repetida em < 1,5 s é ignorada; antes do HUD montar,
-guarda a última. Já usam: confronto negado por zona de paz (substitui o antigo selo "ZONA DE PAZ"), sem fôlego, golpe
+guarda a última. Já usam: sem fôlego, golpe
 sem o item. QA: `__pv.r11().blocked(texto)`; `hudShell.info().blocked`.
 
 ### Escala da interface (80 / 90 / 100 / 110 / 125 %)
@@ -382,7 +381,7 @@ caso) e multidão de bots: **17/17 sem sobreposição, sem corte e com o centro 
   (`EscSlot('inventory', 100)`); não pausa o mundo; enquanto aberto, as teclas de andar/correr/pular não movem o
   personagem (`input.setMoveBlocked`) e o clique no cenário não interage.
 - Avisos curtos (sem modal) pelo canal de sempre (`flash`): "Você não possui este item.", "<item>: bloqueado — Nível 3",
-  "Taco não pode ser usado nesta zona." (zona de paz), "Título: …", "Torcida atualizada.".
+  "Título: …", "Torcida atualizada.".
 
 ## Rodada 12 — nomes da população e minimapa (agente D; docs/AUTONOMOUS_CHARACTERS.md § Cliente)
 

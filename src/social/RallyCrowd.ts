@@ -11,6 +11,7 @@
  *  - Rodada 9.1: os mais PRÓXIMOS da câmera disputam o esqueleto no orçamento (como pedestres e remotos) e ganham um
  *    HumanCharacter de um pool por corpo — antes eram sempre instanciados (LOD2/LOD3 a 2–5 m do jogador: facetados).
  */
+import { BODY, type BodyRef } from '../physics/bodies'; // rodada 12 — colisão
 import { staggerClipFor } from '../combat/animSelect';
 import * as THREE from 'three';
 import type { CollisionWorld } from '../physics/CollisionWorld';
@@ -271,6 +272,28 @@ export class RallyCrowd implements NpcHittable {
     this.stats.reacting = reacting;
     this.stats.skinned = skinned;
     this.stats.pool = this.pool.length;
+  }
+
+  /**
+   * rodada 12 — colisão (src/physics/LocalBodies.ts): membros a ≤ r de (x, z) CEDEM ao corpo do jogador (até `maxStep`
+   * m por chamada, nunca para dentro de prédio) e entram em `out` como corpos MACIOS. Voltam a pé ao lugar no anel:
+   * concentração densa resiste a quem passa, sem bloquear para sempre. Caído não é corpo. Devolve quantos.
+   */
+  yieldBodies(x: number, z: number, selfR: number, r: number, maxStep: number, soft: number, out: BodyRef[]): number {
+    let n = 0;
+    for (let i = 0; i < this.stats.submitted && i < this.members.length; i++) {
+      const m = this.members[i];
+      if (m.react?.kind === 'down' || Math.abs(m.x - x) > r || Math.abs(m.z - z) > r) continue;
+      const dx = m.x - x, dz = m.z - z, d = Math.hypot(dx, dz), R = selfR + BODY.radius;
+      if (d < R && d > 1e-4) {
+        const st = Math.min(R - d, maxStep);
+        const nx = m.x + (dx / d) * st, nz = m.z + (dz / d) * st;
+        if (!this.blocked(nx, nz)) { m.x = nx; m.z = nz; }
+      }
+      out.push({ id: `rally:${i}`, x: m.x, z: m.z, r: BODY.radius, soft });
+      n++;
+    }
+    return n;
   }
 
   /** QA: membros a até `r` m de (x, z) — representação decidida pelo orçamento */

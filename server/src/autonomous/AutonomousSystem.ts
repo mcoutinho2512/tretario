@@ -21,7 +21,7 @@ import { PROFILES, proposalAffinity, type PersonalityProfile } from './personali
 import { chooseGoal, GOAL_MS, type BrainContext } from './brain';
 import { Rng } from './rng';
 import { NameGenerator, nicknameKey, releaseNickname, reserveNickname } from './names';
-import { BODY, createBodyIndex, resolvePenetration, type BodyRef } from './bodies';
+import { BODY, createBodyIndex, constrainStep, type BodyRef } from './bodies';
 import { faceToward, headingTo, makeKin, steer, type Kin, type NeighborRef } from './steering';
 import { Axis } from './axis';
 import { randomAppearance, type CharacterAppearance } from '../../../src/characters/bodyTypes';
@@ -831,7 +831,8 @@ export class AutonomousSystem implements AutonomousWorldView {
       if (out.waiting && !a.st.waiting) this.stats.waits++;
       a.st.waiting = out.waiting;
       // corpos se tocando: sai devagar (progressivo)
-      if (a.lod === 'NEAR' && near.length) { const o = resolvePenetration({ id: a.id, x: nx, z: nz, r: BODY.radius }, near, { x: 0, z: 0 }); nx += o.x; nz += o.z; }
+      // corpos (colisão do agente A): não entra em ninguém, desliza em volta
+      if (a.lod !== 'FAR' && near.length) { const c = constrainStep(a.id, a.k.x, a.k.z, nx, nz, near, dt); nx = c.x; nz = c.z; }
       // antena: parede logo à frente → novo destino (contorna em vez de esfregar)
       if (a.k.speed > 0.4 && now - a.lastFeel > 450) {
         a.lastFeel = now;
@@ -849,7 +850,7 @@ export class AutonomousSystem implements AutonomousWorldView {
       else a.k.speed = Math.max(0, a.k.speed - 3 * dt);
       // espaço pessoal parado: alguém encostou → um passinho para o lado
       let nx = a.k.x + Math.sin(a.k.heading) * a.k.speed * dt, nz = a.k.z + Math.cos(a.k.heading) * a.k.speed * dt;
-      if (a.lod === 'NEAR') { const near = this.neighbors(a, 1.2); if (near.length) { const o = resolvePenetration({ id: a.id, x: nx, z: nz, r: BODY.radius + 0.06 }, near, { x: 0, z: 0 }); nx += o.x * 0.7; nz += o.z * 0.7; } }
+      if (a.lod === 'NEAR') { const near = this.neighbors(a, 1.2); if (near.length) { const c = constrainStep(a.id, a.k.x, a.k.z, nx, nz, near, dt); nx = c.x; nz = c.z; } }
       speed = a.k.speed;
       this.commitMove(a, nx, nz, speed, now);
     }

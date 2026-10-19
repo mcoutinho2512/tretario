@@ -1,0 +1,173 @@
+{
+  "generatedAt": "2026-10-19T23:05:06.966Z",
+  "tool": "server/tools/autonomous_report.ts",
+  "agents": 100,
+  "humans": 6,
+  "simMinutes": 10,
+  "wallMs": 691,
+  "activityPct": {
+    "idle": 7.8,
+    "walk": 34.6,
+    "run": 0.2,
+    "social": 14.1,
+    "event": 40.1,
+    "vehicle": 2.5,
+    "fight": 0,
+    "watch": 0.2,
+    "leave": 0.5
+  },
+  "phase": {
+    "walkStarts": 1032,
+    "walkStartsInCrowdedTicksPct": 9.6,
+    "walkStartsMaxPerTick": 13,
+    "walkStartsMaxAtS": 0.8,
+    "walkStartsMaxPerTickSteady": 3,
+    "actStarts": 1680,
+    "actStartsInCrowdedTicksPct": 3.4,
+    "actStartsMaxPerTick": 3,
+    "sameActSameTickPct": 3.2
+  },
+  "movement": {
+    "meanSpeedMps": 1.52,
+    "walkSpeedSpreadMps": 0.146,
+    "dirChangesPerMovingMin": 4.49,
+    "stoppedPct": 62.2,
+    "pathMeanM": 31.5,
+    "pathMedianM": 14.3,
+    "pathP90M": 61.5,
+    "paths": 925,
+    "avoidPerAgentMin": 0.35,
+    "waitsPerAgentMin": 0.22,
+    "wallRepathsPerAgentMin": 0.38,
+    "corrections": 190,
+    "correctionReasons": {
+      "collision": 190,
+      "TRAVEL:walk:MID:mov": 66,
+      "USE_VEHICLE:board:MID:mov": 20,
+      "USE_VEHICLE:drive:MID:mov": 28,
+      "TRAVEL:walk:FAR:mov": 7,
+      "USE_VEHICLE:walk:MID:mov": 4,
+      "FOLLOW_SUPPORTERS:walk:MID:mov": 20,
+      "USE_VEHICLE:drive:MID:parado": 4,
+      "CHEER:walk:MID:mov": 6,
+      "USE_VEHICLE:drive:NEAR:mov": 6,
+      "TRAVEL:walk:NEAR:mov": 24,
+      "JOIN_CROWD:walk:FAR:mov": 1,
+      "USE_VEHICLE:drive:NEAR:parado": 2,
+      "WATCH_EVENT:walk:NEAR:mov": 2
+    },
+    "moves": 146991
+  },
+  "social": {
+    "groupsFormed": 58,
+    "groupHeadingSpreadDeg": 161,
+    "groupSizes": {
+      "2": 4,
+      "3": 2
+    }
+  },
+  "decisions": {
+    "perSec": 44.3,
+    "perAgentMin": 26.6
+  },
+  "vehicle": {
+    "rides": 147,
+    "enters": 147,
+    "exits": 144
+  },
+  "combat": {
+    "attacks": 1,
+    "denied": 0,
+    "knocks": 1,
+    "humansKnocked": 1,
+    "provocations": 10,
+    "directorStarted": 7,
+    "directorProposals": 568,
+    "directorAccepted": 110,
+    "directorEvents": {
+      "start:CONCENTRACAO": 5,
+      "end:CONCENTRACAO": 3,
+      "start:DISCUSSAO": 1,
+      "level:BRIGA:CONFRONTO": 1,
+      "kind:FESTA": 2,
+      "start:CORRIDA_IMPROVISADA": 1,
+      "react:BRIGA": 1,
+      "level:BRIGA:TENSAO": 1,
+      "level:BRIGA:CALMO": 1,
+      "end:BRIGA": 1,
+      "end:CORRIDA_IMPROVISADA": 1,
+      "end:FESTA": 2
+    },
+    "combatSystem": {
+      "requests": 11,
+      "accepted": 11,
+      "hits": 10,
+      "blocked": 0,
+      "dodged": 0,
+      "denied": {}
+    }
+  },
+  "lod": {
+    "NEAR": 26,
+    "MID": 66,
+    "FAR": 8,
+    "DORMANT": 0
+  },
+  "aiMsPerTick": 0.102,
+  "robotic": [
+    {
+      "check": "inícios de caminhada em ticks com ≥3 inícios (%)",
+      "value": 9.6,
+      "limit": "< 35",
+      "ok": true
+    },
+    {
+      "check": "mesma ação começando no mesmo tick (%)",
+      "value": 3.2,
+      "limit": "< 10",
+      "ok": true
+    },
+    {
+      "check": "máx. inícios de caminhada num tick (após 30 s de aquecimento)",
+      "value": 3,
+      "limit": "≤ 6",
+      "ok": true
+    },
+    {
+      "check": "desvio-padrão da velocidade de caminhada (m/s)",
+      "value": 0.146,
+      "limit": "> 0.08",
+      "ok": true
+    },
+    {
+      "check": "mudanças de direção > 30° por minuto andando (zig-zag)",
+      "value": 4.49,
+      "limit": "< 12",
+      "ok": true
+    },
+    {
+      "check": "espalhamento de rumo nas rodas (°; 0 = todos iguais)",
+      "value": 161,
+      "limit": "> 60 (ou sem rodas)",
+      "ok": true
+    },
+    {
+      "check": "tempo parado (%)",
+      "value": 62.2,
+      "limit": "20–85",
+      "ok": true
+    },
+    {
+      "check": "correções de parede por 1000 movimentos",
+      "value": 1.29,
+      "limit": "< 15",
+      "ok": true
+    },
+    {
+      "check": "humanos derrubados por autônomos sem provocação",
+      "value": 1,
+      "limit": "≤ provocações",
+      "ok": true
+    }
+  ]
+}

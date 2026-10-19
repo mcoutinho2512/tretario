@@ -93,7 +93,7 @@ import { JumpValidator } from './combat/JumpValidator.ts';
 import { CombatTable } from '../../src/combat/data.ts';
 import { PROP_BY_ID } from '../../src/social/props.ts';
 // rodada 9 — itens de confronto, política de zona, proteção de retorno (agente B)
-import { ZonePolicy, type MovingRally } from './combat/zonePolicy.ts';
+import { ZonePolicy } from './combat/zonePolicy.ts';
 import { ProtectionService } from './combat/protection.ts';
 import { RoomItems, loadCombatProps } from './items/RoomItems.ts';
 import { isCombatProp } from '../../src/social/props.ts';
@@ -117,6 +117,9 @@ import { autonomousConfig } from './autonomous/config.ts';
 import { manifestHotspots } from './autonomous/simHost.ts';
 import { nicknameKey } from './autonomous/names.ts';
 import { packMove } from '../../src/net/rules.ts';
+import { RoomBodies } from './collision/RoomBodies.ts'; // rodada 12 — colisão
+import { constrainMove } from '../../src/physics/bodyResolve.ts';
+import { BODY, type BodyRef } from '../../src/physics/bodies.ts';
 
 const AOI_RADIUS = Number(process.env.PV_AOI ?? 220); // m — jogadores/veículos visíveis
 /** histerese da AOI: entra a ≤ R, sai só além de R × AOI_HYST */
@@ -229,6 +232,9 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
   private crowdSlots = new Int32Array(1024);
   /** grade espacial dos jogadores (reconstruída a cada tick): AOI, candidatos de impacto */
   private grid = new SpatialGrid(AOI_RADIUS / 2);
+  // rodada 12 — colisão: corpos a pé (humanos, autônomos, bots) — server/src/collision/RoomBodies.ts. O agente C usa
+  // `room.bodies.grid` (BodyIndex) e `room.bodies.resolveAutonomous(corpos)` para o movimento dos autônomos
+  readonly bodies = new RoomBodies();
   private scratch = new InterestScratch();
   private aoiAdd: number[] = [];
   private aoiRem: number[] = [];
@@ -308,9 +314,42 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     item_drop: (client: Client) => this.gate(client, 'item.hold', () => this.items.onDrop(client.sessionId, Date.now())),
     qa_fx: (client: Client, m: unknown) => this.r9bQa(client.sessionId, 'fx', m),
     qa_status: (client: Client, m: unknown) => this.r9bQa(client.sessionId, 'status', m),
+    // rodada 12 — colisão: "estou preso" (o servidor confere: ≥ 2 corpos encostados ou corpo + parede; ≤ 1 a cada 4 s)
+    unstuck: (client: Client) => this.gate(client, 'world.play', () => this.withNet(client, false, () => this.r12Unstuck(client))),
     // rodada 12 — mundo dinâmico: forçar evento para QA (só PV_TEST=1; produção ignora)
     qa_dyn: (client: Client, m: unknown) => this.r12DynQa(client.sessionId, m),
   };
+
+  // ---------------------------------------------------------------- rodada 12 — colisão (server/src/collision/RoomBodies.ts)
+  /** ponto aceitável para reposicionar (sem cruzar parede a partir de (ox, oz)) */
+  private r12Clear(ox: number, oz: number) {
+    const W = world();
+    return (x: number, z: number) => W.walls.raycast(ox, 0.6, oz, x, 0.6, z) >= 1;
+  }
+  /** se o corpo de `sid` está dentro de outro, vai para o ponto livre mais próximo; `reason` → 'correct' ao cliente */
+  private r12Relocate(sid: string, p: NetPlayer, r: PlayerRT, reason: string | null) {
+    if (!RoomBodies.solid(p)) return;
+    const x0 = r.last.x, z0 = r.last.z;
+    const f = this.bodies.freeSpot(sid, x0, z0, this.r12Clear(x0, z0));
+    if (f.moved) {
+      p.x = f.x; p.z = f.z; r.actor.x = f.x; r.actor.z = f.z;
+      r.last = { ...r.last, x: f.x, z: f.z, t: Date.now() };
+      if (reason) this.clients2.get(sid)?.send('correct', [f.x, 0, f.z, r.last.seq, reason]);
+    }
+    this.bodies.sync(sid, p);
+  }
+  private r12Unstuck(client: Client) {
+    const sid = client.sessionId, p = this.state.players.get(sid), r = this.rt.get(sid);
+    if (!p || !r || !RoomBodies.solid(p)) return;
+    const W = world(), x0 = r.last.x, z0 = r.last.z;
+    const wallNear = (x: number, z: number) => { for (let i = 0; i < 8; i++) { const a = (i / 8) * Math.PI * 2; if (W.walls.raycast(x, 0.6, z, x + Math.cos(a) * 0.55, 0.6, z + Math.sin(a) * 0.55) < 1) return true; } return false; };
+    const to = this.bodies.unstuck(sid, x0, z0, Date.now(), wallNear, this.r12Clear(x0, z0));
+    if (!to) { client.send('unstuck_denied', 1); return; }
+    p.x = to.x; p.z = to.z; r.actor.x = to.x; r.actor.z = to.z;
+    r.last = { ...r.last, x: to.x, z: to.z, t: Date.now() };
+    this.bodies.sync(sid, p);
+    client.send('correct', [to.x, 0, to.z, r.last.seq, 'livre']);
+  }
 
   /** chat: destinatários decididos aqui (PROXIMIDADE pela grade espacial `this.grid`), sem trabalho por tick */
   private chat!: ChatService;
@@ -459,6 +498,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
         p.status = STATUS.OK; r.actor.status = STATUS.OK;
         r.actor.immuneUntil = now + RULES.immuneMs;
         if (r.rest) { r.last = { x: r.rest.x, y: 0, z: r.rest.z, t: now, seq: r.last.seq }; r.rest = null; }
+        this.r12Relocate(id, p, r, 'levantar'); // rodada 12 — colisão: levanta num ponto livre (nunca dentro de alguém)
       }
     }
     // ações `once` que terminaram; quem caiu perde a ação
@@ -469,6 +509,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     }
     // grade espacial (O(N)) — base de todas as consultas de vizinhança
     this.rebuildGrid();
+    this.bodies.rebuild((fn) => this.state.players.forEach((p, id) => fn(id, p))); // rodada 12 — colisão: corpos a pé
     // área de interesse (fatiada: cada cliente a 5 Hz) e multidão distante (fatiada: cada cliente a CROWD_HZ)
     this.tickN++;
     this.updateInterest(this.tickN % AOI_SLICES, AOI_SLICES);
@@ -493,7 +534,8 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     this.r9.tick(dtMs, now); // rodada 9 — progressão (envio ≤ 2 Hz, gravação em lote, concentrações 1 Hz, telemetria)
     this.tickDebateAds(now); // rodada 9 — debate e telões
     // rodada 12 — autônomos: decisões/movimento/social pelo LOD (custo medido à parte em /metrics: aiMs)
-    if (this.auto) { const ta = performance.now(); this.auto.tick(dtMs); metrics.ai(performance.now() - ta, this.auto); }
+    if (this.auto) { const ta = performance.now(); this.auto.tick(dtMs); this.autoResolve(); metrics.ai(performance.now() - ta, this.auto); }
+    this.bodies.endTick(); metrics.collision(this.bodies.lastTickMs, this.bodies.take()); // rodada 12 — colisão
     // jogadores (conexões: humanos + bots de carga) — autônomos NUNCA entram nesta conta
     metrics.tick(performance.now() - t0, this.state.players.size - this.autoCount);
   }
@@ -560,13 +602,13 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
   /** zona atual do jogador (id) — null fora das zonas ou desconhecido */
   zoneOf(sid: string): string | null { return this.rt.get(sid)?.zone.current?.id ?? null; }
 
-  /** definição da zona (política de confronto, áreas de paz) */
+  /** definição da zona (política de confronto) */
   zoneDef(id: string | null): ZoneDefinition | undefined { return id ? this.zoneDefs.find((z) => z.id === id) : undefined; }
 
   // ---------------------------------------------------------------- rodada 9 — itens de confronto, zonas, proteção
   /**
-   * Política de zona + áreas de paz (fixas, de evento, anéis móveis do trio/carro de som) — o CombatSystem pergunta
-   * `zonePolicy.policyFor(zoneOf(sid))` e `zonePolicy.peaceAt(x, z)`. Proteção de retorno: `applyProtection(sid)`
+   * Política de zona (rodada 12: NÃO existem áreas de paz; fora de zona = COMBAT) — o CombatSystem pergunta
+   * `zonePolicy.policyFor(zoneOf(sid))`. Proteção TEMPORÁRIA de retorno (não é zona): `applyProtection(sid)`
    * (entrar/reconectar aqui; levantar: CombatSystem; retorno de evento: runner). Itens: server/src/items.
    */
   zonePolicy!: ZonePolicy;
@@ -577,13 +619,8 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
   private qaStatus = new Map<string, number>();
 
   private r9bSetup(W: ServerWorld, ev: string) {
-    const rallies = (): MovingRally[] => {
-      const out: MovingRally[] = [];
-      for (const id of this.eventVehIds) { const v = this.state.vehicles.get(id); if (v) out.push({ id, kind: v.kind, x: v.x, z: v.z }); }
-      return out;
-    };
-    this.zonePolicy = new ZonePolicy({ zones: this.zoneDefs, axis: this.zoneAxis, spawn: W.manifest.spawn, spots: W.manifest.eventSpots, rallies, derived: W.combatRules.derivedPeaceAreas });
-    for (const a of W.events.get(ev)?.agenda ?? []) if (a.clash?.respawn?.length) this.zonePolicy.setEventAreas(`evento:${a.id}`, this.zonePolicy.respawnAreas(a.id, a.clash.respawn));
+    void ev;
+    this.zonePolicy = new ZonePolicy({ zones: this.zoneDefs }); // rodada 12: sem áreas de paz (fora de zona = COMBAT)
     this.items = new RoomItems({
       player: (sid) => { const p = this.state.players.get(sid), r = this.rt.get(sid); return p && r ? { p, x: r.last.x, z: r.last.z } : undefined; },
       // bots de carga não desenham nada: sem lista de itens (a banda medida nos testes de carga não muda); autônomos idem
@@ -601,7 +638,6 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
   }
 
   policyFor(zoneId: string | null) { return this.zonePolicy.policyFor(zoneId); }
-  peaceAt(x: number, z: number) { return this.zonePolicy.peaceAt(x, z); }
 
   /** proteção de retorno (FX.PROTECTED por CombatTuning.protectMs) — devolve o fim (ms) */
   applyProtection(sid: string, now = Date.now(), ms?: number): number {
@@ -1152,6 +1188,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     const ts = options?.testSpawn;
     if (process.env.PV_TEST === '1' && ts && Number.isFinite(ts.x) && Number.isFinite(ts.z)) { p.x = ts.x; p.z = ts.z; }
     if (taken) { p.x = taken.x; p.z = taken.z; } // sessão assumida: continua de onde a outra estava
+    else { const f = this.bodies.freeSpot(client.sessionId, p.x, p.z, this.r12Clear(p.x, p.z)); p.x = f.x; p.z = f.z; } // rodada 12 — colisão: nunca nasce dentro de alguém
     p.y = 0; p.heading = taken?.heading ?? this.spawn.heading; p.loco = 0; p.vehicle = ''; p.platform = ''; p.interaction = 'pacifico'; p.status = STATUS.OK;
     p.link = LINK_WIRE.CONNECTED;
     p.nid = this.allocNid();
@@ -1178,6 +1215,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     this.combatJoin(client.sessionId, r); // rodada 9 — confronto (proteção de retorno)
     this.clients2.set(client.sessionId, client);
     this.grid.insert(r.slot, p.x, p.z);
+    this.bodies.sync(client.sessionId, p); // rodada 12 — colisão
     this.updateInterest(0, 1, client.sessionId); // só o novo cliente; os demais o encontram na sua fatia
     this.r9bJoin(client.sessionId, p, Date.now()); // rodada 9 — proteção de retorno; item de confronto não passa na troca de sessão
     this.graffiti.join(client.sessionId, p.name, sanitizeClientId(options?.cid, client.sessionId), client, id.userId);
@@ -1271,6 +1309,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     this.pres.resume(sid, now);
     this.r9bReconnect(sid, now); // rodada 9 — proteção de retorno + lista de itens/item próprio de novo
     this.evt.reconnected(sid); // rodada 9.1 — inscrição continua (mesma sessão): agenda e estado do formato de novo
+    this.r12Relocate(sid, p, r, null); // rodada 12 — colisão: reconecta num ponto livre (alguém pode ter parado ali)
     // estado autoritativo para o cliente retomar (posição segura do servidor, veículo/trio, item)
     client.send('resume', { x: p.x, y: p.y, z: p.z, heading: p.heading, vehicle: p.vehicle || '', platform: p.platform || '', plx: p.plx ?? 0, plz: p.plz ?? 0, prop: p.prop ?? 0, design: p.design ?? 0, seq: r.last.seq });
     log.debug(`[room] reconectou ${sid} (mesma entidade)`);
@@ -1319,6 +1358,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     this.r10sup.leave(sid); // rodada 10 — torcidas
     this.r11titles.leave(sid); // rodada 11 — inventário
     this.combat?.leave(sid); this.jump.leave(sid); // rodada 9 — confronto
+    this.bodies.remove(sid); // rodada 12 — colisão
     const existed = this.state.players.delete(sid);
     this.rt.delete(sid);
     this.clients2.delete(sid);
@@ -1354,6 +1394,14 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
       // a pé: a carroceria do trio/carro de som é sólida (mesma regra da colisão local, com folga menor)
       const o = this.pushOutOfEventVehicles(res.x, res.z);
       if (o) { res.x = o.x; res.z = o.z; res.ok = false; res.reason = 'veiculo'; }
+      // rodada 12 — colisão: não atravessa outro corpo (tolerância de latência BODY.serverTolerance; só o excesso)
+      if (p.kind !== ENTITY_KIND.AUTONOMOUS && RoomBodies.solid(p)) {
+        const c = this.bodies.validate(client.sessionId, prevX, prevZ, res.x, res.z, dtS);
+        if (c) {
+          const ok = world().walls.raycast(prevX, 0.6, prevZ, c.x, 0.6, c.z) >= 1;
+          res.x = ok ? c.x : prevX; res.z = ok ? c.z : prevZ; res.ok = false; res.reason = 'corpo';
+        }
+      }
     }
     // andar cancela ações que não permitem movimento (dançar, sentar, pose…); as de "andar com bandeira" seguem
     if (p.act !== 0 && cancelsOnMove(p.act, Math.hypot(res.x - prevX, res.z - prevZ))) this.setAct(p, r, 0, now);
@@ -1363,6 +1411,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     p.loco = Math.max(0, Math.min(4, m.loco | 0));
     r.actor.x = res.x; r.actor.z = res.z; r.actor.heading = m.heading;
     r.last = { x: res.x, y: res.y, z: res.z, t: now, seq: m.seq };
+    this.bodies.sync(client.sessionId, p); // rodada 12 — colisão
     if (!r.auto) { // rodada 12 — autônomo não acumula distância de missão nem passa checkpoint de evento
       this.r9.e.moved(client.sessionId, mode, Math.hypot(res.x - prevX, res.z - prevZ), dtS, now); // rodada 9 — progressão (distância aceita)
       this.evt.onMove(client.sessionId, res.x, res.z, mode, res.ok, res.reason ?? '', now); // rodada 9 — eventos (checkpoints)
@@ -1643,7 +1692,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     const now = Date.now();
     const v = canPush(r.actor, t?.actor, now, world().walls, world().combatRules.combatConsent);
     if (!v.ok) { client.send('push_denied', v.reason); metrics.denied(); log.debug(`[room] empurrão negado ${client.sessionId} → ${targetId}: ${v.reason}`); return; }
-    const pol = this.combat.pushPolicy(client.sessionId, targetId); // rodada 9 — confronto: zona de paz/evento valem para o empurrão
+    const pol = this.combat.pushPolicy(client.sessionId, targetId); // rodada 9 — confronto: regras de evento/proteção valem para o empurrão
     if (!pol.ok) { client.send('push_denied', pol.reason); metrics.denied(); return; }
     r.actor.lastActionAt = now;
     r.actor.actionTimes = [...r.actor.actionTimes.filter((x) => now - x < RULES.rateWindowMs), now];
@@ -1666,7 +1715,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
       const a = this.rt.get(id)?.actor;
       if (!a || a.vehicle || a.platform) return; // em veículo ou em cima do trio: não está no chão
       const canHit = (kind === 'car' || kind === 'moto') && !!d && impactAllowed(d.actor.mode, a.mode, world().combatRules.combatConsent) && a.status === STATUS.OK && now >= a.immuneUntil
-        && this.combat.pushPolicy(driverId, id).ok; // rodada 9: em zona de paz o carro PARA (bloqueia), como para pacífico
+        && this.combat.pushPolicy(driverId, id).ok; // rodada 9: impacto negado (evento/proteção) → o carro PARA (bloqueia), como para pacífico
       if (!canHit) out.push({ x: a.x, z: a.z });
     });
     return out;
@@ -1687,7 +1736,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
       if (!r || id === driverId) continue;
       const a = r.actor;
       if (!impactAllowed(d.actor.mode, a.mode, consent) || a.status !== STATUS.OK || a.vehicle || a.platform || now < a.immuneUntil) continue;
-      if (!this.combat.pushPolicy(driverId, id).ok) continue; // rodada 9: zona de paz/evento valem também para veículo
+      if (!this.combat.pushPolicy(driverId, id).ok) continue; // rodada 9: regras de evento/proteção valem também para veículo
       const hit = vehicleImpact(car, { x: a.x, z: a.z });
       if (hit.hit) this.knockdown(id, car.x - Math.sin(car.heading) * 3, car.z - Math.cos(car.heading) * 3, hit.strength, 'impact', driverId, hit.strength);
     }
@@ -1735,8 +1784,6 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
       forEachNear: (x, z, r, fn) => this.grid.forEachInRadius(x, z, r, (sl) => { const sid = this.slotIds[sl]; if (sid && this.rt.has(sid)) fn(sid); }),
       walls: W.walls,
       zoneOf: (sid) => this.zoneOf(sid),
-      // áreas de paz MÓVEIS/derivadas (trio, carros de som, spawn, palco, retornos de evento) — server/src/combat/zonePolicy.ts
-      peaceAt: (x, z) => this.zonePolicy.peaceAt(x, z),
       consent: W.combatRules.combatConsent,
       // servidor de TESTE (carga/QA): PV_COMBAT_ZONES=*|ID,ID força política COMBAT (as zonas reais são dados do agente B)
       zoneDef: (id) => { const z = this.zoneDef(id); return forced && z && (forced === '*' || forced.split(',').includes(z.id)) ? { ...z, combatPolicy: 'COMBAT' as const } : z; },
@@ -1942,6 +1989,13 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
         const c = this.autoStubs.get(id), r = this.rt.get(id), p = this.state.players.get(id);
         if (!c || !r || !p) return { x, z, ok: false };
         c.corrected = false;
+        // colisão (agente A): movimento de autônomo não passa pela validação de corpos do `move` — aplica aqui a MESMA
+        // função pura contra a grade autoritativa (humanos duros); o onMove valida velocidade/paredes e faz o sync
+        if (!p.vehicle && RoomBodies.solid(p)) {
+          this.bodies.grid.near(x, z, BODY.queryRadius + 0.5, this.autoNear);
+          const k = constrainMove(id, BODY.radius, p.x, p.z, x, z, this.autoNear, Math.max(0.02, (Date.now() - r.last.t) / 1000));
+          x = k.x; z = k.z;
+        }
         this.onMove(c, packMove({ x, y: 0, z, heading, speed, loco, seq: r.last.seq + 1 }));
         return { x: p.x, z: p.z, ok: !c.corrected };
       },
@@ -1963,6 +2017,22 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     log.info('autonomos', `${n} personagens autônomos (ativos até ${this.auto.targetActive(0)}; LOD perto ${autonomousConfig().population.near.radius} m / médio ${autonomousConfig().population.mid.radius} m)`);
   }
 
+  private autoNear: BodyRef[] = [];
+  private autoBodies: BodyRef[] = [];
+  /** depois do passo: resolução PROGRESSIVA dos autônomos a pé contra a grade (humanos fixos) — agente A */
+  private autoResolve() {
+    const list = this.autoBodies; list.length = 0;
+    for (const id of this.autoStubs.keys()) { const b = this.bodies.grid.get(id); if (b && !b.fixed) list.push(b); }
+    if (!list.length) return;
+    const W = world();
+    this.bodies.resolveAutonomous(list, { clamp: (b, x, z) => (W.walls.raycast(b.x, 0.6, b.z, x, 0.6, z) >= 1 ? { x, z } : { x: b.x, z: b.z }) });
+    for (const b of list) {
+      const p = this.state.players.get(b.id), r = this.rt.get(b.id);
+      if (!p || !r || (Math.abs(p.x - b.x) < 0.01 && Math.abs(p.z - b.z) < 0.01)) continue;
+      p.x = b.x; p.z = b.z; r.actor.x = b.x; r.actor.z = b.z; r.last = { ...r.last, x: b.x, z: b.z };
+    }
+  }
+
   /** entidade de um autônomo: MESMO NetPlayer/PlayerRT dos jogadores (aparência pelo validador único, itens validados) */
   private autoSpawn(id: string, look: AgentLook, x: number, z: number, heading: number): number {
     if (this.state.players.has(id)) return this.state.players.get(id)!.nid;
@@ -1975,7 +2045,10 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     p.sup = look.sup; p.title = look.title; p.lvl = look.lvl; p.tag = look.tag; p.kind = ENTITY_KIND.AUTONOMOUS;
     p.x = x; p.z = z; p.y = 0; p.heading = heading; p.loco = 0; p.vehicle = ''; p.platform = ''; p.interaction = 'pacifico'; p.status = STATUS.OK; p.link = LINK_WIRE.CONNECTED;
     p.nid = nid;
+    // nunca aparece dentro de alguém (colisão do agente A) — e já entra na grade de corpos
+    { const f = this.bodies.freeSpot(id, x, z, this.r12Clear(x, z)); p.x = x = f.x; p.z = z = f.z; }
     this.state.players.set(id, p);
+    this.bodies.sync(id, p);
     const r: PlayerRT = {
       actor: { id, x, z, heading, mode: 'pacifico', status: 0, vehicle: '', immuneUntil: 0, lastActionAt: -1e12, actionTimes: [], lastDown: 0 },
       last: { x, y: 0, z, t: now, seq: -1 }, view: this.autoView, inView: makeSlotView(1), vehInView: new Set(), rest: null, pendingIn: 0,

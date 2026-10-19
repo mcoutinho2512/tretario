@@ -1,0 +1,101 @@
+{
+  "date": "2026-10-19T23:12:47.400Z",
+  "port": 4360,
+  "population": 200,
+  "scenes": {
+    "A": {
+      "autos": 47
+    },
+    "D": {
+      "n": 2,
+      "c": {
+        "x": -571.9599914550781,
+        "z": 275.31500244140625
+      }
+    },
+    "E": {
+      "sup": 1,
+      "x": -557.0800170898438,
+      "z": 263.6600036621094,
+      "n": 1
+    },
+    "F": {
+      "sup": 2,
+      "x": -462.70001220703125,
+      "z": 243.17999267578125,
+      "n": 2
+    },
+    "G": {
+      "sup": 3,
+      "x": -571.25,
+      "z": 275.5299987792969,
+      "n": 2
+    },
+    "H": {
+      "sup": 4,
+      "x": -566.3200073242188,
+      "z": 276.7099914550781,
+      "n": 5
+    },
+    "Y": {
+      "autos": 35
+    }
+  },
+  "results": [
+    {
+      "name": "autônomos chegam ao cliente pelo MESMO estado (kind 1)",
+      "ok": true,
+      "detail": "47 na vista do observador"
+    },
+    {
+      "name": "humanos/bots com kind ≠ 1",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "nametag por autônomo (tag 1/2)",
+      "ok": true,
+      "detail": "[2,2,2,1,1,1]"
+    },
+    {
+      "name": "apelidos sem série robótica",
+      "ok": true,
+      "detail": "VascaoDaGema, Rocinha1898, Brisa87, mate2, LemeLapa, Bonsucesso14, flumadureira, BonsucessoBarca"
+    },
+    {
+      "name": "D: roda de conversa visível",
+      "ok": true,
+      "detail": "2 pessoas"
+    },
+    {
+      "name": "E: torcedores (sup 1) na vista",
+      "ok": true,
+      "detail": "1 juntos"
+    },
+    {
+      "name": "F: torcedores (sup 2) na vista",
+      "ok": true,
+      "detail": "2 juntos"
+    },
+    {
+      "name": "G: torcedores (sup 3) na vista",
+      "ok": true,
+      "detail": "2 juntos"
+    },
+    {
+      "name": "H: torcedores (sup 4) na vista",
+      "ok": true,
+      "detail": "5 juntos"
+    },
+    {
+      "name": "X: autônomo montado em veículo do mundo",
+      "ok": false,
+      "detail": "nenhum em 90 s"
+    },
+    {
+      "name": "sem erros de página",
+      "ok": true,
+      "detail": ""
+    }
+  ]
+}

@@ -18,8 +18,13 @@ export const BODY = {
   queryRadius: 2.0,
 } as const;
 
-/** um corpo para a resolução (id estável; `fixed` = não é empurrado: caído, montado em veículo parado, etc.) */
-export interface BodyRef { id: string; x: number; z: number; r: number; fixed?: boolean }
+/**
+ * um corpo para a resolução (id estável; `fixed` = não é empurrado: caído, montado em veículo parado, etc.).
+ * Rodada 12 (acréscimos, opcionais): `mass` reparte o empurrão entre dois corpos móveis (padrão 1; maior = cede
+ * menos) e `soft` = penetração que quem SE MOVE pode fazer neste corpo antes de travar (m; NPC de ambiente e
+ * autônomo cedem passagem — o humano remoto é duro: 0). Implementação: src/physics/bodyResolve.ts.
+ */
+export interface BodyRef { id: string; x: number; z: number; r: number; fixed?: boolean; mass?: number; soft?: number }
 
 /** consulta de vizinhos (implementada por grade espacial no servidor e no cliente) */
 export interface BodyIndex {

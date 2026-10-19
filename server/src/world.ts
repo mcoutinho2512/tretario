@@ -13,7 +13,7 @@ import type { ZoneDefinition } from '../../src/world/zones.ts';
 import { parseSurfaceFile, solidRing, type GraffitiSurface } from '../../src/graffiti/surfaces.ts';
 import { parseCombatData } from '../../src/combat/data.ts';
 import type { CombatData } from '../../src/combat/types.ts';
-import { parseCombatRules, type CombatRules } from '../../src/combat/policy.ts';
+import { normalizeZonePolicy, parseCombatRules, type CombatRules } from '../../src/combat/policy.ts';
 import { log } from './log';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -59,7 +59,7 @@ export function loadWorld(): ServerWorld {
   log.info('world', `${walls.segmentCount} paredes, ${manifest.vehicleSpawns?.length ?? 0} veículos, ${events.size} eventos (${Date.now() - t0} ms)`);
   const zf = `${PUBLIC}/world/zones.json`;
   const zfile = existsSync(zf) ? (JSON.parse(readFileSync(zf, 'utf8')) as { zones?: ZoneDefinition[] }) : {};
-  const zones = zfile.zones ?? [];
+  const zones = (zfile.zones ?? []).map((z) => ({ ...z, combatPolicy: normalizeZonePolicy(z.combatPolicy) })); // rodada 12: sem zona de paz
   const combatRules = parseCombatRules(zfile);
   const combat = parseCombatData(JSON.parse(readFileSync(`${PUBLIC}/gameplay/combat.json`, 'utf8')));
   return { manifest, walls, events, defaultEvent: idx.default, graffitiSurfaces: gf.surfaces, zones, combatRules, combat };

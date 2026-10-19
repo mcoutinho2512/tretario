@@ -18,13 +18,13 @@ setInterval(() => metrics.rssPeak(), 1000).unref();
 /** cada consumidor (log interno, GET /metrics) tem a SUA janela — um não zera a do outro */
 interface Win {
   t: number; bytesOut: number; bytesIn: number; msgsOut: number; msgsIn: number; tickMs: number; ticks: number; maxTick: number;
-  patchMs: number; patches: number; maxPatch: number; aoiMs: number; aois: number; maxAoi: number; crowdMs: number; crowds: number; combatMs: number; combats: number; maxCombat: number; hitMs: number; hits: number; maxHit: number; cbtReq: number; cbtOk: number;
+  patchMs: number; patches: number; maxPatch: number; aoiMs: number; aois: number; maxAoi: number; crowdMs: number; crowds: number; combatMs: number; combats: number; maxCombat: number; collisionMs: number; collisions: number; maxCollision: number; collisionBodies: number; nq: number; bval: number; bcorr: number; bunstuck: number; bfree: number; hitMs: number; hits: number; maxHit: number; cbtReq: number; cbtOk: number;
   cpu: NodeJS.CpuUsage; elu: EventLoopUtilization; maxRss: number;
 }
 const windows = new Map<string, Win>();
 const win = (k: string): Win => {
   let w = windows.get(k);
-  if (!w) windows.set(k, (w = { t: Date.now(), bytesOut, bytesIn, msgsOut, msgsIn, tickMs: 0, ticks: 0, maxTick: 0, patchMs: 0, patches: 0, maxPatch: 0, aoiMs: 0, aois: 0, maxAoi: 0, crowdMs: 0, crowds: 0, combatMs: 0, combats: 0, maxCombat: 0, hitMs: 0, hits: 0, maxHit: 0, cbtReq: 0, cbtOk: 0, cpu: process.cpuUsage(), elu: performance.eventLoopUtilization(), maxRss: 0 }));
+  if (!w) windows.set(k, (w = { t: Date.now(), bytesOut, bytesIn, msgsOut, msgsIn, tickMs: 0, ticks: 0, maxTick: 0, patchMs: 0, patches: 0, maxPatch: 0, aoiMs: 0, aois: 0, maxAoi: 0, crowdMs: 0, crowds: 0, combatMs: 0, combats: 0, maxCombat: 0, collisionMs: 0, collisions: 0, maxCollision: 0, collisionBodies: 0, nq: 0, bval: 0, bcorr: 0, bunstuck: 0, bfree: 0, hitMs: 0, hits: 0, maxHit: 0, cbtReq: 0, cbtOk: 0, cpu: process.cpuUsage(), elu: performance.eventLoopUtilization(), maxRss: 0 }));
   return w;
 };
 
@@ -58,6 +58,13 @@ export const metrics = {
   crowd(ms: number) { for (const w of windows.values()) { w.crowdMs += ms; w.crowds++; } },
   /** rodada 9: atualização do confronto no tick (janelas ativas/validação de acerto, regeneração, bonecos) */
   combat(ms: number) { for (const w of windows.values()) { w.combatMs += ms; w.combats++; w.maxCombat = Math.max(w.maxCombat, ms); } },
+  /** rodada 12 — colisão entre corpos: ms do período de tick (reconstrução da grade + validações) e corpos */
+  collision(ms: number, s: { bodies: number; neighborQueries: number; validations: number; corrections: number; unstucks: number; freeSpots: number }) {
+    for (const w of windows.values()) {
+      w.collisionMs += ms; w.collisions++; w.maxCollision = Math.max(w.maxCollision, ms); w.collisionBodies = Math.max(w.collisionBodies, s.bodies);
+      w.nq += s.neighborQueries; w.bval += s.validations; w.bcorr += s.corrections; w.bunstuck += s.unstucks; w.bfree += s.freeSpots;
+    }
+  },
   /** validação de UMA janela ativa (candidatos da grade, alcance/arco/parede/política, impacto) */
   combatHit(ms: number) { for (const w of windows.values()) { w.hitMs += ms; w.hits++; w.maxHit = Math.max(w.maxHit, ms); } },
   combatReq(ok: boolean) { for (const w of windows.values()) { w.cbtReq++; if (ok) w.cbtOk++; } },
@@ -104,6 +111,14 @@ export const metrics = {
       crowdAvgMs: w.crowds ? +(w.crowdMs / w.crowds).toFixed(3) : 0,
       combatAvgMs: w.combats ? +(w.combatMs / w.combats).toFixed(4) : 0,
       combatMaxMs: +w.maxCombat.toFixed(3),
+      collisionMs: w.collisions ? +(w.collisionMs / w.collisions).toFixed(4) : 0,
+      collisionMaxMs: +w.maxCollision.toFixed(3),
+      collisionBodies: w.collisionBodies,
+      /** consultas de vizinhos por tick (grade de corpos) e por segundo; validações/correções de corpo; unstuck; ponto livre */
+      neighborQueries: w.collisions ? +(w.nq / w.collisions).toFixed(1) : 0,
+      neighborQueriesPerSec: Math.round(w.nq / dt),
+      bodyValidationsPerSec: Math.round(w.bval / dt),
+      bodyCorrections: w.bcorr, unstucks: w.bunstuck, freeSpots: w.bfree,
       hitValAvgMs: w.hits ? +(w.hitMs / w.hits).toFixed(4) : 0,
       hitValMaxMs: +w.maxHit.toFixed(3),
       hitValsPerSec: Math.round(w.hits / dt),
@@ -128,7 +143,7 @@ export const metrics = {
       });
       aiWins.set(key, { ms: 0, ticks: 0, max: 0, decisions: 0, decideMs: 0, moveMs: 0, socialMs: 0 });
     }
-    Object.assign(w, { t: now, bytesOut, bytesIn, msgsOut, msgsIn, tickMs: 0, ticks: 0, maxTick: 0, patchMs: 0, patches: 0, maxPatch: 0, aoiMs: 0, aois: 0, maxAoi: 0, crowdMs: 0, crowds: 0, combatMs: 0, combats: 0, maxCombat: 0, hitMs: 0, hits: 0, maxHit: 0, cbtReq: 0, cbtOk: 0, cpu: process.cpuUsage(), elu: performance.eventLoopUtilization(), maxRss: 0 });
+    Object.assign(w, { t: now, bytesOut, bytesIn, msgsOut, msgsIn, tickMs: 0, ticks: 0, maxTick: 0, patchMs: 0, patches: 0, maxPatch: 0, aoiMs: 0, aois: 0, maxAoi: 0, crowdMs: 0, crowds: 0, combatMs: 0, combats: 0, maxCombat: 0, collisionMs: 0, collisions: 0, maxCollision: 0, collisionBodies: 0, nq: 0, bval: 0, bcorr: 0, bunstuck: 0, bfree: 0, hitMs: 0, hits: 0, maxHit: 0, cbtReq: 0, cbtOk: 0, cpu: process.cpuUsage(), elu: performance.eventLoopUtilization(), maxRss: 0 });
     return snapshot;
   },
   get last() { return snapshot; },
