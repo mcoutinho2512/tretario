@@ -28,7 +28,7 @@
 import { fileURLToPath } from 'node:url';
 import { Room, ServerError, type Client } from '@colyseus/core';
 import { StateView } from '@colyseus/schema';
-import { WorldState, NetPlayer, NetVehicle } from './state.ts';
+import { WorldState, NetPlayer, NetVehicle, initNetPlayer } from './state.ts';
 import { loadWorld, type ServerWorld } from './world.ts';
 import { BODIES, JOIN_ERROR, MAX_SPEED, PROTOCOL_VERSION, sanitizeName, type JoinOptions, type MoveMode } from '../../src/net/protocol.ts';
 import { validateAppearance } from '../../src/characters/validateAppearance.ts';
@@ -1168,7 +1168,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     // login duplicado: UMA entidade jogável por conta — a sessão nova assume (a antiga recebe session_replaced)
     this.evt.attach(client.sessionId); // rodada 9.1 — a inscrição em evento da conta passa para esta sessão (antes do takeOver)
     const taken = id.userId ? this.takeOver(id.userId, client.sessionId) : null;
-    const p = new NetPlayer();
+    const p = initNetPlayer(new NetPlayer()); // rodada 12: nada de campo indefinido (NaN no cliente)
     // apelido: da CONTA (o cliente não escolhe o nome exibido); anônimo só em servidor de teste
     p.name = id.test ? sanitizeName(options?.name) : id.nickname;
     // conta: aparência do BANCO (as opções do cliente são ignoradas); anônimo de teste: opções validadas
@@ -2039,7 +2039,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     const nid = this.allocNid();
     if (!nid) return 0;
     const now = Date.now();
-    const p = new NetPlayer();
+    const p = initNetPlayer(new NetPlayer()); // rodada 12: nada de campo indefinido (NaN no cliente)
     p.name = look.name;
     this.applyAppearance(p, look.appearance, {});
     p.sup = look.sup; p.title = look.title; p.lvl = look.lvl; p.tag = look.tag; p.kind = ENTITY_KIND.AUTONOMOUS;

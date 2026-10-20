@@ -81,6 +81,20 @@ export const NetPlayer = schema({
   tag: t.uint8(),
 }, 'NetPlayer');
 export type NetPlayer = SchemaType<typeof NetPlayer>;
+/**
+ * Rodada 12: os campos do schema NÃO nascem com valor — quem já está na sala recebia o recém-chegado sem `speed` e a
+ * interpolação gerava NaN (o corpo sumia com o nome na tela; docs/CHARACTERS.md). Todo NetPlayer novo passa por aqui
+ * ANTES de qualquer outro campo: números em 0, textos vazios. Acrescentou campo ao schema? acrescente aqui também
+ * (tests/netDefaults.test.ts confere que nenhum campo fica indefinido).
+ */
+export function initNetPlayer(p: NetPlayer): NetPlayer {
+  p.nid = 0; p.name = ''; p.body = ''; p.skin = 0; p.hair = 0; p.top = 0; p.bottom = 0; p.shoes = 0; p.accessory = ''; p.acc = 0;
+  p.topStyle = ''; p.bottomStyle = ''; p.shoeStyle = ''; p.hairStyle = ''; p.shirtDesign = 0;
+  p.x = 0; p.y = 0; p.z = 0; p.heading = 0; p.speed = 0; p.loco = 0; p.vehicle = ''; p.interaction = 'pacifico'; p.status = 0;
+  p.act = 0; p.actAt = 0; p.actVar = 0; p.prop = 0; p.design = 0; p.platform = ''; p.plx = 0; p.plz = 0; p.plh = 0;
+  p.link = 0; p.fx = 0; p.sup = 0; p.lvl = 0; p.title = ''; p.kind = 0; p.look = 0; p.tag = 0;
+  return p;
+}
 
 export const NetVehicle = schema({
   kind: t.string(),
