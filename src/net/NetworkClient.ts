@@ -750,7 +750,8 @@ export class NetworkClient {
     const exp = r.lastStamp + 50;
     const stamp = Math.abs(now - exp) < 40 ? exp + (now - exp) * 0.15 : now;
     r.lastStamp = stamp;
-    r.buf.push({ t: stamp, x: p.x, y: p.y, z: p.z, heading: p.heading, speed: p.speed, loco: p.loco, vehicle: p.vehicle, platform: p.platform ?? '', plx: p.plx ?? 0, plz: p.plz ?? 0, plh: p.plh ?? 0 });
+    // rodada 12 (AGENTE F): quem acabou de entrar chega sem `speed` (o servidor só o escreve no 1º movimento) → NaN
+    r.buf.push({ t: stamp, x: p.x, y: p.y, z: p.z, heading: p.heading, speed: Number.isFinite(p.speed) ? p.speed : 0, loco: p.loco, vehicle: p.vehicle, platform: p.platform ?? '', plx: p.plx ?? 0, plz: p.plz ?? 0, plh: p.plh ?? 0 });
     if (r.buf.length > 40) r.buf.shift();
     // rodada 9 — queda pela mudança de status (sem `knock`), cambaleio e efeitos
     if (r.fall.onStatus(p.status, now) === 'start') this.statusFall(r);

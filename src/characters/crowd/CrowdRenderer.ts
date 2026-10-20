@@ -20,7 +20,7 @@ import { measureNatural, groundOffsets } from '../human/HumanAnimator';
 import { clipFloor, proceduralClip, withBase } from '../human/proceduralClips';
 import { ACTIONS, ACTION_BY_ID } from '../../social/actions';
 import type { CrowdAgent } from './crowdBudget';
-import { loopPhase } from './animVariety';
+import { advanceCyclePhase, finiteSpeed, loopPhase } from './animVariety';
 import { addRestAttributes, patchLookShader, shirtSlot } from '../human/garmentShader';
 
 /** pé mais baixo na pose atual (repouso), no espaço do esqueleto */
@@ -295,11 +295,12 @@ vTint = li == 0 ? aSkin : li == 1 ? aHair : li == 2 ? aTop : li == 3 ? aBottom :
         }
         m[o + 12] = a.x; m[o + 13] = a.y + (a.tilt > 0 ? 0.12 * Math.sin(a.tilt) : 0); m[o + 14] = a.z; m[o + 15] = 1;
         // animação: ciclo pela velocidade, cadência casada com o deslocamento (como o HumanAnimator)
-        const clip = a.speed < 0.15 ? s.clips.idle : a.speed < 2.2 ? s.clips.walk : s.clips.jog;
+        const spd = finiteSpeed(a.speed); // rodada 12: amostra de rede sem velocidade (NaN) não trava a fase
+        const clip = spd < 0.15 ? s.clips.idle : spd < 2.2 ? s.clips.walk : s.clips.jog;
         const nat = clip === s.clips.walk ? s.natural.walk : clip === s.clips.jog ? s.natural.jog : 0;
         // rodada 12 — cadência própria (passada ±6 %) e andamento próprio do parado (animVariety.ts)
-        const rate = nat > 0 ? Math.min(2.2, Math.max(0.35, a.speed / (nat * (a.scale || 1) * (a.stride || 1)))) / clip.dur : (a.idleRate || 1) / clip.dur;
-        a.phase = (a.phase + dt * rate) % 1;
+        const rate = nat > 0 ? Math.min(2.2, Math.max(0.35, spd / (nat * (a.scale || 1) * (a.stride || 1)))) / clip.dur : (a.idleRate || 1) / clip.dur;
+        a.phase = advanceCyclePhase(a.phase, dt, rate);
         const f = a.phase * clip.n, f0 = Math.floor(f);
         const an = s.aAnim.array as Float32Array;
         an[i * 3] = clip.row0 + (f0 % clip.n);
@@ -308,17 +309,17 @@ vTint = li == 0 ? aSkin : li == 1 ? aHair : li == 2 ? aTop : li == 3 ? aBottom :
         // rodada 9.1 — transições sem estalo: perto dos limites (parado↔andar, andar↔trote) mistura o quadro mais
         // próximo dos DOIS ciclos (antes trocava de ciclo de uma vez ao cruzar 0,15 e 2,2 m/s)
         const w = s.clips.walk, j = s.clips.jog;
-        if (clip === w && a.speed < WALK_IN) {
+        if (clip === w && spd < WALK_IN) {
           an[i * 3] = w.row0 + (Math.round(f) % w.n);
           an[i * 3 + 1] = s.clips.idle.row0 + (a.id % s.clips.idle.n);
-          an[i * 3 + 2] = 1 - (a.speed - 0.15) / (WALK_IN - 0.15);
-        } else if (a.speed > JOG_BAND[0] && a.speed < JOG_BAND[1]) {
+          an[i * 3 + 2] = 1 - (spd - 0.15) / (WALK_IN - 0.15);
+        } else if (spd > JOG_BAND[0] && spd < JOG_BAND[1]) {
           an[i * 3] = w.row0 + (Math.round(a.phase * w.n) % w.n);
           an[i * 3 + 1] = j.row0 + (Math.round(a.phase * j.n) % j.n);
-          an[i * 3 + 2] = (a.speed - JOG_BAND[0]) / (JOG_BAND[1] - JOG_BAND[0]);
+          an[i * 3 + 2] = (spd - JOG_BAND[0]) / (JOG_BAND[1] - JOG_BAND[0]);
         }
         // ação social (parado): clipe assado da ação; entrada/saída misturando o quadro do idle com o da ação
-        const act = a.act && a.speed < 0.15 ? s.acts.get(ACTION_BY_ID.get(a.act)?.crowdClip ?? '') : undefined;
+        const act = a.act && spd < 0.15 ? s.acts.get(ACTION_BY_ID.get(a.act)?.crowdClip ?? '') : undefined;
         if (act) {
           const t = now - a.actAt;
           if (t >= 0 && (!act.once || t < act.dur)) {

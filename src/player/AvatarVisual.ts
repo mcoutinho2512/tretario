@@ -18,6 +18,7 @@ import { FX } from '../combat/types';
 import { STATUS } from '../net/rules';
 import { ProtectedAura } from '../combat/fxVisuals';
 import { angleDelta, turnToward } from '../npc/gait';
+import { createGait, finiteOr, stepGait, type GaitState } from './gaitStep';
 import { MountRigSolver, mountWeights, vehicleMatrix, type MountSource } from '../characters/human/vehicleClips'; // rodada 10 — montagem
 import { MountTracker, mountProfile, type MountPhase } from '../vehicles/seats';
 import { sfx } from '../audio/bus';
@@ -186,6 +187,7 @@ export class AvatarVisual {
     return this.human?.bones.get('pelvis') ?? null;
   }
   private animate(speed: number, grounded: boolean, dt: number) {
+    speed = finiteOr(speed, 0); // rodada 12: amostra de rede sem velocidade não envenena o mixer (gaitStep.ts)
     if (this.legacy) this.legacy.anim.update(speed, grounded, dt);
     else { this.human?.animator?.update(speed, grounded, dt); this.human?.updateProps(dt); }
   }
@@ -365,21 +367,9 @@ export class AvatarVisual {
    * amostras da rede), a velocidade que dirige a animação é suavizada (ruído da rede não troca o ciclo a cada amostra)
    * e o corpo inteiro inclina para dentro da curva e para a frente/trás ao acelerar/frear (pivô nos pés).
    */
-  private gait = { face: 0, speed: 0, yawRate: 0, accel: 0, roll: 0, pitch: 0, init: false };
+  private gait: GaitState = createGait();
   private steer(s: PlayerState, dt: number) {
-    const g = this.gait;
-    if (!g.init || dt <= 0) { g.face = s.heading; g.speed = s.speed; g.init = true; this.root.rotation.y = g.face; return; }
-    const prev = g.face, prevSpeed = g.speed;
-    g.face = turnToward(g.face, s.heading, dt, 16, 7.5);
-    g.speed += (s.speed - g.speed) * (1 - Math.exp(-12 * dt));
-    const k = 1 - Math.exp(-8 * dt);
-    g.yawRate += (angleDelta(prev, g.face) / dt - g.yawRate) * k;
-    g.accel += ((g.speed - prevSpeed) / dt - g.accel) * k;
-    // inclinação: centrípeta ~ ω·v (curva aberta correndo inclina mais), aceleração inclina para a frente
-    const rollT = THREE.MathUtils.clamp(-g.yawRate * g.speed * 0.035, -0.2, 0.2);
-    const pitchT = THREE.MathUtils.clamp(g.accel * 0.018 + g.speed * 0.008, -0.1, 0.12) * (s.grounded ? 1 : 0.3);
-    g.roll += (rollT - g.roll) * k;
-    g.pitch += (pitchT - g.pitch) * k;
+    const g = stepGait(this.gait, s.heading, s.speed, s.grounded, dt);
     this.root.rotation.y = g.face;
     const pivot = this.human?.armature;
     if (pivot) { pivot.rotation.z = g.roll; pivot.rotation.x = g.pitch; }

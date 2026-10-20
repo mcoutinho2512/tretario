@@ -58,3 +58,16 @@ export function loopPhase(t: number, dur: number, v: Pick<AnimVariant, 'actOffse
   const x = (t * v.actRate) / dur + v.actOffset;
   return ((x % 1) + 1) % 1;
 }
+
+/**
+ * rodada 12 — avança a fase (0..1) do ciclo assado da multidão instanciada. Velocidade de amostra de rede ausente
+ * (NaN) fazia `phase` virar NaN e ficar assim para sempre (o índice do quadro na textura também): a fase sai finita
+ * sempre — contaminada antes, recomeça do 0.
+ */
+export function advanceCyclePhase(phase: number, dt: number, rate: number): number {
+  const p = (Number.isFinite(phase) ? phase : 0) + dt * rate;
+  return Number.isFinite(p) ? ((p % 1) + 1) % 1 : 0;
+}
+
+/** velocidade usada pela animação instanciada (amostra de rede sem `speed` = parado) */
+export function finiteSpeed(v: number): number { return Number.isFinite(v) ? v : 0; }

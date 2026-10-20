@@ -187,6 +187,43 @@ no editor (o arquivo antigo fica até o inventário migrar do adaptador provisó
 fechar o editor o contexto do canvas era forçado a perder-se e, na reabertura na mesma página, a prévia ficava
 "indisponível" (30 de 30 reaberturas no bench) e cada abertura deixava 3 ouvintes para trás.
 
+## Remoto que sumia com o nome na tela (rodada 12, AGENTE F)
+**Sintoma**: em QA, um jogador remoto deixava de ser desenhado (às vezes por 10–15 s) enquanto o apelido seguia na
+tela; "voltava" sozinho depois de se afastar/teleportar. **Era defeito real de produção, não do headless.**
+
+**Causa**: o `NetPlayer.speed` só é escrito pelo servidor no primeiro `move`; quem já estava na sala recebe o recém-
+chegado com `speed` ausente. A interpolação (`NetworkClient.pushSnapshot` → `s.speed`) virava `NaN` nos primeiros
+~100 ms e os filtros exponenciais do rumo visível (`AvatarVisual.steer`, rodada 9.1) guardavam o NaN para sempre
+(`NaN + x = NaN`): `gait.speed`/`yawRate`/`roll`/`pitch` NaN → rotação do esqueleto NaN → todas as matrizes dos ossos
+NaN → a malha é submetida (o three desenha) mas nenhum vértice aparece. O animador (`w.jog`/`w.sprint` NaN) e a fase
+da multidão instanciada (`CrowdAgent.phase`) ficavam contaminados do mesmo jeito. Só a devolução do avatar ao pool
+(`resetForReuse`, ao sair do orçamento de esqueletos por distância/teleporte) limpava o estado — daí a ligação
+aparente com a troca de LOD e o teleporte. Corrida: dependia de o recém-chegado ganhar esqueleto antes de chegar a
+2ª amostra (pegou o jogador de navegador e 2 de 10 robôs na reprodução).
+
+**Correção** (na entrada e nos estados que acumulam): `pushSnapshot` grava `speed` ausente como 0;
+`src/player/gaitStep.ts` (passo do rumo visível, puro) ignora entradas não finitas e um estado contaminado se recupera
+no passo seguinte; `HumanAnimator.update/updateRiding` saneiam velocidade/dt e `blend` recomeça um peso não finito do
+alvo; `CrowdRenderer` usa `finiteSpeed`/`advanceCyclePhase` (`crowd/animVariety.ts`). Junto: `CrowdDirector.end` e
+`PedestrianSystem.update` atualizam a matriz da câmera antes do frustum (a 3ª pessoa já girou neste quadro; o frustum
+saía com o rumo do quadro anterior → 1 quadro sem nada desenhado num giro brusco/teleporte). Testes:
+`tests/remoteVisibility.test.ts`. Pendência do servidor (arquivo do AGENTE C): inicializar `p.speed = 0` no `onJoin`.
+
+**Medição** (`tools/qa/remote_visibility_mp.mjs`: A observa, B corre 6↔115 m, teleportes do servidor e locais, roupa
+perto/longe, veículo pessoal, queda por empurrão, A teleporta; 10 robôs; A compara, a cada quadro renderizado, "deveria
+aparecer" × malha efetivamente desenhada via `onAfterRender` com a pelve no lugar, ou instância a < 1,2 m):
+
+| cenário (240 s) | amostras esperadas | sumiços | maior sequência |
+|---|---|---|---|
+| ALTO, antes | 57 334 | 2 638 (4,6 %) | 832 quadros (~14 s) |
+| ALTO, depois | 57 333 | 1 | 1 quadro (logo após o teleporte do observador) |
+| ALTO, `crowdSkinned=3` (disputa), depois | 57 405 | 0 | — |
+| BAIXO, depois | 57 437 | 0 | — |
+| MÉDIO, `crowdSkinned=6`, 300 s, depois | 72 193 (849 em veículo, 483 caído) | 12 | 12 (corpo andando até a porta, fora da tolerância do teste) |
+
+Resta um atraso de 1 quadro, do desenho do diretor da multidão (a representação do quadro usa a visibilidade do
+anterior): quem entra na tela num corte de câmera pode faltar 1 quadro.
+
 ## Limitações conhecidas
 - Sem animação facial (piscar, fala) nesta fase; rosto neutro.
 - O tom de pele é um multiplicador sobre texturas de pele clara: tons muito escuros perdem um pouco de detalhe.
