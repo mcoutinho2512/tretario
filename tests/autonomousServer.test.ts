@@ -131,7 +131,8 @@ describe.skipIf(skip)('personagens autônomos — sala real', () => {
     const st0 = { ...room.combat.stats, denied: { ...room.combat.stats.denied } };
     auto.force(a, 'JOIN_FIGHT', { target: b });
     auto.force(b, 'JOIN_FIGHT', { target: a });
-    await w(6000);
+    // até 12 s (com a suíte inteira rodando em paralelo, 6 s fixos às vezes davam só 2 golpes aceitos)
+    await until(() => room.combat.stats.accepted - st0.accepted > 2, 12_000);
     const st = room.combat.stats;
     if (process.env.PV_DEBUG_TEST) console.log('DBG', JSON.stringify({ acc: st.accepted - st0.accepted, den: st.denied, d0: st0.denied, a: auto.debug(a), b: auto.debug(b) }));
     expect(st.accepted - st0.accepted).toBeGreaterThan(2);
