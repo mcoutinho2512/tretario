@@ -1,37 +1,37 @@
 {
-  "date": "2026-10-19T22:16:58.796Z",
+  "date": "2026-10-20T15:36:45.633Z",
   "port": 4230,
   "perKind": {
     "scooter": [
       {
-        "okMs": 15.3,
+        "okMs": 15.9,
         "d": 0.9,
         "mounted": true,
-        "bSeesMs": 153
+        "bSeesMs": 200
       }
     ],
     "bicycle": [
       {
-        "okMs": 5.3,
+        "okMs": 6.3,
         "d": 1.1,
         "mounted": true,
-        "bSeesMs": 66
+        "bSeesMs": 129
       }
     ],
     "moto": [
       {
-        "okMs": 1.9,
+        "okMs": 6.6,
         "d": 1.6,
         "mounted": true,
-        "bSeesMs": 66
+        "bSeesMs": 78
       }
     ],
     "car": [
       {
-        "okMs": 15.1,
+        "okMs": 16,
         "d": 4,
         "mounted": true,
-        "bSeesMs": 132
+        "bSeesMs": 141
       }
     ]
   },
@@ -51,9 +51,9 @@
       "detail": "v_scooter,v_bicycle,v_moto,v_car"
     },
     {
-      "name": "scooter: selecionou → aparece (15.3 ms, 0.9 m do avatar) · B vê em 153 ms · A montado",
+      "name": "scooter: selecionou → aparece (15.9 ms, 0.9 m do avatar) · B vê em 200 ms · A montado",
       "ok": true,
-      "detail": "{\"last\":{\"kind\":\"scooter\",\"okMs\":15.3,\"mounted\":true,\"d\":0.9,\"id\":\"pveh_1\"},\"seen\":true,\"mountedForB\":true,\"rA\":{\"id\":\"pveh_1\",\"kind\":\"scooter\",\"owner\":\"zdSDLerYR\"}}"
+      "detail": "{\"last\":{\"kind\":\"scooter\",\"okMs\":15.9,\"mounted\":true,\"d\":0.9,\"id\":\"pveh_1\"},\"seen\":true,\"mountedForB\":true,\"rA\":{\"id\":\"pveh_1\",\"kind\":\"scooter\",\"owner\":\"WIRUPFHqD\"}}"
     },
     {
       "name": "HUD: \"Patinete disponível\"",
@@ -61,9 +61,9 @@
       "detail": ""
     },
     {
-      "name": "bicycle: selecionou → aparece (5.3 ms, 1.1 m do avatar) · B vê em 66 ms · A montado",
+      "name": "bicycle: selecionou → aparece (6.3 ms, 1.1 m do avatar) · B vê em 129 ms · A montado",
       "ok": true,
-      "detail": "{\"last\":{\"kind\":\"bicycle\",\"okMs\":5.3,\"mounted\":true,\"d\":1.1,\"id\":\"pveh_2\"},\"seen\":true,\"mountedForB\":true,\"rA\":{\"id\":\"pveh_2\",\"kind\":\"bicycle\",\"owner\":\"zdSDLerYR\"}}"
+      "detail": "{\"last\":{\"kind\":\"bicycle\",\"okMs\":6.3,\"mounted\":true,\"d\":1.1,\"id\":\"pveh_2\"},\"seen\":true,\"mountedForB\":true,\"rA\":{\"id\":\"pveh_2\",\"kind\":\"bicycle\",\"owner\":\"WIRUPFHqD\"}}"
     },
     {
       "name": "acesso rápido 4 aceso montado na bicicleta",
@@ -71,9 +71,9 @@
       "detail": "{\"on\":true,\"title\":\"4 — Bicicleta · Veículo pessoal · Na mão (aperte de novo para guardar)\"}"
     },
     {
-      "name": "moto: selecionou → aparece (1.9 ms, 1.6 m do avatar) · B vê em 66 ms · A montado",
+      "name": "moto: selecionou → aparece (6.6 ms, 1.6 m do avatar) · B vê em 78 ms · A montado",
       "ok": true,
-      "detail": "{\"last\":{\"kind\":\"moto\",\"okMs\":1.9,\"mounted\":true,\"d\":1.6,\"id\":\"pveh_3\"},\"seen\":true,\"mountedForB\":true,\"rA\":{\"id\":\"pveh_3\",\"kind\":\"moto\",\"owner\":\"zdSDLerYR\"}}"
+      "detail": "{\"last\":{\"kind\":\"moto\",\"okMs\":6.6,\"mounted\":true,\"d\":1.6,\"id\":\"pveh_3\"},\"seen\":true,\"mountedForB\":true,\"rA\":{\"id\":\"pveh_3\",\"kind\":\"moto\",\"owner\":\"WIRUPFHqD\"}}"
     },
     {
       "name": "inventário fecha ao usar o veículo (para ver surgir)",
@@ -83,17 +83,17 @@
     {
       "name": "troca: só 1 pessoal de A no mundo (patinete e bicicleta sumiram)",
       "ok": true,
-      "detail": "[{\"id\":\"pveh_3\",\"kind\":\"moto\",\"owner\":\"zdSDLerYR\",\"x\":-792.61,\"z\":341.85,\"occupant\":\"zdSDLerYR\"}]"
+      "detail": "[{\"id\":\"pveh_3\",\"kind\":\"moto\",\"owner\":\"WIRUPFHqD\",\"x\":-792.61,\"z\":341.85,\"occupant\":\"WIRUPFHqD\"}]"
     },
     {
-      "name": "car: selecionou → aparece (15.1 ms, 4 m do avatar) · B vê em 132 ms · A montado",
+      "name": "car: selecionou → aparece (16 ms, 4 m do avatar) · B vê em 141 ms · A montado",
       "ok": true,
-      "detail": "{\"last\":{\"kind\":\"car\",\"okMs\":15.1,\"mounted\":true,\"d\":4,\"id\":\"pveh_4\"},\"seen\":true,\"mountedForB\":true,\"rA\":{\"id\":\"pveh_4\",\"kind\":\"car\",\"owner\":\"zdSDLerYR\"}}"
+      "detail": "{\"last\":{\"kind\":\"car\",\"okMs\":16,\"mounted\":true,\"d\":4,\"id\":\"pveh_4\"},\"seen\":true,\"mountedForB\":true,\"rA\":{\"id\":\"pveh_4\",\"kind\":\"car\",\"owner\":\"WIRUPFHqD\"}}"
     },
     {
       "name": "carro: A dirigindo o próprio carro",
       "ok": true,
-      "detail": "{\"id\":\"pveh_4\",\"kind\":\"car\",\"owner\":\"zdSDLerYR\"}"
+      "detail": "{\"id\":\"pveh_4\",\"kind\":\"car\",\"owner\":\"WIRUPFHqD\"}"
     },
     {
       "name": "spam: 100 pedidos forjados → ≤ 1 pessoal ativo, ≥ 95 recusas por taxa",
@@ -101,7 +101,7 @@
       "detail": "máx ativo 1, taxa 99"
     },
     {
-      "name": "abandono: some para A e B em 5123 ms (prazo 5000 ms + tick de 1 s)",
+      "name": "abandono: some para A e B em 5496 ms (prazo 5000 ms + tick de 1 s)",
       "ok": true,
       "detail": ""
     },
@@ -113,28 +113,28 @@
   ],
   "summary": {
     "scooter": {
-      "okMs": 15.3,
+      "okMs": 15.9,
       "d": 0.9,
       "mounted": true,
-      "bSeesMs": 153
+      "bSeesMs": 200
     },
     "bicycle": {
-      "okMs": 5.3,
+      "okMs": 6.3,
       "d": 1.1,
       "mounted": true,
-      "bSeesMs": 66
+      "bSeesMs": 129
     },
     "moto": {
-      "okMs": 1.9,
+      "okMs": 6.6,
       "d": 1.6,
       "mounted": true,
-      "bSeesMs": 66
+      "bSeesMs": 78
     },
     "car": {
-      "okMs": 15.1,
+      "okMs": 16,
       "d": 4,
       "mounted": true,
-      "bSeesMs": 132
+      "bSeesMs": 141
     }
   }
 }

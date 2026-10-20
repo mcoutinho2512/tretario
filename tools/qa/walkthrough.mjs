@@ -237,6 +237,10 @@ const facing = async () => {
   // A se aproxima pelo lado +F (vindo do carro), ficando de frente para B; C fica bem atrás de B
   const pb = await me(B);
   await walk(A, [pb.x + F[0] * 1.3, pb.z + F[1] * 1.3]);
+  // rodada 12: com o mundo vivo um autônomo parado pode estar no caminho (o humano o empurra devagar, não atravessa);
+  // aqui se testa o empurrão, não a caminhada — se A não chegou, vai direto ao ponto
+  const pa = await me(A);
+  if (Math.hypot(pa.x - pb.x, pa.z - pb.z) > 1.7) { console.log(`  (A parou a ${Math.hypot(pa.x - pb.x, pa.z - pb.z).toFixed(2)} m de B — teleporte)`); await ev(A, (x, z) => window.__pv.teleport(x, z), pb.x + F[0] * 1.3, pb.z + F[1] * 1.3); await w(800); }
   // vira para B
   await ev(A, (x, z) => window.__pv.walkTo(x, z, false), pb.x, pb.z);
   await w(200);
@@ -339,19 +343,31 @@ await w(800);
 for (const [kind, label] of [['moto', 'moto'], ['bicycle', 'bicicleta'], ['scooter', 'patinete']]) {
   const pa0 = await me(A);
   const list = await ev(A, (k) => window.__pv.vehicles(k), kind);
-  const v = list.filter((x) => !x.occupant).sort((x, y) => Math.hypot(x.x - pa0.x, x.z - pa0.z) - Math.hypot(y.x - pa0.x, y.z - pa0.z))[0];
+  let v = list.filter((x) => !x.occupant).sort((x, y) => Math.hypot(x.x - pa0.x, x.z - pa0.z) - Math.hypot(y.x - pa0.x, y.z - pa0.z))[0];
   if (!v) { check(`${label} funciona`, false, 'nenhum disponível'); continue; }
   // chega pela lateral (lado da calçada/afastado da pista)
   const side = [v.x - Math.cos(v.heading) * 1.1, v.z + Math.sin(v.heading) * 1.1];
   const walkFar = async (c, p) => { await ev(c, (x, z) => window.__pv.walkTo(x, z, true), p[0], p[1]); return until(c, () => window.__pv.arrived(), 70000); };
   await Promise.all([walkFar(A, side), walkFar(B, [side[0] - Math.cos(v.heading) * 2.5, side[1] + Math.sin(v.heading) * 2.5])]);
+  // rodada 12: com o mundo vivo, um autônomo pode pegar o veículo enquanto A caminha até ele — usa o livre mais próximo
+  const now = (await ev(A, (k) => window.__pv.vehicles(k), kind)).find((x) => x.id === v.id);
+  if (now?.occupant) {
+    const pa = await me(A);
+    const alt = (await ev(A, (k) => window.__pv.vehicles(k), kind)).filter((x) => !x.occupant).sort((x, y) => Math.hypot(x.x - pa.x, x.z - pa.z) - Math.hypot(y.x - pa.x, y.z - pa.z))[0];
+    console.log(`  (${v.id} foi ocupado por ${now.occupant} no caminho → ${alt?.id})`);
+    if (alt) { v = alt; await ev(A, (x, z, h) => window.__pv.teleport(x - Math.cos(h) * 1.1, z + Math.sin(h) * 1.1, h), v.x, v.z, v.heading); await w(1500); }
+  }
   // pede ESTE veículo (estações/duplas têm vizinhos a < 1 m; o E pegaria o mais próximo — testado no carro)
   await ev(A, (id) => window.__pv.rawEnter(id), v.id);
   const entered = await until(A, () => window.__pv.riding() !== null, 6000);
   const p0 = await me(A);
+  const cr0 = await ev(A, () => ({ ...(window.__pv.mp()?.correctionReasons ?? {}) }));
   await ev(A, () => window.__pv.press('KeyW', 2500));
   await w(2900);
   const p1 = await me(A);
+  const ridingNow = await ev(A, () => window.__pv.riding());
+  const cr1 = await ev(A, () => ({ ...(window.__pv.mp()?.correctionReasons ?? {}) }));
+  const crd = Object.entries(cr1 ?? {}).map(([k, n]) => [k, n - ((cr0 ?? {})[k] ?? 0)]).filter(([, n]) => n > 0);
   const seen = (await ev(B, (k) => window.__pv.vehicles(k), kind)).find((x) => x.id === v.id);
   await ev(A, () => window.__pv.press('KeyS', 900));
   await w(1000);
@@ -361,7 +377,7 @@ for (const [kind, label] of [['moto', 'moto'], ['bicycle', 'bicicleta'], ['scoot
   const after = (await ev(B, (k) => window.__pv.vehicles(k), kind)).find((x) => x.id === v.id);
   check(`${label} funciona: entra, anda, B vê, sai e fica disponível`,
     entered && dist(p1, p0) > 3 && seen && Math.hypot(seen.x - p1.x, seen.z - p1.z) < 2.5 && out && !after.occupant && after.state === 0,
-    `${v.id}: andou ${dist(p1, p0).toFixed(1)} m · B vê a ${seen ? Math.hypot(seen.x - p1.x, seen.z - p1.z).toFixed(2) : '?'} m · saiu ${out} · estado ${after?.state}`);
+    `${v.id}: andou ${dist(p1, p0).toFixed(1)} m · B vê a ${seen ? Math.hypot(seen.x - p1.x, seen.z - p1.z).toFixed(2) : '?'} m · saiu ${out} · estado ${after?.state} · entrou ${!!entered} · montado ${ridingNow} · correções ${JSON.stringify(crd)}`);
 }
 
 // ------------------------------------------------------------------ 13. área de interesse dos veículos

@@ -95,7 +95,7 @@ if (R9) await page.evaluateOnNewDocument(() => {
   window.__pvIntervals = () => live.size;
 });
 const errors = [];
-page.on('pageerror', (e) => errors.push(e.message));
+page.on('pageerror', (e) => errors.push((e.stack ?? e.message).slice(0, 600))); // rodada 12: com a pilha (erro intermitente da r11)
 // rodada 9.1: causa de aba fechada — travamento do processo da página (OOM/GPU) vs. fechamento; último passo e console
 let lastStep = -1; const consoleTail = [];
 page.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') { consoleTail.push(`${m.type()}: ${m.text()}`.slice(0, 300)); if (consoleTail.length > 30) consoleTail.shift(); } });

@@ -138,7 +138,11 @@ um veículo dirigido, a sala chama `AutonomousSystem.makeWay`: ele anda depressa
 veículo (o outro se houver parede), meia largura + 1,6–2,4 m, fica ali olhando ~2–3,5 s depois de chegar e volta ao
 objetivo de antes (não perde o grupo nem a dança). Ninguém é atravessado: o veículo segue bloqueado enquanto alguém está
 na frente, então anda como num cortejo. Não abre caminho quem está brigando, caído ou num veículo. Contador
-`stats.makeWay`. Resultado: o mesmo trio com 150 autônomos anda 7,3 m em 7 s. Teste: tests/autonomous.test.ts.
+`stats.makeWay`. Resultado: o mesmo trio com 150 autônomos anda 7,3 m em 7 s.
+Como o cliente de quem dirige já freia ANTES de encostar (previsão local do modo pacífico), a sala muitas vezes nem
+recebe o movimento recusado: por isso o autônomo também percebe sozinho (`lookForDriven`, NEAR, a cada 0,3–0,5 s, sem sorteio — não mexe na sequência aleatória calibrada) um
+veículo com motorista HUMANO cuja frente o inclui (até 4,5 m adiante, meia largura + 0,7 m) e abre caminho — no QA a moto
+ficava parada 0,1–0,3 m diante de um autônomo. Testes: tests/autonomous.test.ts (pela sala e pela percepção).
 
 ### Nomes
 

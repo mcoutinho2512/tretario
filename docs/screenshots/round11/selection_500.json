@@ -1,18 +1,18 @@
 {
   "bots": 500,
   "remotes": 16,
-  "far": 461,
+  "far": 478,
   "personCandsNow": 16,
   "frames": 640,
-  "hoverMsAvg": 0.0088,
-  "hoverMsMax": 0.3,
-  "collectMsAvg": 0.02,
+  "hoverMsAvg": 0.0117,
+  "hoverMsMax": 0.2,
+  "collectMsAvg": 0.0189,
   "candsAvg": 16,
   "candsMax": 16,
   "projectedPerFrame": 16,
   "picks": 640,
-  "pickMsPerClick": 0.0017,
-  "pickHits": 740,
+  "pickMsPerClick": 0.0023,
+  "pickHits": 1000,
   "fps": 60,
-  "when": "2026-10-19T14:21:05.870Z"
+  "when": "2026-10-20T16:32:12.031Z"
 }

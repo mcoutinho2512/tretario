@@ -10,7 +10,7 @@
           "name": "hud-tl",
           "l": 11,
           "t": 11,
-          "r": 258,
+          "r": 269,
           "b": 145
         },
         {
@@ -81,7 +81,7 @@
           "name": "hud-tl",
           "l": 14,
           "t": 14,
-          "r": 323,
+          "r": 336,
           "b": 182
         },
         {
@@ -224,7 +224,7 @@
           "l": 11,
           "t": 11,
           "r": 275,
-          "b": 212
+          "b": 200
         },
         {
           "name": "hud-tc",
@@ -295,7 +295,7 @@
           "l": 14,
           "t": 14,
           "r": 344,
-          "b": 266
+          "b": 251
         },
         {
           "name": "hud-tc",
@@ -366,7 +366,7 @@
           "l": 18,
           "t": 18,
           "r": 421,
-          "b": 333
+          "b": 314
         },
         {
           "name": "hud-tc",
@@ -437,7 +437,7 @@
           "l": 11,
           "t": 11,
           "r": 275,
-          "b": 212
+          "b": 200
         },
         {
           "name": "hud-tc",
@@ -508,7 +508,7 @@
           "l": 14,
           "t": 14,
           "r": 344,
-          "b": 266
+          "b": 251
         },
         {
           "name": "hud-tc",
@@ -579,7 +579,7 @@
           "l": 18,
           "t": 18,
           "r": 421,
-          "b": 333
+          "b": 314
         },
         {
           "name": "hud-tc",
@@ -650,7 +650,7 @@
           "l": 11,
           "t": 11,
           "r": 275,
-          "b": 212
+          "b": 200
         },
         {
           "name": "hud-tc",
@@ -728,7 +728,7 @@
           "l": 13,
           "t": 13,
           "r": 310,
-          "b": 238
+          "b": 224
         },
         {
           "name": "hud-tc",
@@ -806,7 +806,7 @@
           "l": 14,
           "t": 14,
           "r": 344,
-          "b": 266
+          "b": 251
         },
         {
           "name": "hud-tc",
@@ -884,7 +884,7 @@
           "l": 15,
           "t": 15,
           "r": 378,
-          "b": 292
+          "b": 275
         },
         {
           "name": "hud-tc",
@@ -962,7 +962,7 @@
           "l": 18,
           "t": 18,
           "r": 430,
-          "b": 333
+          "b": 314
         },
         {
           "name": "hud-tc",
@@ -1040,7 +1040,7 @@
           "l": 11,
           "t": 11,
           "r": 275,
-          "b": 212
+          "b": 200
         },
         {
           "name": "hud-tc",
@@ -1118,7 +1118,7 @@
           "l": 14,
           "t": 14,
           "r": 344,
-          "b": 266
+          "b": 251
         },
         {
           "name": "hud-tc",
@@ -1196,7 +1196,7 @@
           "l": 18,
           "t": 18,
           "r": 430,
-          "b": 333
+          "b": 314
         },
         {
           "name": "hud-tc",
@@ -1275,9 +1275,9 @@
         "desligar a suavização nativa (economia de GPU)",
         "detalhe das fachadas já carregadas"
       ],
-      "fps": 59.50609937624125,
-      "calls": 317,
-      "trianglesK": 539,
+      "fps": 60.00600059791382,
+      "calls": 323,
+      "trianglesK": 600,
       "applied": "Em uso: Baixa",
       "note": "Aplicado na hora, exceto desligar a suavização nativa (economia de GPU), detalhe das fachadas já carregadas: vale ao recarregar. Recarregar agora",
       "sameDocument": true
@@ -1290,8 +1290,8 @@
       "anisotropy": 4,
       "reloadFor": [],
       "fps": 59.99700014927731,
-      "calls": 618,
-      "trianglesK": 1315,
+      "calls": 623,
+      "trianglesK": 1328,
       "applied": "Em uso: Média · aplicado na hora, sem recarregar",
       "note": "",
       "sameDocument": true
@@ -1299,15 +1299,15 @@
     {
       "preset": "high",
       "level": "high",
-      "applyMs": 6,
+      "applyMs": 5,
       "far": 3400,
       "anisotropy": 8,
       "reloadFor": [
         "multidão completa"
       ],
-      "fps": 59.99999999999999,
-      "calls": 1437,
-      "trianglesK": 3477,
+      "fps": 59.50019833188428,
+      "calls": 1581,
+      "trianglesK": 3689,
       "applied": "Em uso: Alta",
       "note": "Aplicado na hora, exceto multidão completa: vale ao recarregar. Recarregar agora",
       "sameDocument": true
@@ -1315,15 +1315,15 @@
     {
       "preset": "ultra",
       "level": "ultra",
-      "applyMs": 4,
+      "applyMs": 5,
       "far": 3800,
       "anisotropy": 16,
       "reloadFor": [
         "multidão completa"
       ],
-      "fps": 59.97900734778578,
-      "calls": 1530,
-      "trianglesK": 3843,
+      "fps": 59.95203836859044,
+      "calls": 1702,
+      "trianglesK": 3928,
       "applied": "Em uso: Ultra",
       "note": "Aplicado na hora, exceto multidão completa: vale ao recarregar. Recarregar agora",
       "sameDocument": true
@@ -1337,39 +1337,15 @@
       "reloadFor": [
         "multidão completa"
       ],
-      "fps": 59.99100134944001,
-      "calls": 1387,
-      "trianglesK": 3408,
+      "fps": 60.018005398757744,
+      "calls": 1545,
+      "trianglesK": 3661,
       "applied": "Em uso: Alta",
       "note": "Aplicado na hora, exceto multidão completa: vale ao recarregar. Recarregar agora",
       "sameDocument": true
     }
   ],
   "fps": [
-    {
-      "vsync": true,
-      "choice": "30",
-      "limit": 30,
-      "frames": 90,
-      "meanMs": 33.33,
-      "fps": 30
-    },
-    {
-      "vsync": true,
-      "choice": "60",
-      "limit": 60,
-      "frames": 180,
-      "meanMs": 16.67,
-      "fps": 60
-    },
-    {
-      "vsync": true,
-      "choice": "unlimited",
-      "limit": 0,
-      "frames": 181,
-      "meanMs": 16.66,
-      "fps": 60
-    },
     {
       "vsync": true,
       "choice": "30",
@@ -1387,20 +1363,44 @@
       "fps": 60
     },
     {
+      "vsync": true,
+      "choice": "unlimited",
+      "limit": 0,
+      "frames": 180,
+      "meanMs": 16.67,
+      "fps": 60
+    },
+    {
+      "vsync": true,
+      "choice": "30",
+      "limit": 30,
+      "frames": 90,
+      "meanMs": 33.33,
+      "fps": 30
+    },
+    {
+      "vsync": true,
+      "choice": "60",
+      "limit": 60,
+      "frames": 180,
+      "meanMs": 16.66,
+      "fps": 60
+    },
+    {
       "vsync": false,
       "choice": "unlimited",
       "limit": 0,
-      "frames": 1388,
-      "meanMs": 2.16,
-      "fps": 462.1
+      "frames": 1256,
+      "meanMs": 2.39,
+      "fps": 418.4
     },
     {
       "vsync": false,
       "choice": "60",
       "limit": 60,
-      "frames": 173,
-      "meanMs": 17.32,
-      "fps": 57.7
+      "frames": 175,
+      "meanMs": 17.07,
+      "fps": 58.6
     }
   ],
   "persist": {

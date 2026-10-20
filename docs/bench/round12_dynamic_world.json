@@ -1,59 +1,66 @@
 {
-  "date": "2026-10-20T12:57:31.691Z",
+  "date": "2026-10-20T15:49:08.644Z",
   "port": 4710,
-  "population": 220,
-  "nota": "Q/E..H da corrida completa (Q refilmada com câmera mais alta); S..W refilmadas com PV_DYN_ONLY=briga; R refilmada com PV_DYN_ONLY=r (caminhada forçada junta gente ~25 s antes de sair; no real reuniu 5–13 acompanhando, espalhados)",
+  "population": 200,
   "scenes": {
     "Q": {
       "id": "dyn1",
       "k": "MANIFESTACAO",
       "x": -573,
-      "z": 272,
+      "z": 287,
       "r": 16,
       "e": 0,
       "n": 15,
-      "w": 10,
-      "ci": 0.63,
+      "w": 13,
+      "ci": 0.7,
       "ch": 0.7,
       "cb": 0,
       "forced": false,
-      "crowd": 29
+      "crowd": 34
     },
     "E": {
       "sup": 1,
-      "x": -568.1369094848633,
-      "z": 267.8072814941406,
-      "n": 8
+      "x": -566.6050109863281,
+      "z": 288.8133290608724,
+      "n": 6
     },
     "F": {
       "sup": 2,
-      "x": -569.0026977539062,
-      "z": 270.0312438964844,
-      "n": 10
+      "x": -566.2624969482422,
+      "z": 286.7337455749512,
+      "n": 8
     },
     "G": {
       "sup": 3,
-      "x": -564.6000061035156,
-      "z": 267.6383361816406,
-      "n": 6
+      "x": -567.4599975585937,
+      "z": 283.5350006103516,
+      "n": 10
     },
     "H": {
       "sup": 4,
-      "x": -570.5594787597656,
-      "z": 270.8081512451172,
+      "x": -569.7916564941406,
+      "z": 285.14833068847656,
       "n": 6
     },
     "R_film": {
-      "x": -542.4285801478794,
-      "z": 266.9642813546317,
-      "n": 7
+      "id": "dyn14",
+      "k": "CAMINHADA",
+      "x": -523,
+      "z": 256,
+      "r": 14,
+      "e": 0,
+      "n": 13,
+      "w": 20,
+      "ci": 0.83,
+      "ch": 0.6,
+      "cb": 0
     },
     "R": {
       "r0": {
-        "id": "dyn17",
+        "id": "dyn14",
         "k": "CAMINHADA",
-        "x": -564,
-        "z": 271,
+        "x": -566,
+        "z": 272,
         "r": 14,
         "e": 0,
         "n": 2,
@@ -63,15 +70,15 @@
         "cb": 0
       },
       "r1": {
-        "id": "dyn17",
+        "id": "dyn14",
         "k": "CAMINHADA",
-        "x": -522,
+        "x": -526,
         "z": 258,
         "r": 14,
         "e": 0,
-        "n": 5,
-        "w": 12,
-        "ci": 0.43,
+        "n": 12,
+        "w": 18,
+        "ci": 0.75,
         "ch": 0.6,
         "cb": 0
       }
@@ -83,25 +90,25 @@
         3
       ],
       "seen": {
-        "2": {
-          "id": "dyn6",
-          "k": "BRIGA",
-          "x": -593,
-          "z": 280,
-          "r": 12,
-          "e": 2,
-          "n": 4,
-          "w": 9,
-          "ci": 0.33,
-          "ch": 0.27,
-          "cb": 0.45
+        "1": {
+          "id": "dyn17",
+          "k": "DISCUSSAO",
+          "x": -562,
+          "z": 270,
+          "r": 8,
+          "e": 1,
+          "n": 2,
+          "w": 1,
+          "ci": 0.08,
+          "ch": 0.01,
+          "cb": 0.15
         },
-        "3": {
-          "id": "dyn6",
+        "2": {
+          "id": "dyn17",
           "k": "BRIGA_GENERALIZADA",
-          "x": -593,
-          "z": 282,
-          "r": 15,
+          "x": -563,
+          "z": 272,
+          "r": 14,
           "e": 3,
           "n": 6,
           "w": 11,
@@ -109,17 +116,30 @@
           "ch": 0.45,
           "cb": 0.75
         },
+        "3": {
+          "id": "dyn17",
+          "k": "BRIGA_GENERALIZADA",
+          "x": -565,
+          "z": 272,
+          "r": 26,
+          "e": 3,
+          "n": 15,
+          "w": 10,
+          "ci": 0.63,
+          "ch": 0.45,
+          "cb": 1
+        },
         "u": {
-          "id": "dyn6",
+          "id": "dyn17",
           "k": "BRIGA",
-          "x": -593,
-          "z": 281,
+          "x": -563,
+          "z": 269,
           "r": 9,
           "e": 2,
           "n": 2,
-          "w": 6,
-          "ci": 0.2,
-          "ch": 0.18,
+          "w": 5,
+          "ci": 0.18,
+          "ch": 0.15,
           "cb": 0.45
         }
       },
@@ -135,47 +155,37 @@
     {
       "name": "Q: concentração com ≥ 15 participantes",
       "ok": true,
-      "detail": "{\"k\":\"MANIFESTACAO\",\"n\":15,\"w\":10,\"r\":16,\"forced\":false,\"autonomosNoRaio\":29}"
+      "detail": "{\"k\":\"MANIFESTACAO\",\"n\":15,\"w\":13,\"r\":16,\"forced\":false,\"autonomosNoRaio\":34}"
     },
     {
       "name": "E: torcedores (sup 1) juntos",
-      "ok": true,
-      "detail": "8 a ≤ 20 m (46 pessoas no total)"
+      "ok": false,
+      "detail": "6 a ≤ 20 m (47 pessoas no total)"
     },
     {
       "name": "F: torcedores (sup 2) juntos",
       "ok": true,
-      "detail": "10 a ≤ 20 m (41 pessoas no total)"
+      "detail": "8 a ≤ 20 m (47 pessoas no total)"
     },
     {
       "name": "G: torcedores (sup 3) juntos",
-      "ok": false,
-      "detail": "6 a ≤ 20 m (43 pessoas no total)"
+      "ok": true,
+      "detail": "10 a ≤ 20 m (47 pessoas no total)"
     },
     {
       "name": "H: torcedores (sup 4) juntos",
       "ok": false,
-      "detail": "6 a ≤ 20 m (42 pessoas no total)"
+      "detail": "6 a ≤ 20 m (43 pessoas no total)"
     },
     {
       "name": "R: caminhada anda com gente acompanhando",
       "ok": true,
-      "detail": "{\"r0\":{\"id\":\"dyn17\",\"k\":\"CAMINHADA\",\"x\":-564,\"z\":271,\"r\":14,\"e\":0,\"n\":2,\"w\":0,\"ci\":0.05,\"ch\":0.12,\"cb\":0},\"r1\":{\"id\":\"dyn17\",\"k\":\"CAMINHADA\",\"x\":-522,\"z\":258,\"r\":14,\"e\":0,\"n\":5,\"w\":12,\"ci\":0.43,\"ch\":0.6,\"cb\":0}}"
-    },
-    {
-      "name": "autônomos na vista (kind 1)",
-      "ok": true,
-      "detail": "47"
+      "detail": "{\"r0\":{\"id\":\"dyn14\",\"k\":\"CAMINHADA\",\"x\":-566,\"z\":272,\"r\":14,\"e\":0,\"n\":2,\"w\":0,\"ci\":0.05,\"ch\":0.12,\"cb\":0},\"r1\":{\"id\":\"dyn14\",\"k\":\"CAMINHADA\",\"x\":-526,\"z\":258,\"r\":14,\"e\":0,\"n\":12,\"w\":18,\"ci\":0.75,\"ch\":0.6,\"cb\":0}}"
     },
     {
       "name": "briga (tentativa 1): lugar com plateia",
       "ok": true,
-      "detail": "23 autônomos a ≤ 14 m"
-    },
-    {
-      "name": "briga (tentativa 2): lugar com plateia",
-      "ok": true,
-      "detail": "25 autônomos a ≤ 14 m"
+      "detail": "40 autônomos a ≤ 14 m"
     },
     {
       "name": "S→T→V: TENSÃO → CONFRONTO → GENERALIZADO em ordem",
@@ -185,7 +195,7 @@
     {
       "name": "V: participantes e plateia de verdade",
       "ok": true,
-      "detail": "{\"id\":\"dyn6\",\"k\":\"BRIGA_GENERALIZADA\",\"x\":-593,\"z\":282,\"r\":15,\"e\":3,\"n\":6,\"w\":11,\"ci\":0.43,\"ch\":0.45,\"cb\":0.75}"
+      "detail": "{\"id\":\"dyn17\",\"k\":\"BRIGA_GENERALIZADA\",\"x\":-565,\"z\":272,\"r\":26,\"e\":3,\"n\":15,\"w\":10,\"ci\":0.63,\"ch\":0.45,\"cb\":1}"
     },
     {
       "name": "W: foco se dispersa e termina",

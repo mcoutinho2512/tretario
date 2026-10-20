@@ -202,8 +202,10 @@ for (const p of [A, Pw]) await ev(p, () => window.__pv.peds(40)); // pedestres l
 {
   const ag = await until(async () => { const l = (await info(A)).agenda; return l.length >= 3 ? l : null; }, 15000);
   check('agenda chega ao entrar (jogador): caminhada, bicicleta e patinete com estado e horário do servidor', ag && ['caminhada-central-candelaria', 'corrida-bicicleta-cidade-nova', 'corrida-patinete-cidade-nova'].every((id) => entryOf(ag, id)), ag?.map((e) => `${e.id}:${e.state}`).join(' '));
-  const sa = (await until(async () => { const l = (await info(Sp)).agenda; return l.length ? l : null; }, 8000)) ?? [];
-  check('agenda chega ao espectador (mesma lista)', sa.length === ag?.length, `${sa.length} itens`);
+  // a lista pode crescer enquanto chega (instâncias novas): compara jogador e espectador lidos juntos
+  let pa = [];
+  const sa = (await until(async () => { const [l, m] = [(await info(Sp)).agenda, (await info(A)).agenda]; pa = m; return l.length && l.length === m.length ? l : null; }, 8000)) ?? [];
+  check('agenda chega ao espectador (mesma lista)', sa.length > 0 && sa.length === pa.length, `${sa.length} itens (jogador ${pa.length})`);
   const ga = await until(async () => (await info(G)).agenda.find((e) => e.format === 'confronto_grupos'), 15000);
   check('agenda do clássico: confronto entre grupos', !!ga, ga ? `${ga.name} ${ga.state}` : '');
   out.agenda = ag;

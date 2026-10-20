@@ -29,6 +29,7 @@ import { supporterOutfit, supIndex } from '../../../src/supporters/data';
 import type { SupporterData } from '../../../src/supporters/types';
 import { ACTION_BY_KEY, ACTION_BY_ID } from '../../../src/social/actions';
 import { PROP_BY_ID } from '../../../src/social/props';
+import { VEHICLE_BOX } from '../../../src/net/rules';
 
 export const AUTONOMOUS_ID_PREFIX = 'ac:';
 export const isAutonomousId = (sid: string | undefined | null) => !!sid && sid.startsWith(AUTONOMOUS_ID_PREFIX);
@@ -87,6 +88,8 @@ interface Agent {
   nextThink: number; lastStep: number; lastFeel: number; nextGesture: number; actUntil: number; act: number; lookNid: number; nextLook: number;
   /** abrindo caminho para um veículo (makeWay): passos para o lado até `until`, depois volta ao objetivo de antes */
   yieldTo: { x: number; z: number; fx: number; fz: number; until: number } | null;
+  /** próxima olhada em volta procurando veículo dirigido vindo na sua direção */
+  nextVehLook: number;
   group: Group | null; slot: number;
   vehicleId: string;
   /** confronto em curso; `dir` = coordenado pelo diretor (estágio vem do papel ARGUE/FIGHT + pushUntil) */
@@ -264,7 +267,7 @@ export class AutonomousSystem implements AutonomousWorldView {
       k: makeKin(p.x, p.z, r.range(-Math.PI, Math.PI)),
       nid: 0, materialized: false, lod: 'DORMANT', dHuman: Infinity,
       goal: { kind: 'IDLE', until: 0, source: 'self' }, mem: {}, plan: this.standPlan(p.x, p.z),
-      nextThink: 0, lastStep: now, lastFeel: 0, nextGesture: now + r.range(2000, 20000), actUntil: 0, act: 0, lookNid: 0, nextLook: 0, yieldTo: null,
+      nextThink: 0, lastStep: now, lastFeel: 0, nextGesture: now + r.range(2000, 20000), actUntil: 0, act: 0, lookNid: 0, nextLook: 0, yieldTo: null, nextVehLook: 0,
       group: null, slot: 0, vehicleId: '', fight: null, stamina: this.moves.staminaMax, condition: 100,
       bornAt: now, leaveAt: now + stay, downSince: 0, gotUpAt: 0,
       st: { activity: 'idle', moving: false, pathStart: null, pathLen: 0, hSample: 0, hAt: 0, avoiding: false, waiting: false }, seq: 0, vx: 0, vz: 0,
@@ -888,6 +891,9 @@ export class AutonomousSystem implements AutonomousWorldView {
     if (a.fight) { this.fightStep(a, now, dt); return; }
     if (a.vehicleId) { this.driveStep(a, now, dt); return; }
     if (a.yieldTo) { if (now < a.yieldTo.until) { this.yieldStep(a, now, dt); return; } a.yieldTo = null; } // segue o plano de antes (quem já tinha chegado fica onde está)
+    // perto de gente: veículo dirigido com a frente para mim → saio da frente (o cliente de quem dirige já freia antes de
+    // encostar — previsão local —, então a sala nem chega a recusar o movimento; sem isto ninguém abriria caminho)
+    if (a.lod === 'NEAR' && this.humanList.length && now >= a.nextVehLook) { a.nextVehLook = now + 300 + (a.idx * 53) % 200; if (this.lookForDriven(a, now)) { this.yieldStep(a, now, dt); return; } } // sem sorteio: não mexe na sequência aleatória da simulação
     // passeio: chegou e a pausa acabou → próximo ponto
     if (a.plan.mode === 'walk' && a.plan.arrivedAt && now >= a.plan.pauseUntil && a.goal.kind === 'WANDER' && !a.group) { const q = this.pointNear(a.k.x, a.k.z, 10, 50); a.plan = this.walkPlan(q.x, q.z, 1); }
     // destinos que andam: roda caminhando, concentração que se move, centro da torcida
@@ -945,6 +951,20 @@ export class AutonomousSystem implements AutonomousWorldView {
     this.commitMove(a, nx, nz, a.k.speed, now);
     if (a.lod !== 'FAR') this.lookAround(a, now);
     this.tally(a, out.arrived ? 'idle' : 'walk', dt);
+  }
+
+  /** veículo com motorista humano cuja frente (até ~4,5 m adiante) me inclui → makeWay */
+  private lookForDriven(a: Agent, now: number): boolean {
+    const vs = this.host.vehiclesNear(a.k.x, a.k.z, 12, this.vehScratch);
+    for (const v of vs) {
+      if (!v.occupant || !this.humanById.has(v.occupant)) continue; // só motorista HUMANO (o de autônomo a sala já trata)
+      const box = VEHICLE_BOX[v.kind as keyof typeof VEHICLE_BOX] ?? { len: 2, width: 1 };
+      const fx = Math.sin(v.heading), fz = Math.cos(v.heading), dx = a.k.x - v.x, dz = a.k.z - v.z;
+      const lon = dx * fx + dz * fz, lat = dx * Math.cos(v.heading) - dz * Math.sin(v.heading);
+      if (lon < box.len / 2 - 0.5 || lon > box.len / 2 + 4.5 || Math.abs(lat) > box.width / 2 + 0.7) continue;
+      return this.makeWay(a.id, v.x, v.z, v.heading, box.width / 2, now);
+    }
+    return false;
   }
 
   /**

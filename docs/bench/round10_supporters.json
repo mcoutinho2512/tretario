@@ -1,5 +1,5 @@
 {
-  "date": "2026-10-19T14:02:34.737Z",
+  "date": "2026-10-20T16:10:25.029Z",
   "port": 3150,
   "rallyCrowd": {
     "members": 522,
@@ -15,14 +15,14 @@
     "testBots": 5,
     "eventId": "manifestacao",
     "eventName": "Ato na Presidente Vargas",
-    "updatedAt": 1792418578097
+    "updatedAt": 1792512649195
   },
   "render": {
-    "calls": 731,
-    "triangles": 2111800,
-    "textures": 402,
-    "geometries": 731,
-    "fps": 60.06006006006007
+    "calls": 729,
+    "triangles": 2095160,
+    "textures": 390,
+    "geometries": 734,
+    "fps": 29.995500674720006
   },
   "session": true,
   "results": [
@@ -54,7 +54,7 @@
     {
       "name": "encontro de torcidas na agenda",
       "ok": true,
-      "detail": "encontro-torcidas@1792418574000"
+      "detail": "encontro-torcidas@1792512645000"
     },
     {
       "name": "4 concentrações de torcida (evt_pts com sup)",

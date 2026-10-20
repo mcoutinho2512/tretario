@@ -210,6 +210,24 @@ describe('rodada 12 — autônomos: diretor de eventos (propose) e confronto', (
     expect(sys.makeWay('nao-existe', 0, 0, 0, 1.6)).toBe(false);
   });
 
+  it('percebe sozinho um veículo dirigido com a frente para ele e sai do caminho (o cliente do motorista freia antes)', () => {
+    const veh = [{ id: 'm1', kind: 'moto', x: 0, z: 0, heading: 0 }];
+    const { host, sys, run } = world(2, { vehicles: veh, config: only('SOCIAL') });
+    host.addHuman('h', 0, -4);
+    const [a, b] = sys.agents;
+    sys.place(a.id, 0.1, 3); // 3 m à frente da moto (virada para +z)
+    sys.place(b.id, 6, -8); // longe do corredor
+    run(5);
+    sys.force(a.id, 'IDLE'); sys.force(b.id, 'IDLE');
+    run(5);
+    expect(Math.abs(host.state(a.id)!.x)).toBeLessThan(0.5); // sem motorista: fica onde está
+    host.vehicles.get('m1')!.occupant = 'h';
+    run(40);
+    expect(Math.abs(host.state(a.id)!.x)).toBeGreaterThan(0.4 + 0.32 + 0.4);
+    expect(Math.hypot(host.state(b.id)!.x - 6, host.state(b.id)!.z + 8)).toBeLessThan(0.5); // quem está fora do corredor não sai
+    expect(sys.stats.makeWay).toBe(1);
+  });
+
   it('briga pelas regras do CombatSystem: aceitos, nunca spam, com pausa humana; heat() mede golpes e combatentes', () => {
     const { host, sys, run } = world(2, { config: only('CONFRONTADOR') });
     host.addHuman('h', 0, 12);

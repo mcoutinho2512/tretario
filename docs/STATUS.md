@@ -1,6 +1,83 @@
 # STATUS — Presidente Vargas 3D
 
-_Atualizado em 2026-10-19 (rodada 11: desktop first — cursor sempre visível, inventário, editor, gráficos)._
+_Atualizado em 2026-10-20 (rodada 12: cidade viva — personagens autônomos, colisão entre corpos, veículo pessoal,
+mundo dinâmico)._
+
+## Rodada 12 — cidade viva, personagens autônomos, colisão entre avatares, veículo pessoal e eventos dinâmicos
+
+Sete frentes sobre contratos comuns (`src/world/entityKind.ts`, `src/physics/bodies.ts`, `src/vehicles/personal.ts`,
+`server/src/autonomous/types.ts`): [AUTONOMOUS_CHARACTERS.md](AUTONOMOUS_CHARACTERS.md),
+[CROWD_COLLISION.md](CROWD_COLLISION.md), [PERSONAL_VEHICLES.md](PERSONAL_VEHICLES.md),
+[DYNAMIC_WORLD.md](DYNAMIC_WORLD.md).
+
+- **Sem zonas de paz**: a política PEACE saiu do código; só COMBAT/CONTESTED. Confronto em toda a área jogável, sem
+  evento; mantida só a proteção de retorno de 5 s (spawn, levantar, reentrar).
+- **Colisão entre corpos**: círculo r = 0,32 m (contato 0,64 m) numa grade espacial no servidor (`room.bodies`);
+  humano × humano e humano × autônomo duros (o servidor corrige o excesso com tolerância de latência), autônomo ×
+  autônomo resolvido no servidor, NPCs locais do cliente cedem. Sem pilhas: distância mínima mediana 0,46–0,57 m com
+  500 concentrados. Spawn/reconexão em ponto livre; `unstuck` validado. Custo puro (sem rede) 50/250/500 humanos
+  concentrados: 0,11 / 0,54 / 1,15 ms por tick; autônomos 0,05 / 0,21 / 0,43 ms; cliente 0,004–0,006 ms por quadro.
+- **Veículo pessoal "selecionou → aparece"**: `pveh_req` → o servidor escolhe o ponto livre e já monta o jogador.
+  Patinete 0,9 m, bicicleta 1,1 m, moto 1,6 m, carro 4 m (na pista); resposta em 6–16 ms; o outro jogador vê em
+  80–200 ms. Um por jogador, só o dono usa, some 45 s após o abandono; 100 pedidos forjados em sequência → 1 veículo.
+- **Personagens autônomos** server-authoritative (sem LLM, sem chat automático): 220 em produção (−3 por humano,
+  mínimo 60), personalidades por peso, objetivos, memória curta, LOD NEAR/MID/FAR/DORMANT pela distância ao humano
+  mais próximo; mesmo visual dos jogadores (`NetPlayer.kind = 1`), nomes naturais em parte deles (pool fixo de 18
+  rótulos), **nunca contam como jogador online**. Usam veículos do mundo e pessoais, formam rodas, torcidas e
+  concentrações, reagem a humanos, observam, evitam ou entram em brigas.
+- **Mundo dinâmico** (`DynamicWorldDirector`, `public/gameplay/dynamic_world.json`): concentração, caminhada, encontro
+  de torcidas, festa, discussão → briga → briga generalizada, por adesão gradual (CALMO → TENSÃO → CONFRONTO →
+  GENERALIZADO). 60 min simulados com 180 autônomos: 10 discussões/h, 4 brigas/h (2–4 com golpes trocados),
+  generalizada em 7 de 8 sementes; concentrações com pico mediano de 20 pessoas (máx. 29–36).
+- **Remoto invisível** (bug de produção da rodada 11): velocidade indefinida virava NaN no cliente e o avatar sumia
+  com o nome na tela (4,6 % do tempo); corrigido no cliente e no servidor (`initNetPlayer`).
+
+**QA de integração (master integrado, 2026-10-20)**: `npm run verify` 948/948; 27 roteiros — os 6 da rodada 12
+(collision 13/13, personal_vehicles 14/14, autonomous 11/11, remote_visibility, humanization, dynamic_world 11/13)
+e os 18 das rodadas 10/11, mais 3 repetidos com 150 autônomos ligados. Corrigido na integração: **o trio elétrico
+ficava travado com o mundo vivo** — os autônomos que dançam em volta dele o bloqueavam para sempre (o veículo para
+antes de encostar em quem está a pé, e o cliente do motorista já freia antes); agora o autônomo na frente de um veículo dirigido percebe e abre caminho
+(`AutonomousSystem.makeWay`): `trio_mp` com 150 autônomos 0 m → 7,3 m em 7 s. Roteiros ajustados ao mundo vivo
+(contar só humanos; veículo pego por um autônomo no caminho; duas corridas de tempo de leitura). Falhas que ficam:
+dynamic_world E/H — uma torcida sozinha junta 6 pessoas (o roteiro pede 8).
+
+**Desempenho 11 × 12** (mesma máquina, `docs/bench/round12_compare_*.json`). Servidor, mesma carga (sem autônomos):
+
+| cenário | tick 11 → 12 (ms) | CPU 11 → 12 | saída (KB/s) | colisão (ms) |
+|---|---|---|---|---|
+| 50 densos | 0,53 → 0,56 | 5 → 6 % | 363 → 361 | 0,08 |
+| 250 densos | 2,87 → 2,71 | 17 → 18 % | 3540 → 3021 | 0,27 |
+| 500 densos | 7,55 → 7,27 | 33 → 32 % | 11026 → 8914 | 0,56 |
+| 500 espalhados | 3,46 → 3,45 | 29 → 29 % | 4953 → 4614 | 0,48 |
+| 250 + 50 veículos | 1,60 → 1,70 | 16 → 17 % | 2362 → 2307 | 0,19 |
+
+Com o mundo vivo de produção (220 autônomos): 50 / 250 / 500 densos → tick 1,48 / 3,83 / 9,52 ms, CPU 9 / 19 / 34 %.
+Massa concentrada: 250 / 500 → tick 2,76 / 7,33 ms (colisão 0,41 / 0,82 ms, 375 / 759 consultas de vizinhos por
+tick); com 220 autônomos 3,69 / 8,62 ms. IA na sala real com 50 / 100 / 250 autônomos: 0,45 / 0,71 / 1,10 ms por
+tick (99 decisões/s com 250). Pico de RSS do servidor maior (500 densos 296 → 401 MB). Cliente (FPS, sem vsync):
+
+| bots | LOW | MEDIUM | HIGH | ULTRA |
+|---|---|---|---|---|
+| 50 | 458 → 456 | 238 → 242 | 93 → 96 | 73 → 77 |
+| 250 | 416 → 421 | 223 → 207 | 82 → 84 | 63 → 61 |
+| 500 | 449 → 420 | 219 → 206 | 78 → 81 | 61 → 60 |
+| 250 + 220 autônomos | — | 211 | 83 | 63 |
+
+Draw calls iguais (HIGH 500: 1517 → 1536). Nomes: pool fixo de 18 nós DOM (antes um por remoto).
+
+**Soak de 62 min** (build de produção, `SOAK_R12=1`: 180 autônomos, veículo pessoal patinete/bicicleta/moto/carro,
+atravessar grupos de autônomos, provocar o mais próximo, focos dinâmicos forçados — concentração, encontro de
+torcidas, discussão, briga, caminhada, festa, generalizada — mais tudo das rodadas 9–11 com 60 bots;
+`docs/bench/round12_soak.json`): **sem vazamento estrutural**. Heap pós-GC 71 → ~100 MB no aquecimento (20 min) e
+106–113 MB depois (+0,125 MB/min nos últimos 30 min, +0,04 nos últimos 15 — ruído de GC; a rodada 11 deu +0,19);
+GPU sem pós-processamento plana (690–720 MB, −1,4 MB/min no fim); listeners 338–351; intervals 1–2; AudioNodes
+115–118; FPS 57–58; `pointerLock` 0; autônomos 180 do início ao fim; rótulos de nome 18; IA 0,70–0,80 ms e colisão
+0,11–0,12 ms por tick sem subir; heap do servidor 63–83 MB sem tendência; veículos pessoais recolhidos (0–1 vivos);
+nenhum erro de página. DOM 2045 → 2200: histórico do chat (limitado a 200 linhas).
+
+**Limites conhecidos (rodada 12)**: concentração de uma torcida só junta 6–10 pessoas (mistas 15–36); a captura da
+caminhada é a mais fraca; a generalizada forçada pelo QA na sala real usa adesão × 3; nomes podem se sobrepor em
+grupos muito densos; com o mundo vivo o trio anda "em cortejo" (para enquanto alguém ainda está saindo da frente).
 
 ## Rodada 11 — desktop first, cursor sempre visível, inventário, editor e gráficos
 

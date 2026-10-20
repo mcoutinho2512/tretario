@@ -118,3 +118,23 @@ real da VPS desconhecida (a 500 o servidor envia ~84 Mbit/s). Subir o limite só
 - **Rede**: `NetPlayer.lvl` (u8, 1 Hz) e `NetPlayer.title` (≤ 48 caracteres) — banda por cliente igual dentro do ruído.
 - **Capacidade** (mesma máquina, 10 × 11, `docs/bench/round11_compare_*.json`): servidor igual (500 densos: tick
   7,5 → 7,6 ms, CPU 32 → 30 %; 50 veículos: 0,41 → 0,38 ms). Limite beta de 250 por sala mantido.
+
+## Rodada 12
+
+- Mesmo layout, serviços, portas e pipeline; CSP inalterada. **Nenhuma migration** (nada novo persiste: autônomos,
+  veículos pessoais e eventos dinâmicos vivem só na sala).
+- **Variáveis opcionais** (sem valor = padrão de produção; não é preciso mexer no `server.env`):
+  `PV_AUTONOMOUS` — quantidade de personagens autônomos (padrão `population.maxActive` de
+  `public/gameplay/autonomous.json` = 220, −3 por humano, mínimo 60; `off` desliga); `PV_PVEH_IDLE_MS` — tempo até
+  recolher um veículo pessoal abandonado (padrão 45 s). Com `PV_TEST=1` os autônomos começam desligados.
+- **Autônomos não ocupam vaga**: a lotação (`MAX_PLAYERS_PER_ROOM` = 250) conta `state.players - autônomos`; eles
+  nunca entram em `/api/metrics/public`, no contador da home nem no telão. `/metrics` (interno) ganhou `aiMs`,
+  `aiDecideMs/MoveMs/SocialMs`, `aiDecisionsPerSec`, `autonomousPopulation/Active/Near/Mid/Far/Dormant`,
+  `collisionMs`, `collisionBodies`, `neighborQueries`, `bodyCorrections`, `unstucks`.
+- **Mensagens novas** da sala: `pveh_req` (veículo pessoal; taxa e validação no servidor), `unstuck` (o servidor
+  escolhe o ponto livre), `dyn` (servidor → cliente: focos dinâmicos para minimapa/áudio). `qa_dyn` só existe com
+  `PV_TEST=1`. **Rede**: `NetPlayer.kind` (0 humano · 1 autônomo · 2 bot de carga), `look`, `tag`; `NetVehicle.owner`.
+- **Capacidade** (mesma máquina, 11 × 12, `docs/bench/round12_compare_*.json`): mesma carga, servidor igual (500
+  densos tick 7,55 → 7,27 ms, CPU 33 → 32 %). Com os 220 autônomos: 500 densos tick 9,5 ms, CPU 34 %; pico de RSS
+  ~400–470 MB com 500 (antes ~300 MB) — folga ampla nos 11 GB da VPS. Limite beta de 250 por sala mantido.
+

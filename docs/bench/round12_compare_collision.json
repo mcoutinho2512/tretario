@@ -1,0 +1,104 @@
+[
+  {
+    "corpos": 50,
+    "modo": "humanos",
+    "tick_ms_medio": 0.1108,
+    "tick_ms_p95": 0.2024,
+    "tick_ms_max": 0.2536,
+    "consultas_por_tick": 75,
+    "correcoes_por_tick": 73.6,
+    "pares_por_tick": 0,
+    "dist_min_mediana_m": 0.46,
+    "dist_min_p05_m": 0.46,
+    "contato_m": 0.64
+  },
+  {
+    "corpos": 50,
+    "modo": "autonomos",
+    "tick_ms_medio": 0.0504,
+    "tick_ms_p95": 0.1045,
+    "tick_ms_max": 0.1967,
+    "consultas_por_tick": 90,
+    "correcoes_por_tick": 0,
+    "pares_por_tick": 392,
+    "dist_min_mediana_m": 0.571,
+    "dist_min_p05_m": 0.492,
+    "contato_m": 0.64
+  },
+  {
+    "corpos": 250,
+    "modo": "humanos",
+    "tick_ms_medio": 0.5363,
+    "tick_ms_p95": 0.7491,
+    "tick_ms_max": 0.8734,
+    "consultas_por_tick": 375,
+    "correcoes_por_tick": 360.1,
+    "pares_por_tick": 0,
+    "dist_min_mediana_m": 0.46,
+    "dist_min_p05_m": 0.331,
+    "contato_m": 0.64
+  },
+  {
+    "corpos": 250,
+    "modo": "autonomos",
+    "tick_ms_medio": 0.2056,
+    "tick_ms_p95": 0.2991,
+    "tick_ms_max": 0.4453,
+    "consultas_por_tick": 450,
+    "correcoes_por_tick": 0,
+    "pares_por_tick": 2221,
+    "dist_min_mediana_m": 0.529,
+    "dist_min_p05_m": 0.382,
+    "contato_m": 0.64
+  },
+  {
+    "corpos": 500,
+    "modo": "humanos",
+    "tick_ms_medio": 1.1548,
+    "tick_ms_p95": 1.6179,
+    "tick_ms_max": 1.7489,
+    "consultas_por_tick": 750,
+    "correcoes_por_tick": 709.5,
+    "pares_por_tick": 0,
+    "dist_min_mediana_m": 0.46,
+    "dist_min_p05_m": 0.46,
+    "contato_m": 0.64
+  },
+  {
+    "corpos": 500,
+    "modo": "autonomos",
+    "tick_ms_medio": 0.4252,
+    "tick_ms_p95": 0.5496,
+    "tick_ms_max": 0.7248,
+    "consultas_por_tick": 900,
+    "correcoes_por_tick": 0,
+    "pares_por_tick": 4874,
+    "dist_min_mediana_m": 0.499,
+    "dist_min_p05_m": 0.324,
+    "contato_m": 0.64
+  },
+  {
+    "corpos": 50,
+    "modo": "cliente (quadro)",
+    "ms_por_quadro_medio": 0.0059,
+    "ms_por_quadro_max": 0.179,
+    "vizinhos_medio": 9.94,
+    "contatos_medio": 1.95
+  },
+  {
+    "corpos": 250,
+    "modo": "cliente (quadro)",
+    "ms_por_quadro_medio": 0.006,
+    "ms_por_quadro_max": 0.127,
+    "vizinhos_medio": 8.06,
+    "contatos_medio": 1.88
+  },
+  {
+    "corpos": 500,
+    "modo": "cliente (quadro)",
+    "ms_por_quadro_medio": 0.0038,
+    "ms_por_quadro_max": 0.031,
+    "vizinhos_medio": 8.01,
+    "contatos_medio": 1.95
+  }
+]

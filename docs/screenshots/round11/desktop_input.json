@@ -65,12 +65,12 @@
     {
       "name": "dirigindo: botão direito olha em volta (câmera fora do rumo enquanto segura)",
       "ok": true,
-      "detail": "desvio=1.26 rad"
+      "detail": "desvio=1.37 rad"
     },
     {
       "name": "soltou: espera ~1 s (0,5 s depois ainda olhando) e volta atrás do veículo suavemente",
       "ok": true,
-      "detail": "0,5 s: 1.26 · 2,4 s: 0.04 rad"
+      "detail": "0,5 s: 1.37 · 2,4 s: 0.04 rad"
     },
     {
       "name": "dirigindo: WASD com o cursor visível, sem pointer lock",
@@ -145,7 +145,7 @@
     {
       "name": "menu aberto: mundo não pausa e não desconecta",
       "ok": true,
-      "detail": "status online→online · quadros=2371"
+      "detail": "status online→online · quadros=2362"
     },
     {
       "name": "SAIR pede confirmação; Esc cancela só ela (menu continua)",
@@ -205,7 +205,7 @@
     {
       "name": "espectador: arrasto (esquerdo ou direito) continua girando a câmera, sem pointer lock",
       "ok": true,
-      "detail": "{\"x\":-705.7,\"y\":40.2,\"z\":312.4} → {\"x\":-758.3,\"y\":40.2,\"z\":284.8} → {\"x\":-713.9,\"y\":40.2,\"z\":310.2}"
+      "detail": "{\"x\":-705.7,\"y\":40.2,\"z\":312.4} → {\"x\":-757.9,\"y\":40.2,\"z\":285.2} → {\"x\":-714.9,\"y\":40.2,\"z\":309.9}"
     },
     {
       "name": "1920×1080: entrou sem pointer lock, cursor visível",
@@ -264,7 +264,7 @@
     {
       "where": "entrou no carro",
       "lock": null,
-      "canvas": "pointer",
+      "canvas": "auto",
       "body": "auto",
       "calls": 0,
       "seen": 0,

@@ -1,0 +1,106 @@
+{
+  "generatedAt": "2026-10-20T17:49:56.049Z",
+  "tool": "server/tools/autonomous_bench.ts",
+  "seconds": 20,
+  "machine": "darwin arm64 node v20.20.2",
+  "real": {
+    "50": {
+      "players": 9,
+      "tickAvgMs": 0.799,
+      "tickMaxMs": 2.105,
+      "patchAvgMs": 0.137,
+      "aoiAvgMs": 0.049,
+      "aiMs": 0.4452,
+      "aiMaxMs": 1.149,
+      "aiDecideMs": 0.0512,
+      "aiMoveMs": 0.3134,
+      "aiSocialMs": 0.0012,
+      "aiDecisionsPerSec": 26,
+      "autonomousPopulation": 50,
+      "autonomousActive": 50,
+      "autonomousNear": 21,
+      "autonomousMid": 29,
+      "autonomousFar": 0,
+      "autonomousDormant": 0,
+      "bytesOutPerSec": 9026,
+      "cpuPct": 4.5,
+      "heapMB": 62.3
+    },
+    "100": {
+      "players": 9,
+      "tickAvgMs": 1.122,
+      "tickMaxMs": 1.876,
+      "patchAvgMs": 0.143,
+      "aoiAvgMs": 0.063,
+      "aiMs": 0.706,
+      "aiMaxMs": 1.129,
+      "aiDecideMs": 0.0761,
+      "aiMoveMs": 0.5268,
+      "aiSocialMs": 0.0011,
+      "aiDecisionsPerSec": 57,
+      "autonomousPopulation": 100,
+      "autonomousActive": 100,
+      "autonomousNear": 52,
+      "autonomousMid": 48,
+      "autonomousFar": 0,
+      "autonomousDormant": 0,
+      "bytesOutPerSec": 18649,
+      "cpuPct": 4.8,
+      "heapMB": 65
+    },
+    "250": {
+      "players": 9,
+      "tickAvgMs": 1.732,
+      "tickMaxMs": 3.106,
+      "patchAvgMs": 0.149,
+      "aoiAvgMs": 0.052,
+      "aiMs": 1.0976,
+      "aiMaxMs": 1.618,
+      "aiDecideMs": 0.1188,
+      "aiMoveMs": 0.7816,
+      "aiSocialMs": 0.0021,
+      "aiDecisionsPerSec": 99,
+      "autonomousPopulation": 250,
+      "autonomousActive": 203,
+      "autonomousNear": 80,
+      "autonomousMid": 120,
+      "autonomousFar": 3,
+      "autonomousDormant": 47,
+      "bytesOutPerSec": 37973,
+      "cpuPct": 5.3,
+      "heapMB": 78
+    }
+  },
+  "simOnly": {
+    "50": {
+      "aiMsPerTick": 0.082,
+      "decisionsPerSec": 25.1,
+      "lod": {
+        "NEAR": 16,
+        "MID": 34,
+        "FAR": 0,
+        "DORMANT": 0
+      }
+    },
+    "100": {
+      "aiMsPerTick": 0.11,
+      "decisionsPerSec": 52.7,
+      "lod": {
+        "NEAR": 38,
+        "MID": 62,
+        "FAR": 0,
+        "DORMANT": 0
+      }
+    },
+    "250": {
+      "aiMsPerTick": 0.179,
+      "decisionsPerSec": 101.6,
+      "lod": {
+        "NEAR": 80,
+        "MID": 120,
+        "FAR": 16,
+        "DORMANT": 34
+      }
+    }
+  }
+}

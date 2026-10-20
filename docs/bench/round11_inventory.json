@@ -1,5 +1,5 @@
 {
-  "date": "2026-10-19T14:21:06.485Z",
+  "date": "2026-10-20T16:49:06.870Z",
   "port": 3820,
   "categories": {
     "ROUPAS": {
@@ -44,6 +44,12 @@
       "locked": 0,
       "equipped": 0
     },
+    "VEICULOS": {
+      "total": 4,
+      "available": 4,
+      "locked": 0,
+      "equipped": 0
+    },
     "TITULOS": {
       "total": 3,
       "available": 0,
@@ -54,10 +60,10 @@
   "cycles100": {
     "warmup": {
       "from": {
-        "nodes": 1948,
-        "listeners": 337,
+        "nodes": 1966,
+        "listeners": 338,
         "documents": 1,
-        "heapMB": 143.4,
+        "heapMB": 144.3,
         "game": {
           "renderer": {
             "textures": 150,
@@ -65,7 +71,7 @@
             "programs": 76
           },
           "materials": 302,
-          "textures": 113,
+          "textures": 112,
           "geometries": 951
         },
         "preview": {
@@ -82,16 +88,16 @@
           }
         }
       },
-      "ms": 6560
+      "ms": 6596
     },
     "idleBefore": {
-      "nodes": 1948,
-      "listeners": 339,
+      "nodes": 1966,
+      "listeners": 337,
       "documents": 1,
-      "heapMB": 146.6,
+      "heapMB": 147.6,
       "game": {
         "renderer": {
-          "textures": 179,
+          "textures": 178,
           "geometries": 630,
           "programs": 76
         },
@@ -114,10 +120,10 @@
       }
     },
     "before": {
-      "nodes": 1948,
-      "listeners": 338,
+      "nodes": 1967,
+      "listeners": 337,
       "documents": 1,
-      "heapMB": 148.4,
+      "heapMB": 149.5,
       "game": {
         "renderer": {
           "textures": 196,
@@ -143,18 +149,18 @@
       }
     },
     "after": {
-      "nodes": 1949,
+      "nodes": 1967,
       "listeners": 338,
       "documents": 1,
-      "heapMB": 148.8,
+      "heapMB": 149.9,
       "game": {
         "renderer": {
-          "textures": 202,
+          "textures": 200,
           "geometries": 642,
           "programs": 76
         },
-        "materials": 372,
-        "textures": 125,
+        "materials": 371,
+        "textures": 126,
         "geometries": 986
       },
       "preview": {
@@ -171,19 +177,19 @@
         }
       }
     },
-    "ms": 6515,
+    "ms": 6535,
     "idleAfterSameTime": {
-      "nodes": 1950,
+      "nodes": 1969,
       "listeners": 337,
       "documents": 1,
-      "heapMB": 149.4,
+      "heapMB": 150.5,
       "game": {
         "renderer": {
-          "textures": 211,
-          "geometries": 645,
+          "textures": 208,
+          "geometries": 643,
           "programs": 76
         },
-        "materials": 385,
+        "materials": 384,
         "textures": 128,
         "geometries": 986
       },
@@ -202,19 +208,19 @@
       }
     },
     "after3": {
-      "nodes": 1950,
-      "listeners": 337,
+      "nodes": 1968,
+      "listeners": 338,
       "documents": 1,
-      "heapMB": 150.5,
+      "heapMB": 151.3,
       "game": {
         "renderer": {
-          "textures": 220,
-          "geometries": 649,
+          "textures": 211,
+          "geometries": 643,
           "programs": 76
         },
-        "materials": 399,
-        "textures": 127,
-        "geometries": 989
+        "materials": 384,
+        "textures": 125,
+        "geometries": 986
       },
       "preview": {
         "created": 303,
@@ -236,18 +242,18 @@
     "acessorios": 20,
     "distinctAccessories": 5,
     "before": {
-      "nodes": 1950,
-      "listeners": 343,
+      "nodes": 1968,
+      "listeners": 344,
       "documents": 1,
-      "heapMB": 150.7,
+      "heapMB": 152.1,
       "game": {
         "renderer": {
           "textures": 220,
-          "geometries": 649,
+          "geometries": 647,
           "programs": 76
         },
-        "materials": 399,
-        "textures": 127,
+        "materials": 398,
+        "textures": 126,
         "geometries": 989
       },
       "preview": {
@@ -265,19 +271,19 @@
       }
     },
     "after": {
-      "nodes": 1813,
-      "listeners": 343,
+      "nodes": 1834,
+      "listeners": 344,
       "documents": 1,
-      "heapMB": 153.8,
+      "heapMB": 156.8,
       "game": {
         "renderer": {
-          "textures": 224,
-          "geometries": 649,
-          "programs": 76
+          "textures": 240,
+          "geometries": 661,
+          "programs": 77
         },
-        "materials": 409,
-        "textures": 136,
-        "geometries": 998
+        "materials": 435,
+        "textures": 143,
+        "geometries": 1013
       },
       "preview": {
         "created": 304,
@@ -350,6 +356,8 @@
       "name": "Ana",
       "title": "Boa de papo",
       "lvl": 1,
+      "kind": 0,
+      "selected": "SZXjgXkWE",
       "text": "Ana\nBoa de papo · Nível 1 · Torcida: Vasco\n×\nVER PERFIL\nINTERAGIR\nSILENCIAR\nDENUNCIAR",
       "log": [
         "open:Ana"
@@ -367,7 +375,7 @@
     {
       "name": "categorias só com conteúdo",
       "ok": true,
-      "detail": "ROUPAS,ACESSORIOS,ITENS,MANIFESTACAO,BANDEIRAS,EQUIPAMENTOS,TORCIDA,TITULOS"
+      "detail": "ROUPAS,ACESSORIOS,ITENS,MANIFESTACAO,BANDEIRAS,EQUIPAMENTOS,VEICULOS,TORCIDA,TITULOS"
     },
     {
       "name": "o mundo não pausa com o inventário aberto",
@@ -382,12 +390,12 @@
     {
       "name": "100× abrir/fechar: ouvintes JS estáveis",
       "ok": true,
-      "detail": "338 → 338"
+      "detail": "337 → 338"
     },
     {
       "name": "100× abrir/fechar: nós DOM estáveis (sem órfãos)",
       "ok": true,
-      "detail": "1948 → 1949"
+      "detail": "1967 → 1967"
     },
     {
       "name": "100× abrir/fechar: nenhum handle vivo; renderer da prévia reutilizado (≤ 1)",
@@ -397,17 +405,17 @@
     {
       "name": "100× abrir/fechar: renderer do jogo sem programas novos (texturas: ver sonda)",
       "ok": true,
-      "detail": "3ª leva {\"textures\":211,\"geometries\":645,\"programs\":76} → {\"textures\":220,\"geometries\":649,\"programs\":76}; deriva do mundo parado 43; aquecimento {\"textures\":150,\"geometries\":617,\"programs\":76} → {\"textures\":196,\"geometries\":642,\"programs\":76}; medida → {\"textures\":202,\"geometries\":642,\"programs\":76}"
+      "detail": "3ª leva {\"textures\":208,\"geometries\":643,\"programs\":76} → {\"textures\":211,\"geometries\":643,\"programs\":76}; deriva do mundo parado 44; aquecimento {\"textures\":150,\"geometries\":617,\"programs\":76} → {\"textures\":196,\"geometries\":642,\"programs\":76}; medida → {\"textures\":200,\"geometries\":642,\"programs\":76}"
     },
     {
       "name": "100× abrir/fechar: materiais/texturas da cena (informativo)",
       "ok": true,
-      "detail": "mat 369→372 tex 125→125 (aquecimento mat 302→369)"
+      "detail": "mat 369→371 tex 125→126 (aquecimento mat 302→369)"
     },
     {
       "name": "100× abrir/fechar: heap estável",
       "ok": true,
-      "detail": "148.4 → 148.8 MB"
+      "detail": "149.5 → 149.9 MB"
     },
     {
       "name": "40 prévias (×2): um renderer só, um handle",
@@ -422,7 +430,7 @@
     {
       "name": "40 prévias: ouvintes/nós estáveis",
       "ok": true,
-      "detail": "ouvintes 343→343, nós 1950→1813"
+      "detail": "ouvintes 344→344, nós 1968→1834"
     },
     {
       "name": "fechar descarta o handle da prévia",
@@ -437,7 +445,7 @@
     {
       "name": "B vê em A a parte de cima trocada",
       "ok": true,
-      "detail": "{\"sid\":\"9PfR9IG1X\",\"self\":false,\"name\":\"Ana\",\"topStyle\":\"polo\",\"accessory\":\"oculos\",\"shirtDesign\":0,\"prop\":0,\"design\":0,\"sup\":2,\"lvl\":1,\"title\":\"\"}"
+      "detail": "{\"sid\":\"SZXjgXkWE\",\"self\":false,\"name\":\"Ana\",\"topStyle\":\"polo\",\"accessory\":\"oculos\",\"shirtDesign\":0,\"prop\":0,\"design\":0,\"sup\":2,\"lvl\":1,\"title\":\"\"}"
     },
     {
       "name": "B vê em A o acessório trocado",
@@ -473,6 +481,11 @@
       "name": "tecla 4: taco na mão (posse do servidor/livre pelos dados)",
       "ok": true,
       "detail": "{\"hud\":\"Taco\",\"social\":11,\"server\":11,\"visible\":11,\"label\":\"Taco\"}"
+    },
+    {
+      "name": "sem zona de paz: nenhum aviso de \"não pode ser usado nesta zona\"",
+      "ok": true,
+      "detail": "COMBAT · Taco no acesso rápido 4"
     },
     {
       "name": "tecla 4 de novo: mão livre",
