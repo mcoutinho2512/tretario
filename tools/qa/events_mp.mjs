@@ -400,7 +400,10 @@ async function clashTask() {
   T1.room.send('push', R1.room.sessionId);
   const knocked = await until(() => R1.msgs.knock?.some((k) => k.target === R1.room.sessionId), 4000);
   const ret = await until(() => R1.corrections && Math.hypot(R1.x - P(clashD.clash.respawn[0]).x, R1.z - P(clashD.clash.respawn[0]).z) < 2, 9000);
-  const fx = [R1, T2].map((b) => b.room.state.players?.get?.(R1.room.sessionId)?.fx).find((v) => v !== undefined) ?? -1;
+  // a volta chega pela correção (imediata) e o bit FX.PROTECTED no patch de estado seguinte (≤ 1 tick): espera o patch
+  const fxOf = () => [R1, T2].map((b) => b.room.state.players?.get?.(R1.room.sessionId)?.fx).find((v) => v !== undefined) ?? -1;
+  await until(() => (fxOf() & 2) === 2, 1500);
+  const fx = fxOf();
   const s3 = (await until(async () => { const c = (await info(G)).clash; return c?.score?.['onda-tricolor'] >= 3 ? c : null; }, 4000)) ?? (await info(G)).clash;
   check('confronto: derrubada entre inscritos pontua para a torcida rival', knocked && s3?.score?.['onda-tricolor'] >= 3, JSON.stringify(s3?.score));
   check('confronto: derrubado volta ao ponto de retorno do grupo, protegido (FX.PROTECTED)', ret && (fx & 2) === 2, `pos ${R1.x.toFixed(1)},${R1.z.toFixed(1)} fx=${fx}`);

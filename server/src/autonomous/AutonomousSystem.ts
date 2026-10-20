@@ -85,6 +85,8 @@ interface Agent {
   nid: number; materialized: boolean; lod: SimLod; dHuman: number;
   goal: Goal; mem: ShortMemory; plan: Plan;
   nextThink: number; lastStep: number; lastFeel: number; nextGesture: number; actUntil: number; act: number; lookNid: number; nextLook: number;
+  /** abrindo caminho para um veículo (makeWay): passos para o lado até `until`, depois volta ao objetivo de antes */
+  yieldTo: { x: number; z: number; fx: number; fz: number; until: number } | null;
   group: Group | null; slot: number;
   vehicleId: string;
   /** confronto em curso; `dir` = coordenado pelo diretor (estágio vem do papel ARGUE/FIGHT + pushUntil) */
@@ -136,6 +138,8 @@ export class HumanizationStats {
   speedSum = 0; speedN = 0; movingMs = 0; stoppedMs = 0; dirChanges = 0;
   paths: number[] = [];
   avoidInterventions = 0; waits = 0; decisions = 0; wallRepaths = 0; giveUps = 0;
+  /** vezes que alguém saiu da frente de um veículo (makeWay) */
+  makeWay = 0;
   arrivals = 0; attacks = 0; attacksDenied = 0; vehicleRides = 0; groupsFormed = 0; groupHeadingSpread: number[] = [];
   perAgentWalk: number[] = [];
   correctionsBy: Record<string, number> = {};
@@ -260,7 +264,7 @@ export class AutonomousSystem implements AutonomousWorldView {
       k: makeKin(p.x, p.z, r.range(-Math.PI, Math.PI)),
       nid: 0, materialized: false, lod: 'DORMANT', dHuman: Infinity,
       goal: { kind: 'IDLE', until: 0, source: 'self' }, mem: {}, plan: this.standPlan(p.x, p.z),
-      nextThink: 0, lastStep: now, lastFeel: 0, nextGesture: now + r.range(2000, 20000), actUntil: 0, act: 0, lookNid: 0, nextLook: 0,
+      nextThink: 0, lastStep: now, lastFeel: 0, nextGesture: now + r.range(2000, 20000), actUntil: 0, act: 0, lookNid: 0, nextLook: 0, yieldTo: null,
       group: null, slot: 0, vehicleId: '', fight: null, stamina: this.moves.staminaMax, condition: 100,
       bornAt: now, leaveAt: now + stay, downSince: 0, gotUpAt: 0,
       st: { activity: 'idle', moving: false, pathStart: null, pathLen: 0, hSample: 0, hAt: 0, avoiding: false, waiting: false }, seq: 0, vx: 0, vz: 0,
@@ -883,6 +887,7 @@ export class AutonomousSystem implements AutonomousWorldView {
     if (a.downSince) { a.downSince = 0; this.afterGetUp(a, now); }
     if (a.fight) { this.fightStep(a, now, dt); return; }
     if (a.vehicleId) { this.driveStep(a, now, dt); return; }
+    if (a.yieldTo) { if (now < a.yieldTo.until) { this.yieldStep(a, now, dt); return; } a.yieldTo = null; } // segue o plano de antes (quem já tinha chegado fica onde está)
     // passeio: chegou e a pausa acabou → próximo ponto
     if (a.plan.mode === 'walk' && a.plan.arrivedAt && now >= a.plan.pauseUntil && a.goal.kind === 'WANDER' && !a.group) { const q = this.pointNear(a.k.x, a.k.z, 10, 50); a.plan = this.walkPlan(q.x, q.z, 1); }
     // destinos que andam: roda caminhando, concentração que se move, centro da torcida
@@ -927,6 +932,46 @@ export class AutonomousSystem implements AutonomousWorldView {
     }
     if (a.lod !== 'FAR') { this.gestures(a, now); this.lookAround(a, now); }
     this.tally(a, this.activityOf(a), dt);
+  }
+
+  /** abrindo caminho: anda rápido até o ponto ao lado do veículo e fica de pé olhando para ele (sem trocar o objetivo) */
+  private yieldStep(a: Agent, now: number, dt: number) {
+    const y = a.yieldTo!;
+    const near = a.lod === 'FAR' ? [] : this.neighbors(a, 3.2);
+    const out = steer(a.k, y.x, y.z, { cruise: a.walk * 1.3, accel: a.accel * 1.5, decel: 3, turnRate: a.turn * 1.3, space: a.space * 0.7, arriveR: 0.35, dt, now, selfId: a.id }, near);
+    let nx = out.x, nz = out.z;
+    if (out.arrived) { faceToward(a.k, y.fx, y.fz, dt, 2); a.k.speed = 0; nx = a.k.x; nz = a.k.z; }
+    else if (near.length) { const c = constrainStep(a.id, a.k.x, a.k.z, nx, nz, near, dt); nx = c.x; nz = c.z; }
+    this.commitMove(a, nx, nz, a.k.speed, now);
+    if (a.lod !== 'FAR') this.lookAround(a, now);
+    this.tally(a, out.arrived ? 'idle' : 'walk', dt);
+  }
+
+  /**
+   * Veículo (dirigido por alguém) encostando num autônomo a pé: ele sai da frente, para o lado mais próximo do eixo do
+   * veículo (o outro se houver parede), e fica ali ~2–3,5 s depois de chegar antes de voltar ao que fazia. A sala continua bloqueando o
+   * veículo enquanto alguém está na frente — ninguém é atravessado; quem dirige só avança devagar, como num cortejo.
+   * vx/vz/heading: veículo; halfW: meia largura da carroceria. Devolve se começou (ou já estava) a abrir caminho.
+   */
+  makeWay(id: string, vx: number, vz: number, heading: number, halfW: number, now = this.host.now()): boolean {
+    const a = this.byId.get(id);
+    if (!a || a.fight || a.vehicleId || a.downSince) return false;
+    if (a.yieldTo && now < a.yieldTo.until - 1500) return true;
+    const sx = Math.cos(heading), sz = -Math.sin(heading); // lateral do veículo (direita)
+    const fx = Math.sin(heading), fz = Math.cos(heading);
+    const dx = a.k.x - vx, dz = a.k.z - vz;
+    const lat = dx * sx + dz * sz, lon = dx * fx + dz * fz;
+    const off = halfW + 1.6 + this.rng.range(0, 0.8); // o steer freia ~0,4 m antes do ponto
+    const first = Math.abs(lat) > 0.15 ? Math.sign(lat) : this.rng.chance(0.5) ? 1 : -1;
+    for (const side of [first, -first]) {
+      const tx = vx + fx * lon + sx * side * off, tz = vz + fz * lon + sz * side * off;
+      if (!this.host.clear(a.k.x, a.k.z, tx, tz)) continue;
+      const walkS = Math.hypot(tx - a.k.x, tz - a.k.z) / Math.max(0.6, a.walk * 1.3) + 0.8; // aceleração
+      a.yieldTo = { x: tx, z: tz, fx: vx, fz: vz, until: now + walkS * 1000 + this.rng.range(2000, 3500) };
+      this.stats.makeWay++;
+      return true;
+    }
+    return false;
   }
 
   /** objetivos em que se fica de pé ao chegar (concentração, roda, briga vista, torcida) */

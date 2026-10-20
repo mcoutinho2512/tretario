@@ -104,7 +104,9 @@ await w(2500);
 {
   const [a, b, c] = await Promise.all([mp(A), mp(B), mp(C)]);
   check('A, B e C conectados à mesma sala', [a, b, c].every((x) => x && x.session));
-  check('cada um vê os outros 2', a.remotes.length === 2 && b.remotes.length === 2 && c.remotes.length === 2, `A:${a.remotes.length} B:${b.remotes.length} C:${c.remotes.length}`);
+  // rodada 12: com o mundo vivo ligado (PV_AUTONOMOUS) os autônomos também são remotos — conta só os humanos
+  const hum = (x) => x.remotes.filter((r) => !r.kind).length;
+  check('cada um vê os outros 2', hum(a) === 2 && hum(b) === 2 && hum(c) === 2, `A:${hum(a)} B:${hum(b)} C:${hum(c)} (remotos ${a.remotes.length}/${b.remotes.length}/${c.remotes.length})`);
   const bodies = Object.fromEntries(a.remotes.map((r) => [r.name, r.body]));
   check('avatares sincronizados (B=mulher, C=idoso vistos por A)', bodies.Jogadora_B === 'mulher' && bodies.Jogador_C === 'idoso', JSON.stringify(bodies));
   const accs = Object.fromEntries(a.remotes.map((r) => [r.name, r.accessory]));

@@ -131,6 +131,15 @@ outros, às vezes, a um a ≤ 12 m) e montam pelo `onEnter` (mesmo `canEnter`); 
 veículo PESSOAL do agente B (`r12pv.spawnPersonalVehicle`, só o dono usa). Dirigindo: velocidade por tipo e pessoa, abaixo
 de 1,9 m/s com gente à frente (nunca atropela), desce (`onExit`, saída segura) ao chegar.
 
+**Abrir caminho (QA de integração da rodada 12).** No modo pacífico um veículo para antes de encostar em quem está a pé
+(`vehicleBlockers` na sala). Com o mundo vivo, os autônomos que dançam em volta do trio (ponto de concentração que anda
+junto) o travavam para sempre: no QA, `trio_mp` com 150 autônomos dava 0 m em 7 s. Agora, quando um autônomo bloqueia
+um veículo dirigido, a sala chama `AutonomousSystem.makeWay`: ele anda depressa para o lado mais próximo do eixo do
+veículo (o outro se houver parede), meia largura + 1,6–2,4 m, fica ali olhando ~2–3,5 s depois de chegar e volta ao
+objetivo de antes (não perde o grupo nem a dança). Ninguém é atravessado: o veículo segue bloqueado enquanto alguém está
+na frente, então anda como num cortejo. Não abre caminho quem está brigando, caído ou num veículo. Contador
+`stats.makeWay`. Resultado: o mesmo trio com 150 autônomos anda 7,3 m em 7 s. Teste: tests/autonomous.test.ts.
+
 ### Nomes
 
 Combinações de `names` (palavra; palavra+sufixo; palavra+número; duas palavras; minúsculas; sublinhado) — nunca série

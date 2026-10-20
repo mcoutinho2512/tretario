@@ -72,6 +72,8 @@ function socialOf(s: { act: number; actAt: number; actVar: number; prop: number;
 interface Snapshot { t: number; x: number; y: number; z: number; heading: number; speed: number; loco: number; vehicle: string; platform: string; plx: number; plz: number; plh: number }
 
 export interface RemoteInfo {
+  /** rodada 12 — tipo de entidade (src/world/entityKind.ts): 0 humano · 1 autônomo · 2 bot de carga */
+  kind: number;
   id: string; name: string; body: string; accessory: string;
   x: number; z: number; speed: number; interaction: string; status: number; vehicle: string;
   /** rodada 9: altura desenhada (pulo visto pelos outros) */
@@ -1122,7 +1124,7 @@ export class NetworkClient {
   remotesInfo(): RemoteInfo[] {
     return [...this.remotes.values()].map((r) => {
       const c = r.buf[r.buf.length - 1];
-      return { id: r.id, name: r.name, body: r.body, accessory: r.accessory, x: +r.state.x.toFixed(2), y: +r.state.y.toFixed(2), z: +r.state.z.toFixed(2), speed: +r.state.speed.toFixed(2), interaction: r.interaction, status: r.status, vehicle: r.vehicle, platform: r.platform, plx: +(c?.plx ?? 0).toFixed(3), plz: +(c?.plz ?? 0).toFixed(3), wx: +(c?.x ?? 0).toFixed(2), wz: +(c?.z ?? 0).toFixed(2), link: r.link,
+      return { id: r.id, kind: r.kind, name: r.name, body: r.body, accessory: r.accessory, x: +r.state.x.toFixed(2), y: +r.state.y.toFixed(2), z: +r.state.z.toFixed(2), speed: +r.state.speed.toFixed(2), interaction: r.interaction, status: r.status, vehicle: r.vehicle, platform: r.platform, plx: +(c?.plx ?? 0).toFixed(3), plz: +(c?.plz ?? 0).toFixed(3), wx: +(c?.x ?? 0).toFixed(2), wz: +(c?.z ?? 0).toFixed(2), link: r.link,
         act: r.soc.act, actPhase: +socialOf(r.soc).phase.toFixed(2), prop: r.soc.prop, design: r.soc.design,
         visualAct: r.visual ? r.visual.social.act : null, visualProp: r.visual ? r.visual.social.prop : null,
         fx: r.fx, fxVisual: r.visual ? r.visual.fxDebug : null };

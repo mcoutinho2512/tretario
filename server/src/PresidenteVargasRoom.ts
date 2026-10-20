@@ -1383,7 +1383,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     const prevX = r.last.x, prevZ = r.last.z;
     if (veh) {
       // MODO PACÍFICO: veículo não atravessa nem derruba ninguém — para antes de encostar (validado aqui)
-      const blk = this.vehicleBlockers(client.sessionId, veh.kind as VehicleKind, prevX, prevZ, res.x, res.z);
+      const blk = this.vehicleBlockers(client.sessionId, veh.kind as VehicleKind, prevX, prevZ, res.x, res.z, m.heading);
       if (blk.length) {
         const b = vehicleBlock(veh.kind as VehicleKind, { x: prevX, z: prevZ }, { x: res.x, z: res.z }, m.heading, blk);
         if (b.blocked) { res.x = b.x; res.z = b.z; res.ok = false; res.reason = 'bloqueado'; }
@@ -1704,7 +1704,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
    * jogadores a pé que BLOQUEIAM este veículo: todos, exceto quando o atropelamento é permitido (motorista e alvo em
    * modo interação, alvo de pé e sem imunidade, e só carro/moto). Candidatos pela grade espacial.
    */
-  private vehicleBlockers(driverId: string, kind: VehicleKind, px: number, pz: number, x: number, z: number) {
+  private vehicleBlockers(driverId: string, kind: VehicleKind, px: number, pz: number, x: number, z: number, heading = 0) {
     const d = this.rt.get(driverId);
     const now = Date.now();
     const out: { x: number; z: number }[] = [];
@@ -1716,7 +1716,11 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
       if (!a || a.vehicle || a.platform) return; // em veículo ou em cima do trio: não está no chão
       const canHit = (kind === 'car' || kind === 'moto') && !!d && impactAllowed(d.actor.mode, a.mode, world().combatRules.combatConsent) && a.status === STATUS.OK && now >= a.immuneUntil
         && this.combat.pushPolicy(driverId, id).ok; // rodada 9: impacto negado (evento/proteção) → o carro PARA (bloqueia), como para pacífico
-      if (!canHit) out.push({ x: a.x, z: a.z });
+      if (!canHit) {
+        out.push({ x: a.x, z: a.z });
+        // rodada 12 — autônomo na frente de um veículo dirigido: abre caminho (continua bloqueando até sair da frente)
+        if (this.auto && this.rt.get(id)?.auto) this.auto.makeWay(id, x, z, heading, VEHICLE_BOX[kind].width / 2, now);
+      }
     });
     return out;
   }

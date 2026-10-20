@@ -192,6 +192,24 @@ describe('rodada 12 — autônomos: diretor de eventos (propose) e confronto', (
     expect(host.log.exits).toBeGreaterThan(0);
   });
 
+  it('abre caminho para um veículo dirigido (makeWay): sai da frente para o lado e depois volta ao que fazia', () => {
+    const { host, sys, run } = world(1, { config: only('SOCIAL') });
+    host.addHuman('h', 0, -6);
+    const a = sys.agents[0];
+    sys.place(a.id, 0.3, 4); // na frente de um trio parado em (0,0) virado para +z
+    run(5);
+    sys.force(a.id, 'IDLE');
+    run(2);
+    expect(sys.makeWay(a.id, 0, 0, 0, 1.6, host.now())).toBe(true);
+    run(40); // 4 s
+    const p = host.state(a.id)!;
+    expect(Math.abs(p.x)).toBeGreaterThan(1.6 + 0.32 + 0.4); // fora da carroceria (meia largura + raio do corpo + folga)
+    expect(sys.stats.makeWay).toBe(1);
+    expect(sys.debug(a.id)!.goal).toBe('IDLE'); // não perdeu o objetivo
+    // brigando ou num veículo: não sai
+    expect(sys.makeWay('nao-existe', 0, 0, 0, 1.6)).toBe(false);
+  });
+
   it('briga pelas regras do CombatSystem: aceitos, nunca spam, com pausa humana; heat() mede golpes e combatentes', () => {
     const { host, sys, run } = world(2, { config: only('CONFRONTADOR') });
     host.addHuman('h', 0, 12);

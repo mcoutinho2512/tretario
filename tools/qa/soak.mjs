@@ -32,6 +32,14 @@
  * roupa, acesso rápido (1–3 aperta e guarda), menu do jogo e ajustes pelo Esc; amostra também `pointerLock` (tem
  * de ser sempre nulo), camadas do Esc e o inventário (renderer de prévia, aberto/fechado).
  *
+ * Rodada 12 (SOAK_R12=1, implica SOAK_R11): mundo vivo — o servidor de teste sobe com PV_AUTONOMOUS (padrão 180)
+ * personagens autônomos e o diretor de eventos dinâmicos; passos: veículo pessoal (patinete/bicicleta/moto/carro
+ * pedidos pela seleção → aparece → anda → desce), andar no meio dos autônomos (colisão entre corpos), provocar o
+ * autônomo mais próximo (soco/chute → revide/fuga), forçar focos (concentração, encontro de torcidas, discussão,
+ * briga, caminhada, festa) perto do jogador e assistir; amostra também a população/LOD dos autônomos, o custo da IA e
+ * da colisão no tick (/metrics), corpos na grade, focos `dyn` ativos, nomes (rótulos em uso/pool/DOM), veículos
+ * pessoais existentes e autônomos a ≤ 80 m.
+ *
  * uso (com o dev server): node tools/qa/soak.mjs [minutos=60] [tag=soak] [bots=60]
  */
 import puppeteer from 'puppeteer-core';
@@ -45,7 +53,8 @@ const BOTS = Number(process.argv[4] ?? 60);
 const BASE = process.env.BASE ?? 'http://localhost:5173';
 const PORT = Number(process.env.PV_SOAK_PORT ?? 2690);
 const SAMPLE_S = Number(process.env.SOAK_SAMPLE_S ?? 120);
-const R11 = process.env.SOAK_R11 === '1';
+const R12 = process.env.SOAK_R12 === '1';
+const R11 = process.env.SOAK_R11 === '1' || R12;
 const R10 = process.env.SOAK_R10 === '1' || R11;
 const R9 = process.env.SOAK_R9 === '1' || R10;
 const chrome = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
@@ -64,7 +73,7 @@ process.on('SIGINT', () => { cleanup(); process.exit(130); });
 
 // rodada 9.1: token de admin só do servidor de TESTE do soak — amostra a memória do SERVIDOR por /internal/health
 const QA_ADMIN = 'soak-admin-token-0123456789abcdef0123456789';
-const srv = start('npx', ['tsx', 'src/index.ts'], { PORT: String(PORT), PV_TEST: '1', PV_STORE: 'memory', PV_METRICS: '0', PV_ADMIN_TOKEN: QA_ADMIN });
+const srv = start('npx', ['tsx', 'src/index.ts'], { PORT: String(PORT), PV_TEST: '1', PV_STORE: 'memory', PV_METRICS: '0', PV_ADMIN_TOKEN: QA_ADMIN, ...(R12 ? { PV_AUTONOMOUS: process.env.PV_AUTONOMOUS ?? '180' } : {}) });
 const log = [];
 srv.stdout.on('data', (d) => log.push(d.toString()));
 for (let i = 0; i < 150 && !log.join('').includes('[pv3d-server]'); i++) await w(200);
@@ -141,6 +150,11 @@ const heap = async () => {
     if (R10) {
       const a = await page.evaluate(() => { const q = window.__pv.audio?.(); return q ? { audioState: q.ctxState, audioNodesLive: q.counters.nodesLive, audioNodesCreated: q.counters.nodesCreated, audioSourcesLive: q.counters.sourcesLive, audioPeakNodes: q.counters.peakNodes, audioLoopsReal: q.loops.real, audioLoopsLogical: q.loops.logical, audioCrowdVoices: q.crowd.voices } : {}; }).catch(() => ({}));
       Object.assign(r9, a);
+    }
+    if (R12) {
+      try { const r = await fetch(`http://127.0.0.1:${PORT + 1}/metrics`); if (r.ok) { const m = await r.json(); Object.assign(r9, { autoPop: m.autonomousPopulation, autoActive: m.autonomousActive, autoNear: m.autonomousNear, autoDormant: m.autonomousDormant, aiMs: m.aiMs, aiMaxMs: m.aiMaxMs, aiDecisionsPerSec: m.aiDecisionsPerSec, collisionMs: m.collisionMs, collisionBodies: m.collisionBodies, neighborQueries: m.neighborQueries, srvTick: m.tickAvgMs, srvTickMax: m.tickMaxMs }); } } catch { /* sem /metrics */ }
+      const c = await page.evaluate(() => { const L = window.__pvR12?.labels?.() ?? {}; const p = window.__pv.metrics().player; return { labelsInUse: L.inUse ?? null, labelsPool: L.pool ?? null, labelsDom: L.domNodes ?? null, labelsShown: L.shownNames?.length ?? null, dynEvents: (window.__pvEvents?.dyn ?? []).length, pveh: window.__pvPveh?.dynamic?.().length ?? null, autoNear80: window.__pvEvents?.net?.autonomousNear?.(p.x, p.z, 80) ?? null }; }).catch(() => ({}));
+      Object.assign(r9, c);
     }
     if (R11) {
       const b = await page.evaluate(() => ({ pointerLock: document.pointerLockElement ? 1 : 0, escLayers: window.__pv.input?.()?.esc?.length ?? null, invOpen: window.__pvInv?.info?.()?.open ? 1 : 0, preview: JSON.stringify(window.__pvInv?.info?.()?.preview ?? null).slice(0, 120) })).catch(() => ({}));
@@ -242,6 +256,42 @@ function r11Steps() {
   ];
 }
 
+// rodada 12: veículo pessoal, multidão de autônomos (colisão), provocação, focos dinâmicos
+function r12Steps() {
+  const kinds = ['scooter', 'bicycle', 'moto', 'car'];
+  let kv = 0, kd = 0;
+  const nearestAuto = () => ev(() => { const n = window.__pvEvents?.net, p = window.__pv.metrics().player; if (!n) return null; let best = null, bd = 1e9; for (const r of n.remotes.values()) { if (r.kind !== 1) continue; const d = Math.hypot(r.state.x - p.x, r.state.z - p.z); if (d < bd) { bd = d; best = { x: r.state.x, z: r.state.z, d }; } } return best; });
+  const force = (kind) => ev((k) => window.__pvInv?.send('qa_dyn', { kind: k }), kind);
+  return [
+    // veículo pessoal: seleção → aparece → anda → desce (o servidor recolhe 45 s depois do abandono)
+    async () => {
+      const k = kinds[kv++ % kinds.length];
+      await ev((k) => window.__pvPveh?.request(k), k); await w(2500);
+      await ev(() => window.__pv.press('KeyW', 3500)); await w(1000); await ev(() => window.__pv.press('KeyD', 900)); await w(3000);
+      await ev((k) => window.__pvPveh?.toggle(k), k); await w(1500);
+    },
+    // anda através do grupo de autônomos mais próximo (colisão entre corpos, desvio)
+    async () => {
+      const a = await nearestAuto();
+      if (a && !a.err) { await ev((x, z) => window.__pv.teleport(x - 6, z, Math.PI / 2), a.x, a.z); await w(1200); await ev(() => window.__pv.press('KeyW', 5000)); await w(5500); }
+    },
+    // provoca o autônomo mais próximo (soco/chute) e assiste à reação
+    async () => {
+      const a = await nearestAuto();
+      if (a && !a.err && a.d < 120) {
+        await ev((x, z) => window.__pv.teleport(x - 1.1, z, Math.PI / 2), a.x, a.z); await w(1500);
+        for (const c of ['cbt_punch', 'cbt_punch', 'cbt_kick']) { await ev((c) => window.__pv.cbt(c), c); await w(800); }
+        await w(6000);
+      }
+    },
+    // foco dinâmico forçado perto do jogador e assistido de perto por ~20 s
+    async () => {
+      const k = ['CONCENTRACAO', 'ENCONTRO_TORCIDAS', 'DISCUSSAO', 'BRIGA', 'CAMINHADA', 'FESTA', 'BRIGA_GENERALIZADA'][kd++ % 7];
+      await force(k); await w(8000); await ev(() => window.__pv.press('KeyS', 1500)); await w(12000);
+    },
+  ];
+}
+
 const steps = [
   // zonas e multidão
   ...zones.map((z) => async () => { const [x, zz, h] = along(z.anchor?.t ?? (z.from + z.to) / 2, 10); await ev((x, z, h) => window.__pv.teleport(x, z, h), x, zz, h); }),
@@ -280,6 +330,7 @@ const steps = [
   ...(R9 ? r9Steps() : []),
   ...(R10 ? r10Steps() : []),
   ...(R11 ? r11Steps() : []),
+  ...(R12 ? r12Steps() : []),
   // longe de tudo (descarrega multidão/LOD) e volta
   async () => { const [x, z, h] = along(0.05, 0); await ev((x, z, h) => window.__pv.teleport(x, z, h), x, z, h); },
 ];
@@ -343,7 +394,7 @@ const summary = {
   // rodada 9.1: inclinações por minuto nos últimos 15 e 20 min (heap, GPU, GPU sem os alvos da resolução dinâmica, nós)
   slopesPerMin: Object.fromEntries([15, 20].map((n) => [`last${n}`, Object.fromEntries(['usedMB', 'gpuMB', 'gpuNoPostMB', 'nodes'].map((k) => [k, slope(Math.max(0, MIN - n), MIN, k)]))])),
   gpu: { first: gpuVals[0] ?? null, last: gpuVals.at(-1) ?? null, max: gpuVals.length ? Math.max(...gpuVals) : null },
-  ...(R9 ? { r9: Object.fromEntries(['pointerLock', 'escLayers', 'invOpen', 'rawMB', 'listeners', 'nodes', 'intervals', 'ragdolls', 'remotes', 'items', 'srvHeapMB', 'srvRssMB', 'srvWs', 'srvPlayers', 'srvTickMs'].map((k) => { const v = samples.map((s) => s[k]).filter((x) => typeof x === 'number'); return [k, v.length ? { first: v[0], last: v.at(-1), min: Math.min(...v), max: Math.max(...v) } : null]; })) } : {}),
+  ...(R9 ? { r9: Object.fromEntries(['autoPop', 'autoActive', 'aiMs', 'collisionMs', 'collisionBodies', 'srvTick', 'srvTickMax', 'labelsInUse', 'labelsPool', 'labelsDom', 'dynEvents', 'pveh', 'autoNear80', 'pointerLock', 'escLayers', 'invOpen', 'rawMB', 'listeners', 'nodes', 'intervals', 'ragdolls', 'remotes', 'items', 'srvHeapMB', 'srvRssMB', 'srvWs', 'srvPlayers', 'srvTickMs'].map((k) => { const v = samples.map((s) => s[k]).filter((x) => typeof x === 'number'); return [k, v.length ? { first: v[0], last: v.at(-1), min: Math.min(...v), max: Math.max(...v) } : null]; })) } : {}),
 };
 summary.verdict = summary.slopeMBperMin.last30 !== null && Math.abs(summary.slopeMBperMin.last30) < 0.1 ? 'ESTABILIZOU (aquecimento de cache)' : 'CONTINUA CRESCENDO — investigar';
 writeFileSync(`screenshots/soak/${TAG}.json`, JSON.stringify({ summary, samples }, null, 1));
