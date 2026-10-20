@@ -441,6 +441,7 @@ export class PedestrianSystem implements NpcHittable {
     // população
     while (this.peds.length < this.max) this.peds.push(this.create(this.peds.length));
     const camFwd = this.tmp.set(0, 0, -1).applyQuaternion(camera.quaternion).clone();
+    camera.updateMatrixWorld(); // rodada 12: rumo deste quadro, não o do render anterior (ver CrowdDirector.end)
     this.projScreen.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
     this.frustum.setFromProjectionMatrix(this.projScreen);
     const cx = player.x, cz = player.z;

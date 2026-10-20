@@ -76,6 +76,10 @@ export class CrowdDirector {
 
   end(camera: THREE.Camera, dt: number) {
     const t0 = performance.now();
+    // rodada 12: a câmera da 3ª pessoa já foi movida/girada neste quadro (lookAt), mas matrixWorldInverse só seria
+    // atualizada no render — o frustum saía com o rumo do quadro ANTERIOR e, num giro rápido ou teleporte, quem entrava
+    // na tela ficava 1 quadro sem esqueleto visível nem instância (tools/qa/remote_visibility_mp.mjs)
+    camera.updateMatrixWorld();
     this.m.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
     this.frustum.setFromProjectionMatrix(this.m);
     const cx = camera.position.x, cy = camera.position.y, cz = camera.position.z;

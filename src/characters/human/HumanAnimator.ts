@@ -609,6 +609,9 @@ export class HumanAnimator {
   strideScale = 1;
 
   update(speed: number, grounded: boolean, dt: number) {
+    // rodada 12: velocidade/dt não finitos (amostra de rede incompleta) zeravam a malha para sempre — ver gaitStep.ts
+    if (!Number.isFinite(speed)) speed = 0;
+    if (!Number.isFinite(dt) || dt < 0) dt = 0;
     this.t += dt;
     speed /= this.strideScale * this.vary.stride; // rodada 12 — passada própria (cadência por pessoa)
     const targets: Record<string, number> = {};
@@ -719,6 +722,8 @@ export class HumanAnimator {
    * ossos que ele mexe são salvos (`saveAdjusted`) e voltam à pose do clipe no quadro seguinte. Sem `mount`: antigo.
    */
   updateRiding(pose: RidePose, speed: number, dt: number, mount?: RideMount) {
+    if (!Number.isFinite(speed)) speed = 0;
+    if (!Number.isFinite(dt) || dt < 0) dt = 0;
     this.t += dt;
     const targets: Record<string, number> = {};
     for (const k of this.act.keys()) targets[k] = 0;
@@ -791,7 +796,8 @@ export class HumanAnimator {
     for (const [name, a] of this.act) {
       if (this.oneShot?.name === name) continue; // a ação curta controla o próprio peso (applyOneShot)
       const tgt = targets[name] ?? 0;
-      const cur = this.w[name] + (tgt - this.w[name]) * k;
+      // peso não finito (estado contaminado antes da rodada 12) recomeça do alvo em vez de ficar NaN para sempre
+      const cur = Number.isFinite(this.w[name]) ? this.w[name] + (tgt - this.w[name]) * k : tgt;
       this.w[name] = cur < 0.002 && tgt === 0 ? 0 : cur;
       a.setEffectiveWeight(this.w[name]);
     }
