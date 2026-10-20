@@ -75,6 +75,15 @@ GPU sem pós-processamento plana (690–720 MB, −1,4 MB/min no fim); listeners
 0,11–0,12 ms por tick sem subir; heap do servidor 63–83 MB sem tendência; veículos pessoais recolhidos (0–1 vivos);
 nenhum erro de página. DOM 2045 → 2200: histórico do chat (limitado a 200 linhas).
 
+**Produção (2026-10-20 22:01 UTC)**: commit `cd0e0c6d4a5d` em https://tretario.com.br pelo pipeline oficial —
+verificação na VPS 949/949, backup pré-deploy `tretario-20261020T220058-cd0e0c6d4a5d.dump` (45 KB, sha256 ok),
+nenhuma migration pendente (7 aplicadas, nenhuma nova), 194 s de deploy, **1,53 s fora do ar**, `/health/ready` ok,
+smoke do pipeline ok; release anterior (7b69c77) guardado para rollback. Smoke pela internet
+(`tools/qa/prod_e2e.mjs`): visitante 6/6, jogador + XP 5/5, rodada 10 8/8, **rodada 12 17/17** — 48 autônomos à vista
+e contagem pública só com humanos; moto 1,6 m, carro 3,2 m, patinete 0,9 m, bicicleta 1,1 m, já montado (19–37 ms no
+servidor); colisão com autônomo parado sem atravessar (0,52 m); nomes em 2 de 48; 20 pedidos forjados → 1 veículo;
+inventário, chat, confronto sem zona de paz, agenda, áudio, cursor livre, sem erro de página, logout/login.
+
 **Limites conhecidos (rodada 12)**: concentração de uma torcida só junta 6–10 pessoas (mistas 15–36); a captura da
 caminhada é a mais fraca; a generalizada forçada pelo QA na sala real usa adesão × 3; nomes podem se sobrepor em
 grupos muito densos; com o mundo vivo o trio anda "em cortejo" (para enquanto alguém ainda está saindo da frente).

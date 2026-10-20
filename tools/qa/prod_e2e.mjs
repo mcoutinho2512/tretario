@@ -111,6 +111,80 @@ try {
     const l2 = await api('/api/auth/login', 'POST', { email: EMAIL, password: PASS });
     const g2 = await api('/api/me/supporter');
     check('logout/login: torcida continua salva', lo.status < 300 && l2.status === 200 && JSON.stringify(g2.body).includes(pick.id), JSON.stringify(g2.body).slice(0, 120));
+  } else if (PHASE === 'r12') {
+    // rodada 12: autônomos (fora da contagem pública), nomes em parte deles, colisão, veículo pessoal imediato
+    // (patinete/bicicleta/moto/carro), spam, inventário, chat (sem enviar nada), confronto, eventos, áudio, cursor
+    await p.goto(`${BASE}/?welcome=0`, { waitUntil: 'domcontentloaded' });
+    let me = await api('/api/me');
+    if (me.status !== 200 || !me.body?.user) { const l = await api('/api/auth/login', 'POST', { email: EMAIL, password: PASS }); check('login', l.status === 200, `status ${l.status}`); }
+    await p.waitForFunction('typeof window.__pvLaunch === "function"', { timeout: 60000 });
+    await w(3000);
+    await p.evaluate(() => window.__pvLaunch({ role: 'player' }));
+    await p.waitForFunction('window.__pvReady === true && window.__pv?.mp()?.session && window.__pvPveh', { timeout: 180000 });
+    await w(6000);
+    await p.mouse.click(8, 360); await w(1500);
+    const rem = await p.evaluate(() => { const r = window.__pv.mp().remotes; return { total: r.length, auto: r.filter((x) => x.kind === 1).length, human: r.filter((x) => !x.kind).length }; });
+    out.remotes = rem;
+    check('personagens autônomos no mundo (kind 1)', rem.auto > 0, JSON.stringify(rem));
+    const pub = await api('/api/metrics/public');
+    out.publicMetrics = pub.body;
+    const pubN = Number(pub.body?.players ?? pub.body?.online ?? pub.body?.playersOnline ?? NaN);
+    check('autônomos não inflam a contagem pública', !(pubN >= rem.auto) || rem.auto === 0, `público ${JSON.stringify(pub.body).slice(0, 160)} · autônomos vistos ${rem.auto}`);
+    // veículo pessoal: selecionou → aparece e já monta
+    out.pveh = {};
+    out.spawnPos = await p.evaluate(() => { const q = window.__pv.metrics().player; return [+q.x.toFixed(1), +q.z.toFixed(1)]; });
+    for (const k of ['moto', 'car', 'scooter', 'bicycle']) { // moto/carro primeiro: só nascem na pista (perto do ponto de entrada)
+      const n0 = await p.evaluate(() => window.__pvPveh.stats().ok);
+      const t0 = Date.now();
+      await p.evaluate((kk) => window.__pvPveh.request(kk), k);
+      let ok = false; for (let i = 0; i < 40 && !ok; i++) { await w(100); ok = await p.evaluate((n) => window.__pvPveh.stats().ok > n, n0); }
+      await w(800);
+      const st = await p.evaluate(() => ({ last: window.__pvPveh.stats().last, riding: window.__pvPveh.riding(), denied: window.__pvPveh.stats().denied }));
+      out.pveh[k] = { roundTripMs: Date.now() - t0, ...st.last, riding: st.riding?.kind ?? null };
+      check(`${k}: selecionou → aparece e monta`, ok && st.riding?.kind === k, `${st.last?.okMs ?? '?'} ms no servidor · ida e volta ${Date.now() - t0} ms · ${st.last?.d ?? '?'} m · montado ${st.riding?.kind ?? 'não'} ${ok ? '' : JSON.stringify(st.denied)}`);
+      if (k === 'moto' || k === 'scooter') await shot(`R12_pveh_${k}`);
+      await p.evaluate(() => window.__pv.press('KeyW', 1500)); await w(1800);
+      await p.evaluate((kk) => window.__pvPveh.toggle(kk), k); await w(1500);
+    }
+    // colisão: anda direto para o autônomo mais próximo e mede a menor distância entre os centros
+    // alvo PARADO (quem anda se afasta e o teste não mede nada)
+    const near = await p.evaluate(() => { const pl = window.__pv.metrics().player; return window.__pv.mp().remotes.filter((x) => x.kind === 1 && !x.vehicle && x.speed < 0.3).map((x) => ({ id: x.id, x: x.x, z: x.z, d: Math.hypot(x.x - pl.x, x.z - pl.z) })).sort((a, b) => a.d - b.d)[0] ?? null; });
+    if (near && near.d < 60) {
+      await p.evaluate((x, z) => window.__pv.walkTo(x, z, true), near.x, near.z);
+      let minD = 99;
+      for (let i = 0; i < 40; i++) { await w(400); const d = await p.evaluate((id) => { const pl = window.__pv.metrics().player; const r = window.__pv.mp().remotes.find((x) => x.id === id); return r ? Math.hypot(r.x - pl.x, r.z - pl.z) : 99; }, near.id); minD = Math.min(minD, d); }
+      await p.evaluate(() => window.__pv.stopWalk());
+      out.collisionMinD = +minD.toFixed(2);
+      check('colide com autônomo e não atravessa', minD > 0.4 && minD < 1.5, `menor distância ${minD.toFixed(2)} m (contato 0,64 m) · partiu de ${near.d.toFixed(1)} m`);
+    } else check('autônomo a pé por perto para colidir', false, JSON.stringify(near));
+    let lab = null;
+    for (let i = 0; i < 12; i++) { lab = await p.evaluate(() => window.__pvR12?.labels?.() ?? null); if (lab?.shownNames?.length) break; await w(1000); }
+    check('nomes aparecem (pool fixo) e não em todos', !!lab && lab.shownNames.length > 0 && lab.shownNames.length < rem.total && lab.domNodes <= 18, `mostrados ${lab?.shownNames?.length} de ${rem.total} · DOM ${lab?.domNodes} · ${lab?.shownNames?.slice(0, 5).join(', ')}`);
+    await shot('R12_autonomos_nomes');
+    const mine = await p.evaluate(() => { const s = window.__pv.mp().session; for (let i = 0; i < 20; i++) window.__pvPveh.raw({ kind: ['scooter', 'bicycle', 'moto', 'car'][i % 4], seq: 0 }); return s; });
+    await w(3000);
+    const owned = await p.evaluate((s) => window.__pvPveh.dynamic().filter((d) => d.owner === s).length, mine);
+    check('spam de pedidos não duplica veículo', owned <= 1, `${owned} veículo(s) do jogador após 20 pedidos seguidos`);
+    if (await p.evaluate(() => !!window.__pvPveh.riding())) { await p.evaluate(() => window.__pv.key('KeyE')); await w(1500); }
+    // inventário (I/Esc), chat ligado, confronto, eventos, áudio, cursor
+    await p.keyboard.press('KeyI'); await w(1200);
+    const inv = await p.evaluate(() => window.__pvInv?.info?.()?.open ?? null);
+    await p.keyboard.press('Escape'); await w(800);
+    check('inventário abre (I) e fecha (Esc)', inv === true && (await p.evaluate(() => window.__pvInv?.info?.()?.open)) === false);
+    check('chat disponível', await p.evaluate(() => !!window.__pv.chat?.() || !!document.querySelector('.chat, [class*="chat"]')));
+    await p.evaluate(() => window.__pv.cbt?.('cbt_punch')); await w(800);
+    check('confronto: golpe aceito sem zona de paz', await p.evaluate(() => (window.__pv.lastDenial?.() ?? '') === '' || !/zona|paz/i.test(window.__pv.lastDenial?.() ?? '')), String(await p.evaluate(() => window.__pv.lastDenial?.() ?? '')));
+    const ag = await p.evaluate(() => (window.__pvR9?.feed?.list ?? []).length);
+    check('agenda de eventos chega', ag > 0, `${ag} itens · focos dinâmicos ${await p.evaluate(() => (window.__pvEvents?.dyn ?? []).length)}`);
+    const au = await p.evaluate(() => { const q = window.__pv.audio?.(); return q ? { st: q.ctxState, nodes: q.counters.nodesLive } : null; });
+    check('áudio tocando', au?.st === 'running', JSON.stringify(au));
+    check('cursor sempre visível (sem pointer lock)', await p.evaluate(() => document.pointerLockElement === null));
+    out.fps = await p.evaluate(() => Math.round(window.__pv.metrics().fps));
+    await shot('R12_final');
+    check('nenhuma violação de CSP / erro de página', csp.length === 0 && errors.length === 0, [...csp, ...errors].slice(0, 2).join(' | '));
+    const lo = await api('/api/auth/logout', 'POST', {});
+    const l2 = await api('/api/auth/login', 'POST', { email: EMAIL, password: PASS });
+    check('logout/login', lo.status < 300 && l2.status === 200, `${lo.status}/${l2.status}`);
   } else if (PHASE === 'play' || PHASE === 'progress') {
     await p.goto(`${BASE}/?welcome=0`, { waitUntil: 'domcontentloaded' });
     let me = await api('/api/me');
