@@ -16,11 +16,14 @@ import { CombatSystem } from '../combat/CombatSystem';
 import { CombatTable, parseCombatData } from '../../../src/combat/data';
 import { PROP_BY_ID } from '../../../src/social/props';
 import { RALLY_SHAPE } from '../../../src/social/rally';
+import { autonomousConfig } from './config';
 
 export interface SimEntity {
   id: string; nid: number; human: boolean; look?: AgentLook;
   x: number; z: number; heading: number; speed: number; loco: number; status: number; vehicle: string;
   last: { x: number; y: number; z: number; t: number }; social: ActionActor; downAt: number; rest: { x: number; z: number } | null; look_: number;
+  /** proteção de retorno até (ms) — como a sala: 5 s ao aparecer e ao levantar (Actor.immuneUntil) */
+  immuneUntil: number;
 }
 
 export interface SimHostOptions {
@@ -56,7 +59,7 @@ export class SimHost implements AutonomousHost {
     for (const v of o.vehicles ?? []) this.vehicles.set(v.id, { ...v, occupant: '', state: VEHICLE_STATE.AVAILABLE });
     const data = parseCombatData(JSON.parse(readFileSync(fileURLToPath(new URL('../../../public/gameplay/combat.json', import.meta.url)), 'utf8')));
     this.cs = new CombatSystem(new CombatTable(data), {
-      actor: (sid) => { const e = this.ents.get(sid); return e ? { x: e.x, z: e.z, heading: e.heading, status: e.status, vehicle: e.vehicle, platform: '', mode: 'pacifico', prop: e.social.prop, immuneUntil: 0, nid: e.nid } : undefined; },
+      actor: (sid) => { const e = this.ents.get(sid); return e ? { x: e.x, z: e.z, heading: e.heading, status: e.status, vehicle: e.vehicle, platform: '', mode: 'pacifico', prop: e.social.prop, immuneUntil: e.immuneUntil, nid: e.nid } : undefined; },
       forEachNear: (x, z, r, fn) => { for (const e of this.ents.values()) if (Math.hypot(e.x - x, e.z - z) <= r) fn(e.id); },
       walls: o.walls ?? null,
       zoneOf: () => 'SIM',
@@ -103,7 +106,7 @@ export class SimHost implements AutonomousHost {
     this.t += ms;
     for (const e of this.ents.values()) {
       if (e.status === STATUS.DOWN && this.t >= e.downAt + RULES.downMs) e.status = STATUS.GETUP;
-      if (e.status === STATUS.GETUP && this.t >= e.downAt + RULES.downMs + RULES.getupMs) { e.status = STATUS.OK; e.last = { x: e.x, y: 0, z: e.z, t: this.t }; }
+      if (e.status === STATUS.GETUP && this.t >= e.downAt + RULES.downMs + RULES.getupMs) { e.status = STATUS.OK; e.immuneUntil = this.t + RULES.immuneMs; e.last = { x: e.x, y: 0, z: e.z, t: this.t }; }
       if (e.social.act && (e.status !== STATUS.OK || onceFinished(e.social, this.t))) { e.social.act = 0; e.social.actAt = this.t; }
     }
     this.cs.update(ms);
@@ -118,6 +121,7 @@ export class SimHost implements AutonomousHost {
   addHuman(id: string, x: number, z: number, heading = 0): SimEntity {
     const e = this.entity(id, true, x, z, heading);
     this.cs.join(id);
+    e.immuneUntil = this.cs.protectMsFrom(this.t);
     return e;
   }
   moveHuman(id: string, x: number, z: number, heading?: number) {
@@ -134,7 +138,7 @@ export class SimHost implements AutonomousHost {
   }
 
   private entity(id: string, human: boolean, x: number, z: number, heading: number, look?: AgentLook): SimEntity {
-    const e: SimEntity = { id, nid: this.nextNid++, human, look, x, z, heading, speed: 0, loco: 0, status: 0, vehicle: '', last: { x, y: 0, z, t: this.t }, social: { act: 0, actAt: 0, prop: 0, design: 0, status: 0, vehicle: '', recent: [], ent: {} }, downAt: 0, rest: null, look_: 0 };
+    const e: SimEntity = { id, nid: this.nextNid++, human, look, x, z, heading, speed: 0, loco: 0, status: 0, vehicle: '', last: { x, y: 0, z, t: this.t }, social: { act: 0, actAt: 0, prop: 0, design: 0, status: 0, vehicle: '', recent: [], ent: {} }, downAt: 0, rest: null, look_: 0, immuneUntil: 0 };
     this.ents.set(id, e);
     return e;
   }
@@ -150,6 +154,7 @@ export class SimHost implements AutonomousHost {
     const e = this.entity(id, false, x, z, heading, look);
     if (look.prop && validateProp(e.social, look.prop, look.design, this.t).ok) applyProp(e.social, look.prop, look.design, this.t);
     this.cs.join(id);
+    e.immuneUntil = this.cs.protectMsFrom(this.t); // proteção de retorno ao aparecer (como autoSpawn → combatJoin)
     this.log.spawns++;
     return e.nid;
   }
@@ -214,13 +219,13 @@ export class SimHost implements AutonomousHost {
 }
 
 /** pontos de concentração do manifesto (palco, caminhões, telões, spawn) — mesmos dados que a sala usa */
-export function manifestHotspots(m: { eventSpots?: { id: string; kind: string; x: number; z: number; heading: number }[]; spawn?: { p: [number, number] } }): Hotspot[] {
+export function manifestHotspots(m: { eventSpots?: { id: string; kind: string; x: number; z: number; heading: number }[]; spawn?: { p: [number, number] } }, hw = autonomousConfig().hotspotWeights): Hotspot[] {
   const out: Hotspot[] = [];
   for (const s of m.eventSpots ?? []) {
-    if (s.kind === 'stage') { const S = RALLY_SHAPE.stage; out.push({ id: s.id, kind: 'stage', x: s.x + Math.sin(s.heading) * S.front, z: s.z + Math.cos(s.heading) * S.front, inner: S.inner, radius: S.radius, weight: 1.3, heading: s.heading }); }
-    else if (s.kind === 'truck') { const T = RALLY_SHAPE.truck; out.push({ id: s.id, kind: 'truck', x: s.x, z: s.z, inner: T.inner, radius: T.radius, weight: 0.8 }); }
-    else if (s.kind === 'screen') out.push({ id: s.id, kind: 'screen', x: s.x + Math.sin(s.heading) * 10, z: s.z + Math.cos(s.heading) * 10, inner: 4, radius: 14, weight: 0.6, heading: s.heading });
+    if (s.kind === 'stage') { const S = RALLY_SHAPE.stage; out.push({ id: s.id, kind: 'stage', x: s.x + Math.sin(s.heading) * S.front, z: s.z + Math.cos(s.heading) * S.front, inner: S.inner, radius: S.radius, weight: hw.stage, heading: s.heading }); }
+    else if (s.kind === 'truck') { const T = RALLY_SHAPE.truck; out.push({ id: s.id, kind: 'truck', x: s.x, z: s.z, inner: T.inner, radius: T.radius, weight: hw.truck }); }
+    else if (s.kind === 'screen') out.push({ id: s.id, kind: 'screen', x: s.x + Math.sin(s.heading) * 10, z: s.z + Math.cos(s.heading) * 10, inner: 4, radius: 14, weight: hw.screen, heading: s.heading });
   }
-  if (m.spawn) out.push({ id: 'spawn', kind: 'spawn', x: m.spawn.p[0], z: m.spawn.p[1], inner: 6, radius: 22, weight: 0.7 });
+  if (m.spawn) out.push({ id: 'spawn', kind: 'spawn', x: m.spawn.p[0], z: m.spawn.p[1], inner: 6, radius: 22, weight: hw.spawn });
   return out;
 }

@@ -20,6 +20,13 @@ export interface AutonomousConfig {
     dormantM: number;
     /** só volta a aparecer (sai de DORMANT) a menos disto — histerese contra piscar na borda */
     materializeM: number;
+    /**
+     * densidade LOCAL perto de cada humano (rodada 12, agente G): quem tem menos de `want` autônomos a ≤ radiusM recebe
+     * gente que chega andando de longe — inclusive quem joga longe do eixo (vagas a ~270 m). want = share × alvo ÷ humanos,
+     * preso em [min, max]; até perPass chegadas por humano a cada passe (2 s). Chegada a arriveM do humano (no eixo) ou
+     * por uma linha livre de parede a offAxisM (fora do eixo, onde as ruas fecham a vista).
+     */
+    local: { radiusM: number; min: number; max: number; share: number; perPass: number; arriveM: [number, number]; offAxisM: [number, number] };
   };
   nametag: { share: number; nearM: number; midM: number };
   /** id da torcida (dados) → fração; o id neutro de supporters.json = sem torcida */
@@ -27,6 +34,9 @@ export interface AutonomousConfig {
   personalities: Record<Personality, number>;
   vehicles: { share: number; kinds: Record<VehicleUseKind, number> };
   titles: { share: number };
+  /** peso de atração dos pontos FIXOS do mapa (palco, caminhões, telões, praça do spawn) sem evento rolando — pontos de
+   * evento/trio/carro de som têm peso próprio. Mais baixo = menos gente parada "no evento" o tempo todo */
+  hotspotWeights: { stage: number; truck: number; screen: number; spawn: number };
   names: { words: string[]; suffixWords: string[]; numbers: string[]; lowercaseShare: number; underscoreShare: number };
 }
 
@@ -58,12 +68,18 @@ export function parseAutonomousConfig(raw: unknown): AutonomousConfig {
       fadeMs: num(p.fadeMs, 4000, 0, 30000),
       dormantM,
       materializeM: Math.min(dormantM - 10, num(p.materializeM, 240, mid.radius, 600)),
+      local: {
+        radiusM: num(p.local?.radiusM, 70, 10, 300), min: Math.round(num(p.local?.min, 10, 0, 200)), max: Math.round(num(p.local?.max, 30, 0, 400)),
+        share: num(p.local?.share, 0.4, 0, 1), perPass: Math.round(num(p.local?.perPass, 2, 0, 20)),
+        arriveM: range(p.local?.arriveM, [mid.radius + 15, mid.radius + 70]), offAxisM: range(p.local?.offAxisM, [55, 110]),
+      },
     },
     nametag: { share: num(r.nametag?.share, 0.6, 0, 1), nearM: num(r.nametag?.nearM, 18, 0, 200), midM: num(r.nametag?.midM, 35, 0, 400) },
     supporters: weights(r.supporters, null),
     personalities: weights(r.personalities, PERSONALITIES),
     vehicles: { share: num(r.vehicles?.share, 0.08, 0, 1), kinds: weights(r.vehicles?.kinds, ['bicycle', 'scooter', 'moto', 'car'] as const) },
     titles: { share: num(r.titles?.share, 0.12, 0, 1) },
+    hotspotWeights: { stage: num(r.hotspotWeights?.stage, 1.3, 0, 3), truck: num(r.hotspotWeights?.truck, 0.8, 0, 3), screen: num(r.hotspotWeights?.screen, 0.6, 0, 3), spawn: num(r.hotspotWeights?.spawn, 0.7, 0, 3) },
     names: {
       words: strs(n.words, ['Carioca']), suffixWords: strs(n.suffixWords, []), numbers: strs(n.numbers, []),
       lowercaseShare: num(n.lowercaseShare, 0.25, 0, 1), underscoreShare: num(n.underscoreShare, 0.12, 0, 1),
@@ -100,12 +116,14 @@ export function rewardTitles(): string[] {
 
 /** ações de confronto usadas pelos autônomos (pela CHAVE de public/gameplay/combat.json; custo/recarga dos dados) */
 export interface CombatMove { id: number; cost: number; cooldownMs: number; range: number }
-export interface CombatMoves { punch: CombatMove | null; combo: CombatMove | null; kick: CombatMove | null; push: CombatMove | null; dodge: CombatMove | null; staminaMax: number }
+export interface CombatMoves { punch: CombatMove | null; combo: CombatMove | null; kick: CombatMove | null; push: CombatMove | null; dodge: CombatMove | null; staminaMax: number;
+  /** proteção de retorno (ms) depois de levantar/aparecer — golpe nesse tempo é bloqueado; o autônomo espera em vez de bater no vazio */
+  protectMs: number }
 let movesCache: CombatMoves | null = null;
 export function combatMoves(): CombatMoves {
   if (movesCache) return movesCache;
-  let raw: { tuning?: { staminaMax?: number }; actions?: { id: number; key: string; staminaCost: number; cooldownMs: number; range?: number }[] } = {};
+  let raw: { tuning?: { staminaMax?: number; protectMs?: number }; actions?: { id: number; key: string; staminaCost: number; cooldownMs: number; range?: number }[] } = {};
   try { raw = JSON.parse(readFileSync(fileURLToPath(new URL('../../../public/gameplay/combat.json', import.meta.url)), 'utf8')); } catch { /* sem confronto */ }
   const by = (k: string): CombatMove | null => { const a = raw.actions?.find((x) => x.key === k); return a ? { id: a.id, cost: a.staminaCost, cooldownMs: a.cooldownMs, range: a.range ?? 1 } : null; };
-  return (movesCache = { punch: by('soco'), combo: by('soco_2'), kick: by('chute'), push: by('empurrao'), dodge: by('esquiva'), staminaMax: raw.tuning?.staminaMax ?? 100 });
+  return (movesCache = { punch: by('soco'), combo: by('soco_2'), kick: by('chute'), push: by('empurrao'), dodge: by('esquiva'), staminaMax: raw.tuning?.staminaMax ?? 100, protectMs: raw.tuning?.protectMs ?? 5000 });
 }

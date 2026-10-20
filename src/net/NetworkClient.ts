@@ -296,6 +296,17 @@ export class NetworkClient {
   }
   /** tipo de um remoto (ausente = humano) */
   kindOf(id: string): number { return this.remotes.get(id)?.kind ?? 0; }
+  /**
+   * rodada 12 (G) — AUTÔNOMOS do servidor a ≤ r m de (x, z): remotos kind 1 + multidão distante marcada `npc` — a
+   * população LOCAL (pedestres/concentração deste cliente) cede onde eles estão (src/npc/localPopulation.ts)
+   */
+  autonomousNear(x: number, z: number, r: number): number {
+    const r2 = r * r;
+    let n = 0;
+    for (const rm of this.remotes.values()) if (rm.kind === ENTITY_KIND.AUTONOMOUS && (rm.state.x - x) ** 2 + (rm.state.z - z) ** 2 <= r2) n++;
+    for (const f of this.far.values()) if (f.npc && (f.agent.x - x) ** 2 + (f.agent.z - z) ** 2 <= r2) n++;
+    return n;
+  }
 
   get remoteCount() { return this.remotes.size; }
   /** jogadores da multidão distante (sem estado completo) */

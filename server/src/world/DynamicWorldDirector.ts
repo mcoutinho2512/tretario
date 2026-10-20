@@ -100,6 +100,8 @@ interface Dyn extends DynamicEventState {
   /** contagem de chegados (dentro do raio) na última avaliação */
   arrived: number;
   dispStepAt: number;
+  /** último "perguntar de novo" à plateia (reaskS) */
+  reaskAt: number;
   dead: boolean;
   /** reclassificação com histerese: candidato e quantas avaliações seguidas ele se manteve */
   kindCand: DynamicEventKind | null;
@@ -153,6 +155,8 @@ export class DynamicWorldDirector {
   private starts = new Map<string, number[]>();
   private regionUntil = new Map<string, number>();
   private conflictAt = -1e15;
+  private gatheringAt = -1e15;
+  private fightAt = -1e15;
   private humanProvAt = new Map<string, number>();
   private sendAt = -1e15;
   private sendSig = '';
@@ -163,7 +167,9 @@ export class DynamicWorldDirector {
   private readonly sample: NearAgent[];
   private readonly axisMut: [number, number][];
   history: DynHistory[] = [];
-  stats = { ticks: 0, probes: 0, evals: 0, nearCalls: 0, proposals: 0, accepted: 0, started: 0, ended: 0, sends: 0, msTotal: 0, msMax: 0, reactions: { join: 0, watch: 0, flee: 0, ignore: 0 } as Record<Reaction, number> };
+  stats = { ticks: 0, probes: 0, evals: 0, nearCalls: 0, proposals: 0, accepted: 0, started: 0, ended: 0, sends: 0, msTotal: 0, msMax: 0, reactions: { join: 0, watch: 0, flee: 0, ignore: 0 } as Record<Reaction, number>,
+    /** funil do nascimento de discussões (calibração — docs/bench/round12_calibration.json) */
+    seed: { probes: 0, few: 0, noPair: 0, budget: 0, roll: 0, refused: 0, started: 0, expected: 0 } };
 
   constructor(readonly cfg: DynamicWorldConfig = DYNAMIC_DEFAULTS, private view: AutonomousWorldView = EMPTY_WORLD_VIEW, private sink: DirectorSink = { broadcast: () => {} }, opts: DirectorOptions = {}) {
     this.clock = opts.clock ?? Date.now;
@@ -247,21 +253,47 @@ export class DynamicWorldDirector {
 
   /** livres na última amostra (fora de qualquer evento) */
   private freeIdx: number[] = [];
-  private collectFree(n: number) {
+  /** pessoas na última sonda (aperto) */
+  private sampleN = 0;
+  private collectFree(n: number, gatheringToo = false, watchersOf?: Dyn) {
     this.freeIdx.length = 0;
-    for (let i = 0; i < n; i++) if (!this.roles.has(this.sample[i].id)) this.freeIdx.push(i);
+    for (let i = 0; i < n; i++) {
+      const r = this.roles.get(this.sample[i].id);
+      // briga por perto também chama quem está numa REUNIÃO (é a plateia natural: encontro de torcidas, festa) e quem
+      // já está OLHANDO esta briga (a plateia pode entrar quando ela esquenta)
+      if (!r || (gatheringToo && this.events.get(r.eventId)?.family === 'gathering') || (watchersOf && r.eventId === watchersOf.id && r.role === 'WATCH')) this.freeIdx.push(i);
+    }
     return this.freeIdx;
+  }
+  /** sai de outro evento (reunião) antes de entrar neste foco — um autônomo está em no máximo um evento */
+  private leaveOther(id: string, e: Dyn) {
+    const r = this.roles.get(id);
+    if (!r || r.eventId === e.id) return;
+    this.events.get(r.eventId)?.members.delete(id);
+    this.roles.delete(id);
   }
 
   private probe(now: number) {
     this.stats.probes++;
     const p = this.probePoint(now);
     if (!p) return;
-    const n = this.near(p.x, p.z, this.cfg.director.probeRadiusM);
-    if (n < 2) return;
+    const D = this.cfg.director;
+    let n = this.near(p.x, p.z, D.probeRadiusM);
+    // ponto vazio: a sonda "encosta" numa pessoa sorteada por perto (≤ probeSnapM) — discussão nasce onde há gente,
+    // não no asfalto vazio (rodada 12, agente G: 86 % das sondas caíam onde não havia 2 pessoas livres)
+    if (n < 2 && D.probeSnapM > 0) {
+      const m = this.near(p.x, p.z, D.probeSnapM);
+      if (m > 0) { const s = this.sample[Math.floor(this.rng() * m) % m]; const sx = s.x, sz = s.z; n = this.near(sx, sz, D.probeRadiusM); }
+    }
+    this.stats.seed.probes++;
+    if (n < 2) { this.stats.seed.few++; return; }
+    this.sampleN = n;
+    // discussão também nasce DENTRO de uma reunião (esbarrão na multidão — e a plateia já está lá); corrida e reunião
+    // nova só com quem está livre
+    const pool = this.collectFree(n, true).slice();
+    if (pool.length >= 2 && this.trySeedConflict(pool, now)) return;
     const free = this.collectFree(n);
-    if (free.length < 2) return;
-    if (this.trySeedConflict(free, now)) return;
+    if (free.length < 2) { this.stats.seed.few++; return; }
     if (this.trySeedRace(free, now)) return;
     this.trySeedGathering(free, now);
   }
@@ -270,11 +302,13 @@ export class DynamicWorldDirector {
    * chance (por sonda) de uma DISCUSSÃO nascer entre `a` e `b` — exportada para os testes de neutralidade: depende só
    * da personalidade (temperamento), de as torcidas serem DIFERENTES (igualdade do índice; 0 = sem torcida) e do calor
    */
-  tensionChance(a: Pick<NearAgent, 'personality' | 'sup'>, b: Pick<NearAgent, 'personality' | 'sup'>, heated = false): number {
+  tensionChance(a: Pick<NearAgent, 'personality' | 'sup'>, b: Pick<NearAgent, 'personality' | 'sup'>, heated = false, crowd = 0): number {
     const C = this.cfg.conflict;
     const temper = (C.temper[a.personality] + C.temper[b.personality]) / 2;
     const rival = a.sup > 0 && b.sup > 0 && a.sup !== b.sup ? C.differentSupMult : 1;
-    return C.seedChance * temper * rival * (heated ? C.heatMult : 1);
+    // aperto: mais gente em volta = mais esbarrão (e plateia para a briga crescer); simétrico, sem grupo
+    const press = 1 + C.crowdMult * Math.max(0, Math.min(C.crowdCap, crowd - 2));
+    return C.seedChance * temper * rival * (heated ? C.heatMult : 1) * press;
   }
 
   /** orçamento de um início/escalada de foco de briga */
@@ -295,11 +329,16 @@ export class DynamicWorldDirector {
     const a = this.sample[free[Math.floor(this.rng() * free.length) % free.length]];
     let b: NearAgent | null = null, best = C.pairRadiusM * C.pairRadiusM;
     for (const i of free) { const s = this.sample[i]; if (s === a) continue; const dd = d2(a.x, a.z, s.x, s.z); if (dd <= best) { best = dd; b = s; } }
-    if (!b) return false;
-    if (!this.conflictAllowed('DISCUSSAO', a.x, a.z, now, true)) return false;
+    const S = this.stats.seed;
+    if (!b) { S.noPair++; return false; }
+    if (!this.conflictAllowed('DISCUSSAO', a.x, a.z, now, true)) { S.budget++; return false; }
     const heated = this.view.heat(a.x, a.z, C.fight.reactRadiusM).combatants > 0;
-    if (this.rng() >= this.tensionChance(a, b, heated)) return false;
-    return !!this.startConflict(a, b, (a.x + b.x) / 2, (a.z + b.z) / 2, now, null);
+    const ch = this.tensionChance(a, b, heated, this.sampleN);
+    S.expected += ch;
+    if (this.rng() >= ch) { S.roll++; return false; }
+    const ok = !!this.startConflict(a, b, (a.x + b.x) / 2, (a.z + b.z) / 2, now, null);
+    if (ok) S.started++; else S.refused++;
+    return ok;
   }
 
   private trySeedRace(free: number[], now: number): boolean {
@@ -316,6 +355,8 @@ export class DynamicWorldDirector {
   private trySeedGathering(free: number[], now: number): boolean {
     const G = this.cfg.gathering, B = this.cfg.budget.gathering;
     if (this.count('gathering') >= B.maxConcurrent || this.recentStarts('gathering', now) >= B.perHour) return false;
+    // espaçadas no tempo: sem o intervalo global, o teto por hora inteiro saía nos primeiros 20 min e depois nada
+    if (now - this.gatheringAt < B.globalCooldownS * 1000) return false;
     const anchor = this.sample[free[Math.floor(this.rng() * free.length) % free.length]];
     if (this.nearestOf('gathering', anchor.x, anchor.z) < B.minSpacingM) return false;
     if ((this.regionUntil.get(this.regionKey('gathering', anchor.x, anchor.z)) ?? 0) > now) return false;
@@ -336,7 +377,7 @@ export class DynamicWorldDirector {
       id, kind, x, z, r, escalation: fam === 'conflict' ? 'TENSAO' : 'CALMO', startedAt: now, participants: 0, watchers: 0,
       family: fam, phase: fam === 'conflict' ? 'LIVE' : fam === 'race' ? 'RUN' : 'GROW', phaseUntil: now, levelSince: now,
       nextEval: now + Math.floor(this.rng() * 400) + 200, members: new Map(), forced, forcedUntil: forced ? now + this.cfg.qa.forcedMinS * 1000 : 0, ghost: false,
-      dest: null, human: null, hitAt: 0, domSup: 0, heat: { combatants: 0, crowd: 0, hitsPerMin: 0 }, decided: new Set(), endsAtEst: now + 5 * 60_000, arrived: 0, dispStepAt: 0, dead: false, kindCand: null, kindStreak: 0,
+      dest: null, human: null, hitAt: 0, domSup: 0, heat: { combatants: 0, crowd: 0, hitsPerMin: 0 }, decided: new Set(), endsAtEst: now + 5 * 60_000, arrived: 0, dispStepAt: 0, reaskAt: now, dead: false, kindCand: null, kindStreak: 0,
     };
     this.events.set(id, e);
     this.stats.started++;
@@ -363,7 +404,7 @@ export class DynamicWorldDirector {
     if (e.members.size < 2 && !forced) { this.discard(e); return null; }
     e.phaseUntil = now + this.range(G.growS) * 1000;
     e.participants = e.members.size;
-    if (!forced) { this.spend('gathering', now); this.regionUntil.set(this.regionKey('gathering', x, z), now + this.cfg.budget.gathering.regionCooldownS * 1000); }
+    if (!forced) { this.spend('gathering', now); this.gatheringAt = now; this.regionUntil.set(this.regionKey('gathering', x, z), now + this.cfg.budget.gathering.regionCooldownS * 1000); }
     if (forced === 'CAMINHADA') this.beginWalk(e, now);
     e.ghost = e.members.size === 0;
     this.log(e, 'start', now);
@@ -387,13 +428,13 @@ export class DynamicWorldDirector {
   }
 
   /** DISCUSSÃO entre dois (b pode ser um humano que provocou: `human`) */
-  private startConflict(a: NearAgent | null, b: NearAgent | null, x: number, z: number, now: number, forced: DynamicEventKind | null, human: string | null = null): Dyn | null {
+  private startConflict(a: NearAgent | null, b: NearAgent | null, x: number, z: number, now: number, forced: DynamicEventKind | null, human: string | null = null, origin?: string): Dyn | null {
     const e = this.newEvent('DISCUSSAO', x, z, 8, now, forced);
     e.human = human;
     const T = this.cfg.conflict.tension;
     const until = now + T.maxS * 1000 + 10_000;
-    if (a && this.propose(a.id, { kind: 'SOCIALIZE', target: human ?? b?.id, x, z, eventId: e.id, until }, 1)) this.addMember(e, a, 'ARGUE', now, 0, human ?? b?.id);
-    if (b && this.propose(b.id, { kind: 'SOCIALIZE', target: a?.id, x, z, eventId: e.id, until }, 1)) this.addMember(e, b, 'ARGUE', now, 1, a?.id);
+    if (a && this.propose(a.id, { kind: 'SOCIALIZE', target: human ?? b?.id, x, z, eventId: e.id, until }, 1)) { this.leaveOther(a.id, e); this.addMember(e, a, 'ARGUE', now, 0, human ?? b?.id); }
+    if (b && this.propose(b.id, { kind: 'SOCIALIZE', target: a?.id, x, z, eventId: e.id, until }, 1)) { this.leaveOther(b.id, e); this.addMember(e, b, 'ARGUE', now, 1, a?.id); }
     const need = human ? 1 : 2;
     if (e.members.size < need && !forced) { this.discard(e); return null; }
     e.ghost = e.members.size === 0;
@@ -403,7 +444,7 @@ export class DynamicWorldDirector {
       this.regionUntil.set(this.regionKey('conflict', x, z), now + this.cfg.budget.conflict.regionCooldownS * 1000);
     }
     e.participants = e.members.size + (human ? 1 : 0);
-    this.log(e, 'start', now, human ? 'provocado' : undefined);
+    this.log(e, 'start', now, human ? 'provocado' : origin);
     return e;
   }
 
@@ -596,7 +637,7 @@ export class DynamicWorldDirector {
     const temper = (C.temper[a.personality] + C.temper[b.personality]) / 2;
     if (!e.forced && this.rng() >= temper) return;
     this.dropMember(e, a.id); this.dropMember(e, b.id);
-    this.startConflict(a, b, (a.x + b.x) / 2, (a.z + b.z) / 2, now, null);
+    this.startConflict(a, b, (a.x + b.x) / 2, (a.z + b.z) / 2, now, null, null, 'torcidas');
   }
 
   // ---------------------------------------------------------------- corrida improvisada
@@ -671,27 +712,56 @@ export class DynamicWorldDirector {
         const temper = this.pairTemper(e);
         const hit = e.heat.hitsPerMin > 0 && e.heat.combatants > 0 || (e.human !== null && now - e.hitAt < 5000);
         const pushed = e.forced === 'BRIGA' || e.forced === 'BRIGA_GENERALIZADA';
-        const want = pushed || hit || (e.forced !== 'DISCUSSAO' && this.rng() < C.tension.escalateChance * temper * this.pairRival(e));
-        if (want && (pushed || this.conflictAllowed('BRIGA', e.x, e.z, now, false))) this.toConfront(e, now);
+        // plateia esquenta: com gente em volta a discussão escala mais (mesmo fator de aperto do nascimento)
+        const press = 1 + C.crowdMult * Math.max(0, Math.min(C.crowdCap, e.heat.crowd - 2));
+        const want = pushed || hit || (e.forced !== 'DISCUSSAO' && this.rng() < C.tension.escalateChance * temper * this.pairRival(e) * press);
+        // provocado por HUMANO: o revide não depende do orçamento espontâneo (nem o gasta) — quem agrediu começou
+        // brigas espontâneas espaçadas (fightCooldownS): sem isso o teto por hora saía todo nos primeiros 20 min
+        const spaced = now - this.fightAt >= this.cfg.budget.conflict.fightCooldownS * 1000;
+        if (want && (pushed || e.human !== null || (spaced && this.conflictAllowed('BRIGA', e.x, e.z, now, false)))) this.toConfront(e, now);
         else if (!keep && (t >= C.tension.maxS || this.rng() < C.tension.calmChance * Math.max(0.1, 1.2 - temper))) this.calm(e, now, 'acalmaram');
       }
     } else if (lv === 'CONFRONTO') {
       if (fighters < 2 && !keep && !e.ghost) { this.startDisperse(e, now, 'parou'); return; }
+      this.retarget(e);
+      this.reask(e, now);
       this.react(e, n, now, C.fight.decisionsPerEval, C.fight.maxJoinPerEval, C.fight.reactRadiusM);
       const f2 = this.fightersOf(e);
       const canGen = (f2 >= C.fight.generalizeAt || (e.ghost && e.forced === 'BRIGA_GENERALIZADA')) && t >= C.fight.minS;
       if (canGen && (e.forced === 'BRIGA_GENERALIZADA' || (!e.forced && this.conflictAllowed('BRIGA_GENERALIZADA', e.x, e.z, now, false)))) {
         if (!e.forced) this.spend('BRIGA_GENERALIZADA', now);
         this.setLevel(e, 'GENERALIZADO', now);
+        e.decided.clear();
       } else if (t >= C.fight.maxS && !keep) this.startDisperse(e, now, 'cansaço');
     } else if (lv === 'GENERALIZADO') {
       if (fighters < C.general.stepDownBelow && !keep && !e.ghost) { this.setLevel(e, 'CONFRONTO', now); if (fighters < 2) this.startDisperse(e, now, 'esvaziou'); this.counts(e); return; }
+      this.retarget(e);
+      this.reask(e, now);
       // teto de quem briga: as vagas restantes limitam as adesões; o resto só observa/foge/ignora
       this.react(e, n, now, C.general.decisionsPerEval, Math.max(0, Math.min(C.general.maxJoinPerEval, C.general.maxFighters - fighters)), C.general.reactRadiusM);
       if (t >= C.general.maxS && !keep) this.startDisperse(e, now, 'cansaço');
     }
     this.counts(e);
     e.endsAtEst = now + 60_000;
+  }
+
+  /** quem está OLHANDO pode mudar de ideia com a briga rolando: a cada reaskS volta a ser perguntado */
+  private reask(e: Dyn, now: number) {
+    if (now - e.reaskAt < this.cfg.conflict.fight.reaskS * 1000) return;
+    e.reaskAt = now;
+    for (const [id, m] of e.members) if (m.role === 'WATCH') e.decided.delete(id);
+  }
+
+  /** quem briga com alguém que largou a briga passa para o adversário mais perto do outro lado (ninguém persegue quem saiu) */
+  private retarget(e: Dyn) {
+    for (const [id, m] of e.members) {
+      if (m.role !== 'FIGHT' || !m.opponent || m.opponent === e.human) continue;
+      const o = e.members.get(m.opponent);
+      if (o && o.role === 'FIGHT') continue;
+      const p = this.pos.get(id);
+      const opp = p ? this.nearestFighter(e, 1 - m.side, p.x, p.z) : null;
+      if (opp && opp !== id) m.opponent = opp;
+    }
   }
 
   private counts(e: Dyn) {
@@ -714,8 +784,11 @@ export class DynamicWorldDirector {
 
   private toConfront(e: Dyn, now: number) {
     const C = this.cfg.conflict;
-    if (!e.forced) this.spend('BRIGA', now);
+    if (!e.forced && !e.human) { this.spend('BRIGA', now); this.fightAt = now; }
     this.setLevel(e, 'CONFRONTO', now);
+    // discussão virou briga: a plateia decide DE NOVO (quem ignorou um bate-boca pode entrar numa briga) — antes a
+    // TENSÃO gastava todo mundo em volta e nenhuma briga recebia adesão (rodada 12, agente G)
+    e.decided.clear();
     const pushUntil = now + C.fight.pushFirstS * 1000;
     for (const [id, m] of e.members) {
       if (m.role !== 'ARGUE') continue;
@@ -759,7 +832,7 @@ export class DynamicWorldDirector {
    */
   private react(e: Dyn, n: number, now: number, decisions: number, maxJoin: number, radius: number) {
     const C = this.cfg.conflict;
-    const free = this.collectFree(n);
+    const free = this.collectFree(n, true, e);
     const r2 = radius * radius;
     let joined = 0;
     for (let tries = 0; decisions > 0 && free.length && tries < decisions * 3; tries++) {
@@ -778,15 +851,18 @@ export class DynamicWorldDirector {
       if (r === 'join') {
         const s = side >= 0 ? side : this.rng() < 0.5 ? 0 : 1;
         const opp = this.nearestFighter(e, 1 - s, a.x, a.z);
-        if (opp && this.propose(a.id, { kind: 'JOIN_FIGHT', target: opp, x: e.x, z: e.z, eventId: e.id, until: now + C.general.maxS * 1000 }, joinW)) {
+        // o sorteio acima JÁ foi a decisão pela personalidade: o pedido vai com peso cheio (antes ia com joinW de novo —
+        // a chance era elevada ao quadrado e quase ninguém entrava; o cérebro ainda pesa o compromisso atual)
+        if (opp && this.propose(a.id, { kind: 'JOIN_FIGHT', target: opp, x: e.x, z: e.z, eventId: e.id, until: now + C.general.maxS * 1000 }, 1)) {
+          this.leaveOther(a.id, e);
           const m = this.addMember(e, a, 'FIGHT', now, s, opp);
           m.pushUntil = now + C.fight.pushFirstS * 1000;
           joined++;
         }
       } else if (r === 'watch') {
-        if (this.propose(a.id, { kind: 'WATCH_FIGHT', x: e.x, z: e.z, eventId: e.id, until: now + 60_000 }, w.watch)) this.addMember(e, a, 'WATCH', now);
+        if (this.propose(a.id, { kind: 'WATCH_FIGHT', x: e.x, z: e.z, eventId: e.id, until: now + 60_000 }, 0.9)) { this.leaveOther(a.id, e); this.addMember(e, a, 'WATCH', now); }
       } else if (r === 'flee') {
-        this.propose(a.id, { kind: 'AVOID_FIGHT', x: e.x, z: e.z, eventId: e.id, until: now + 30_000 }, w.flee);
+        if (this.propose(a.id, { kind: 'AVOID_FIGHT', x: e.x, z: e.z, eventId: e.id, until: now + 30_000 }, 1)) this.leaveOther(a.id, e);
       }
       // ignore: segue a vida (nenhuma proposta)
     }
@@ -836,8 +912,10 @@ export class DynamicWorldDirector {
     const cur = this.roles.get(target);
     if (cur) {
       const e = this.events.get(cur.eventId);
-      if (e && e.family === 'conflict' && (cur.opponent === attacker || e.human === attacker)) e.hitAt = now;
-      return;
+      if (e && e.family === 'conflict') { if (cur.opponent === attacker || e.human === attacker) e.hitAt = now; return; }
+      // estava numa reunião/corrida: apanhar é mais forte que o evento — sai dele e reage (antes: a agressão era
+      // ignorada para quem estava numa concentração, ~metade das pessoas)
+      if (e) this.dropMember(e, target); else this.roles.delete(target);
     }
     if (now - (this.humanProvAt.get(attacker) ?? -1e15) < this.cfg.conflict.provocation.cooldownPerHumanS * 1000) return;
     this.humanProvAt.set(attacker, now);
@@ -888,7 +966,7 @@ export class DynamicWorldDirector {
     if (!e) return null;
     const roles: Record<string, number> = {};
     for (const m of e.members.values()) roles[m.role] = (roles[m.role] ?? 0) + 1;
-    return { phase: e.phase, roles, heat: e.heat, ghost: e.ghost, forced: e.forced, human: e.human, dest: e.dest };
+    return { phase: e.phase, roles, heat: e.heat, ghost: e.ghost, forced: e.forced, human: e.human, dest: e.dest, arrived: e.arrived, family: e.family };
   }
   /** custo médio por tick (ms) */
   get avgMs() { return this.stats.ticks ? this.stats.msTotal / this.stats.ticks : 0; }

@@ -29,6 +29,7 @@ import { supAt, supporterData, supporterOutfit } from '../supporters/data'; // r
 import { PROP_BY_KIND } from './props';
 import { RallyRegistry, rallyPoints } from './rally';
 import { startNpcReaction, stepNpcReaction, type NpcHittable, type NpcReaction, type NpcTarget, npcDownPhase } from '../combat/npcHits';
+import type { RallySuppression } from '../npc/localPopulation'; // rodada 12 (G) — população dupla
 
 const BODIES: BodyType[] = ['homem', 'mulher', 'homem', 'mulher', 'idoso', 'idosa'];
 const BODY_INDEX: Record<BodyType, number> = { homem: 0, mulher: 1, idoso: 2, idosa: 3 };
@@ -49,6 +50,8 @@ interface Member {
   app: CharacterAppearance;
   /** esqueleto emprestado do pool (só quando o orçamento concede) */
   skin: Skin | null;
+  /** rodada 12 (G): ponto com AUTÔNOMOS do servidor (src/npc/localPopulation.ts) — este membro local não aparece */
+  off: boolean;
 }
 
 /** personagem com esqueleto do pool (reaproveitado entre membros do mesmo corpo) */
@@ -66,7 +69,9 @@ export class RallyCrowd implements NpcHittable {
   private time = 0;
   /** referência do evento para o preset ALTO (0 = desligado) */
   private target = 0;
-  stats = { members: 0, submitted: 0, points: 0, reacted: 0, hits: 0, reacting: 0, skinned: 0, pool: 0 };
+  stats = { members: 0, submitted: 0, points: 0, reacted: 0, hits: 0, reacting: 0, skinned: 0, pool: 0, suppressed: 0 };
+  /** rodada 12 (G): pontos onde os autônomos do servidor já são a multidão (Game atualiza a ~2 Hz) */
+  suppression: RallySuppression | null = null;
 
   /** esqueletos dos membros mais próximos (adicionar à cena) */
   readonly group = new THREE.Group();
@@ -189,7 +194,7 @@ export class RallyCrowd implements NpcHittable {
         const agent = createAgent({ maxTier: 1, body: BODY_INDEX[body], skin: app.skin, hair: app.hair, top: app.top, bottom: app.bottom, scale: app.scale, look: packLook(app), shirt: app.shirtDesign ?? 0, x: spot.x, z: spot.z });
         this.members.push({
           agent, seed, point: p.id, u1, u2, x: spot.x, z: spot.z, heading: Math.atan2(p.x - spot.x, p.z - spot.z), speed: 0,
-          look: (r() - 0.5) * 0.5, schedule: new SocialSchedule(seed, this.cfg, profile), react: null, app, skin: null,
+          look: (r() - 0.5) * 0.5, schedule: new SocialSchedule(seed, this.cfg, profile), react: null, app, skin: null, off: false,
         });
       }
     });
@@ -215,8 +220,8 @@ export class RallyCrowd implements NpcHittable {
     const room = Math.max(0, Math.floor(this.crowd.budget.total * 0.75) - this.crowd.othersCount);
     const n = Math.min(this.members.length, room);
     const nowS = performance.now() / 1000;
-    let reacting = 0, skinned = 0;
-    for (let i = n; i < this.members.length; i++) if (this.members[i].skin) this.release(this.members[i]);
+    let reacting = 0, skinned = 0, off = 0;
+    for (let i = n; i < this.members.length; i++) { this.members[i].off = true; if (this.members[i].skin) this.release(this.members[i]); }
     // só os K mais próximos da câmera (distância do quadro anterior) PODEM disputar o esqueleto: a concentração é
     // densa e, sem teto, ocupava todo o orçamento do preset (24–32 esqueletos de NPC: CPU 6 → 15 ms no ALTO); metade do orçamento, até 10 m
     const k = Math.max(2, Math.round(this.crowd.budget.skinned * RALLY_SKIN_SHARE));
@@ -228,7 +233,8 @@ export class RallyCrowd implements NpcHittable {
     for (let i = 0; i < n; i++) {
       const m = this.members[i];
       const p = rallyPoints.get(m.point);
-      if (!p) { if (m.skin) this.release(m); continue; }
+      m.off = !p || !!this.suppression?.suppressed(m.point);
+      if (m.off || !p) { if (m.skin) this.release(m); off++; continue; }
       const ag = m.agent;
       let tilt = 0;
       if (m.react) {
@@ -269,6 +275,7 @@ export class RallyCrowd implements NpcHittable {
       else { ag.skinReady = false; if (m.skin) this.release(m); }
     }
     this.stats.submitted = n;
+    this.stats.suppressed = off;
     this.stats.reacting = reacting;
     this.stats.skinned = skinned;
     this.stats.pool = this.pool.length;
@@ -283,7 +290,7 @@ export class RallyCrowd implements NpcHittable {
     let n = 0;
     for (let i = 0; i < this.stats.submitted && i < this.members.length; i++) {
       const m = this.members[i];
-      if (m.react?.kind === 'down' || Math.abs(m.x - x) > r || Math.abs(m.z - z) > r) continue;
+      if (m.off || m.react?.kind === 'down' || Math.abs(m.x - x) > r || Math.abs(m.z - z) > r) continue;
       const dx = m.x - x, dz = m.z - z, d = Math.hypot(dx, dz), R = selfR + BODY.radius;
       if (d < R && d > 1e-4) {
         const st = Math.min(R - d, maxStep);
@@ -305,7 +312,7 @@ export class RallyCrowd implements NpcHittable {
   npcTargetsNear(x: number, z: number, r: number, out: NpcTarget[]) {
     for (let i = 0; i < this.stats.submitted && i < this.members.length; i++) {
       const m = this.members[i];
-      if (m.react?.kind === 'down' || Math.abs(m.x - x) > r || Math.abs(m.z - z) > r) continue;
+      if (m.off || m.react?.kind === 'down' || Math.abs(m.x - x) > r || Math.abs(m.z - z) > r) continue;
       out.push({ x: m.x, z: m.z, react: (k, dx, dz, kb) => {
         m.react = startNpcReaction(k, dx, dz, kb);
         if (k === 'down') m.heading = Math.atan2(-dx, -dz); // cai de costas, de frente para quem bateu

@@ -6,8 +6,11 @@
     "near": { "radius": 60, "max": 80, "thinkMs": [700, 1600] },
     "mid": { "radius": 160, "max": 120, "thinkMs": [2500, 5000] },
     "far": { "thinkMs": [8000, 15000] },
-    "fadeMs": 4000
+    "fadeMs": 4000,
+    "local": { "radiusM": 70, "min": 12, "max": 30, "share": 0.45, "perPass": 2, "arriveM": [150, 215], "offAxisM": [55, 110] }
   },
+  "localPopulation": { "nearM": 80, "fullAt": 4, "offAt": 24, "minPeds": 4, "backgroundM": 45, "rallyMarginM": 10, "rallySuppressAt": 6, "rallyResumeAt": 2 },
+  "hotspotWeights": { "stage": 0.8, "truck": 0.45, "screen": 0.35, "spawn": 0.4 },
   "nametag": { "share": 0.6, "nearM": 18, "midM": 35 },
   "supporters": { "neutro": 0.4, "flamengo": 0.18, "vasco": 0.14, "fluminense": 0.14, "botafogo": 0.14 },
   "personalities": { "SOCIAL": 0.2, "OBSERVADOR": 0.14, "AGITADO": 0.06, "TORCEDOR": 0.14, "MANIFESTANTE": 0.12, "EXPLORADOR": 0.12, "CURIOSO": 0.1, "CONFRONTADOR": 0.04, "CAUTELOSO": 0.08 },

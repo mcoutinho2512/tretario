@@ -91,6 +91,8 @@ interface Agent {
   fight: { target: string; stage: 0 | 1 | 2; until: number; nextAttack: number; combo: number; escalateAt: number; pushes: number; dir: boolean; tiredSince: number } | null;
   stamina: number; condition: number;
   bornAt: number; leaveAt: number; downSince: number;
+  /** levantou/apareceu em (ms): proteção de retorno do CombatSystem até gotUpAt + protectMs — quem briga espera */
+  gotUpAt: number;
   /** humanização (métricas) */
   st: { activity: Activity; moving: boolean; pathStart: { x: number; z: number } | null; pathLen: number; hSample: number; hAt: number; avoiding: boolean; waiting: boolean };
   seq: number;
@@ -104,6 +106,8 @@ interface Agent {
   threatHandled: boolean;
   /** correções de parede seguidas no alvo atual */
   stuck: number;
+  /** chegou (relocate) em — métricas */
+  arrival: number;
 }
 
 export interface AutonomousOptions {
@@ -132,7 +136,7 @@ export class HumanizationStats {
   speedSum = 0; speedN = 0; movingMs = 0; stoppedMs = 0; dirChanges = 0;
   paths: number[] = [];
   avoidInterventions = 0; waits = 0; decisions = 0; wallRepaths = 0; giveUps = 0;
-  attacks = 0; attacksDenied = 0; vehicleRides = 0; groupsFormed = 0; groupHeadingSpread: number[] = [];
+  arrivals = 0; attacks = 0; attacksDenied = 0; vehicleRides = 0; groupsFormed = 0; groupHeadingSpread: number[] = [];
   perAgentWalk: number[] = [];
   correctionsBy: Record<string, number> = {};
   private tickWalk = 0; private tickAct = 0; private tickActIds = new Map<number, number>();
@@ -155,6 +159,8 @@ export class HumanizationStats {
 const PERSONAL_KINDS: readonly VehicleUseKind[] = ['bicycle', 'scooter', 'moto', 'car'];
 const VEH_SPEED: Record<string, [number, number]> = { bicycle: [3.8, 5.6], scooter: [3.2, 4.6], moto: [5.5, 7.6], car: [4.5, 7.2] };
 const FIGHT_VIEW_M = 28;
+/** STATUS.STAGGER (src/net/rules.ts) — cambaleio curto, não é queda */
+const STAGGER = 3;
 
 export class AutonomousSystem implements AutonomousWorldView {
   readonly agents: Agent[] = [];
@@ -256,9 +262,9 @@ export class AutonomousSystem implements AutonomousWorldView {
       goal: { kind: 'IDLE', until: 0, source: 'self' }, mem: {}, plan: this.standPlan(p.x, p.z),
       nextThink: 0, lastStep: now, lastFeel: 0, nextGesture: now + r.range(2000, 20000), actUntil: 0, act: 0, lookNid: 0, nextLook: 0,
       group: null, slot: 0, vehicleId: '', fight: null, stamina: this.moves.staminaMax, condition: 100,
-      bornAt: now, leaveAt: now + stay, downSince: 0,
+      bornAt: now, leaveAt: now + stay, downSince: 0, gotUpAt: 0,
       st: { activity: 'idle', moving: false, pathStart: null, pathLen: 0, hSample: 0, hAt: 0, avoiding: false, waiting: false }, seq: 0, vx: 0, vz: 0,
-      sent: { speed: -1, h: 0 }, vehKind: '', stowed: null, threatHandled: false, stuck: 0,
+      sent: { speed: -1, h: 0 }, vehKind: '', stowed: null, threatHandled: false, stuck: 0, arrival: 0,
     };
   }
 
@@ -296,7 +302,7 @@ export class AutonomousSystem implements AutonomousWorldView {
     for (const h of this.humanList) { if (h.spectator) continue; this.people.push(h); this.humanByNid.set(h.nid, h); this.humanById.set(h.id, h); }
     // passe de LOD/materialização a 2 Hz (ordenado pela distância ao humano mais próximo; orçamentos)
     if (this.tickN % 5 === 1) { const tl = performance.now(); this.lodPass(now); this.cost.lodMs += performance.now() - tl; }
-    if (this.tickN % 50 === 7) this.relocate(now);
+    if (this.tickN % 20 === 7) this.relocate(now);
     if (this.tickN % 10 === 3) { this.hotspotCache = this.host.hotspots(); this.expireFights(now); }
     if (this.active === 0) { this.finishTick(t0); return; }
     // corpos (humanos a pé + autônomos materializados) com velocidade — antecipação
@@ -384,7 +390,7 @@ export class AutonomousSystem implements AutonomousWorldView {
     if (this.host.nameTaken?.(a.nameKey)) this.rename(a);
     const nid = this.host.spawn(a.id, this.lookOf(a), a.k.x, a.k.z, a.k.heading);
     if (!nid) return false;
-    a.nid = nid; a.materialized = true; a.lod = 'FAR'; a.lastStep = now; a.act = 0; a.lookNid = 0; a.vehicleId = ''; a.vehKind = ''; a.fight = null; a.k.speed = 0; a.sent.speed = -1;
+    a.nid = nid; a.materialized = true; a.lod = 'FAR'; a.lastStep = now; a.gotUpAt = now; a.act = 0; a.lookNid = 0; a.vehicleId = ''; a.vehKind = ''; a.fight = null; a.k.speed = 0; a.sent.speed = -1;
     this.byNid.set(nid, a);
     // fase própria: a primeira decisão cai num instante sorteado (nunca "todos ao entrar")
     a.nextThink = now + this.rng.range(150, 4500);
@@ -424,34 +430,89 @@ export class AutonomousSystem implements AutonomousWorldView {
   }
 
   /**
-   * densidade ORGÂNICA: perto de um humano com pouca gente, alguém DORMANT longe de todos passa a "chegar" — aparece
-   * além da faixa MID (fora de vista) e vem andando até a área. Nada surge do nada na frente de ninguém.
+   * densidade ORGÂNICA perto de CADA humano (rodada 12, agente G): quem tem menos de `want` autônomos a ≤ local.radiusM
+   * recebe gente que "chega" — alguém DORMANT (ou materializado bem longe de todos, fora da vista) passa a vir andando de
+   * fora da faixa de atenção até perto dele. No eixo: aparece a local.arriveM pelo eixo; LONGE do eixo (vagas a ~270 m,
+   * ruas laterais): por uma linha livre de parede a local.offAxisM do humano — as ruas fecham a vista. Nada surge na
+   * frente de ninguém; o teto de população (targetActive) continua valendo.
    */
   private relocate(now: number) {
     const H = this.humanList;
     if (!H.length || !this.axis.ok) return;
-    const P = this.cfg.population;
-    const want = Math.min(40, Math.max(10, Math.round(this.targetActive(H.length) / Math.max(1, Math.min(H.length, 6)))));
-    let moved = 0;
-    for (let hi = 0; hi < Math.min(H.length, 6) && moved < 3; hi++) {
-      const h = H[(this.tickN + hi) % H.length];
+    const P = this.cfg.population, L = P.local;
+    const nh = Math.min(H.length, 8);
+    const want = Math.min(L.max, Math.max(L.min, Math.round(L.share * this.targetActive(H.length) / nh)));
+    const r2 = L.radiusM * L.radiusM;
+    let budget = L.perPass * 3;
+    for (let hi = 0; hi < nh && budget > 0; hi++) {
+      const h = H[(this.relocN + hi) % H.length];
       let local = 0;
-      for (const a of this.agents) if (a.materialized && Math.abs(a.k.x - h.x) < 130 && Math.abs(a.k.z - h.z) < 130) local++;
-      if (local >= want) continue;
-      const cand = this.agents.find((a) => !a.materialized && a.dHuman > P.dormantM + 60 && a.downSince === 0 && (a.idx + this.tickN) % 3 === 0);
-      if (!cand) continue;
-      const hs = this.axis.project(h.x, h.z).s, side = this.rng.chance(0.5) ? 1 : -1;
-      const s = hs + side * this.rng.range(P.mid.radius + 15, Math.min(P.materializeM - 10, P.mid.radius + 70));
-      const lane = this.rng.range(-20, 20);
-      const q = this.axis.at(s, 0), p = this.axis.at(s, lane);
-      if (!this.host.clear(q.x, q.z, p.x, p.z)) continue;
-      cand.k.x = p.x; cand.k.z = p.z; cand.k.heading = headingTo(-side * q.tx, -side * q.tz);
-      // chega andando até perto do humano (ou do ponto de concentração mais próximo dele)
-      cand.goal = { kind: this.rng.chance(0.5) ? 'JOIN_CROWD' : 'TRAVEL', until: now + this.rng.range(60_000, 180_000), source: 'self' };
-      cand.plan = { ...this.standPlan(p.x, p.z), mode: 'walk', axisS: hs + side * this.rng.range(-30, 40), lane: this.rng.range(-18, 18), hurry: 1, pauseUntil: 0 };
-      cand.dHuman = Math.hypot(p.x - h.x, p.z - h.z);
-      moved++;
+      for (const a of this.agents) if (a.materialized && (a.k.x - h.x) ** 2 + (a.k.z - h.z) ** 2 <= r2) local++;
+      for (let k = 0; k < L.perPass && local < want && budget > 0; k++) {
+        const cand = this.arrivalCandidate();
+        if (!cand) return;
+        const q = this.arrivalPoint(h);
+        if (!q) break;
+        if (cand.materialized) this.dematerialize(cand);
+        cand.k.x = q.x; cand.k.z = q.z; cand.k.heading = headingTo(q.tx - q.x, q.tz - q.z);
+        // chega andando até perto do humano e então vive ali (passeio, roda, concentração — o cérebro decide)
+        cand.goal = { kind: 'WANDER', until: now + this.rng.range(45_000, 120_000), source: 'self' };
+        cand.plan = { ...this.walkPlan(q.tx, q.tz, 1.02), arriveR: 1.2 };
+        cand.dHuman = Math.hypot(q.x - h.x, q.z - h.z);
+        cand.arrival = now;
+        local++; budget--; this.stats.arrivals++;
+      }
     }
+    this.relocN++;
+  }
+  private relocN = 0;
+
+  /** quem pode "chegar": DORMANT longe de todos, ou materializado a mais de mid+20 m de qualquer humano e sem compromisso */
+  private arrivalCandidate(): Agent | null {
+    const P = this.cfg.population;
+    const n = this.agents.length;
+    const off = this.rng.int(0, Math.max(0, n - 1));
+    let fallback: Agent | null = null;
+    for (let i = 0; i < n; i++) {
+      const a = this.agents[(off + i) % n];
+      if (a.downSince) continue;
+      if (!a.materialized) { if (a.dHuman > P.dormantM + 30 || a.dHuman === Infinity) return a; continue; }
+      if (!fallback && a.lod === 'FAR' && a.dHuman > P.mid.radius + 20 && !a.fight && !a.group && !a.vehicleId && !this.roleOf(a.id) && a.goal.source !== 'director') fallback = a;
+    }
+    return fallback;
+  }
+
+  /** ponto de chegada para perto do humano `h` (ponto de surgir x,z e alvo de caminhada tx,tz) */
+  private arrivalPoint(h: HumanView): { x: number; z: number; tx: number; tz: number } | null {
+    const L = this.cfg.population.local;
+    const pr = this.axis.project(h.x, h.z);
+    if (Math.abs(pr.lat) <= 35) {
+      for (let i = 0; i < 4; i++) {
+        const side = this.rng.chance(0.5) ? 1 : -1;
+        const s = Math.max(5, Math.min(this.axis.len - 5, pr.s + side * this.rng.range(L.arriveM[0], L.arriveM[1])));
+        const lane = this.rng.range(-20, 20);
+        const c = this.axis.at(s, 0), p = this.axis.at(s, lane);
+        if (!this.inBounds(p.x, p.z) || !this.host.clear(c.x, c.z, p.x, p.z)) continue;
+        const t = this.axis.at(pr.s + side * this.rng.range(-10, 30), this.rng.range(-18, 18));
+        return { x: p.x, z: p.z, tx: t.x, tz: t.z };
+      }
+      return null;
+    }
+    // longe do eixo: por uma rua livre (linha sem parede) que chega até o humano
+    for (let i = 0; i < 10; i++) {
+      const ang = this.rng.range(-Math.PI, Math.PI), d = this.rng.range(L.offAxisM[0], L.offAxisM[1]);
+      const x = h.x + Math.sin(ang) * d, z = h.z + Math.cos(ang) * d;
+      if (!this.inBounds(x, z) || !this.host.clear(h.x, h.z, x, z)) continue;
+      const back = this.rng.range(5, 18);
+      return { x, z, tx: h.x + Math.sin(ang) * back + this.rng.range(-2, 2), tz: h.z + Math.cos(ang) * back + this.rng.range(-2, 2) };
+    }
+    return null;
+  }
+
+  /** alguém (humano a pé) a ≤ r m — fora do eixo, o passeio fica onde há gente */
+  private nearPerson(x: number, z: number, r: number) {
+    for (const h of this.people) if ((h.x - x) ** 2 + (h.z - z) ** 2 <= r * r) return true;
+    return false;
   }
 
   // ------------------------------------------------------------------------------------------------ corpos
@@ -585,7 +646,13 @@ export class AutonomousSystem implements AutonomousWorldView {
           let ahead = 0, behind = 0;
           for (const h of this.humanList) { const hs = this.axis.project(h.x, h.z).s; if (hs > s) ahead++; else behind++; }
           s += (ahead <= behind ? 1 : -1) * r.range(320, 520);
-        } else s += (r.chance(0.5) ? 1 : -1) * r.range(110, 420);
+        } else {
+          // viagem: metade das vezes para perto de alguém que está jogando NO eixo (é lá que a avenida está viva)
+          const hp = this.people.length && r.chance(0.5) ? r.pick(this.people) : null;
+          const hq = hp ? this.axis.project(hp.x, hp.z) : null;
+          if (hq && Math.abs(hq.lat) <= 35 && Math.abs(hq.s - s) > 60) s = hq.s + r.range(-40, 40);
+          else s += (r.chance(0.5) ? 1 : -1) * r.range(110, 420);
+        }
         s = Math.max(10, Math.min(this.axis.len - 10, s));
         a.plan = { ...this.walkPlan(x, z, kind === 'LEAVE_AREA' ? 1.04 : 1.06), axisS: s, lane: r.range(-20, 20), run: r.chance(a.prof.run * 0.5) };
         // viagem longa e veículo livre perto: vai de veículo (mesmo caminho dos jogadores)
@@ -667,7 +734,7 @@ export class AutonomousSystem implements AutonomousWorldView {
       const a = this.rng.range(-Math.PI, Math.PI), d = this.rng.range(rMin, rMax);
       const px = x + Math.sin(a) * d, pz = z + Math.cos(a) * d;
       if (!this.inBounds(px, pz)) continue;
-      if (this.axis.ok && Math.abs(this.axis.project(px, pz).lat) > 30) continue;
+      if (this.axis.ok && Math.abs(this.axis.project(px, pz).lat) > 30 && !this.nearPerson(px, pz, 90)) continue;
       if (this.host.clear(x, z, px, pz)) return { x: px, z: pz };
     }
     // sem saída: volta para perto do eixo
@@ -807,8 +874,10 @@ export class AutonomousSystem implements AutonomousWorldView {
     a.act = s.act;
     if (s.status !== 0) {
       a.k.speed = 0; a.vx = 0; a.vz = 0;
-      if (!a.downSince) { a.downSince = now; this.endPath(a); }
-      this.tally(a, 'idle', dt);
+      // cambalear (STAGGER, ~0,4 s de um soco) NÃO é cair: sem "levantou" depois (antes cada soco recebido sorteava a
+      // fuga de quem briga e zerava a espera da proteção). Queda = chão/levantando/ragdoll
+      if (!a.downSince && s.status !== STAGGER) { a.downSince = now; this.endPath(a); }
+      this.tally(a, a.fight && s.status === STAGGER ? 'fight' : 'idle', dt);
       return;
     }
     if (a.downSince) { a.downSince = 0; this.afterGetUp(a, now); }
@@ -1149,7 +1218,10 @@ export class AutonomousSystem implements AutonomousWorldView {
   private fightStep(a: Agent, now: number, dt: number) {
     const F = a.fight!;
     const t = this.byId.get(F.target), h = this.humanById.get(F.target);
-    const tp = t ? (t.materialized && !t.downSince ? { x: t.k.x, z: t.k.z } : null) : h && h.status === 0 && !h.vehicle ? { x: h.x, z: h.z } : null;
+    // alvo CAÍDO (ou na proteção de retorno logo depois de levantar) não encerra a briga: quem bateu espera por perto,
+    // encarando e gesticulando, e volta quando dá — antes o 1º empurrão (que derruba) acabava com toda briga
+    const tp = t ? (t.materialized ? { x: t.k.x, z: t.k.z } : null) : h && !h.vehicle ? { x: h.x, z: h.z } : null;
+    const tDown = t ? t.downSince > 0 || now - t.gotUpAt < this.moves.protectMs : !!h && h.status !== 0;
     const d = tp ? Math.hypot(tp.x - a.k.x, tp.z - a.k.z) : Infinity;
     // fim: tempo, alvo caiu/sumiu, humano se afastou (não persegue), cansado/machucado
     const limit = h ? 7 : 14;
@@ -1182,8 +1254,12 @@ export class AutonomousSystem implements AutonomousWorldView {
       else if (F.stage === 0) F.until = Math.min(F.until, now + this.rng.range(1500, 4000)); // esfriou
     }
     const reach = (this.moves.punch?.range ?? 1.2) - 0.15;
-    const want = F.stage === 0 ? 1.4 : reach;
-    if (d > want + 0.15) {
+    const hold = F.stage > 0 && tDown;
+    const want = F.stage === 0 || hold ? 1.4 : reach;
+    // já ao alcance do soco (alcance dos dados + folga do servidor): bate daqui — antes exigia ≤ 1,2 m e, com o recuo do
+    // golpe (0,35 m) e a colisão entre corpos da sala, quem revidava ficava "se aproximando" a 1,25 m para sempre
+    const inReach = F.stage > 0 && !hold && d <= (this.moves.punch?.range ?? 1.2) + 0.12;
+    if (d > want + 0.15 && !inReach) {
       // aproxima (correndo se longe), sem atravessar ninguém
       a.plan.tx = tp.x; a.plan.tz = tp.z;
       const near = this.neighbors(a, 3);
@@ -1192,7 +1268,11 @@ export class AutonomousSystem implements AutonomousWorldView {
     } else {
       faceToward(a.k, tp.x, tp.z, dt, 5);
       this.commitMove(a, a.k.x, a.k.z, 0, now);
-      if (F.stage === 0) {
+      if (hold) {
+        // adversário no chão / levantando: encara, aponta, chama — sem golpe (ninguém bate em quem está caído)
+        if (!a.act && now >= a.nextGesture) { this.startAct(a, this.rng.pick([A.point, A.armsUp, A.talk]), now, this.rng.range(1200, 2600)); a.nextGesture = now + this.rng.range(1500, 3500); }
+        F.nextAttack = Math.max(F.nextAttack, now + this.rng.range(250, 900) * a.reactMul);
+      } else if (F.stage === 0) {
         // discussão: aponta/gesticula, sem golpe
         if (!a.act && now >= a.nextGesture) { this.startAct(a, this.rng.chance(0.5) ? A.point : A.talk, now, this.rng.range(1500, 3500)); a.nextGesture = now + this.rng.range(1800, 4200); }
       } else if (now >= F.nextAttack) {
@@ -1219,17 +1299,23 @@ export class AutonomousSystem implements AutonomousWorldView {
     // sequência: pede o soco de novo dentro da janela — o servidor resolve o combo (combat.json comboFrom)
     if (F.combo && M.combo) return M.punch;
     if (F.stage === 1) return M.push;
+    // troca de golpes: mais soco (empurrão e chute derrubam — cada queda são ~4 s no chão + 5 s de proteção)
     const r = this.rng.next();
-    if (r < 0.55) return M.punch;
-    if (r < 0.75) return M.push;
-    if (r < 0.9 && a.stamina > 40) return M.kick ?? M.punch;
+    if (r < 0.74) return M.punch;
+    if (r < 0.86) return M.push;
+    if (r < 0.95 && a.stamina > 40) return M.kick ?? M.punch;
     return M.punch;
   }
 
   private afterGetUp(a: Agent, now: number) {
     // levantou: foge, observa ou volta (personalidade); nunca todos ao mesmo tempo
+    a.gotUpAt = now;
     a.nextThink = now + this.rng.range(300, 1500) * a.reactMul;
-    if (a.fight && this.rng.chance(a.prof.fight.flee + 0.2)) { a.fight = null; this.startGoal(a, 'AVOID_FIGHT', now, 'self'); }
+    // derrubado por alguém: a reação (revidar/fugir/reclamar) conta a partir de AGORA — no chão ninguém reage, e a
+    // janela de 5 s da ameaça já teria passado (rodada 12, agente G: revide de quem foi derrubado por humano)
+    if (!a.fight && a.mem.threat && now - a.mem.threat.at < 15_000) { a.mem.threat.at = now; a.threatHandled = false; a.nextThink = now + this.rng.range(200, 900) * a.reactMul; }
+    // no meio da briga: o cauteloso larga; o confrontador quase sempre volta (pesos da personalidade)
+    if (a.fight && this.rng.chance(a.prof.fight.flee * 0.75 + 0.05)) { a.fight = null; this.unstowProp(a); this.startGoal(a, 'AVOID_FIGHT', now, 'self'); }
   }
 
   private nearestFight(x: number, z: number, r: number, now: number): Fight | null {
@@ -1305,7 +1391,7 @@ export class AutonomousSystem implements AutonomousWorldView {
     const a = this.byId.get(id);
     if (!a) return;
     if (type === 'cbt_self') { const m = msg as { st?: number; cd?: number }; if (typeof m?.st === 'number') a.stamina = m.st; if (typeof m?.cd === 'number') a.condition = m.cd; }
-    else if (type === 'cbt_denied') { const r = (msg as { reason?: string })?.reason; if (a.fight && (r === 'zona_paz' || r === 'politica' || r === 'protegido')) a.fight.until = Math.min(a.fight.until, this.host.now() + 800); if (a.fight && r === 'stamina') a.fight.nextAttack = this.host.now() + 1500; }
+    else if (type === 'cbt_denied') { const r = (msg as { reason?: string })?.reason; if (a.fight && (r === 'zona_paz' || r === 'politica')) a.fight.until = Math.min(a.fight.until, this.host.now() + 800); if (a.fight && r === 'protegido') a.fight.nextAttack = this.host.now() + this.rng.range(1200, 2000); /* proteção é temporária: espera, não larga a briga */ if (a.fight && r === 'stamina') a.fight.nextAttack = this.host.now() + 1500; }
     else if (type === 'exit_ok') { a.vehicleId = ''; }
   }
 
@@ -1356,10 +1442,12 @@ export class AutonomousSystem implements AutonomousWorldView {
    */
   propose(id: string, goal: Omit<Goal, 'source'>, weight: number): boolean {
     const a = this.byId.get(id);
-    if (!a || !a.materialized || a.downSince) return false;
+    if (!a || !a.materialized) return false;
     const now = this.host.now();
     const role = this.roleOf(id);
     const sameEvent = !!goal.eventId && a.goal.eventId === goal.eventId;
+    // caído só aceita continuar a MESMA briga (volta quando levantar); o resto fica para depois
+    if (a.downSince && !(goal.kind === 'JOIN_FIGHT' && sameEvent)) return false;
     // fim de evento (o diretor manda dispersar): sempre aceita — ninguém fica brigando sozinho
     const calmDown = !!a.fight && (goal.kind === 'WANDER' || goal.kind === 'LEAVE_AREA' || goal.kind === 'AVOID_FIGHT');
     if (a.fight && !calmDown && goal.kind !== 'JOIN_FIGHT') return false;
@@ -1375,11 +1463,16 @@ export class AutonomousSystem implements AutonomousWorldView {
       const P = PROFILES[a.personality];
       // discussão: quem foi escolhido pelo diretor quase sempre "compra" (o pavio decide o resto); briga: entrar pesa a
       // personalidade e o vínculo, e quem já estava discutindo no MESMO foco tende a escalar
-      const aff = goal.kind === 'JOIN_FIGHT' ? 0.3 + P.fight.join + P.fight.defend * 0.5 + (sameEvent ? 0.3 + P.temper * 0.6 : 0) : arguing ? 0.75 + P.temper * 0.5 : 0.5 + proposalAffinity(a.personality, goal.kind);
-      const committed = now >= a.goal.until || sameEvent ? 0 : a.goal.source === 'director' ? 0.6 : a.goal.kind === 'IDLE' || a.goal.kind === 'WANDER' ? 0.1 : 0.3;
+      const aff = goal.kind === 'JOIN_FIGHT' ? 0.55 + P.fight.join + P.fight.defend * 0.5 + (sameEvent ? 0.3 + P.temper * 0.6 : 0) : arguing ? 0.9 + P.temper * 0.4 : 0.5 + proposalAffinity(a.personality, goal.kind);
+      // briga do lado é URGENTE: o compromisso com a reunião/passeio pesa pouco (antes 0,6 para quem estava numa
+      // concentração — a plateia natural de um encontro de torcidas nunca reagia)
+      const urgent = goal.kind === 'JOIN_FIGHT' || goal.kind === 'WATCH_FIGHT' || goal.kind === 'AVOID_FIGHT' || arguing;
+      const committed = now >= a.goal.until || sameEvent ? 0 : urgent ? (a.goal.source === 'director' ? 0.15 : 0.05) : a.goal.source === 'director' ? 0.6 : a.goal.kind === 'IDLE' || a.goal.kind === 'WANDER' ? 0.1 : 0.3;
       p = Math.max(0, Math.min(1, aff * Math.max(0, Math.min(1, weight)) - committed));
     }
     if (!this.rng.chance(p)) return false;
+    // o diretor já decidiu a reação a quem me agrediu (revidar = discussão→briga; fugir) — não reage de novo
+    if (a.mem.threat && (goal.target === a.mem.threat.id || goal.kind === 'AVOID_FIGHT')) a.threatHandled = true;
     const until = Math.max(now + 3000, goal.until);
     if (goal.kind === 'JOIN_FIGHT') this.beginFight(a, goal.target!, now, role?.role === 'FIGHT' && (role.pushUntil ?? 0) > now ? 1 : role ? 2 : weight >= 0.8 ? 2 : 1, true, until, goal.eventId);
     else if (arguing) this.beginFight(a, goal.target!, now, 0, true, until, goal.eventId);

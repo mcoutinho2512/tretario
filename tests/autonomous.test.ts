@@ -216,7 +216,7 @@ describe('rodada 12 — autônomos: diretor de eventos (propose) e confronto', (
     const { host, sys, run } = world(1, { config: only('CONFRONTADOR') });
     const h = host.addHuman('h', 0, 0);
     sys.place(sys.agents[0].id, 0.9, 0);
-    run(30);
+    run(60); // a proteção de retorno ao aparecer (5 s, como na sala) passa antes do golpe
     const e = host.ents.get(sys.agents[0].id)!;
     h.x = e.x - 0.9; h.z = e.z; h.last = { x: h.x, y: 0, z: h.z, t: host.t };
     expect(host.humanAttack('h', 1, Math.PI / 2)).toBe(true);

@@ -30,6 +30,7 @@ import { PROPS } from '../social/props';
 import type { SocialState } from '../social/types';
 import { npcDownPhase, startNpcReaction, stepNpcReaction, type NpcHittable, type NpcReaction, type NpcReactionKind, type NpcTarget } from '../combat/npcHits';
 import { seeded, turnToward } from './gait';
+import { LOCAL_POPULATION_DEFAULTS, localPedLimit, localPedMinSpawn, type LocalPopulationRule } from './localPopulation'; // rodada 12 (G) — população dupla
 
 /** clipes que os NPCs carregam: locomoção + todos os de ações/itens (camada social) */
 export const NPC_CLIPS = [...new Set(['idle', 'walk', 'jog', ...ACTIONS.map((a) => a.clip), ...PROPS.map((p) => p.carryClip)])];
@@ -121,7 +122,10 @@ export class PedestrianSystem implements NpcHittable {
   maxDetail: Lod = 1;
   /** orçamento único de humanos (opcional: sem ele, todos os pedestres têm esqueleto, como antes) */
   crowd: CrowdDirector | null = null;
-  stats = { active: 0, visible: 0, crossing: 0, waiting: 0, skinned: 0, limit: 0, hits: 0, reacting: 0, down: 0 };
+  stats = { active: 0, visible: 0, crossing: 0, waiting: 0, skinned: 0, limit: 0, hits: 0, reacting: 0, down: 0, autoNear: 0 };
+  /** rodada 12 (G): autônomos do servidor a ≤ localRule.nearM do jogador (Game, ~2 Hz) — perto deles os locais cedem */
+  autoNear = 0;
+  localRule: LocalPopulationRule = LOCAL_POPULATION_DEFAULTS;
   private crossings: PedCrossing[] = [];
   private crossGrid = new Map<string, number[]>();
   private signals: SignalController | null = null;
@@ -337,7 +341,9 @@ export class PedestrianSystem implements NpcHittable {
   private spawn(p: Ped, cx: number, cz: number, camFwd: THREE.Vector3, initial: boolean): boolean {
     for (let attempt = 0; attempt < 40; attempt++) {
       const a = this.rnd() * Math.PI * 2;
-      const r = initial ? 6 + this.rnd() * (this.radius - 6) : 45 + this.rnd() * (this.radius - 45);
+      // com autônomos por perto, pedestre local só no FUNDO (src/npc/localPopulation.ts)
+      const r0 = Math.min(this.radius - 5, Math.max(initial ? 6 : 45, localPedMinSpawn(this.autoNear, this.localRule)));
+      const r = r0 + this.rnd() * (this.radius - r0);
       const x = cx + Math.cos(a) * r, z = cz + Math.sin(a) * r;
       if (!this.world.isPedestrianWalkable(x, z)) continue;
       // não nascer encostado em outro pedestre
@@ -448,13 +454,17 @@ export class PedestrianSystem implements NpcHittable {
     let active = 0, visible = 0, crossing = 0, waiting = 0, skinned = 0, reacting = 0, down = 0;
     const crowd = this.crowd;
     // total de humanos limitado pelo preset: com muita gente da rede, os NPCs cedem lugar
-    const limit = crowd ? Math.min(this.max, Math.max(MIN_PEDS, crowd.budget.total - crowd.othersCount)) : this.max;
+    // rodada 12 (G): e cedem aos AUTÔNOMOS do servidor por perto (todos veem os mesmos; os locais só este cliente)
+    const limit = Math.min(crowd ? Math.min(this.max, Math.max(MIN_PEDS, crowd.budget.total - crowd.othersCount)) : this.max, localPedLimit(this.max, this.autoNear, this.localRule));
+    this.stats.autoNear = this.autoNear;
 
     for (let i = 0; i < this.max; i++) {
       const p = this.peds[i];
       if (i >= limit) {
-        if (p.active) { p.active = false; p.rig.mesh.visible = false; }
-        continue;
+        if (!p.active) continue;
+        // acima do limite: só sai fora da vista (ou longe) — ninguém some na frente da câmera
+        const seen = this.frustum.containsPoint(this.tmp.set(p.x, p.y + 1, p.z));
+        if (!seen || Math.hypot(p.x - cx, p.z - cz) > this.localRule.backgroundM) { p.active = false; p.rig.mesh.visible = false; continue; }
       }
       if (!p.active) {
         const initial = this.time < 1;
