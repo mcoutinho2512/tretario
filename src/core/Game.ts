@@ -479,7 +479,7 @@ export class Game {
     this.hud.appendChild(this.toast);
     const attr = document.createElement('div');
     attr.className = 'attribution';
-    attr.innerHTML = '<span class="beta-tag" title="Versão beta pública">BETA</span>Dados do mapa © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a> (ODbL)';
+    attr.innerHTML = '<span class="beta-tag" title="Versão beta pública">BETA</span>Dados do mapa © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a> (ODbL) · © <a href="https://www.mcconsultoriati.com.br" target="_blank" rel="noopener">MC Consultoria em TI</a>';
     this.hud.appendChild(attr);
     // rodada 11 — entrada: sem pointer lock (cursor sempre visível; docs/DESKTOP_CONTROLS.md) — abrir/fechar painel
     // não captura nem solta nada; o gancho fica para quem precisa reagir. F1/tela de controles relê remapeamentos.
