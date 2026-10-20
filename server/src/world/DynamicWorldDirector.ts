@@ -405,7 +405,8 @@ export class DynamicWorldDirector {
     e.phaseUntil = now + this.range(G.growS) * 1000;
     e.participants = e.members.size;
     if (!forced) { this.spend('gathering', now); this.gatheringAt = now; this.regionUntil.set(this.regionKey('gathering', x, z), now + this.cfg.budget.gathering.regionCooldownS * 1000); }
-    if (forced === 'CAMINHADA') this.beginWalk(e, now);
+    // QA: caminhada forçada junta gente primeiro (~25 s de convites) e só então sai andando — antes saía com 1–2
+    if (forced === 'CAMINHADA') e.phaseUntil = now + 25_000;
     e.ghost = e.members.size === 0;
     this.log(e, 'start', now);
     return e;
@@ -550,7 +551,7 @@ export class DynamicWorldDirector {
     // fases pelo tempo
     if (e.phase === 'GROW' && (now >= e.phaseUntil || e.participants >= G.maxSize)) {
       e.phase = 'PEAK'; e.phaseUntil = now + this.range(G.peakS) * 1000;
-      if (e.kind === 'MANIFESTACAO' && this.rng() < G.manifest.walkChance) this.beginWalk(e, now);
+      if (e.forced === 'CAMINHADA' || (e.kind === 'MANIFESTACAO' && this.rng() < G.manifest.walkChance)) this.beginWalk(e, now);
     } else if (e.phase === 'PEAK' && now >= e.phaseUntil) { e.phase = 'DRAIN'; e.phaseUntil = now + this.range(G.drainS) * 1000; }
     if (e.phase === 'WALK') this.walkStep(e, now);
     // convites (crescimento orgânico) — só a quem já está perto
@@ -620,7 +621,8 @@ export class DynamicWorldDirector {
     let i = 0;
     for (const [id, m] of e.members) {
       if (m.role === 'WATCH' || (this.seq + i++) % 4 !== Math.floor(now / 1000) % 4) continue;
-      this.propose(id, { kind: 'FOLLOW_EVENT', x: e.x, z: e.z, eventId: e.id, until: now + 60_000 }, 0.9);
+      // ponto um pouco À FRENTE do centro: quem acompanha não para no lugar velho e fica para trás (anda junto)
+      this.propose(id, { kind: 'FOLLOW_EVENT', x: e.x + (dx / d) * 6, z: e.z + (dz / d) * 6, eventId: e.id, until: now + 60_000 }, 0.9);
     }
   }
 
@@ -747,7 +749,8 @@ export class DynamicWorldDirector {
 
   /** quem está OLHANDO pode mudar de ideia com a briga rolando: a cada reaskS volta a ser perguntado */
   private reask(e: Dyn, now: number) {
-    if (now - e.reaskAt < this.cfg.conflict.fight.reaskS * 1000) return;
+    // QA (foco forçado, acelerado): re-pergunta no mesmo ritmo acelerado do resto do foco
+    if (now - e.reaskAt < this.cfg.conflict.fight.reaskS * 1000 / (e.forced ? Math.max(1, this.cfg.qa.forcedSpeedup) : 1)) return;
     e.reaskAt = now;
     for (const [id, m] of e.members) if (m.role === 'WATCH') e.decided.delete(id);
   }
@@ -844,7 +847,7 @@ export class DynamicWorldDirector {
       e.decided.add(a.id);
       const side = this.friendSide(e, a);
       const w = C.reactions[a.personality];
-      const joinW = maxJoin > 0 ? w.join * (side >= 0 ? C.friendJoinMult : C.strangerJoinMult) * (e.forced === 'BRIGA_GENERALIZADA' ? 2 : 1) : 0;
+      const joinW = maxJoin > 0 ? w.join * (side >= 0 ? C.friendJoinMult : C.strangerJoinMult) * (e.forced === 'BRIGA_GENERALIZADA' ? 3 : 1) : 0;
       let r: Reaction = this.roll(joinW, w.watch, w.flee, w.ignore);
       if (r === 'join' && joined >= maxJoin) r = 'watch'; // adesão GRADUAL: o excedente fica olhando
       this.stats.reactions[r]++;

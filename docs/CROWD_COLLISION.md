@@ -82,6 +82,17 @@ Fluxo sugerido por tick do autônomo: `steerAround` (direção) → passo → `c
 `grid.move` → (todos) `resolveAutonomous` → escrever no NetPlayer → `sync`. O cliente vê autônomos como corpos
 macios (0,12 m < tolerância), então um humano que encosta num autônomo parado o empurra devagar (o servidor resolve).
 
+### Uso pelos autônomos (rodada 12, agente G)
+
+- Passo de cada autônomo: `steer` (desvio com antecipação, espaço pessoal 0,9 m × personalidade) → `constrainStep` contra
+  os vizinhos (`createBodyIndex`) → `room.move` (a sala aplica `constrainMove` contra `room.bodies.grid`, humanos duros)
+  → `resolveAutonomous` pós-tick. Nascer/chegar: `freeSpot`.
+- Briga: o soco (1,2 m) é pedido a ≤ alcance + 0,12 m — com 0,64 m de contato e o recuo do golpe (0,35 m), exigir
+  ≤ 1,05 m deixava quem revidava "se aproximando" a 1,25 m para sempre (o servidor aceita até alcance + `rangeSlackM`).
+- Multidão de concentração: 20–35 autônomos de pé num anel de 14–30 m (concentrações do diretor) ficam compactos sem
+  sobrepor; a plateia de uma briga fica a 4,5–8,5 m (`WATCH_FIGHT`), quem foge abre caminho pela própria colisão.
+- Os NPCs LOCAIS do cliente cedem aos autônomos (src/npc/localPopulation.ts, docs/AUTONOMOUS_CHARACTERS.md).
+
 ## Multidão
 
 - 30 corpos em 3 fileiras fechando a passagem: o humano **não passa** (QA, `tests/collisionServer.test.ts` com 10 numa

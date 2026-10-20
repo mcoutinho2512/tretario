@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-20T00:58:50.682Z",
+  "generatedAt": "2026-10-20T13:22:35.061Z",
   "tool": "server/tools/autonomous_report.ts calib",
   "setup": {
     "agents": 180,
@@ -58,8 +58,8 @@
       "gatheringPeakMedian": 20,
       "gatheringPeakMax": 29,
       "nearFarHumanAvg60": 13.5,
-      "aiMsPerTick": 0.102,
-      "wallMs": 4126
+      "aiMsPerTick": 0.16,
+      "wallMs": 6463
     },
     {
       "seed": 7,
@@ -76,8 +76,8 @@
       "gatheringPeakMedian": 22,
       "gatheringPeakMax": 31,
       "nearFarHumanAvg60": 10.2,
-      "aiMsPerTick": 0.101,
-      "wallMs": 4073
+      "aiMsPerTick": 0.154,
+      "wallMs": 6226
     },
     {
       "seed": 3,
@@ -94,8 +94,8 @@
       "gatheringPeakMedian": 25,
       "gatheringPeakMax": 30,
       "nearFarHumanAvg60": 5.6,
-      "aiMsPerTick": 0.108,
-      "wallMs": 4319
+      "aiMsPerTick": 0.164,
+      "wallMs": 6604
     },
     {
       "seed": 99,
@@ -112,8 +112,8 @@
       "gatheringPeakMedian": 26,
       "gatheringPeakMax": 32,
       "nearFarHumanAvg60": 14.4,
-      "aiMsPerTick": 0.105,
-      "wallMs": 4205
+      "aiMsPerTick": 0.167,
+      "wallMs": 6711
     },
     {
       "seed": 5,
@@ -130,8 +130,8 @@
       "gatheringPeakMedian": 20,
       "gatheringPeakMax": 31,
       "nearFarHumanAvg60": 9.5,
-      "aiMsPerTick": 0.105,
-      "wallMs": 4230
+      "aiMsPerTick": 0.159,
+      "wallMs": 6395
     },
     {
       "seed": 42,
@@ -148,8 +148,8 @@
       "gatheringPeakMedian": 23,
       "gatheringPeakMax": 33,
       "nearFarHumanAvg60": 14.8,
-      "aiMsPerTick": 0.107,
-      "wallMs": 4255
+      "aiMsPerTick": 0.163,
+      "wallMs": 6498
     },
     {
       "seed": 77,
@@ -160,14 +160,14 @@
       "generalized": 0,
       "peakFighters": 5,
       "peakWatchers": 10,
-      "provokedFoci": 11,
+      "provokedFoci": 10,
       "gatherings": 12,
-      "gatheringsAtLeast15": 6,
-      "gatheringPeakMedian": 20,
+      "gatheringsAtLeast15": 8,
+      "gatheringPeakMedian": 21,
       "gatheringPeakMax": 36,
-      "nearFarHumanAvg60": 7,
-      "aiMsPerTick": 0.096,
-      "wallMs": 3861
+      "nearFarHumanAvg60": 11.8,
+      "aiMsPerTick": 0.152,
+      "wallMs": 6127
     },
     {
       "seed": 12,
@@ -184,8 +184,8 @@
       "gatheringPeakMedian": 22,
       "gatheringPeakMax": 27,
       "nearFarHumanAvg60": 12.4,
-      "aiMsPerTick": 0.107,
-      "wallMs": 4318
+      "aiMsPerTick": 0.165,
+      "wallMs": 6635
     }
   ],
   "population": [
@@ -198,14 +198,14 @@
       "generalized": 1,
       "peakFighters": 6,
       "peakWatchers": 10,
-      "provokedFoci": 8,
+      "provokedFoci": 11,
       "gatherings": 12,
-      "gatheringsAtLeast15": 10,
+      "gatheringsAtLeast15": 9,
       "gatheringPeakMedian": 19,
       "gatheringPeakMax": 28,
-      "nearFarHumanAvg60": 9.8,
-      "aiMsPerTick": 0.089,
-      "wallMs": 3583
+      "nearFarHumanAvg60": 9.3,
+      "aiMsPerTick": 0.139,
+      "wallMs": 5579
     },
     {
       "seed": 31,
@@ -222,8 +222,8 @@
       "gatheringPeakMedian": 26,
       "gatheringPeakMax": 36,
       "nearFarHumanAvg60": 12.6,
-      "aiMsPerTick": 0.142,
-      "wallMs": 5622
+      "aiMsPerTick": 0.22,
+      "wallMs": 8703
     }
   ],
   "report": {
@@ -255,7 +255,7 @@
       }
     ],
     "simMinutes": 60,
-    "wallMs": 4126,
+    "wallMs": 6463,
     "seed": 31,
     "conflicts": {
       "discussions": 23,
@@ -1468,10 +1468,10 @@
       "DORMANT": 15
     },
     "cost": {
-      "aiMsPerTick": 0.102,
-      "aiMsMaxTick": 6.43,
-      "directorMsPerTick": 0.007,
-      "directorMsMax": 0.45,
+      "aiMsPerTick": 0.16,
+      "aiMsMaxTick": 4.18,
+      "directorMsPerTick": 0.012,
+      "directorMsMax": 0.65,
       "decisionsPerSec": 75.7
     }
   }

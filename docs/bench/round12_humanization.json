@@ -1,10 +1,10 @@
 {
-  "generatedAt": "2026-10-20T00:59:01.554Z",
+  "generatedAt": "2026-10-20T13:22:36.384Z",
   "tool": "server/tools/autonomous_report.ts",
   "agents": 100,
   "humans": 6,
   "simMinutes": 10,
-  "wallMs": 514,
+  "wallMs": 775,
   "activityPct": {
     "idle": 16.8,
     "walk": 33.5,
@@ -112,7 +112,7 @@
     "FAR": 16,
     "DORMANT": 0
   },
-  "aiMsPerTick": 0.075,
+  "aiMsPerTick": 0.113,
   "robotic": [
     {
       "check": "inícios de caminhada em ticks com ≥3 inícios (%)",

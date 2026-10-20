@@ -125,18 +125,32 @@ describe.skipIf(skip)('rodada 12 (G) — escalada, revide e população na sala 
     Object.assign(C, { seedChance: 0 }); // chega de focos novos
 
     // ---------- 3) foco de QA com plateia: TENSÃO → CONFRONTO → GENERALIZADO, adesões graduais
-    human.send('test_tp', { x: SP.x + 60, z: SP.z - 10 }); await w(1500);
-    const ring = free(['AGITADO', 'CONFRONTADOR', 'TORCEDOR', 'SOCIAL', 'CURIOSO', 'OBSERVADOR', 'MANIFESTANTE']).slice(0, 22);
-    ring.forEach((a: any, i: number) => { const ang = (i / ring.length) * Math.PI * 2; place(a.id, me().x + 6 + Math.cos(ang) * (2 + (i % 3)), me().z + Math.sin(ang) * (2 + (i % 3))); });
-    await w(800);
-    human.send('qa_dyn', { kind: 'BRIGA_GENERALIZADA', x: me().x + 6, z: me().z, ack: true });
-    let gid = '';
-    await until(() => { gid = dyn.history.filter((h: any) => h.ev === 'start' && h.kind === 'DISCUSSAO').at(-1)?.id ?? ''; return gid && dyn.history.some((h: any) => h.id === gid && h.level === 'GENERALIZADO'); }, 50_000);
+    // as adesões são sorteadas pela personalidade (como no jogo): se um foco se dispersar antes de generalizar, outro
+    // foco é forçado noutro ponto (até 3 tentativas) — o que se confere é a ORDEM dos níveis e o crescimento gradual
+    let gid = '', ok3 = false;
+    const steps: number[] = [];
+    for (let attempt = 0; attempt < 3 && !ok3; attempt++) {
+      human.send('test_tp', { x: SP.x + 60 + attempt * 40, z: SP.z - 10 }); await w(1500);
+      const ring = free(['AGITADO', 'CONFRONTADOR', 'TORCEDOR', 'SOCIAL', 'CURIOSO', 'OBSERVADOR', 'MANIFESTANTE']).slice(0, 22);
+      ring.forEach((a: any, i: number) => { const ang = (i / ring.length) * Math.PI * 2; place(a.id, me().x + 6 + Math.cos(ang) * (2 + (i % 3)), me().z + Math.sin(ang) * (2 + (i % 3))); });
+      await w(800);
+      const h0 = dyn.history.length;
+      human.send('qa_dyn', { kind: 'BRIGA_GENERALIZADA', x: me().x + 6, z: me().z, ack: true });
+      steps.length = 0;
+      const t0 = Date.now();
+      while (Date.now() - t0 < 45_000) {
+        gid = dyn.history.slice(h0).find((h: any) => h.ev === 'start' && h.kind === 'DISCUSSAO')?.id ?? '';
+        const d = gid ? dyn.debug(gid) : null;
+        if (d) steps.push((d.roles.FIGHT ?? 0));
+        if (gid && dyn.history.some((h: any) => h.id === gid && h.level === 'GENERALIZADO')) { ok3 = true; break; }
+        if (gid && dyn.history.some((h: any) => h.id === gid && h.ev === 'react')) break; // dispersou sem generalizar
+        await w(250);
+      }
+    }
+    expect(ok3).toBe(true);
     const lv = dyn.history.filter((h: any) => h.id === gid && (h.ev === 'start' || h.ev === 'level')).map((h: any) => h.level);
     expect(lv.slice(0, 3)).toEqual(['TENSAO', 'CONFRONTO', 'GENERALIZADO']);
-    const steps: number[] = [];
-    for (let i = 0; i < 20; i++) { const d = dyn.debug(gid); if (d) steps.push(d.roles.FIGHT ?? 0); await w(400); }
-    for (let i = 1; i < steps.length; i++) expect(steps[i] - steps[i - 1]).toBeLessThanOrEqual(C.general.maxJoinPerEval * 2);
+    for (let i = 1; i < steps.length; i++) expect(steps[i] - steps[i - 1]).toBeLessThanOrEqual(C.general.maxJoinPerEval);
 
     // ---------- 4) quem joga LONGE do eixo (vaga a ~270 m): gente chega por perto
     let far = { x: 0, z: 0 }, best = Infinity;
@@ -146,5 +160,5 @@ describe.skipIf(skip)('rodada 12 (G) — escalada, revide e população na sala 
     const fp = () => room.state.players.get(far1.sessionId);
     const nearFar = () => auto.list().filter((a: any) => a.materialized && Math.hypot(a.x - fp().x, a.z - fp().z) < 110).length;
     expect(await until(() => nearFar() >= 5, 30_000)).toBe(true);
-  }, 240_000);
+  }, 300_000);
 });

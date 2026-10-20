@@ -1,60 +1,78 @@
 {
-  "date": "2026-10-19T22:20:15.256Z",
-  "port": 4560,
+  "date": "2026-10-20T12:57:31.691Z",
+  "port": 4710,
+  "population": 220,
+  "nota": "Q/E..H da corrida completa (Q refilmada com câmera mais alta); S..W refilmadas com PV_DYN_ONLY=briga; R refilmada com PV_DYN_ONLY=r (caminhada forçada junta gente ~25 s antes de sair; no real reuniu 5–13 acompanhando, espalhados)",
   "scenes": {
     "Q": {
-      "sig": {
-        "id": "dyn1",
-        "k": "CONCENTRACAO",
-        "x": -780,
-        "z": 351,
-        "r": 14,
-        "e": 0,
-        "n": 0,
-        "w": 0,
-        "ci": 0,
-        "ch": 0.18,
-        "cb": 0
-      },
-      "agenda": [
-        {
-          "name": "Concentração",
-          "state": "ACTIVE"
-        }
-      ],
-      "pts": [
-        {
-          "id": "dyn_dyn1",
-          "crowd": 0,
-          "label": "Concentração"
-        }
-      ]
+      "id": "dyn1",
+      "k": "MANIFESTACAO",
+      "x": -573,
+      "z": 272,
+      "r": 16,
+      "e": 0,
+      "n": 15,
+      "w": 10,
+      "ci": 0.63,
+      "ch": 0.7,
+      "cb": 0,
+      "forced": false,
+      "crowd": 29
+    },
+    "E": {
+      "sup": 1,
+      "x": -568.1369094848633,
+      "z": 267.8072814941406,
+      "n": 8
+    },
+    "F": {
+      "sup": 2,
+      "x": -569.0026977539062,
+      "z": 270.0312438964844,
+      "n": 10
+    },
+    "G": {
+      "sup": 3,
+      "x": -564.6000061035156,
+      "z": 267.6383361816406,
+      "n": 6
+    },
+    "H": {
+      "sup": 4,
+      "x": -570.5594787597656,
+      "z": 270.8081512451172,
+      "n": 6
+    },
+    "R_film": {
+      "x": -542.4285801478794,
+      "z": 266.9642813546317,
+      "n": 7
     },
     "R": {
       "r0": {
-        "id": "dyn2",
+        "id": "dyn17",
         "k": "CAMINHADA",
-        "x": -803,
-        "z": 351,
+        "x": -564,
+        "z": 271,
         "r": 14,
         "e": 0,
-        "n": 0,
+        "n": 2,
         "w": 0,
-        "ci": 0,
-        "ch": 0.3,
+        "ci": 0.05,
+        "ch": 0.12,
         "cb": 0
       },
       "r1": {
-        "id": "dyn2",
+        "id": "dyn17",
         "k": "CAMINHADA",
-        "x": -809,
-        "z": 353,
+        "x": -522,
+        "z": 258,
         "r": 14,
         "e": 0,
-        "n": 0,
-        "w": 0,
-        "ci": 0,
-        "ch": 0.3,
+        "n": 5,
+        "w": 12,
+        "ci": 0.43,
+        "ch": 0.6,
         "cb": 0
       }
     },
@@ -65,83 +83,109 @@
         3
       ],
       "seen": {
-        "1": {
-          "id": "dyn3",
-          "k": "DISCUSSAO",
-          "x": -765,
-          "z": 341,
-          "r": 8,
-          "e": 1,
-          "n": 0,
-          "w": 0,
-          "ci": 0,
-          "ch": 0.05,
-          "cb": 0.15
-        },
         "2": {
-          "id": "dyn3",
+          "id": "dyn6",
           "k": "BRIGA",
-          "x": -765,
-          "z": 341,
-          "r": 8,
+          "x": -593,
+          "z": 280,
+          "r": 12,
           "e": 2,
-          "n": 0,
-          "w": 0,
-          "ci": 0,
-          "ch": 0.15,
+          "n": 4,
+          "w": 9,
+          "ci": 0.33,
+          "ch": 0.27,
           "cb": 0.45
         },
         "3": {
-          "id": "dyn3",
+          "id": "dyn6",
           "k": "BRIGA_GENERALIZADA",
-          "x": -765,
-          "z": 341,
-          "r": 8,
+          "x": -593,
+          "z": 282,
+          "r": 15,
           "e": 3,
-          "n": 0,
-          "w": 0,
-          "ci": 0,
-          "ch": 0.23,
+          "n": 6,
+          "w": 11,
+          "ci": 0.43,
+          "ch": 0.45,
           "cb": 0.75
+        },
+        "u": {
+          "id": "dyn6",
+          "k": "BRIGA",
+          "x": -593,
+          "z": 281,
+          "r": 9,
+          "e": 2,
+          "n": 2,
+          "w": 6,
+          "ci": 0.2,
+          "ch": 0.18,
+          "cb": 0.45
         }
-      }
+      },
+      "frames": 90
     }
-  },
-  "participants": {
-    "Q": 0,
-    "V": 0,
-    "nota": "n = 0 antes da WorldView do AGENTE C (focos fantasmas)"
   },
   "results": [
     {
-      "name": "Q: concentração chega pelo `dyn`",
+      "name": "autônomos na vista (kind 1)",
       "ok": true,
-      "detail": "{\"id\":\"dyn1\",\"k\":\"CONCENTRACAO\",\"x\":-780,\"z\":351,\"r\":14,\"e\":0,\"n\":0,\"w\":0,\"ci\":0,\"ch\":0.18,\"cb\":0}"
+      "detail": "47"
     },
     {
-      "name": "Q: aparece em \"Acontecendo agora\" (agenda, formato dinamico)",
+      "name": "Q: concentração com ≥ 15 participantes",
       "ok": true,
-      "detail": "[{\"name\":\"Concentração\",\"state\":\"ACTIVE\"}]"
+      "detail": "{\"k\":\"MANIFESTACAO\",\"n\":15,\"w\":10,\"r\":16,\"forced\":false,\"autonomosNoRaio\":29}"
     },
     {
-      "name": "Q: ponto no evt_pts (minimapa) sem NPC reservado",
+      "name": "E: torcedores (sup 1) juntos",
       "ok": true,
-      "detail": "[{\"id\":\"dyn_dyn1\",\"crowd\":0,\"label\":\"Concentração\"}]"
+      "detail": "8 a ≤ 20 m (46 pessoas no total)"
     },
     {
-      "name": "R: caminhada anda (centro muda de lugar)",
+      "name": "F: torcedores (sup 2) juntos",
       "ok": true,
-      "detail": "{\"r0\":{\"id\":\"dyn2\",\"k\":\"CAMINHADA\",\"x\":-803,\"z\":351,\"r\":14,\"e\":0,\"n\":0,\"w\":0,\"ci\":0,\"ch\":0.3,\"cb\":0},\"r1\":{\"id\":\"dyn2\",\"k\":\"CAMINHADA\",\"x\":-809,\"z\":353,\"r\":14,\"e\":0,\"n\":0,\"w\":0,\"ci\":0,\"ch\":0.3,\"cb\":0}}"
+      "detail": "10 a ≤ 20 m (41 pessoas no total)"
     },
     {
-      "name": "S→T→V: níveis TENSÃO → CONFRONTO → GENERALIZADO em ordem",
+      "name": "G: torcedores (sup 3) juntos",
+      "ok": false,
+      "detail": "6 a ≤ 20 m (43 pessoas no total)"
+    },
+    {
+      "name": "H: torcedores (sup 4) juntos",
+      "ok": false,
+      "detail": "6 a ≤ 20 m (42 pessoas no total)"
+    },
+    {
+      "name": "R: caminhada anda com gente acompanhando",
+      "ok": true,
+      "detail": "{\"r0\":{\"id\":\"dyn17\",\"k\":\"CAMINHADA\",\"x\":-564,\"z\":271,\"r\":14,\"e\":0,\"n\":2,\"w\":0,\"ci\":0.05,\"ch\":0.12,\"cb\":0},\"r1\":{\"id\":\"dyn17\",\"k\":\"CAMINHADA\",\"x\":-522,\"z\":258,\"r\":14,\"e\":0,\"n\":5,\"w\":12,\"ci\":0.43,\"ch\":0.6,\"cb\":0}}"
+    },
+    {
+      "name": "autônomos na vista (kind 1)",
+      "ok": true,
+      "detail": "47"
+    },
+    {
+      "name": "briga (tentativa 1): lugar com plateia",
+      "ok": true,
+      "detail": "23 autônomos a ≤ 14 m"
+    },
+    {
+      "name": "briga (tentativa 2): lugar com plateia",
+      "ok": true,
+      "detail": "25 autônomos a ≤ 14 m"
+    },
+    {
+      "name": "S→T→V: TENSÃO → CONFRONTO → GENERALIZADO em ordem",
       "ok": true,
       "detail": "[1,2,3]"
     },
     {
-      "name": "V: intensidade de confronto no sinal",
+      "name": "V: participantes e plateia de verdade",
       "ok": true,
-      "detail": "{\"id\":\"dyn3\",\"k\":\"BRIGA_GENERALIZADA\",\"x\":-765,\"z\":341,\"r\":8,\"e\":3,\"n\":0,\"w\":0,\"ci\":0,\"ch\":0.23,\"cb\":0.75}"
+      "detail": "{\"id\":\"dyn6\",\"k\":\"BRIGA_GENERALIZADA\",\"x\":-593,\"z\":282,\"r\":15,\"e\":3,\"n\":6,\"w\":11,\"ci\":0.43,\"ch\":0.45,\"cb\":0.75}"
     },
     {
       "name": "W: foco se dispersa e termina",
@@ -149,12 +193,12 @@
       "detail": ""
     },
     {
-      "name": "sem erros de página",
+      "name": "gif da briga",
       "ok": true,
-      "detail": ""
+      "detail": "23"
     },
     {
-      "name": "sem mensagem sem ouvinte no cliente",
+      "name": "sem erros de página",
       "ok": true,
       "detail": ""
     }

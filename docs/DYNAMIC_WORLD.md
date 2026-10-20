@@ -67,38 +67,43 @@ Reclassificação com **histerese**: o tipo novo precisa se manter 4 avaliaçõe
 
 Um nível por vez, com tempo mínimo em cada; nunca pula.
 
-1. **TENSÃO — DISCUSSAO** (2 pessoas a ≤ 6 m). Chance por sonda = `seedChance` (0,01) × média do `temper` das duas
-   personalidades × `differentSupMult` (1,8) se forem de torcidas **diferentes** × `heatMult` (1,5) se já há briga perto.
-   Ambas precisam aceitar `SOCIALIZE`. Observadores: ≤ 1 decisão por avaliação (sem adesão).
-   Depois de `tension.minS` (6 s), por avaliação: escala com `escalateChance` (0,18) × temperamento × rivalidade (ou
-   na hora se alguém já bateu — `heat.hitsPerMin > 0`), ou acalma com `calmChance` (0,1) × (1,2 − temperamento); em
-   `maxS` (25 s) acalma → fim.
+1. **TENSÃO — DISCUSSAO** (2 pessoas a ≤ 6 m — livres ou de uma REUNIÃO: esbarrão na multidão). Chance por sonda =
+   `seedChance` (0,025) × média do `temper` das duas personalidades × `differentSupMult` (1,8) se forem de torcidas
+   **diferentes** × `heatMult` (1,5) se já há briga perto × **aperto** `1 + crowdMult (0,12) × min(crowdCap 12, gente
+   em volta − 2)`. Sonda que cai no vazio "encosta" numa pessoa a ≤ `probeSnapM` (60 m). Ambas precisam aceitar
+   `SOCIALIZE`. Observadores: ≤ 1 decisão por avaliação (sem adesão).
+   Depois de `tension.minS` (6 s), por avaliação: escala com `escalateChance` (0,2) × temperamento × rivalidade ×
+   aperto (ou na hora se alguém já bateu — `heat.hitsPerMin > 0`), ou acalma com `calmChance` (0,06) × (1,2 −
+   temperamento); em `maxS` (25 s) acalma → fim. Brigas espontâneas ficam a ≥ `fightCooldownS` (420 s) uma da outra.
 2. **CONFRONTO — BRIGA**. Os dois recebem `JOIN_FIGHT` (empurrão nos primeiros 3 s, soco depois); quem recusa se afasta.
-   Por avaliação, ≤ 3 pessoas a ≤ 18 m decidem **uma** reação pelos pesos da personalidade (`conflict.reactions`):
-   **entrar** (amigo — mesmo grupo ou mesma torcida de um lado — × 2,5; estranho × 0,35), **olhar** (`WATCH_FIGHT`),
-   **fugir** (`AVOID_FIGHT`) ou **ignorar** (nenhuma proposta). No máximo **1 adesão por avaliação**; o excedente fica
-   olhando. Quem já decidiu não é perguntado de novo.
-3. **GENERALIZADO — BRIGA_GENERALIZADA**: só quando ≥ `generalizeAt` (6) estão brigando **por adesão** e depois de
+   Por avaliação, ≤ 4 pessoas a ≤ 18 m (livres, de uma reunião ou já olhando esta briga) decidem **uma** reação pelos
+   pesos da personalidade (`conflict.reactions`): **entrar** (amigo — mesmo grupo ou mesma torcida de um lado — × 2,5;
+   estranho × 0,6), **olhar** (`WATCH_FIGHT`), **fugir** (`AVOID_FIGHT`) ou **ignorar** (nenhuma proposta). No máximo
+   **1 adesão por avaliação**; o excedente fica olhando. A plateia decide de novo quando o foco SOBE de nível e quem
+   está olhando é re-perguntado a cada `fight.reaskS` (12 s). Quem entrou contra alguém que largou a briga passa para o
+   adversário mais perto do outro lado.
+3. **GENERALIZADO — BRIGA_GENERALIZADA**: só quando ≥ `generalizeAt` (5) estão brigando **por adesão** e depois de
    `fight.minS` (8 s). Raio 28 m, ≤ 4 decisões e **≤ 2 adesões por avaliação**, teto `maxFighters` (30). Nunca "2 → 50".
 4. **Desescalada natural**: quem cansa larga `JOIN_FIGHT` e sai da conta; GENERALIZADO com < 3 volta a CONFRONTO; com
-   < 2 ou no tempo máximo (`fight.maxS` 50 s, `general.maxS` 120 s) começa a **dispersão**: um nível a menos a cada 4 s,
+   < 2 ou no tempo máximo (`fight.maxS` 70 s, `general.maxS` 120 s) começa a **dispersão**: um nível a menos a cada 4 s,
    3 pessoas por avaliação recebem `LEAVE_AREA`/`WANDER`; termina em CALMO sem ninguém. O tipo fica como o máximo
    alcançado (uma BRIGA que se dispersa continua BRIGA; o nível desce).
 
 **Humanos**: nunca recebem proposta e nunca são escolhidos como alvo. Só viram lado de um foco se **agredirem** um
 autônomo (`onAggression`, chamado quando um humano derruba um autônomo — o sistema de autônomos pode chamar também em
 golpe/empurrão): o alvo reage pela personalidade (revidar pesa × 2,5; fugir; ignorar). Revidar abre uma DISCUSSÃO com o
-humano como lado 1 (tempo mínimo 1,5 s); bater de novo escala. Intervalo de 20 s por humano; não gasta o orçamento
-espontâneo (a generalizada ainda gasta).
+humano como lado 1 (tempo mínimo 1,5 s); com o golpe recente ela sobe a CONFRONTO na hora. Intervalo de 20 s por
+humano; não gasta NEM depende do orçamento espontâneo (BRIGA) — a generalizada ainda gasta. Quem apanha estando numa
+reunião sai dela e reage (antes era ignorado); quem cai reage ao levantar.
 
 ## Orçamento e frequência (`budget`)
 
 | | teto/h | simultâneos | intervalo global | por região (grade de 80 m) | distância mínima |
 |---|---|---|---|---|---|
-| reuniões (todas) | 14 | 4 | — | 240 s | 55 m |
+| reuniões (todas) | 12 | 4 | 290 s | 240 s | 55 m |
 | corrida improvisada | 3 | 1 | — | 600 s | — |
 | DISCUSSAO (início de foco) | 10 | 2 | 150 s | 600 s | 40 m |
-| BRIGA (subida a CONFRONTO) | 4 | — | — | — | — |
+| BRIGA (subida a CONFRONTO) | 4 | — | 420 s (`fightCooldownS`) | — | — |
 | BRIGA_GENERALIZADA | 1 | — | — | — | — |
 
 Sem orçamento para subir, a discussão não escala (acalma). Medido em 1 h simulada com 250 autônomos esquentados
@@ -169,3 +174,61 @@ Seções: `director` (ritmo), `regions`, `budget`, `gathering`, `race`, `conflic
 reações por personalidade, amigo/estranho, provocação), `signals`, `presentation` (rótulos, quem entra na agenda/minimapa),
 `qa`. Leitura tolerante: chave ausente = padrão, número preso em [0, 10⁶], tipo errado ignorado; o teste garante que o
 arquivo tem exatamente a forma dos padrões.
+
+## Calibração no mundo integrado (rodada 12, agente G)
+
+Relato da integração: em 10 min reais com 100 autônomos nenhum golpe entre autônomos, foco forçado parado em TENSÃO,
+provocados fugindo/reclamando. **Causas** (todas reproduzidas no `SimHost`, que agora tem a proteção de retorno da sala):
+
+| causa | efeito | correção |
+|---|---|---|
+| o 1º empurrão (derruba) contava como "alvo sumiu" | toda briga acabava no primeiro empurrão | quem bateu espera o outro levantar e a proteção de 5 s, gesticulando |
+| cambalear (soco, 0,4 s) tratado como queda | cada soco recebido sorteava a fuga e zerava a espera | só chão/levantando/ragdoll é queda |
+| revide só a ≤ 1,2 m | com o recuo (0,35 m) e a colisão, ficava "se aproximando" a 1,25 m para sempre | bate a ≤ alcance + 0,12 m |
+| TENSÃO perguntava a plateia uma vez só | na BRIGA ninguém mais podia entrar | plateia decide de novo a cada subida e a cada `reaskS` |
+| `propose(JOIN_FIGHT, joinW)` depois de sortear `join` | chance ao quadrado (~3 % de quem "decidiu" entrar) | peso cheio; o cérebro só desconta o compromisso |
+| compromisso 0,6 de quem estava numa reunião | a plateia natural (encontro de torcidas) nunca reagia | briga/discussão é urgente: 0,15 |
+| agressão a quem estava numa concentração | ignorada (~metade das pessoas) | sai da reunião e reage |
+| 86 % das sondas no vazio; 1 de 10 discussões "pegava" | quase nenhuma discussão espontânea | sonda encosta em gente; aceitar discutir 0,9 + pavio |
+| teto/hora gasto nos 20 min iniciais | depois, 40 min sem reunião nem briga | intervalos globais (290 s reunião, 420 s briga) |
+
+**60 min simulados** (`npx tsx server/tools/autonomous_report.ts calib` → docs/bench/round12_calibration.json; 180
+autônomos, humanos PARADOS na Central, no meio do eixo, no palco e LONGE do eixo a 275 m; um deles provoca a cada 75 s):
+
+| semente | discussões | brigas | c/ golpes trocados | generalizadas | pico brigando | pico olhando | concentrações ≥ 15 |
+|---|---|---|---|---|---|---|---|
+| 31 | 10 | 4 | 3 | 1 | 6 | 7 | 9 |
+| 7 | 10 | 4 | 2 | 1 | 9 | 9 | 10 |
+| 3 | 10 | 4 | 4 | 1 | 9 | 12 | 11 |
+| 99 | 10 | 4 | 3 | 1 | 8 | 11 | 8 |
+| 5 | 10 | 4 | 3 | 1 | 9 | 12 | 9 |
+| 42 | 10 | 4 | 4 | 1 | 9 | 10 | 10 |
+| 77 | 10 | 4 | 4 | 0 | 5 | 10 | 8 |
+| 12 | 10 | 4 | 4 | 1 | 8 | 9 | 11 |
+| 31 (150) | 10 | 4 | 4 | 1 | 6 | 10 | 9 |
+| 31 (220) | 10 | 4 | 3 | 1 | 12 | 16 | 8 |
+
+Discussões no teto (10/h, ≥ 150 s entre elas); brigas no teto (4/h, ≥ 7 min entre elas); generalizada em 9 de 10
+corridas (teto 1/h), sempre por adesões graduais — ex. semente 31: quem brigava 2, 3, 4, 3, 4, 5, 4, 6, 5, 4, 3, 2, 1
+(nasceu com 20 pessoas em volta; 63 golpes de 6 pessoas; 139 s). Discussões que não escalam acalmam em 6–25 s.
+Provocação humana (semente 31): TORCEDOR revida 10/15, AGITADO 2/4, CURIOSO 5/12; CAUTELOSO 0/2 (foge 2/2),
+MANIFESTANTE/EXPLORADOR fogem. Concentrações: 11–12/h, pico mediano 20 pessoas (máx. 29–36), nascem com 2–5, crescem
+por adesões e esvaziam em 1–2 min (`leaveShare` 0,04/s). Custo: IA 0,10–0,17 ms/tick, diretor 0,01 ms/tick.
+
+**Dados mudados** (`dynamic_world.json`): `director.probeSnapM` 60 (novo); `budget.gathering` perHour 14 → 12 e
+`globalCooldownS` 290 (novo); `budget.conflict.fightCooldownS` 420 (novo); `gathering.invitePerEval` 2 → 3, `growS`
+[90, 240] → [120, 260], `leaveShare` 0,12 → 0,04; `torcidas.tensionPerMin` 0,12 → 0,3; `conflict.seedChance` 0,01 →
+0,025, `crowdMult` 0,12 e `crowdCap` 12 (novos); `tension.escalateChance` 0,18 → 0,2, `calmChance` 0,1 → 0,06;
+`fight.maxS` 50 → 70, `decisionsPerEval` 3 → 4, `generalizeAt` 6 → 5, `reaskS` 12 (novo); `strangerJoinMult` 0,35 →
+0,6; `reactions.join` SOCIAL 0,1 → 0,14, OBSERVADOR 0,03 → 0,04, TORCEDOR 0,3 → 0,36, MANIFESTANTE 0,12 → 0,14,
+CURIOSO 0,05 → 0,07.
+
+Caminhada: quem acompanha recebe um ponto 6 m À FRENTE do centro (antes parava no ponto velho e ficava para trás);
+no QA, CAMINHADA forçada junta gente por ~25 s antes de sair andando (antes saía com 1–2 pessoas). BRIGA_GENERALIZADA forçada:
+adesão × 3 e plateia re-perguntada no ritmo acelerado do QA (sem isso, na sala real com a proteção de 5 s, a
+generalizada forçada muitas vezes se dispersava antes de chegar a 5 brigando).
+
+Testes: `tests/dynamicCalibration.test.ts` (60 min simulados + defeitos da queda/cambaleio) e
+`tests/dynamicCalibrationServer.test.ts` (sala real: revide × fuga, discussão espontânea → golpes trocados, foco com
+plateia até GENERALIZADO em adesões graduais, gente perto de quem joga a 270 m do eixo). QA filmado:
+`tools/qa/dynamic_world_mp.mjs` com autônomos ligados (Q..W, E..H, `qa_video/briga.gif`).
