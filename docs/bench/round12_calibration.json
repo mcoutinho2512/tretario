@@ -1,0 +1,1478 @@
+{
+  "generatedAt": "2026-10-20T13:22:35.061Z",
+  "tool": "server/tools/autonomous_report.ts calib",
+  "setup": {
+    "agents": 180,
+    "minutes": 60,
+    "seeds": [
+      31,
+      7,
+      3,
+      99,
+      5,
+      42,
+      77,
+      12
+    ],
+    "humans": "parados: Central, meio do eixo, palco, longe do eixo (~270 m, vaga de bicicletas); h_meio provoca (soco) a cada 75 s um autônomo livre ≤ 60 m",
+    "protection": "proteção de retorno 5 s ao aparecer/levantar (como a sala)"
+  },
+  "budgets": {
+    "maxConcurrent": 2,
+    "globalCooldownS": 150,
+    "fightCooldownS": 420,
+    "regionCooldownS": 600,
+    "minSpacingM": 40,
+    "perHour": {
+      "DISCUSSAO": 10,
+      "BRIGA": 4,
+      "BRIGA_GENERALIZADA": 1
+    }
+  },
+  "targets": {
+    "discussions": "≥ 6/h",
+    "fightsWithExchange": "≥ 2/h",
+    "generalized": "≥ 1/h (teto 1/h)",
+    "gathering": "≥ 15 pessoas, cresce e esvazia"
+  },
+  "acrossSeeds": {
+    "runs": 8,
+    "discussionsAtLeast6": 1,
+    "fightsWithExchangeAtLeast2": 1,
+    "generalizedAtLeast1": 0.88,
+    "gatheringsAtLeast15": 1
+  },
+  "perSeed": [
+    {
+      "seed": 31,
+      "agents": 180,
+      "discussionsSpontaneous": 10,
+      "fightsSpontaneous": 4,
+      "fightsWithExchange": 3,
+      "generalized": 1,
+      "peakFighters": 6,
+      "peakWatchers": 7,
+      "provokedFoci": 13,
+      "gatherings": 11,
+      "gatheringsAtLeast15": 9,
+      "gatheringPeakMedian": 20,
+      "gatheringPeakMax": 29,
+      "nearFarHumanAvg60": 13.5,
+      "aiMsPerTick": 0.16,
+      "wallMs": 6463
+    },
+    {
+      "seed": 7,
+      "agents": 180,
+      "discussionsSpontaneous": 10,
+      "fightsSpontaneous": 4,
+      "fightsWithExchange": 2,
+      "generalized": 1,
+      "peakFighters": 9,
+      "peakWatchers": 9,
+      "provokedFoci": 3,
+      "gatherings": 12,
+      "gatheringsAtLeast15": 10,
+      "gatheringPeakMedian": 22,
+      "gatheringPeakMax": 31,
+      "nearFarHumanAvg60": 10.2,
+      "aiMsPerTick": 0.154,
+      "wallMs": 6226
+    },
+    {
+      "seed": 3,
+      "agents": 180,
+      "discussionsSpontaneous": 10,
+      "fightsSpontaneous": 4,
+      "fightsWithExchange": 4,
+      "generalized": 1,
+      "peakFighters": 9,
+      "peakWatchers": 12,
+      "provokedFoci": 11,
+      "gatherings": 12,
+      "gatheringsAtLeast15": 11,
+      "gatheringPeakMedian": 25,
+      "gatheringPeakMax": 30,
+      "nearFarHumanAvg60": 5.6,
+      "aiMsPerTick": 0.164,
+      "wallMs": 6604
+    },
+    {
+      "seed": 99,
+      "agents": 180,
+      "discussionsSpontaneous": 10,
+      "fightsSpontaneous": 4,
+      "fightsWithExchange": 3,
+      "generalized": 1,
+      "peakFighters": 8,
+      "peakWatchers": 11,
+      "provokedFoci": 15,
+      "gatherings": 12,
+      "gatheringsAtLeast15": 8,
+      "gatheringPeakMedian": 26,
+      "gatheringPeakMax": 32,
+      "nearFarHumanAvg60": 14.4,
+      "aiMsPerTick": 0.167,
+      "wallMs": 6711
+    },
+    {
+      "seed": 5,
+      "agents": 180,
+      "discussionsSpontaneous": 10,
+      "fightsSpontaneous": 4,
+      "fightsWithExchange": 3,
+      "generalized": 1,
+      "peakFighters": 9,
+      "peakWatchers": 12,
+      "provokedFoci": 11,
+      "gatherings": 12,
+      "gatheringsAtLeast15": 9,
+      "gatheringPeakMedian": 20,
+      "gatheringPeakMax": 31,
+      "nearFarHumanAvg60": 9.5,
+      "aiMsPerTick": 0.159,
+      "wallMs": 6395
+    },
+    {
+      "seed": 42,
+      "agents": 180,
+      "discussionsSpontaneous": 10,
+      "fightsSpontaneous": 4,
+      "fightsWithExchange": 4,
+      "generalized": 1,
+      "peakFighters": 9,
+      "peakWatchers": 10,
+      "provokedFoci": 3,
+      "gatherings": 12,
+      "gatheringsAtLeast15": 10,
+      "gatheringPeakMedian": 23,
+      "gatheringPeakMax": 33,
+      "nearFarHumanAvg60": 14.8,
+      "aiMsPerTick": 0.163,
+      "wallMs": 6498
+    },
+    {
+      "seed": 77,
+      "agents": 180,
+      "discussionsSpontaneous": 10,
+      "fightsSpontaneous": 4,
+      "fightsWithExchange": 4,
+      "generalized": 0,
+      "peakFighters": 5,
+      "peakWatchers": 10,
+      "provokedFoci": 10,
+      "gatherings": 12,
+      "gatheringsAtLeast15": 8,
+      "gatheringPeakMedian": 21,
+      "gatheringPeakMax": 36,
+      "nearFarHumanAvg60": 11.8,
+      "aiMsPerTick": 0.152,
+      "wallMs": 6127
+    },
+    {
+      "seed": 12,
+      "agents": 180,
+      "discussionsSpontaneous": 10,
+      "fightsSpontaneous": 4,
+      "fightsWithExchange": 4,
+      "generalized": 1,
+      "peakFighters": 8,
+      "peakWatchers": 9,
+      "provokedFoci": 12,
+      "gatherings": 12,
+      "gatheringsAtLeast15": 11,
+      "gatheringPeakMedian": 22,
+      "gatheringPeakMax": 27,
+      "nearFarHumanAvg60": 12.4,
+      "aiMsPerTick": 0.165,
+      "wallMs": 6635
+    }
+  ],
+  "population": [
+    {
+      "seed": 31,
+      "agents": 150,
+      "discussionsSpontaneous": 10,
+      "fightsSpontaneous": 4,
+      "fightsWithExchange": 4,
+      "generalized": 1,
+      "peakFighters": 6,
+      "peakWatchers": 10,
+      "provokedFoci": 11,
+      "gatherings": 12,
+      "gatheringsAtLeast15": 9,
+      "gatheringPeakMedian": 19,
+      "gatheringPeakMax": 28,
+      "nearFarHumanAvg60": 9.3,
+      "aiMsPerTick": 0.139,
+      "wallMs": 5579
+    },
+    {
+      "seed": 31,
+      "agents": 220,
+      "discussionsSpontaneous": 10,
+      "fightsSpontaneous": 3,
+      "fightsWithExchange": 3,
+      "generalized": 1,
+      "peakFighters": 12,
+      "peakWatchers": 16,
+      "provokedFoci": 10,
+      "gatherings": 12,
+      "gatheringsAtLeast15": 8,
+      "gatheringPeakMedian": 26,
+      "gatheringPeakMax": 36,
+      "nearFarHumanAvg60": 12.6,
+      "aiMsPerTick": 0.22,
+      "wallMs": 8703
+    }
+  ],
+  "report": {
+    "agents": 180,
+    "humans": [
+      {
+        "id": "h_central",
+        "x": -623.7766234462083,
+        "z": 298.04553449265376,
+        "lat": 8
+      },
+      {
+        "id": "h_meio",
+        "x": -174.82659975577485,
+        "z": 131.9752772650275,
+        "lat": 6
+      },
+      {
+        "id": "h_palco",
+        "x": 590.8169875778061,
+        "z": -136.9570597959958,
+        "lat": 3
+      },
+      {
+        "id": "h_longe",
+        "x": -539.41,
+        "z": 553.9,
+        "lat": 275
+      }
+    ],
+    "simMinutes": 60,
+    "wallMs": 6463,
+    "seed": 31,
+    "conflicts": {
+      "discussions": 23,
+      "fights": 17,
+      "fightsWithExchange": 7,
+      "generalized": 1,
+      "provoked": 13,
+      "spontaneous": 10,
+      "peakFighters": 6,
+      "peakWatchers": 7,
+      "episodes": [
+        {
+          "id": "dyn2",
+          "startMin": 1.8,
+          "durS": 35,
+          "maxLevel": "CONFRONTO",
+          "kinds": [
+            "DISCUSSAO",
+            "BRIGA"
+          ],
+          "peakFighters": 2,
+          "peakWatchers": 1,
+          "hits": 1,
+          "attackers": 1,
+          "maxJoinPerEval": 2,
+          "fighterSteps": [
+            2,
+            0
+          ],
+          "humanSide": false,
+          "end": "dispersou",
+          "origin": "espontanea",
+          "crowdAtStart": 3
+        },
+        {
+          "id": "dyn8",
+          "startMin": 4.72,
+          "durS": 6,
+          "maxLevel": "TENSAO",
+          "kinds": [
+            "DISCUSSAO"
+          ],
+          "peakFighters": 0,
+          "peakWatchers": 1,
+          "hits": 0,
+          "attackers": 0,
+          "maxJoinPerEval": 0,
+          "fighterSteps": [],
+          "humanSide": false,
+          "end": "acalmaram",
+          "origin": "espontanea",
+          "crowdAtStart": 23
+        },
+        {
+          "id": "dyn9",
+          "startMin": 5.63,
+          "durS": 22,
+          "maxLevel": "CONFRONTO",
+          "kinds": [
+            "DISCUSSAO",
+            "BRIGA"
+          ],
+          "peakFighters": 2,
+          "peakWatchers": 2,
+          "hits": 3,
+          "attackers": 1,
+          "maxJoinPerEval": 2,
+          "fighterSteps": [
+            2,
+            1,
+            0
+          ],
+          "humanSide": true,
+          "end": "dispersou",
+          "origin": "provocado",
+          "crowdAtStart": 4
+        },
+        {
+          "id": "dyn11",
+          "startMin": 6.88,
+          "durS": 22,
+          "maxLevel": "CONFRONTO",
+          "kinds": [
+            "DISCUSSAO",
+            "BRIGA"
+          ],
+          "peakFighters": 2,
+          "peakWatchers": 3,
+          "hits": 3,
+          "attackers": 1,
+          "maxJoinPerEval": 2,
+          "fighterSteps": [
+            2,
+            1,
+            0
+          ],
+          "humanSide": true,
+          "end": "dispersou",
+          "origin": "provocado",
+          "crowdAtStart": 4
+        },
+        {
+          "id": "dyn14",
+          "startMin": 11.88,
+          "durS": 22,
+          "maxLevel": "CONFRONTO",
+          "kinds": [
+            "DISCUSSAO",
+            "BRIGA"
+          ],
+          "peakFighters": 2,
+          "peakWatchers": 0,
+          "hits": 2,
+          "attackers": 1,
+          "maxJoinPerEval": 2,
+          "fighterSteps": [
+            2,
+            1,
+            0
+          ],
+          "humanSide": true,
+          "end": "dispersou",
+          "origin": "provocado",
+          "crowdAtStart": 1
+        },
+        {
+          "id": "dyn16",
+          "startMin": 13.13,
+          "durS": 23,
+          "maxLevel": "CONFRONTO",
+          "kinds": [
+            "DISCUSSAO",
+            "BRIGA"
+          ],
+          "peakFighters": 2,
+          "peakWatchers": 2,
+          "hits": 2,
+          "attackers": 1,
+          "maxJoinPerEval": 2,
+          "fighterSteps": [
+            2,
+            1,
+            0
+          ],
+          "humanSide": true,
+          "end": "dispersou",
+          "origin": "provocado",
+          "crowdAtStart": 2
+        },
+        {
+          "id": "dyn18",
+          "startMin": 14.38,
+          "durS": 80,
+          "maxLevel": "CONFRONTO",
+          "kinds": [
+            "DISCUSSAO",
+            "BRIGA"
+          ],
+          "peakFighters": 2,
+          "peakWatchers": 3,
+          "hits": 24,
+          "attackers": 1,
+          "maxJoinPerEval": 2,
+          "fighterSteps": [
+            2,
+            1,
+            0
+          ],
+          "humanSide": true,
+          "end": "dispersou",
+          "origin": "provocado",
+          "crowdAtStart": 4
+        },
+        {
+          "id": "dyn19",
+          "startMin": 14.73,
+          "durS": 87,
+          "maxLevel": "CONFRONTO",
+          "kinds": [
+            "DISCUSSAO",
+            "BRIGA"
+          ],
+          "peakFighters": 4,
+          "peakWatchers": 4,
+          "hits": 39,
+          "attackers": 6,
+          "maxJoinPerEval": 2,
+          "fighterSteps": [
+            2,
+            3,
+            4,
+            3,
+            4,
+            3,
+            4,
+            3,
+            2,
+            4,
+            0
+          ],
+          "humanSide": false,
+          "end": "dispersou",
+          "origin": "espontanea",
+          "crowdAtStart": 16
+        },
+        {
+          "id": "dyn21",
+          "startMin": 15.63,
+          "durS": 80,
+          "maxLevel": "CONFRONTO",
+          "kinds": [
+            "DISCUSSAO",
+            "BRIGA"
+          ],
+          "peakFighters": 4,
+          "peakWatchers": 2,
+          "hits": 32,
+          "attackers": 3,
+          "maxJoinPerEval": 2,
+          "fighterSteps": [
+            2,
+            3,
+            4,
+            3,
+            1,
+            0
+          ],
+          "humanSide": true,
+          "end": "dispersou",
+          "origin": "provocado",
+          "crowdAtStart": 4
+        },
+        {
+          "id": "dyn25",
+          "startMin": 17.48,
+          "durS": 11,
+          "maxLevel": "TENSAO",
+          "kinds": [
+            "DISCUSSAO"
+          ],
+          "peakFighters": 0,
+          "peakWatchers": 1,
+          "hits": 0,
+          "attackers": 0,
+          "maxJoinPerEval": 0,
+          "fighterSteps": [],
+          "humanSide": false,
+          "end": "acalmaram",
+          "origin": "espontanea",
+          "crowdAtStart": 24
+        },
+        {
+          "id": "dyn27",
+          "startMin": 18.13,
+          "durS": 80,
+          "maxLevel": "CONFRONTO",
+          "kinds": [
+            "DISCUSSAO",
+            "BRIGA"
+          ],
+          "peakFighters": 2,
+          "peakWatchers": 4,
+          "hits": 24,
+          "attackers": 1,
+          "maxJoinPerEval": 2,
+          "fighterSteps": [
+            2,
+            1,
+            0
+          ],
+          "humanSide": true,
+          "end": "dispersou",
+          "origin": "provocado",
+          "crowdAtStart": 5
+        },
+        {
+          "id": "dyn28",
+          "startMin": 21.88,
+          "durS": 80,
+          "maxLevel": "CONFRONTO",
+          "kinds": [
+            "DISCUSSAO",
+            "BRIGA"
+          ],
+          "peakFighters": 2,
+          "peakWatchers": 1,
+          "hits": 21,
+          "attackers": 1,
+          "maxJoinPerEval": 2,
+          "fighterSteps": [
+            2,
+            1,
+            0
+          ],
+          "humanSide": true,
+          "end": "dispersou",
+          "origin": "provocado",
+          "crowdAtStart": 2
+        },
+        {
+          "id": "dyn31",
+          "startMin": 24.65,
+          "durS": 53,
+          "maxLevel": "CONFRONTO",
+          "kinds": [
+            "DISCUSSAO",
+            "BRIGA"
+          ],
+          "peakFighters": 3,
+          "peakWatchers": 0,
+          "hits": 12,
+          "attackers": 2,
+          "maxJoinPerEval": 2,
+          "fighterSteps": [
+            2,
+            3,
+            2,
+            1,
+            0
+          ],
+          "humanSide": false,
+          "end": "dispersou",
+          "origin": "espontanea",
+          "crowdAtStart": 3
+        },
+        {
+          "id": "dyn32",
+          "startMin": 25.63,
+          "durS": 80,
+          "maxLevel": "CONFRONTO",
+          "kinds": [
+            "DISCUSSAO",
+            "BRIGA"
+          ],
+          "peakFighters": 4,
+          "peakWatchers": 5,
+          "hits": 31,
+          "attackers": 3,
+          "maxJoinPerEval": 2,
+          "fighterSteps": [
+            2,
+            3,
+            4,
+            3,
+            4,
+            2,
+            1,
+            0
+          ],
+          "humanSide": true,
+          "end": "dispersou",
+          "origin": "provocado",
+          "crowdAtStart": 12
+        },
+        {
+          "id": "dyn35",
+          "startMin": 28.13,
+          "durS": 22,
+          "maxLevel": "CONFRONTO",
+          "kinds": [
+            "DISCUSSAO",
+            "BRIGA"
+          ],
+          "peakFighters": 2,
+          "peakWatchers": 7,
+          "hits": 4,
+          "attackers": 2,
+          "maxJoinPerEval": 2,
+          "fighterSteps": [
+            2,
+            1,
+            0
+          ],
+          "humanSide": true,
+          "end": "dispersou",
+          "origin": "provocado",
+          "crowdAtStart": 12
+        },
+        {
+          "id": "dyn38",
+          "startMin": 28.98,
+          "durS": 25,
+          "maxLevel": "TENSAO",
+          "kinds": [
+            "DISCUSSAO"
+          ],
+          "peakFighters": 0,
+          "peakWatchers": 0,
+          "hits": 0,
+          "attackers": 0,
+          "maxJoinPerEval": 0,
+          "fighterSteps": [],
+          "humanSide": false,
+          "end": "acalmaram",
+          "origin": "espontanea",
+          "crowdAtStart": 5
+        },
+        {
+          "id": "dyn40",
+          "startMin": 29.38,
+          "durS": 79,
+          "maxLevel": "CONFRONTO",
+          "kinds": [
+            "DISCUSSAO",
+            "BRIGA"
+          ],
+          "peakFighters": 3,
+          "peakWatchers": 6,
+          "hits": 28,
+          "attackers": 2,
+          "maxJoinPerEval": 2,
+          "fighterSteps": [
+            2,
+            3,
+            1,
+            0
+          ],
+          "humanSide": true,
+          "end": "dispersou",
+          "origin": "provocado",
+          "crowdAtStart": 9
+        },
+        {
+          "id": "dyn41",
+          "startMin": 34.08,
+          "durS": 139,
+          "maxLevel": "GENERALIZADO",
+          "kinds": [
+            "DISCUSSAO",
+            "BRIGA",
+            "BRIGA_GENERALIZADA"
+          ],
+          "peakFighters": 6,
+          "peakWatchers": 7,
+          "hits": 63,
+          "attackers": 6,
+          "maxJoinPerEval": 2,
+          "fighterSteps": [
+            2,
+            3,
+            4,
+            3,
+            4,
+            5,
+            4,
+            6,
+            5,
+            4,
+            3,
+            2,
+            1,
+            0
+          ],
+          "humanSide": false,
+          "end": "dispersou",
+          "origin": "espontanea",
+          "crowdAtStart": 20
+        },
+        {
+          "id": "dyn45",
+          "startMin": 38.73,
+          "durS": 25,
+          "maxLevel": "TENSAO",
+          "kinds": [
+            "DISCUSSAO"
+          ],
+          "peakFighters": 0,
+          "peakWatchers": 0,
+          "hits": 0,
+          "attackers": 0,
+          "maxJoinPerEval": 0,
+          "fighterSteps": [],
+          "humanSide": false,
+          "end": "acalmaram",
+          "origin": "espontanea",
+          "crowdAtStart": 5
+        },
+        {
+          "id": "dyn47",
+          "startMin": 40.63,
+          "durS": 23,
+          "maxLevel": "CONFRONTO",
+          "kinds": [
+            "DISCUSSAO",
+            "BRIGA"
+          ],
+          "peakFighters": 2,
+          "peakWatchers": 0,
+          "hits": 3,
+          "attackers": 1,
+          "maxJoinPerEval": 2,
+          "fighterSteps": [
+            2,
+            1,
+            0
+          ],
+          "humanSide": true,
+          "end": "dispersou",
+          "origin": "provocado",
+          "crowdAtStart": 3
+        },
+        {
+          "id": "dyn48",
+          "startMin": 43.13,
+          "durS": 23,
+          "maxLevel": "CONFRONTO",
+          "kinds": [
+            "DISCUSSAO",
+            "BRIGA"
+          ],
+          "peakFighters": 2,
+          "peakWatchers": 1,
+          "hits": 3,
+          "attackers": 1,
+          "maxJoinPerEval": 2,
+          "fighterSteps": [
+            2,
+            1,
+            0
+          ],
+          "humanSide": true,
+          "end": "dispersou",
+          "origin": "provocado",
+          "crowdAtStart": 2
+        },
+        {
+          "id": "dyn49",
+          "startMin": 44.27,
+          "durS": 10,
+          "maxLevel": "TENSAO",
+          "kinds": [
+            "DISCUSSAO"
+          ],
+          "peakFighters": 0,
+          "peakWatchers": 4,
+          "hits": 0,
+          "attackers": 0,
+          "maxJoinPerEval": 0,
+          "fighterSteps": [],
+          "humanSide": false,
+          "end": "acalmaram",
+          "origin": "espontanea",
+          "crowdAtStart": 18
+        },
+        {
+          "id": "dyn58",
+          "startMin": 55.78,
+          "durS": 12,
+          "maxLevel": "TENSAO",
+          "kinds": [
+            "DISCUSSAO"
+          ],
+          "peakFighters": 0,
+          "peakWatchers": 5,
+          "hits": 0,
+          "attackers": 0,
+          "maxJoinPerEval": 0,
+          "fighterSteps": [],
+          "humanSide": false,
+          "end": "acalmaram",
+          "origin": "espontanea",
+          "crowdAtStart": 21
+        }
+      ],
+      "seedFunnel": {
+        "probes": 7199,
+        "few": 2498,
+        "noPair": 2621,
+        "budget": 1957,
+        "roll": 1179,
+        "refused": 5,
+        "started": 10,
+        "expected": 24.93371750000008
+      },
+      "reactions": {
+        "join": 58,
+        "watch": 205,
+        "flee": 57,
+        "ignore": 81
+      }
+    },
+    "provocation": {
+      "total": 43,
+      "byPersonality": {
+        "TORCEDOR": {
+          "n": 15,
+          "revide": 10,
+          "fuga": 1,
+          "outro": 4
+        },
+        "CURIOSO": {
+          "n": 12,
+          "revide": 5,
+          "fuga": 2,
+          "outro": 5
+        },
+        "SOCIAL": {
+          "n": 1,
+          "revide": 0,
+          "fuga": 1,
+          "outro": 0
+        },
+        "AGITADO": {
+          "n": 4,
+          "revide": 2,
+          "fuga": 0,
+          "outro": 2
+        },
+        "OBSERVADOR": {
+          "n": 5,
+          "revide": 1,
+          "fuga": 1,
+          "outro": 3
+        },
+        "MANIFESTANTE": {
+          "n": 2,
+          "revide": 0,
+          "fuga": 2,
+          "outro": 0
+        },
+        "EXPLORADOR": {
+          "n": 2,
+          "revide": 0,
+          "fuga": 2,
+          "outro": 0
+        },
+        "CAUTELOSO": {
+          "n": 2,
+          "revide": 0,
+          "fuga": 2,
+          "outro": 0
+        }
+      }
+    },
+    "gatherings": {
+      "count": 11,
+      "peakArrivedMax": 29,
+      "peakArrivedMedian": 20,
+      "withAtLeast15": 9,
+      "episodes": [
+        {
+          "id": "dyn1",
+          "kinds": [
+            "CONCENTRACAO",
+            "FESTA",
+            "ENCONTRO_TORCIDAS"
+          ],
+          "startMin": 0.4,
+          "durS": 416,
+          "peakMembers": 20,
+          "peakArrived": 20,
+          "peakCrowd": 28,
+          "curve": [
+            10,
+            17,
+            19,
+            22,
+            21,
+            23,
+            22,
+            25,
+            25,
+            27,
+            28,
+            28,
+            28,
+            28
+          ],
+          "members": [
+            5,
+            9,
+            14,
+            16,
+            17,
+            17,
+            18,
+            18,
+            19,
+            20,
+            18,
+            20,
+            20,
+            20,
+            18
+          ],
+          "end": "esvaziou"
+        },
+        {
+          "id": "dyn12",
+          "kinds": [
+            "CONCENTRACAO",
+            "ENCONTRO_TORCIDAS",
+            "FESTA"
+          ],
+          "startMin": 7.52,
+          "durS": 422,
+          "peakMembers": 18,
+          "peakArrived": 18,
+          "peakCrowd": 29,
+          "curve": [
+            9,
+            25,
+            27,
+            28,
+            27,
+            27,
+            27,
+            29,
+            28,
+            27,
+            27,
+            27,
+            27,
+            21
+          ],
+          "members": [
+            2,
+            9,
+            17,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            17,
+            17,
+            17,
+            16,
+            16,
+            5
+          ],
+          "end": "esvaziou"
+        },
+        {
+          "id": "dyn15",
+          "kinds": [
+            "CONCENTRACAO",
+            "ENCONTRO_TORCIDAS",
+            "FESTA"
+          ],
+          "startMin": 12.87,
+          "durS": 437,
+          "peakMembers": 15,
+          "peakArrived": 13,
+          "peakCrowd": 16,
+          "curve": [
+            8,
+            15,
+            15,
+            16,
+            10,
+            13,
+            14,
+            15,
+            15,
+            15,
+            13,
+            16,
+            15,
+            15,
+            13
+          ],
+          "members": [
+            5,
+            9,
+            13,
+            13,
+            13,
+            4,
+            8,
+            10,
+            13,
+            14,
+            14,
+            14,
+            13,
+            15,
+            14,
+            11
+          ],
+          "end": "esvaziou"
+        },
+        {
+          "id": "dyn26",
+          "kinds": [
+            "CONCENTRACAO",
+            "ENCONTRO_TORCIDAS",
+            "FESTA"
+          ],
+          "startMin": 18,
+          "durS": 348,
+          "peakMembers": 18,
+          "peakArrived": 18,
+          "peakCrowd": 25,
+          "curve": [
+            9,
+            21,
+            22,
+            22,
+            22,
+            22,
+            23,
+            24,
+            24,
+            24,
+            25,
+            25
+          ],
+          "members": [
+            4,
+            4,
+            17,
+            17,
+            17,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            16
+          ],
+          "end": "esvaziou"
+        },
+        {
+          "id": "dyn29",
+          "kinds": [
+            "CONCENTRACAO",
+            "ENCONTRO_TORCIDAS"
+          ],
+          "startMin": 23.55,
+          "durS": 281,
+          "peakMembers": 12,
+          "peakArrived": 12,
+          "peakCrowd": 18,
+          "curve": [
+            12,
+            17,
+            17,
+            18,
+            15,
+            12,
+            17,
+            17,
+            17
+          ],
+          "members": [
+            3,
+            12,
+            12,
+            12,
+            12,
+            9,
+            10,
+            11,
+            11,
+            11
+          ],
+          "end": "esvaziou"
+        },
+        {
+          "id": "dyn39",
+          "kinds": [
+            "CONCENTRACAO",
+            "FESTA",
+            "ENCONTRO_TORCIDAS"
+          ],
+          "startMin": 29.28,
+          "durS": 410,
+          "peakMembers": 15,
+          "peakArrived": 11,
+          "peakCrowd": 17,
+          "curve": [
+            9,
+            11,
+            8,
+            15,
+            12,
+            13,
+            14,
+            15,
+            15,
+            14,
+            12,
+            16,
+            16,
+            15
+          ],
+          "members": [
+            3,
+            7,
+            8,
+            9,
+            14,
+            13,
+            12,
+            12,
+            12,
+            11,
+            12,
+            12,
+            14,
+            14,
+            8
+          ],
+          "end": "esvaziou"
+        },
+        {
+          "id": "dyn42",
+          "kinds": [
+            "CONCENTRACAO",
+            "MANIFESTACAO",
+            "FESTA"
+          ],
+          "startMin": 35.2,
+          "durS": 317,
+          "peakMembers": 12,
+          "peakArrived": 12,
+          "peakCrowd": 20,
+          "curve": [
+            19,
+            16,
+            20,
+            20,
+            20,
+            20,
+            20,
+            19,
+            20,
+            20
+          ],
+          "members": [
+            5,
+            7,
+            8,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12
+          ],
+          "end": "esvaziou"
+        },
+        {
+          "id": "dyn46",
+          "kinds": [
+            "CONCENTRACAO",
+            "FESTA"
+          ],
+          "startMin": 40.32,
+          "durS": 312,
+          "peakMembers": 10,
+          "peakArrived": 10,
+          "peakCrowd": 11,
+          "curve": [
+            7,
+            7,
+            7,
+            8,
+            9,
+            9,
+            10,
+            11,
+            11,
+            11,
+            10
+          ],
+          "members": [
+            4,
+            7,
+            7,
+            7,
+            8,
+            8,
+            9,
+            9,
+            10,
+            10,
+            9,
+            3
+          ],
+          "end": "esvaziou"
+        },
+        {
+          "id": "dyn50",
+          "kinds": [
+            "CONCENTRACAO",
+            "MANIFESTACAO",
+            "FESTA"
+          ],
+          "startMin": 45.25,
+          "durS": 353,
+          "peakMembers": 13,
+          "peakArrived": 13,
+          "peakCrowd": 20,
+          "curve": [
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            19,
+            19,
+            20,
+            19,
+            20
+          ],
+          "members": [
+            4,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            13,
+            13,
+            13,
+            13,
+            13,
+            8
+          ],
+          "end": "esvaziou"
+        },
+        {
+          "id": "dyn53",
+          "kinds": [
+            "CONCENTRACAO",
+            "FESTA",
+            "ENCONTRO_TORCIDAS"
+          ],
+          "startMin": 50.7,
+          "durS": 210,
+          "peakMembers": 10,
+          "peakArrived": 9,
+          "peakCrowd": 11,
+          "curve": [
+            6,
+            9,
+            10,
+            9,
+            9,
+            9,
+            11
+          ],
+          "members": [
+            3,
+            4,
+            8,
+            9,
+            9,
+            9,
+            10,
+            10
+          ],
+          "end": "esvaziou"
+        },
+        {
+          "id": "dyn57",
+          "kinds": [
+            "CONCENTRACAO",
+            "ENCONTRO_TORCIDAS"
+          ],
+          "startMin": 55.72,
+          "durS": 256,
+          "peakMembers": 13,
+          "peakArrived": 13,
+          "peakCrowd": 24,
+          "curve": [
+            23,
+            23,
+            24,
+            24,
+            23,
+            23,
+            24,
+            23
+          ],
+          "members": [
+            5,
+            9,
+            11,
+            11,
+            12,
+            13,
+            13,
+            12,
+            12
+          ],
+          "end": "vivo"
+        }
+      ]
+    },
+    "nearHumans": {
+      "h_central": {
+        "minWithin60": 1,
+        "avgWithin60": 13.3,
+        "avgWithin100": 22.6,
+        "zeroSamplesPct": 0
+      },
+      "h_meio": {
+        "minWithin60": 1,
+        "avgWithin60": 13.9,
+        "avgWithin100": 27.5,
+        "zeroSamplesPct": 0
+      },
+      "h_palco": {
+        "minWithin60": 18,
+        "avgWithin60": 23,
+        "avgWithin100": 23.5,
+        "zeroSamplesPct": 0
+      },
+      "h_longe": {
+        "minWithin60": 8,
+        "avgWithin60": 13.5,
+        "avgWithin100": 25.9,
+        "zeroSamplesPct": 0
+      }
+    },
+    "activity10min": {
+      "idle": 16.8,
+      "walk": 32.8,
+      "run": 0.2,
+      "social": 20.8,
+      "event": 25.5,
+      "vehicle": 2.2,
+      "fight": 0,
+      "watch": 0.2,
+      "leave": 1.4
+    },
+    "activityTotal": {
+      "idle": 15.3,
+      "walk": 24,
+      "run": 0.2,
+      "social": 24.2,
+      "event": 25.9,
+      "vehicle": 1.5,
+      "fight": 0.3,
+      "watch": 0.6,
+      "leave": 8.1
+    },
+    "activityWindows": [
+      {
+        "idle": 16.8,
+        "walk": 32.8,
+        "run": 0.2,
+        "social": 20.8,
+        "event": 25.5,
+        "vehicle": 2.2,
+        "fight": 0,
+        "watch": 0.2,
+        "leave": 1.4
+      },
+      {
+        "idle": 13.7,
+        "walk": 22.2,
+        "run": 0.3,
+        "social": 24.4,
+        "event": 27.1,
+        "vehicle": 2.7,
+        "fight": 0.6,
+        "watch": 0.8,
+        "leave": 8.2
+      },
+      {
+        "idle": 13.3,
+        "walk": 22.5,
+        "run": 0.4,
+        "social": 22.1,
+        "event": 27.4,
+        "vehicle": 2.3,
+        "fight": 0.3,
+        "watch": 0.9,
+        "leave": 10.9
+      },
+      {
+        "idle": 15.6,
+        "walk": 20.8,
+        "run": 0.1,
+        "social": 24.3,
+        "event": 27.3,
+        "vehicle": 0.9,
+        "fight": 0.6,
+        "watch": 1,
+        "leave": 9.3
+      },
+      {
+        "idle": 16.7,
+        "walk": 23,
+        "run": 0.2,
+        "social": 25.5,
+        "event": 23.7,
+        "vehicle": 0.6,
+        "fight": 0,
+        "watch": 0.3,
+        "leave": 9.9
+      }
+    ],
+    "lod": {
+      "NEAR": 54,
+      "MID": 88,
+      "FAR": 23,
+      "DORMANT": 15
+    },
+    "cost": {
+      "aiMsPerTick": 0.16,
+      "aiMsMaxTick": 4.18,
+      "directorMsPerTick": 0.012,
+      "directorMsMax": 0.65,
+      "decisionsPerSec": 75.7
+    }
+  }
+}

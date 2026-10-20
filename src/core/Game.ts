@@ -111,6 +111,7 @@ import { ProgressionUI } from '../ui/progress/ProgressionUI'; // rodada 9 — pr
 import { InventoryController } from '../inventory/InventoryController'; // rodada 11 — inventário
 import { AudioWorld } from '../audio/AudioWorld'; // rodada 10 — áudio
 import { autonomousTagged, npcRanges } from '../net/nameLod'; // rodada 12 — nomes dos autônomos
+import { RallySuppression, parseLocalPopulation } from '../npc/localPopulation'; // rodada 12 (G) — população local × autônomos
 import { dynamicEventMark, normalizeDynamicEvents } from '../events/dynamicPresentation'; // rodada 12 — eventos dinâmicos
 import { mountAgendaDebate, type AgendaDebate } from '../ui/agendaDebateMount'; // rodada 9 — agenda/debate/telões
 // rodada 9 — confronto (src/combat; carregado com o multiplayer)
@@ -778,7 +779,7 @@ export class Game {
     const aerial = this.aerial;
     this.peds.group.visible = !aerial;
     if (this.rallyCrowd) this.rallyCrowd.group.visible = !aerial;
-    if (!aerial) { this.peds.update(dt, this.camera, this.player); this.rallyCrowd?.update(dt); }
+    if (!aerial) { this.r12LocalPop(dt); this.peds.update(dt, this.camera, this.player); this.rallyCrowd?.update(dt); }
     if (this.cells && this.net) this.cells.update(dt, this.net.specCells, this.net.specCellsVersion, aerial, this.spec!.cam.altitude, (fn) => this.net!.forEachRemotePos(fn));
     mark('pedestres');
     this.crowd.end(this.camera, dt);
@@ -1150,13 +1151,33 @@ export class Game {
    * (public/gameplay/autonomous.json `nametag`); eventos dinâmicos (`dyn` → EventClient.onDyn) → minimapa agregado e áudio.
    */
   private r12Dyn: ((m: unknown) => number) | null = null;
+  /**
+   * rodada 12 (G) — POPULAÇÃO DUPLA: pedestres e multidão de concentração deste cliente cedem aos AUTÔNOMOS do servidor
+   * por perto (todos veem os mesmos; os locais, só eu). A ~2 Hz: autônomos perto do jogador → limite/fundo dos
+   * pedestres; autônomos em cada ponto de concentração → NPCs locais do ponto saem (histerese). Regra e números:
+   * src/npc/localPopulation.ts + public/gameplay/autonomous.json `localPopulation`.
+   */
+  private r12Supp = new RallySuppression();
+  private r12LocalAcc = 1;
+  private r12LocalPop(dt: number) {
+    const net = this.net;
+    if (!net) return;
+    this.r12LocalAcc += dt;
+    if (this.r12LocalAcc < 0.5) return;
+    this.r12LocalAcc = 0;
+    const R = this.r12Supp.rule;
+    this.peds.localRule = R;
+    this.peds.autoNear = net.autonomousNear(this.player.x, this.player.z, R.nearM);
+    if (this.rallyCrowd) { this.rallyCrowd.suppression = this.r12Supp; this.r12Supp.update(rallyPoints.all(), (x, z, r) => net.autonomousNear(x, z, r)); }
+  }
   private r12Net(net: NetworkClient) {
     net.nameFocus = () => {
       const h = this.ix?.hover;
       return { hover: h && h.key.startsWith('person:') ? h.key.slice(7) : null, selected: this.personPanel?.selectedId ?? null };
     };
     net.occluder = (ax, ay, az, bx, by, bz) => this.collision.raycast(ax, ay, az, bx, by, bz, 3); // só prédio (≥ 3 m) esconde nome
-    void fetch(`${import.meta.env.BASE_URL}gameplay/autonomous.json`).then((r) => (r.ok ? r.json() : null)).then((j: { nametag?: { share?: number; nearM?: number; midM?: number } } | null) => {
+    void fetch(`${import.meta.env.BASE_URL}gameplay/autonomous.json`).then((r) => (r.ok ? r.json() : null)).then((j: { nametag?: { share?: number; nearM?: number; midM?: number }; localPopulation?: unknown } | null) => {
+      if (j?.localPopulation) this.r12Supp.rule = parseLocalPopulation(j.localPopulation);
       const t = j?.nametag;
       if (!t) return;
       const share = Number(t.share), near = Number(t.nearM), mid = Number(t.midM);

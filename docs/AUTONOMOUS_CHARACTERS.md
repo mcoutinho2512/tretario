@@ -50,8 +50,14 @@ antigos não mudam); `0`/`off` desliga; `N` = população.
 | FAR | ≤ 270 m | resto | 1 Hz | 8–15 s | só o trajeto (sem desvio/gesto) |
 | DORMANT | > 270 m (volta a ≤ 240 m) | — | nada | nada | fora de `state.players` (custo zero) |
 
-- Densidade ORGÂNICA: a cada 5 s, perto de uma pessoa com pouca gente, até 3 DORMANT longe de todos "chegam": aparecem
-  além da faixa MID (fora de vista) e vêm andando (TRAVEL/JOIN_CROWD). Quem vai embora (LEAVE_AREA) anda até sumir.
+- Densidade ORGÂNICA perto de CADA pessoa (rodada 12, agente G — `population.local`): a cada 2 s, quem tem menos de
+  `want` = clamp(`share` 0,45 × ativos ÷ pessoas, `min` 12, `max` 30) autônomos a ≤ 70 m recebe até 2 "chegadas": um
+  DORMANT longe de todos (ou um FAR sem compromisso a > 180 m de qualquer pessoa, fora da vista) aparece a 150–215 m
+  pelo eixo — ou, para quem joga LONGE do eixo (vagas a ~270 m), por uma rua livre de parede a 55–110 m — e vem andando.
+  O passeio de quem está fora do eixo fica onde há gente (≤ 90 m de uma pessoa). Metade das viagens (TRAVEL) vai para
+  perto de alguém que joga no eixo. Quem vai embora (LEAVE_AREA) anda até sumir. O teto de ativos continua valendo.
+- Pontos fixos do mapa (palco, caminhões, telões, praça do spawn) atraem menos sem evento (`hotspotWeights` 0,8 / 0,45 /
+  0,35 / 0,4; antes 1,3 / 0,8 / 0,6 / 0,7): "event" 41,5 % → 25 % do tempo.
 - Orçamento de decisões por tick (`max(12, ativos/6)`): pico nunca vira tick longo.
 
 ### Personalidades (pesos, não scripts)
@@ -103,6 +109,11 @@ combo), esquiva às vezes ao ver o golpe chegar, larga a briga com fôlego no fi
 Reação ao ser agredido: revidar (personalidade + pavio), fugir ou reclamar (aponta, recua). Contra HUMANO só com motivo
 (ele me agrediu / é o lado do foco porque agrediu) e sem perseguir: humano a > 7 m encerra. Briga vista: observar
 (roda a 4,5–8,5 m, celular), fugir (16–30 m, correndo se perto) ou entrar (amigo apanhando pesa `defend`).
+Rodada 12 (agente G): adversário CAÍDO ou na proteção de retorno (5 s depois de levantar/aparecer, `combat.json`
+`protectMs`) não encerra a briga — quem bateu espera a 1,4 m apontando/chamando e volta a bater; cambalear não é cair;
+bate a ≤ alcance do soco + 0,12 m (o recuo do golpe deixava o revide parado a 1,25 m); troca de golpes com mais soco
+(74 %) que empurrão/chute (que derrubam); derrubado reage (revida/foge/reclama) AO LEVANTAR; depois de cair, larga a
+briga com chance `flee × 0,75 + 0,05` (cauteloso ~73 %, confrontador ~9 %).
 
 ### Diretor de eventos (AGENTE E)
 
@@ -144,9 +155,14 @@ real de recompensa (achievements/missions) e nível coerente.
 100 autônomos, 10 min simulados, 6 pessoas roteirizadas ao longo da avenida, diretor de eventos ligado, provocação humana a
 cada minuto e um foco de briga forçado no meio:
 
-| idle | walk | run | social | event | vehicle | fight | watch | leave |
-|---|---|---|---|---|---|---|---|---|
-| 8,7 % | 30,3 % | 0,4 % | 13,1 % | 41,5 % | 5,0 % | ~0 % | 0,1 % | 0,9 % |
+| | idle | walk | run | social | event | vehicle | fight | watch | leave |
+|---|---|---|---|---|---|---|---|---|---|
+| antes (agente C) | 8,7 % | 30,3 % | 0,4 % | 13,1 % | 41,5 % | 5,0 % | ~0 % | 0,1 % | 0,9 % |
+| rodada 12 G (100 × 10 min) | 16,8 % | 33,5 % | 0,4 % | 19,4 % | 24,8 % | 3,3 % | 0,2 % | 0,5 % | 1,0 % |
+| 180 × 1º 10 min, humanos parados | 16,8 % | 32,8 % | 0,2 % | 20,8 % | 25,5 % | 2,2 % | 0 % | 0,2 % | 1,4 % |
+| 180 × 60 min, humanos parados | 15,3 % | 24,0 % | 0,2 % | 24,2 % | 25,9 % | 1,5 % | 0,3 % | 0,6 % | 8,1 % |
+
+(briga e plateia são raras por desenho: 4 brigas/h no teto; 60 min em docs/bench/round12_calibration.json)
 
 Velocidade média andando 1,66 m/s (σ entre pessoas 0,15); 4,1 mudanças de direção > 30°/min andando; 63 % do tempo
 parado (rodas, concentrações); trajetos mediana 13 m, p90 61 m; 0,7 desvios/pessoa·min; 0,6 correções de parede por 1000
@@ -183,11 +199,20 @@ recusados, apelido reservado, missões, diretor ligado, veículo do mundo e brig
 QA: `tools/qa/autonomous_mp.mjs` → docs/screenshots/round12/ A_avenida_populacao, D_grupo_social, E..H_torcedores_<id dos
 dados>, X_veiculos_autonomos, Y_visao_aerea; resumo docs/bench/round12_autonomous_qa.json.
 
-### NPCs locais do cliente
+### NPCs locais do cliente — regra da população dupla (rodada 12, agente G)
 
-Pedestres e `RallyCrowd` continuam como décor DISTANTE (instanciado, sem rede). Recomendação para a integração: perto das
-concentrações onde há autônomos (densidade da mensagem `crowd`/AOI), reduzir os pedestres locais na mesma proporção
-(ex.: `pedestrianDensity × max(0,3, 1 − autônomos_vistos/60)`) — não alterado nesta branch (código do cliente).
+Pedestres (`PedestrianSystem`) e multidão de concentração (`RallyCrowd`) são simulados só no cliente (cada jogador vê os
+seus); autônomos são do servidor (todos veem os mesmos). Perto de autônomos, gente local vira "fantasma". Regra
+(`src/npc/localPopulation.ts`, números em `autonomous.json` `localPopulation`, aplicada a ~2 Hz pelo `Game`):
+
+- **pedestres**: com `autoNear` autônomos (remotos kind 1 + multidão distante `npc`) a ≤ 80 m do jogador, limite =
+  preset até 4 autônomos, caindo linear até 4 pedestres com ≥ 24; com > 4 autônomos, pedestres locais só NASCEM a ≥ 45 m
+  (fundo); quem passou do limite só some fora da vista ou a > 45 m (ninguém some na frente da câmera);
+- **concentração**: ponto com ≥ 6 autônomos a ≤ raio + 10 m perde os NPCs locais (voltam com ≤ 2 — histerese); ponto
+  de concentração DINÂMICA do servidor (`evt_pts` `dyn_…`) nunca recebe NPC local (é feito de autônomos);
+- **sem autônomos** (PV_AUTONOMOUS=0, dormentes, servidor antigo): tudo como antes — a avenida nunca fica vazia.
+
+Teste: `tests/localPopulation.test.ts`.
 
 ## Cliente
 
