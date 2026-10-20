@@ -133,18 +133,27 @@ try {
     // veículo pessoal: selecionou → aparece e já monta
     out.pveh = {};
     out.spawnPos = await p.evaluate(() => { const q = window.__pv.metrics().player; return [+q.x.toFixed(1), +q.z.toFixed(1)]; });
+    console.log('posição ao pedir veículos:', JSON.stringify(out.spawnPos), 'zona', await p.evaluate(() => window.__pv.hudZone?.() ?? document.querySelector('.zone-pill, .zone')?.textContent ?? ''));
     for (const k of ['moto', 'car', 'scooter', 'bicycle']) { // moto/carro primeiro: só nascem na pista (perto do ponto de entrada)
       const n0 = await p.evaluate(() => window.__pvPveh.stats().ok);
       const t0 = Date.now();
       await p.evaluate((kk) => window.__pvPveh.request(kk), k);
       let ok = false; for (let i = 0; i < 40 && !ok; i++) { await w(100); ok = await p.evaluate((n) => window.__pvPveh.stats().ok > n, n0); }
-      await w(800);
+      // montar o carro (porta → banco) leva mais que a moto: espera até 4 s pela montagem
+      for (let i = 0; i < 40 && ok; i++) { if (await p.evaluate((kk) => window.__pvPveh.riding()?.kind === kk, k)) break; await w(100); }
+      // carro: monta sozinho só com a porta a ≤ 3 m (docs/PERSONAL_VEHICLES.md); senão aparece ao lado e o E entra
+      let viaE = false;
+      if (ok && k === 'car' && !(await p.evaluate(() => window.__pvPveh.riding()?.kind === 'car'))) {
+        viaE = true; await p.evaluate(() => window.__pv.ixUse()); for (let i = 0; i < 40; i++) { if (await p.evaluate(() => window.__pvPveh.riding()?.kind === 'car')) break; await w(100); }
+      }
       const st = await p.evaluate(() => ({ last: window.__pvPveh.stats().last, riding: window.__pvPveh.riding(), denied: window.__pvPveh.stats().denied }));
       out.pveh[k] = { roundTripMs: Date.now() - t0, ...st.last, riding: st.riding?.kind ?? null };
-      check(`${k}: selecionou → aparece e monta`, ok && st.riding?.kind === k, `${st.last?.okMs ?? '?'} ms no servidor · ida e volta ${Date.now() - t0} ms · ${st.last?.d ?? '?'} m · montado ${st.riding?.kind ?? 'não'} ${ok ? '' : JSON.stringify(st.denied)}`);
+      check(`${k}: selecionou → aparece e monta`, ok && st.riding?.kind === k, `${st.last?.okMs ?? '?'} ms no servidor · ida e volta ${Date.now() - t0} ms · ${st.last?.d ?? '?'} m · montado ${st.riding?.kind ?? 'não'}${viaE ? ' (pelo E: porta a mais de 3 m)' : ''} ${ok ? '' : JSON.stringify(st.denied)}`);
       if (k === 'moto' || k === 'scooter') await shot(`R12_pveh_${k}`);
       await p.evaluate(() => window.__pv.press('KeyW', 1500)); await w(1800);
-      await p.evaluate((kk) => window.__pvPveh.toggle(kk), k); await w(1500);
+      // desce só se montado (toggle sem estar montado vira um pedido novo e esbarra no limite de 2,5 s)
+      if (await p.evaluate(() => !!window.__pvPveh.riding())) await p.evaluate((kk) => window.__pvPveh.toggle(kk), k);
+      await w(2700);
     }
     // colisão: anda direto para o autônomo mais próximo e mede a menor distância entre os centros
     // alvo PARADO (quem anda se afasta e o teste não mede nada)
