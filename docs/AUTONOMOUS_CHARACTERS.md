@@ -144,6 +144,15 @@ recebe o movimento recusado: por isso o autônomo também percebe sozinho (`look
 veículo com motorista HUMANO cuja frente o inclui (até 4,5 m adiante, meia largura + 0,7 m) e abre caminho — no QA a moto
 ficava parada 0,1–0,3 m diante de um autônomo. Testes: tests/autonomous.test.ts (pela sala e pela percepção).
 
+**Região da Candelária (20/10/2026, pedido do dono).** O jogo começa em frente à Candelária (`src/world/gameSpawn.ts`:
+praça da fachada, no prolongamento do eixo, a ~88 m do centro da igreja, virado para ela) e **95 %** dos autônomos
+vivem perto dela (`autonomous.json` → `focus: { share: 0.95, radiusM: 150 }`; centro = igreja). Quem vive no foco
+nasce, passeia (WANDER) e viaja (TRAVEL/LEAVE_AREA, faixa do eixo) só a ≤ 150 m; pontos sorteados precisam de linha
+livre até a praça da fachada ou o fim da Presidente Vargas (nunca dentro da igreja). Os outros 5 % circulam pela
+avenida inteira e são os únicos "trazidos" para perto de um humano que está longe da Candelária. Teste
+(tests/candelariaFocus.test.ts, mapa real): ≥ 93 % a ≤ 150 m no início, ≥ 93 % a ≤ 200 m depois de 3 min (os pontos de
+concentração do evento ali ficam a 150–180 m), nenhum dentro do prédio. Servidor de teste: só com `PV_FOCUS=1`.
+
 ### Nomes
 
 Combinações de `names` (palavra; palavra+sufixo; palavra+número; duas palavras; minúsculas; sublinhado) — nunca série

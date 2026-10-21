@@ -125,6 +125,7 @@ import { openSettings, type SettingsTab } from '../ui/settingsApi';
 import { notifyBlocked } from '../ui/notify';
 import { LocalBodies } from '../physics/LocalBodies'; // rodada 12 — colisão
 import { PersonalVehicleClient } from '../vehicles/PersonalVehicleClient'; // rodada 12 — veículo pessoal
+import { gameSpawn } from '../world/gameSpawn'; // ponto de entrada: em frente à Candelária
 
 export { DEFAULT_PLAYER_APPEARANCE } from '../characters/bodyTypes';
 
@@ -267,7 +268,7 @@ export class Game {
     this.chunks = new ChunkManager(this.manifest, base, lib, buildingMat, this.collision, this.props, this.preset);
     this.scene.add(this.chunks.group);
 
-    const spawn = this.manifest.spawn;
+    const spawn = gameSpawn(this.manifest); // em frente à Candelária (src/world/gameSpawn.ts)
     const spawnXZ = new THREE.Vector2(spawn.p[0], spawn.p[1]);
     progress(0.15, 'CARREGANDO CENTRO DO RIO');
     await this.chunks.preload(spawnXZ, this.preset.lodDistances[2], (d, t) => progress(0.15 + 0.5 * (d / t), `Baixando quarteirões ${d}/${t}`));
@@ -385,9 +386,10 @@ export class Game {
     this.scene.add(this.scenery.group);
     screenFeed().info = () => ({ time: this.simTime.toTimeString().slice(0, 5), players: this.net ? this.net.humanCount(!this.spectator) : this.spectator ? 0 : 1 }); // rodada 12 — só HUMANOS (autônomos/bots nunca somam)
     this.cam = new ThirdPersonCamera(this.camera, this.collision);
-    // intro: começa olhando a Central, depois gira para a avenida (direção da Candelária)
-    const central = this.manifest.landmarks.find((l) => l.key === 'LANDMARK_CENTRAL')!;
-    const toC = Math.atan2(central.center[0] - spawn.p[0], central.center[1] - spawn.p[1]);
+    // intro: começa olhando a fachada da Candelária (o jogo começa em frente a ela — src/world/gameSpawn.ts) e assenta
+    // atrás do avatar; sem o marco, a Central como antes
+    const look = this.manifest.landmarks.find((l) => l.key === 'LANDMARK_CANDELARIA') ?? this.manifest.landmarks.find((l) => l.key === 'LANDMARK_CENTRAL')!;
+    const toC = Math.atan2(look.center[0] - spawn.p[0], look.center[1] - spawn.p[1]);
     this.intro = { active: true, t: 0, fromYaw: toC, toYaw: heading };
     this.cam.yaw = toC;
     this.cam.pitch = -0.32; // olhando para cima: torre inteira no quadro

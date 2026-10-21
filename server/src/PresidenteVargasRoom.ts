@@ -114,6 +114,7 @@ import { runtime } from './http/health.ts';
 import { AutonomousSystem, isAutonomousId } from './autonomous/AutonomousSystem.ts';
 import type { AgentLook, AutonomousHost, Hotspot, HumanView, VehicleView } from './autonomous/host.ts';
 import { autonomousConfig } from './autonomous/config.ts';
+import { candelariaArea, gameSpawn } from '../../src/world/gameSpawn.ts'; // ponto de entrada: em frente à Candelária
 import { manifestHotspots } from './autonomous/simHost.ts';
 import { nicknameKey } from './autonomous/names.ts';
 import { packMove } from '../../src/net/rules.ts';
@@ -377,7 +378,7 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     this.state.seed = Number(process.env.PV_SEED ?? 20261015) >>> 0;
     this.zoneDefs = W.zones;
     this.zoneAxis = (W.manifest.pvAxis ?? []) as [number, number][];
-    const sp = W.manifest.spawn;
+    const sp = gameSpawn(W.manifest); // em frente à Candelária (src/world/gameSpawn.ts)
     this.spawn = { x: sp.p[0], z: sp.p[1], heading: Math.atan2(Math.cos(sp.yaw), Math.sin(sp.yaw)) };
     // veículos utilizáveis (mesmos ids do cliente)
     const allowed = new Set((W.events.get(ev)?.vehicles ?? []).map((v) => v.kind));
@@ -1941,7 +1942,10 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
     const n = env === undefined || env === '' ? (process.env.PV_TEST === '1' ? 0 : autonomousConfig().population.maxActive) : env === 'off' ? 0 : Math.max(0, Math.min(2000, Math.round(Number(env) || 0)));
     if (!n) return;
     const room = this;
-    const hotStatic = manifestHotspots(W.manifest);
+    // região da Candelária (95 % dos autônomos) e o ponto de atração "praça do spawn" na entrada nova; servidor de teste só
+    // com PV_FOCUS=1 (roteiros e calibragem espalham humanos pela avenida e medem a distribuição antiga)
+    const focusOn = autonomousConfig().focus.share > 0 && (process.env.PV_TEST !== '1' || process.env.PV_FOCUS === '1');
+    const hotStatic = manifestHotspots(focusOn ? { ...W.manifest, spawn: gameSpawn(W.manifest) } : W.manifest);
     const blank = (): HumanView => ({ id: '', nid: 0, x: 0, z: 0, heading: 0, speed: 0, vehicle: false, status: 0 });
     const host: AutonomousHost = {
       now: () => Date.now(),
@@ -2013,7 +2017,11 @@ export class PresidenteVargasRoom extends Room<{ state: WorldState }> {
       // gancho opcional (agente B): veículo pessoal do autônomo — mesmas validações, só o dono usa
       personalVehicle: (owner, kind, at) => { const p = this.state.players.get(owner); const r = this.r12pv.spawnPersonalVehicle(owner, kind as Parameters<PersonalVehicles['spawnPersonalVehicle']>[1], { x: at.x, z: at.z, heading: p?.heading ?? 0 }, { mount: true }); return r.ok ? r.id : null; },
     };
-    this.auto = new AutonomousSystem(host, { population: n, seed: this.state.seed, supporters: supporterDefs(), roleOf: (id) => this.dyn?.roleOf(id) ?? null });
+    // região de vida em volta da Candelária (95 % — autonomous.json `focus`; ver focusOn acima)
+    const fc = autonomousConfig().focus;
+    const area = candelariaArea(W.manifest);
+    const focus = area && focusOn ? { ...area.center, anchors: area.anchors, radiusM: fc.radiusM, share: fc.share } : undefined;
+    this.auto = new AutonomousSystem(host, { population: n, seed: this.state.seed, supporters: supporterDefs(), roleOf: (id) => this.dyn?.roleOf(id) ?? null, focus });
     this.dyn.setView(this.auto); // rodada 12 — o diretor de eventos (agente E) lê/propõe por aqui
     // apelidos: confere as CONTAS do banco antes de aparecerem (colisão → outro apelido)
     const store = storeOrNull();

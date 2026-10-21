@@ -53,7 +53,9 @@ A **caixa** do veículo (`VEHICLE_BOX`, 9 pontos: centro, cantos, meios) precisa
   em graça — com `BODY.radius` + 0,15 m; o próprio dono com `BODY.radius` + 0,12 m: nunca nasce dentro dele) nem
   objeto (postes, bancos, pontos de ônibus, bancas — dos chunks; bonecos de treino; cenário de evento).
 
-Nada até `spawnMaxDist` → `sem_lugar` ("Sem lugar seguro aqui — ande um pouco; carro e moto só na pista").
+Nada até `spawnMaxDist` → `sem_lugar` ("Sem lugar seguro aqui — ande um pouco; carro e moto só na pista"). A moto
+procura pista até 14 m, como o carro (antes 6 m: em praças, como a da Candelária e o ponto de uma torcida na Central,
+dava "sem lugar"); longe da porta (> 3 m) ela aparece ao lado e o E monta.
 A multidão de AMBIENTE (pedestres NPC do cliente) não existe no servidor: ela desvia sozinha.
 
 ### Chão no servidor

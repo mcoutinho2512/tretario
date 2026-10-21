@@ -37,6 +37,8 @@ export interface AutonomousConfig {
   /** peso de atração dos pontos FIXOS do mapa (palco, caminhões, telões, praça do spawn) sem evento rolando — pontos de
    * evento/trio/carro de som têm peso próprio. Mais baixo = menos gente parada "no evento" o tempo todo */
   hotspotWeights: { stage: number; truck: number; screen: number; spawn: number };
+  /** região de vida em volta do ponto de entrada do jogo (src/world/gameSpawn.ts): fração da população e raio (m); 0 = desligado */
+  focus: { share: number; radiusM: number };
   names: { words: string[]; suffixWords: string[]; numbers: string[]; lowercaseShare: number; underscoreShare: number };
 }
 
@@ -79,6 +81,7 @@ export function parseAutonomousConfig(raw: unknown): AutonomousConfig {
     personalities: weights(r.personalities, PERSONALITIES),
     vehicles: { share: num(r.vehicles?.share, 0.08, 0, 1), kinds: weights(r.vehicles?.kinds, ['bicycle', 'scooter', 'moto', 'car'] as const) },
     titles: { share: num(r.titles?.share, 0.12, 0, 1) },
+    focus: { share: num(r.focus?.share, 0, 0, 1), radiusM: num(r.focus?.radiusM, 140, 20, 1000) },
     hotspotWeights: { stage: num(r.hotspotWeights?.stage, 1.3, 0, 3), truck: num(r.hotspotWeights?.truck, 0.8, 0, 3), screen: num(r.hotspotWeights?.screen, 0.6, 0, 3), spawn: num(r.hotspotWeights?.spawn, 0.7, 0, 3) },
     names: {
       words: strs(n.words, ['Carioca']), suffixWords: strs(n.suffixWords, []), numbers: strs(n.numbers, []),

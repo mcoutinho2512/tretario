@@ -90,6 +90,8 @@ interface Agent {
   yieldTo: { x: number; z: number; fx: number; fz: number; until: number } | null;
   /** próxima olhada em volta procurando veículo dirigido vindo na sua direção */
   nextVehLook: number;
+  /** vive na região de foco (AutonomousOptions.focus) */
+  focused: boolean;
   group: Group | null; slot: number;
   vehicleId: string;
   /** confronto em curso; `dir` = coordenado pelo diretor (estágio vem do papel ARGUE/FIGHT + pushUntil) */
@@ -124,6 +126,12 @@ export interface AutonomousOptions {
   titles?: string[];
   /** papel do autônomo num evento do DIRETOR (agente E: DynamicWorldDirector.roleOf) — ARGUE/FIGHT/WATCH/FLEE/CORE/JOIN/RACE */
   roleOf?: (id: string) => DirectorRole | null;
+  /**
+   * região de vida (pedido do dono, 20/10/2026: "95 % dos bots perto da Candelária"): `share` da população nasce,
+   * passeia e viaja só a ≤ radiusM do ponto (x, z); o resto circula pela avenida inteira e é quem "chega" perto de
+   * humanos que estão longe dela. A sala passa o ponto de nascimento dos jogadores (src/world/gameSpawn.ts).
+   */
+  focus?: { x: number; z: number; radiusM: number; share: number; anchors?: { x: number; z: number }[] };
 }
 
 /** o que o cérebro lê do diretor (subconjunto estrutural de RoleInfo, server/src/world/DynamicWorldDirector.ts) */
@@ -204,11 +212,14 @@ export class AutonomousSystem implements AutonomousWorldView {
   private disposed = false;
 
   private roleOf: (id: string) => DirectorRole | null;
+  private focus: { x: number; z: number; radiusM: number; share: number; s: number; anchors: { x: number; z: number }[] } | null = null;
   constructor(private host: AutonomousHost, opts: AutonomousOptions = {}) {
     this.roleOf = opts.roleOf ?? (() => null);
     this.cfg = opts.config ?? autonomousConfig();
     this.rng = new Rng(opts.seed ?? 20261019);
     this.axis = new Axis(host.axis);
+    const f = opts.focus;
+    if (f && Number.isFinite(f.x) && Number.isFinite(f.z) && f.radiusM > 0 && f.share > 0) this.focus = { ...f, share: Math.min(1, f.share), s: this.axis.ok ? this.axis.project(f.x, f.z).s : 0, anchors: f.anchors?.length ? f.anchors : [{ x: f.x, z: f.z }] };
     this.names = new NameGenerator(this.cfg.names, new Rng((opts.seed ?? 20261019) ^ 0x5bd1e995), (k) => !!host.nameTaken?.(k));
     const n = Math.max(0, Math.round(opts.population ?? this.cfg.population.maxActive));
     this.hotspotCache = host.hotspots();
@@ -256,7 +267,7 @@ export class AutonomousSystem implements AutonomousWorldView {
     const walk = Math.max(1.0, Math.min(1.85, (1.38 + r.gauss() * 0.12) * prof.speed));
     const vehicleAffinity = r.chance(cfg.vehicles.share * (personality === 'EXPLORADOR' ? 2.2 : 1)) ? r.weighted(cfg.vehicles.kinds) : null;
     const name = this.names.next();
-    const p = this.initialPosition(r);
+    const p = this.initialPosition(r, i);
     const now = this.host.now();
     const stay = r.range(prof.stayMin[0], prof.stayMin[1]) * 60_000;
     return {
@@ -267,7 +278,7 @@ export class AutonomousSystem implements AutonomousWorldView {
       k: makeKin(p.x, p.z, r.range(-Math.PI, Math.PI)),
       nid: 0, materialized: false, lod: 'DORMANT', dHuman: Infinity,
       goal: { kind: 'IDLE', until: 0, source: 'self' }, mem: {}, plan: this.standPlan(p.x, p.z),
-      nextThink: 0, lastStep: now, lastFeel: 0, nextGesture: now + r.range(2000, 20000), actUntil: 0, act: 0, lookNid: 0, nextLook: 0, yieldTo: null, nextVehLook: 0,
+      nextThink: 0, lastStep: now, lastFeel: 0, nextGesture: now + r.range(2000, 20000), actUntil: 0, act: 0, lookNid: 0, nextLook: 0, yieldTo: null, nextVehLook: 0, focused: this.isFocused(i),
       group: null, slot: 0, vehicleId: '', fight: null, stamina: this.moves.staminaMax, condition: 100,
       bornAt: now, leaveAt: now + stay, downSince: 0, gotUpAt: 0,
       st: { activity: 'idle', moving: false, pathStart: null, pathLen: 0, hSample: 0, hAt: 0, avoiding: false, waiting: false }, seq: 0, vx: 0, vz: 0,
@@ -276,7 +287,42 @@ export class AutonomousSystem implements AutonomousWorldView {
   }
 
   /** espalhada: ~45 % perto dos pontos de concentração, o resto ao longo do eixo, em faixas livres de parede */
-  private initialPosition(r: Rng): { x: number; z: number } {
+  /** índice → vive no foco? (determinístico: a cada 100, os `share × 100` primeiros por uma permutação fixa) */
+  private isFocused(i: number): boolean {
+    const f = this.focus;
+    if (!f) return false;
+    return ((i * 37) % 100) < Math.round(f.share * 100);
+  }
+
+  /** ponto livre na região de foco: pelo eixo (faixa de ±radiusM em volta do foco) e um pouco para os lados */
+  private focusPoint(r: Rng): { x: number; z: number } | null {
+    const f = this.focus;
+    if (!f) return null;
+    for (let i = 0; i < 12; i++) {
+      if (this.axis.ok) {
+        const s = Math.max(5, Math.min(this.axis.len - 5, f.s + r.range(-f.radiusM, f.radiusM) * 0.85));
+        const p = this.axis.at(s, r.range(-30, 30));
+        // linha livre até um ponto ABERTO da região (nunca dentro de prédio — a igreja fica no meio do eixo)
+        if (Math.hypot(p.x - f.x, p.z - f.z) <= f.radiusM && this.inBounds(p.x, p.z) && f.anchors.some((q) => this.host.clear(q.x, q.z, p.x, p.z))) return { x: p.x, z: p.z };
+      } else {
+        const a = r.range(-Math.PI, Math.PI), d = r.range(0, f.radiusM * 0.8), q = f.anchors[i % f.anchors.length];
+        const p = { x: q.x + Math.sin(a) * d * 0.5, z: q.z + Math.cos(a) * d * 0.5 };
+        if (this.inBounds(p.x, p.z) && this.host.clear(q.x, q.z, p.x, p.z)) return p;
+      }
+    }
+    const q = f.anchors[0];
+    return { x: q.x, z: q.z };
+  }
+
+  /** quem vive no foco não sai dele: destino fora → outro ponto dentro */
+  private keepHome(a: Agent, p: { x: number; z: number }): { x: number; z: number } {
+    const f = this.focus;
+    if (!f || !a.focused || Math.hypot(p.x - f.x, p.z - f.z) <= f.radiusM) return p;
+    return this.focusPoint(this.rng) ?? p;
+  }
+
+  private initialPosition(r: Rng, i = -1): { x: number; z: number } {
+    if (i >= 0 && this.isFocused(i)) { const q = this.focusPoint(r); if (q) return q; }
     const hs = this.hotspotCache.filter((h) => !h.moving);
     for (let i = 0; i < 12; i++) {
       if (hs.length && r.chance(0.45)) {
@@ -456,7 +502,7 @@ export class AutonomousSystem implements AutonomousWorldView {
       let local = 0;
       for (const a of this.agents) if (a.materialized && (a.k.x - h.x) ** 2 + (a.k.z - h.z) ** 2 <= r2) local++;
       for (let k = 0; k < L.perPass && local < want && budget > 0; k++) {
-        const cand = this.arrivalCandidate();
+        const cand = this.arrivalCandidate(this.focus ? Math.hypot(h.x - this.focus.x, h.z - this.focus.z) > this.focus.radiusM : false);
         if (!cand) return;
         const q = this.arrivalPoint(h);
         if (!q) break;
@@ -475,7 +521,7 @@ export class AutonomousSystem implements AutonomousWorldView {
   private relocN = 0;
 
   /** quem pode "chegar": DORMANT longe de todos, ou materializado a mais de mid+20 m de qualquer humano e sem compromisso */
-  private arrivalCandidate(): Agent | null {
+  private arrivalCandidate(outsideFocus = false): Agent | null {
     const P = this.cfg.population;
     const n = this.agents.length;
     const off = this.rng.int(0, Math.max(0, n - 1));
@@ -483,6 +529,7 @@ export class AutonomousSystem implements AutonomousWorldView {
     for (let i = 0; i < n; i++) {
       const a = this.agents[(off + i) % n];
       if (a.downSince) continue;
+      if (outsideFocus && a.focused) continue; // quem vive no foco não é levado para longe dele
       if (!a.materialized) { if (a.dHuman > P.dormantM + 30 || a.dHuman === Infinity) return a; continue; }
       if (!fallback && a.lod === 'FAR' && a.dHuman > P.mid.radius + 20 && !a.fight && !a.group && !a.vehicleId && !this.roleOf(a.id) && a.goal.source !== 'director') fallback = a;
     }
@@ -638,7 +685,7 @@ export class AutonomousSystem implements AutonomousWorldView {
     if (prev !== kind && a.act && kind !== 'CHEER' && kind !== 'JOIN_CROWD') this.stopAct(a, now);
     const x = a.k.x, z = a.k.z, r = this.rng;
     switch (kind) {
-      case 'WANDER': { const p = this.pointNear(x, z, 12, 55); a.plan = this.walkPlan(p.x, p.z, 1); break; }
+      case 'WANDER': { const p = this.keepHome(a, this.pointNear(x, z, 12, 55)); a.plan = this.walkPlan(p.x, p.z, 1); break; }
       case 'IDLE': { a.plan = this.standPlan(x, z); const hs = this.bestHotspot(a, 60); if (hs) { a.plan.fx = hs.h.x; a.plan.fz = hs.h.z; } else { a.plan.fx = x + Math.sin(a.k.heading + r.range(-1, 1)) * 5; a.plan.fz = z + Math.cos(a.k.heading + r.range(-1, 1)) * 5; } break; }
       case 'TRAVEL': case 'LEAVE_AREA': {
         // destino dado (diretor: corrida improvisada RACE / ida a um ponto): vai direto, correndo se for corrida
@@ -661,6 +708,7 @@ export class AutonomousSystem implements AutonomousWorldView {
           else s += (r.chance(0.5) ? 1 : -1) * r.range(110, 420);
         }
         s = Math.max(10, Math.min(this.axis.len - 10, s));
+        if (a.focused && this.focus) s = Math.max(this.focus.s - this.focus.radiusM * 0.8, Math.min(this.focus.s + this.focus.radiusM * 0.8, s)); // viaja só dentro do foco
         a.plan = { ...this.walkPlan(x, z, kind === 'LEAVE_AREA' ? 1.04 : 1.06), axisS: s, lane: r.range(-20, 20), run: r.chance(a.prof.run * 0.5) };
         // viagem longa e veículo livre perto: vai de veículo (mesmo caminho dos jogadores)
         // quem gosta de veículo procura um a ≤ 30 m; qualquer um, às vezes, pega um que está bem do lado (≤ 12 m)
@@ -895,7 +943,7 @@ export class AutonomousSystem implements AutonomousWorldView {
     // encostar — previsão local —, então a sala nem chega a recusar o movimento; sem isto ninguém abriria caminho)
     if (a.lod === 'NEAR' && this.humanList.length && now >= a.nextVehLook) { a.nextVehLook = now + 300 + (a.idx * 53) % 200; if (this.lookForDriven(a, now)) { this.yieldStep(a, now, dt); return; } } // sem sorteio: não mexe na sequência aleatória da simulação
     // passeio: chegou e a pausa acabou → próximo ponto
-    if (a.plan.mode === 'walk' && a.plan.arrivedAt && now >= a.plan.pauseUntil && a.goal.kind === 'WANDER' && !a.group) { const q = this.pointNear(a.k.x, a.k.z, 10, 50); a.plan = this.walkPlan(q.x, q.z, 1); }
+    if (a.plan.mode === 'walk' && a.plan.arrivedAt && now >= a.plan.pauseUntil && a.goal.kind === 'WANDER' && !a.group) { const q = this.keepHome(a, this.pointNear(a.k.x, a.k.z, 10, 50)); a.plan = this.walkPlan(q.x, q.z, 1); }
     // destinos que andam: roda caminhando, concentração que se move, centro da torcida
     if (a.group) this.groupTarget(a, now);
     if (a.plan.mode === 'follow') this.followTarget(a);

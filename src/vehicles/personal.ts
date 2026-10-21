@@ -25,7 +25,7 @@ export const PERSONAL_RULES = {
   /** distância-alvo do ponto de surgimento ao avatar (m) */
   spawnDist: { scooter: 0.9, bicycle: 1.1, moto: 1.6, car: 3.2 } as Record<PersonalKind, number>,
   /** distância máxima aceitável antes de recusar com 'sem_lugar' (m) */
-  spawnMaxDist: { scooter: 4, bicycle: 4, moto: 6, car: 14 } as Record<PersonalKind, number>,
+  spawnMaxDist: { scooter: 4, bicycle: 4, moto: 14, car: 14 } as Record<PersonalKind, number>, // moto 6 → 14 (20/10): praças longe da pista davam "sem lugar"
   /** monta sozinho ao surgir */
   autoMount: { scooter: true, bicycle: true, moto: true, car: true } as Record<PersonalKind, boolean>,
 } as const;

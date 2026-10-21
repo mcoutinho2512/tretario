@@ -37,7 +37,8 @@ describe('ponto de surgimento', () => {
       expect(Math.abs(car.x)).toBeLessThanOrEqual(6 - 0.9 + 1e-6); // caixa inteira na pista
       expect(car.d).toBeLessThanOrEqual(PERSONAL_RULES.spawnMaxDist.car);
     }
-    expect(findPersonalSpawn('moto', { x: 18, z: 0, heading: 0 }, world()).ok).toBe(false); // pista a 12 m > 6 m
+    expect(findPersonalSpawn('moto', { x: 18, z: 0, heading: 0 }, world()).ok).toBe(true); // pista a 12 m ≤ 14 m (moto alcança como o carro)
+    expect(findPersonalSpawn('moto', { x: 24, z: 0, heading: 0 }, world()).ok).toBe(false); // pista a 18 m > 14 m
     expect(findPersonalSpawn('car', { x: 18.5, z: 0, heading: 0 }, world()).ok).toBe(true); // ≤ 14 m alcança
   });
   it('pessoa, veículo e objeto bloqueiam; parede entre o avatar e o ponto também', () => {
