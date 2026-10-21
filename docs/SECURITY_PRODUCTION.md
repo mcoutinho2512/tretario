@@ -26,7 +26,7 @@ Com `NODE_ENV=production` o servidor **não sobe** (sai com 1, antes de abrir ba
 - `PV_SESSION_SECRET` ou `PV_ADMIN_TOKEN` estiverem ausentes, com < 32 caracteres, forem o valor de desenvolvimento /
   de exemplo, tiverem pouca variedade de caracteres, ou forem iguais entre si;
 - faltar `DATABASE_URL`, `PV_PUBLIC_ORIGIN` (origem exata, ex. `https://exemplo.com.br`, sem barra) ou
-  `PV_REGISTRATION=beta` (não há provedor de e-mail real).
+  `PV_REGISTRATION=beta` ou `livre` (não há provedor de e-mail real).
 
 Avisos (sobe, registra): `PV_TRUST_PROXY` ≠ `loopback`, `PV_GRAFFITI_STORE=memory`, origem `http://`.
 
@@ -99,6 +99,16 @@ gerado, enviado, registrado em log ou devolvido; `/api/dev/outbox` não existe (
 mostra "Cadastro recebido — o acesso beta é liberado pela equipe". A equipe libera com
 `npm run prod:approve -- <email> [--grant]` (`docs/ACCESS_CONTROL.md`). Esqueci-a-senha responde igual, mas não envia
 nada no beta (ver limitações).
+
+## Cadastro livre sem SMTP (`PV_REGISTRATION=livre`, 20/10/2026 — decisão do dono: "cadastrou, já joga")
+
+Como no beta, nenhum código é gerado nem enviado (não há SMTP), mas sem espera: a conta já nasce verificada e com
+concessão de jogador (`DEV_GRANTED` global, sem validade), o mesmo que `prod:approve --grant`, só que automático
+(`AuthService.releaseIfFree`). Quem ficou pendente no modo beta é liberado ao voltar (GET /api/me, login ou ticket).
+Nunca libera conta banida ou suspensa. Cada liberação grava AuditLog `auth.auto_release` (ator
+`system:cadastro-livre`). Consequência: o e-mail **não é comprovado** (qualquer endereço serve) — o controle de abuso
+fica no limite de cadastros por IP, na moderação de apelido e em `ban`/`suspend` pela CLI. Esqueci-a-senha continua sem
+envio. Voltar ao beta: `PV_REGISTRATION=beta` + restart (contas já liberadas continuam jogando).
 
 ## Equipe e administração
 

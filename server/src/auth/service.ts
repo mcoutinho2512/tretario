@@ -88,6 +88,26 @@ export class AuthService {
     return n;
   }
 
+  // ------------------------------------------------------------------ cadastro livre (PV_REGISTRATION=livre)
+
+  /**
+   * Cadastro livre: conta ativa sai verificada e com concessão de jogador (DEV_GRANTED global, sem validade), como o
+   * `prod:approve --grant` da equipe, só que automático — no cadastro, no login e quando um pendente antigo volta
+   * (GET /api/me, ticket). Idempotente; nunca mexe em conta banida/suspensa; grava AuditLog `auth.auto_release`.
+   */
+  async releaseIfFree(user: UserRecord): Promise<UserRecord> {
+    if (registrationMode() !== 'livre' || user.status !== 'ACTIVE') return user;
+    const now = new Date(this.now());
+    let u = user;
+    const verified = !u.emailVerified;
+    if (verified) u = await this.store.users.update(u.id, { emailVerified: true });
+    const grants = (await this.store.access.active(u.id, null, now)).map((g) => g.grant);
+    const granted = bestGrant(grants) === 'NONE';
+    if (granted) await this.store.access.grant({ userId: u.id, grant: 'DEV_GRANTED', eventId: null, source: 'auto:cadastro-livre', expiresAt: null });
+    if (verified || granted) await this.store.audit.append({ actor: 'system:cadastro-livre', action: 'auth.auto_release', targetType: 'user', targetId: u.id, meta: { verified, granted } });
+    return u;
+  }
+
   // ------------------------------------------------------------------ DTO do próprio usuário
 
   async accessOf(user: UserRecord) {
@@ -187,12 +207,14 @@ export class AuthService {
 
     await this.sendCode(user, 'EMAIL_VERIFY');
     await this.store.audit.append({ actor: `user:${user.id}`, action: 'auth.register', targetType: 'user', targetId: user.id, meta: {} });
+    user = await this.releaseIfFree(user); // cadastro livre: já entra jogando
     const sess = await this.sessions.create(user.id, req.headers?.['user-agent']);
     return { status: 201, body: { ok: true, me: await this.meOf(user) }, cookies: [sess.cookie] };
   }
 
   private async sendCode(user: UserRecord, purpose: 'EMAIL_VERIFY' | 'PASSWORD_RESET') {
     // rodada 9.1 — beta sem SMTP: nenhum código é gerado (ninguém o receberia; nunca aparece ao visitante)
+    if (registrationMode() === 'livre') return; // sem SMTP e sem espera: a conta já foi liberada (releaseIfFree)
     if (registrationMode() === 'beta') { log.info('auth.pending', purpose === 'EMAIL_VERIFY' ? 'cadastro aguardando liberação da equipe' : 'pedido de nova senha sem e-mail (beta)', { purpose }); return; }
     const code = await this.codes.issue(user.id, purpose);
     try { await this.c.mail.send(codeMail(user.email, purpose, code)); }
@@ -242,7 +264,7 @@ export class AuthService {
       return err(401, 'credenciais_invalidas');
     }
     this.loginEmail.reset(ek);
-    const u = await this.store.users.update(user.id, { lastLoginAt: new Date(now) });
+    const u = await this.releaseIfFree(await this.store.users.update(user.id, { lastLoginAt: new Date(now) }));
     const sess = await this.sessions.create(u.id, req.headers?.['user-agent']);
     return { body: { ok: true, me: await this.meOf(u) }, cookies: [sess.cookie] };
   }
@@ -256,7 +278,8 @@ export class AuthService {
   async me(req: Req): Promise<ApiResponse> {
     const s = await this.session(req);
     if (!s) return { body: AuthService.visitor, cookies: req.cookies?.pv_sid ? [this.sessions.clearCookie()] : undefined };
-    return { body: await this.meOf(s.user), cookies: s.refresh ? [s.refresh] : undefined };
+    const user = s.user.emailVerified ? s.user : await this.releaseIfFree(s.user); // pendente que voltou (cadastro livre)
+    return { body: await this.meOf(user), cookies: s.refresh ? [s.refresh] : undefined };
   }
 
   // ------------------------------------------------------------------ esqueci a senha
@@ -304,6 +327,7 @@ export class AuthService {
     const s = await this.session(req);
     if (!s) return err(401, 'sem_sessao');
     if (!this.ticketUser.hit(s.user.id, this.now())) { log.rate('ticket'); return err(429, 'muitas_tentativas', { retryAfterS: Math.ceil(this.ticketUser.retryIn(s.user.id, this.now()) / 1000) }); }
+    if (!s.user.emailVerified) s.user = await this.releaseIfFree(s.user); // cadastro livre: pendente antigo é liberado aqui
     if (!s.user.emailVerified) return err(403, registrationMode() === 'beta' ? 'aguardando_liberacao' : 'email_nao_verificado');
     const access = await this.accessOf(s.user);
     const requested = req.body?.role === 'spectator' ? 'spectator' : 'player';

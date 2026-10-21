@@ -76,7 +76,7 @@ carência.
 | Variável | Uso |
 |---|---|
 | `PV_SESSION_SECRET` | HMAC dos códigos. Obrigatório (≥ 32 caracteres, não `dev-only…`) em produção — senão o servidor não sobe |
-| `PV_REGISTRATION` | `beta` · `open` · `dev` (rodada 9.1; produção exige `beta`) |
+| `PV_REGISTRATION` | `beta` · `livre` · `open` · `dev` (rodada 9.1; produção exige `beta` ou `livre`) |
 | `PV_PUBLIC_ORIGIN` · `PV_TRUST_PROXY` | origem pública (CORS/Origin) e confiança no proxy local (rodada 9.1) |
 | `PV_DEV_MAIL=1` | expõe `/api/dev/outbox` (testes automatizados). Ignorado em produção |
 | `PV_SCRYPT_LOGN` | custo do scrypt (padrão 15). Mudar faz rehash no próximo login |
@@ -87,7 +87,8 @@ carência.
 
 Detalhes de infraestrutura: `deploy/CONTRACT.md`; segurança: `docs/SECURITY_PRODUCTION.md`.
 
-- **`PV_REGISTRATION`**: `beta` (obrigatório em produção — não há SMTP), `open` (padrão em desenvolvimento) ou `dev`
+- **`PV_REGISTRATION`**: `beta` ou `livre` (produção — não há SMTP; `livre` = cadastrou, já joga, ver
+  SECURITY_PRODUCTION.md), `open` (padrão em desenvolvimento) ou `dev`
   (= open). No **beta**, o provedor de e-mail é `BetaHoldMailProvider` (descarta) e `sendCode` nem gera código: o
   cadastro cria a conta e a sessão (cookie) **pendentes** (`emailVerified=false`), o `MeResponse` traz
   `registration: 'beta'` e o cliente mostra "Cadastro recebido — o acesso beta é liberado pela equipe" (tela `pending`

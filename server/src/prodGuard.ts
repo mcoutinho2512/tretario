@@ -2,7 +2,7 @@
  * Travas de PRODUÇÃO (rodada 9.1, deploy/CONTRACT.md). Com NODE_ENV=production o servidor RECUSA subir se:
  *  - houver chave de teste/desenvolvimento: PV_TEST, PV_ALLOW_ANON_PLAYERS, PV_DEV_MAIL (qualquer valor), PV_STORE=memory;
  *  - PV_SESSION_SECRET ou PV_ADMIN_TOKEN tiverem < 32 caracteres, forem o valor de desenvolvimento ou repetitivos;
- *  - faltar DATABASE_URL, PV_PUBLIC_ORIGIN (origem exata, sem barra) ou PV_REGISTRATION=beta (não há SMTP: `open`/`dev`
+ *  - faltar DATABASE_URL, PV_PUBLIC_ORIGIN (origem exata, sem barra) ou PV_REGISTRATION=beta|livre (não há SMTP: `open`/`dev`
  *    dependem do provedor de e-mail de desenvolvimento, que recusa produção).
  * Avisos (sobe, mas registra): PV_TRUST_PROXY ≠ loopback, PV_GRAFFITI_STORE=memory, origem http://.
  * Pura (recebe o env): testada em tests/prodGuard.test.ts.
@@ -31,7 +31,7 @@ export function productionProblems(env: NodeJS.ProcessEnv = process.env): GuardR
   const o = env.PV_PUBLIC_ORIGIN ?? '';
   if (!/^https?:\/\/[a-z0-9.-]+(:\d+)?$/i.test(o)) errors.push('PV_PUBLIC_ORIGIN ausente ou inválido (ex.: https://exemplo.com.br, sem barra no fim)');
   else if (o.startsWith('http://')) warnings.push('PV_PUBLIC_ORIGIN em http:// — cookies Secure exigem HTTPS');
-  if (env.PV_REGISTRATION !== 'beta') errors.push('PV_REGISTRATION=beta obrigatório em produção (sem provedor de e-mail real)');
+  if (env.PV_REGISTRATION !== 'beta' && env.PV_REGISTRATION !== 'livre') errors.push('PV_REGISTRATION=beta ou livre obrigatório em produção (sem provedor de e-mail real)');
   if (env.PV_TRUST_PROXY !== 'loopback') warnings.push('PV_TRUST_PROXY≠loopback: atrás do Nginx todo mundo vira 127.0.0.1 nos limites de taxa');
   if (env.PV_GRAFFITI_STORE === 'memory') warnings.push('PV_GRAFFITI_STORE=memory: grafites somem a cada reinício');
   return { errors, warnings };

@@ -167,3 +167,68 @@ describe('cadastro BETA sem SMTP (PV_REGISTRATION=beta)', () => {
     for (const a of await store.audit.list()) expect(JSON.stringify(a.meta)).not.toMatch(/@|Copacabana/);
   });
 });
+
+describe('cadastro LIVRE sem SMTP (PV_REGISTRATION=livre — cadastrou, já joga)', () => {
+  const FAST = { logN: 10, r: 8, p: 1 };
+  let store: MemoryDataStore, auth: AuthService, sent: number;
+  const req = (body: unknown = {}, cookies: Record<string, string> = {}) => ({ body, cookies, ip: '10.0.0.9', headers: { 'user-agent': 'vitest' } });
+  const sid = (res: { cookies?: string[] }) => parseCookies(res.cookies?.find((c) => c.startsWith(`${SESSION_COOKIE}=`))?.split(';')[0]);
+  const mk = () => {
+    store = store ?? new MemoryDataStore();
+    sent = 0;
+    const mail = new BetaHoldMailProvider();
+    mail.send = async () => { sent++; };
+    auth = new AuthService({ store, tickets: new TicketService(), mail, secret: 'segredo-de-teste', currentEventId: () => 'manifestacao', scrypt: FAST });
+  };
+  beforeEach(() => { store = undefined as unknown as MemoryDataStore; });
+  afterEach(() => vi.unstubAllEnvs());
+
+  it('produção aceita PV_REGISTRATION=livre (e continua recusando open)', () => {
+    expect(productionProblems({ ...PROD_OK, PV_REGISTRATION: 'livre' }).errors).toEqual([]);
+    expect(productionProblems({ ...PROD_OK, PV_REGISTRATION: 'open' }).errors.join()).toContain('PV_REGISTRATION');
+  });
+
+  it('cadastro já sai verificado e PLAYER; ticket de jogador na hora; nenhum código; auditado', async () => {
+    vi.stubEnv('PV_REGISTRATION', 'livre'); vi.stubEnv('PV_DEV_MAIL', '1');
+    mk();
+    expect(registrationMode()).toBe('livre');
+    expect(devOutboxEnabled()).toBe(false);
+    const r = await auth.register(req({ email: 'dani@exemplo.test', password: 'Copacabana!42', confirm: 'Copacabana!42', nickname: 'Dani_RJ' }));
+    expect(r.status).toBe(201);
+    const me = (r.body as { me: { registration?: string; access: { state: string }; user: { emailVerified: boolean } } }).me;
+    expect(me.registration).toBeUndefined();
+    expect(me.user.emailVerified).toBe(true);
+    expect(me.access.state).toBe('PLAYER');
+    expect(JSON.stringify(r.body)).not.toMatch(/\b\d{6}\b/);
+    expect(sent).toBe(0);
+    expect((await auth.ticket(req({ role: 'player' }, sid(r)))).body).toMatchObject({ role: 'player' });
+    const audit = (await store.audit.list()).filter((a) => a.action === 'auth.auto_release');
+    expect(audit).toHaveLength(1);
+    expect(audit[0].meta).toMatchObject({ verified: true, granted: true });
+    // idempotente: login de novo não cria outra concessão
+    await auth.login(req({ email: 'dani@exemplo.test', password: 'Copacabana!42' }));
+    const u = await store.users.byEmail('dani@exemplo.test');
+    expect((await store.access.active(u!.id, null, new Date())).length).toBe(1);
+  });
+
+  it('pendente do modo beta é liberado ao voltar (GET /api/me) com o modo livre; banido nunca', async () => {
+    vi.stubEnv('PV_REGISTRATION', 'beta');
+    mk();
+    const r = await auth.register(req({ email: 'edu@exemplo.test', password: 'Copacabana!42', confirm: 'Copacabana!42', nickname: 'Edu_RJ' }));
+    const r2 = await auth.register(req({ email: 'fabi@exemplo.test', password: 'Copacabana!42', confirm: 'Copacabana!42', nickname: 'Fabi_RJ' }));
+    expect((await auth.ticket(req({ role: 'player' }, sid(r)))).body).toMatchObject({ error: 'aguardando_liberacao' });
+    const fabi = await store.users.byEmail('fabi@exemplo.test');
+    await store.users.update(fabi!.id, { status: 'BANNED' });
+    vi.stubEnv('PV_REGISTRATION', 'livre'); // a VPS troca o modo e reinicia
+    mk();
+    const me = (await auth.me(req({}, sid(r)))).body as { access: { state: string }; user: { emailVerified: boolean } };
+    expect(me.user.emailVerified).toBe(true);
+    expect(me.access.state).toBe('PLAYER');
+    expect((await auth.ticket(req({ role: 'player' }, sid(r)))).body).toMatchObject({ role: 'player' });
+    const f = await auth.releaseIfFree((await store.users.byEmail('fabi@exemplo.test'))!);
+    expect(f.emailVerified).toBe(false);
+    expect((await store.access.active(f.id, null, new Date())).length).toBe(0);
+    void r2;
+  });
+});
+

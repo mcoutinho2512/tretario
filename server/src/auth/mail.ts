@@ -26,18 +26,21 @@ export function isProduction(): boolean { return process.env.NODE_ENV === 'produ
 /**
  * modo de cadastro (rodada 9.1, PV_REGISTRATION): `beta` (padrão em produção — sem SMTP: a conta fica PENDENTE, nenhum
  * código é gerado nem mostrado, a equipe libera pela CLI `npm run prod:approve`) · `open` (padrão em dev: código pelo
- * provedor de e-mail) · `dev` (igual a open; nome antigo). Produção só sobe com `beta` (server/src/prodGuard.ts).
+ * provedor de e-mail) · `dev` (igual a open; nome antigo) · `livre` (20/10/2026, pedido do dono: sem SMTP e SEM espera —
+ * a conta já nasce verificada e com concessão de jogador; quem estava pendente é liberado ao voltar; ver
+ * AuthService.releaseIfFree). Produção só sobe com `beta` ou `livre` (server/src/prodGuard.ts).
  */
-export type RegistrationMode = 'beta' | 'open';
+export type RegistrationMode = 'beta' | 'open' | 'livre';
 export function registrationMode(): RegistrationMode {
   const v = process.env.PV_REGISTRATION;
   if (v === 'beta') return 'beta';
+  if (v === 'livre') return 'livre';
   if (v === 'open' || v === 'dev') return 'open';
   return isProduction() ? 'beta' : 'open';
 }
 
 /** caixa de saída de DEV legível por HTTP (testes de QA) — nunca em produção nem no modo beta */
-export function devOutboxEnabled(): boolean { return !isProduction() && process.env.PV_DEV_MAIL === '1' && registrationMode() !== 'beta'; }
+export function devOutboxEnabled(): boolean { return !isProduction() && process.env.PV_DEV_MAIL === '1' && registrationMode() === 'open'; }
 
 /** modo beta: NENHUM e-mail sai e nada é registrado (nem endereço, nem código) — só a contagem no log */
 export class BetaHoldMailProvider implements MailProvider {

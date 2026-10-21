@@ -16,7 +16,7 @@ let devMail: DevelopmentMailProvider | null = null;
 /** provedor de e-mail: beta (rodada 9.1) não envia nada; senão o de desenvolvimento (recusa produção — ver mail.ts) */
 let betaMail: BetaHoldMailProvider | null = null;
 function mailProvider(): MailProvider {
-  if (registrationMode() === 'beta') return (betaMail ??= new BetaHoldMailProvider());
+  if (registrationMode() !== 'open') return (betaMail ??= new BetaHoldMailProvider()); // beta/livre: sem SMTP
   devMail ??= new DevelopmentMailProvider();
   return devMail;
 }

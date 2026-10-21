@@ -46,7 +46,7 @@ público, deploy com testes falhando. Migration com risco de perda de dados: PAR
 | `DATABASE_URL` | `postgresql://tretario:<senha>@127.0.0.1:5432/tretario` | |
 | `PV_SESSION_SECRET` | 32+ bytes aleatórios | |
 | `PV_ADMIN_TOKEN` | 32+ bytes aleatórios | `/internal/health`, admin de grafite |
-| `PV_REGISTRATION` | `beta` | sem SMTP: cadastro cria conta PENDENTE; código de verificação NUNCA aparece ao visitante; o administrador libera pela CLI (`npm run prod:approve -- <email>`); `open`/`dev` só em desenvolvimento |
+| `PV_REGISTRATION` | `beta` | sem SMTP: cadastro cria conta PENDENTE; código de verificação NUNCA aparece ao visitante; o administrador libera pela CLI (`npm run prod:approve -- <email>`); `livre` (20/10/2026): sem SMTP e sem espera — a conta já nasce jogador e pendentes antigos são liberados ao voltar; `open`/`dev` só em desenvolvimento |
 | `MAX_PLAYERS_PER_ROOM` | ex. 150 (definido pelo benchmark da VPS) | lotado → recusa clara "Sala cheia" e oferece espectador |
 | `MAX_SPECTATORS_PER_ROOM` | ex. 300 | |
 | `PV_GRAFFITI_FILE` | `/opt/tretario/shared/data/graffiti.json` | fora do release |
