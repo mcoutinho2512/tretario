@@ -14,7 +14,7 @@ interface ManifestLike {
 }
 
 /** distância da fachada (m) até o ponto de entrada, além da metade do comprimento da igreja */
-export const FRONT_GAP_M = 52;
+export const FRONT_GAP_M = 70; // ~106 m do centro: beira da praça, pista a poucos metros (moto/carro surgem e montam na hora)
 /** raio da "região da Candelária" (foco dos personagens autônomos) em volta do centro da igreja */
 export const CANDELARIA_FOCUS_RADIUS_M = 150;
 
@@ -39,7 +39,8 @@ export function gameSpawn(m: ManifestLike): { p: [number, number]; yaw: number }
   }
   if (!segs.length) return fallback;
   // o eixo vem da Cidade Nova e passa pela igreja: a fachada é o lado de s MAIOR (depois dela); olhando de volta para ela
-  const s = Math.min(acc - 2, sC + (lm.length ?? 60) / 2 + FRONT_GAP_M);
+  // pode passar um pouco do fim do eixo (prolonga o último trecho em até 12 m)
+  const s = Math.min(acc + 12, sC + (lm.length ?? 60) / 2 + FRONT_GAP_M);
   const seg = segs.find((g) => s >= g.s0 && s <= g.s0 + g.len) ?? segs[segs.length - 1];
   const t = (s - seg.s0) / seg.len;
   return { p: [+(seg.ax + seg.dx * t).toFixed(2), +(seg.az + seg.dz * t).toFixed(2)], yaw: Math.atan2(-seg.dz, -seg.dx) };

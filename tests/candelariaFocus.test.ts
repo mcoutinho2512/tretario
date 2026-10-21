@@ -33,7 +33,7 @@ describe('entrada em frente à Candelária e 95 % dos autônomos perto dela', ()
     const g = gameSpawn(m);
     const d = Math.hypot(g.p[0] - church.center[0], g.p[1] - church.center[1]);
     expect(d).toBeGreaterThan(church.length / 2);
-    expect(d).toBeLessThan(120);
+    expect(d).toBeLessThan(115);
     expect(Math.cos(g.yaw) * (church.center[0] - g.p[0]) + Math.sin(g.yaw) * (church.center[1] - g.p[1])).toBeGreaterThan(0);
     // anda 3 m para a frente e para os lados sem bater em parede
     for (const a of [0, Math.PI / 2, -Math.PI / 2, Math.PI]) expect(W.walls.raycast(g.p[0], 0.6, g.p[1], g.p[0] + Math.cos(g.yaw + a) * 3, 0.6, g.p[1] + Math.sin(g.yaw + a) * 3)).toBeGreaterThanOrEqual(1);
