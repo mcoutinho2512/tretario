@@ -27,9 +27,9 @@ export const NAME_LOD = {
   center: 0.28,
   /** histerese (m) nas fronteiras: quem já está numa faixa só sai dela com esta folga */
   hyst: 1.5,
-  cap: 14,
+  cap: 32, // 20/10/2026 (dono: "todos os personagens com o nome na cabeça"): era 14
   /** faixa média (15–30 m) com mais candidatos que isto: só centro da tela / foco / interagindo */
-  midCrowd: 8,
+  midCrowd: 24, // era 8
   /** autônomos: completo até `full`, faixa média até `mid`, nada além (public/gameplay/autonomous.json `nametag`) */
   npc: { full: 18, mid: 35 },
 } as const;

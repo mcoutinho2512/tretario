@@ -183,7 +183,7 @@ describe('ajudantes de ritmo do HUD', () => {
 
   it('preferências: dado inválido é ignorado campo a campo', () => {
     expect(mergePrefs(DEFAULT_HUD_PREFS, { names: 'NENHUM', hudAutoHide: 'x', sound: false })).toEqual({ ...DEFAULT_HUD_PREFS, names: 'NENHUM', sound: false });
-    expect(mergePrefs(DEFAULT_HUD_PREFS, { names: 'ALGUNS' }).names).toBe('PROXIMOS');
+    expect(mergePrefs(DEFAULT_HUD_PREFS, { names: 'ALGUNS' }).names).toBe('TODOS'); // padrão (20/10/2026)
     expect(mergePrefs(DEFAULT_HUD_PREFS, null)).toEqual(DEFAULT_HUD_PREFS);
   });
 });

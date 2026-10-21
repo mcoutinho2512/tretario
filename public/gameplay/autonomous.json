@@ -60,9 +60,9 @@
     "spawn": 0.4
   },
   "nametag": {
-    "share": 0.6,
-    "nearM": 18,
-    "midM": 35
+    "share": 1,
+    "nearM": 15,
+    "midM": 30
   },
   "supporters": {
     "neutro": 0.4,

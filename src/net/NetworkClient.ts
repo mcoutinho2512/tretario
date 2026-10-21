@@ -920,7 +920,7 @@ export class NetworkClient {
     }
     this.lookStats.active = this.lookActive; this.lookStats.ms = +(this.lookStats.ms * 0.9 + this.lookMs * 0.1).toFixed(4);
     this.lookActive = 0; this.lookMs = 0;
-    this.updateLabels(camera, viewport, nowP);
+    this.updateLabels(camera, viewport, nowP, local);
     // multidão distante: interpolação simples entre as duas últimas posições (2 Hz), só instanciada
     if (crowd) {
       const rt = nowP - FAR_DELAY_MS;
@@ -997,7 +997,7 @@ export class NetworkClient {
 
   // ---------------------------------------------------------------- apelidos (LOD — src/net/nameLod.ts)
   /** preferência NOMES DOS JOGADORES (HUD → ajustes) */
-  namesMode: NamesMode = 'PROXIMOS';
+  namesMode: NamesMode = 'TODOS';
   private labelGate = new RateGate(5);
   private shownLabels = new Set<Remote>();
   private labelCands: NameCandidate[] = [];
@@ -1041,7 +1041,9 @@ export class NetworkClient {
    * Rodada 12: autônomos (parte sem nome, faixas próprias), foco (hover/seleção), densidade da faixa média e oclusão
    * amostrada (raio câmera → cabeça contra as paredes do mundo de colisão, <= 8 raios novos por decisão).
    */
-  private updateLabels(camera: THREE.Camera, viewport: { w: number; h: number }, now: number) {
+  /** rótulo do PRÓPRIO avatar (20/10/2026: o jogador vê o próprio apelido na cabeça, como os outros o veem) */
+  private selfTag: ReturnType<NameTagPool['acquire']> = null;
+  private updateLabels(camera: THREE.Camera, viewport: { w: number; h: number }, now: number, local?: { x: number; y: number; z: number }) {
     const cam = camera.position, v = this.labelV;
     if (this.labelGate.due(now)) {
       const t0 = performance.now();
@@ -1091,6 +1093,16 @@ export class NetworkClient {
       if (v.z >= 1 || !r.tag) continue; // atrás da câmera: a próxima decisão esconde
       if (this.tags.move(r.tag, Math.round(((v.x + 1) / 2) * viewport.w), Math.round(((1 - v.y) / 2) * viewport.h))) this.labelStats.transforms++;
     }
+    // próprio apelido: jogador (não espectador) com nome no estado, com nomes ligados
+    const me = local && this.role !== 'spectator' && this.namesMode !== 'NENHUM' ? this.room?.state?.players?.get?.(this.sessionId) : null;
+    if (me?.name) {
+      this.selfTag ??= this.tags.acquire(this);
+      if (this.selfTag) {
+        this.tags.set(this.selfTag, me.name, 0);
+        v.set(local!.x, local!.y + 1.98, local!.z).project(camera); // um pouco mais baixo que os remotos (a câmera fica atrás do próprio avatar)
+        if (v.z < 1) this.tags.move(this.selfTag, Math.round(((v.x + 1) / 2) * viewport.w), Math.round(((1 - v.y) / 2) * viewport.h));
+      }
+    } else if (this.selfTag) { this.tags.release(this.selfTag); this.selfTag = null; }
     const st = this.labelStats;
     st.frameMs = +(st.frameMs * 0.95 + (performance.now() - t1) * 0.05).toFixed(4);
   }

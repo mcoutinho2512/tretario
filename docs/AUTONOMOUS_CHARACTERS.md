@@ -255,6 +255,14 @@ tolerante (ausente = 0 = humano). Nada aqui decide comportamento — só como a 
 O bit 6 já é preenchido pela sala (`crowdTable.set(..., npc: p.kind !== 0)`); se os autônomos forem codificados por
 outro caminho, basta passar `npc: true`.
 
+### Nomes para todos (20/10/2026, pedido do dono)
+Todos os personagens mostram o nome: `autonomous.json` → `nametag.share` 1 (antes 0,6), faixas iguais às dos
+jogadores (completo até 15 m, simplificado até 30 m); padrão da preferência "Nomes dos jogadores" = **Todos** (sem a
+restrição de centro da tela em multidão; quem tinha "Próximos" gravado de antes migra uma vez); até 32 rótulos na tela
+(`NAME_LOD.cap`, antes 14; pool de 36 nós). O próprio avatar também mostra o apelido (`NetworkClient.selfTag`; espectador
+não). Medido na Candelária com 180 autônomos: 29 de 30 pessoas a ≤ 30 m na tela com nome (a que falta está na borda dos
+30 m), 0,03–0,06 ms por quadro. Figurantes LOCAIS do navegador (pedestres e multidão de ambiente) continuam sem nome.
+
 ### Nomes (src/net/nameLod.ts, src/net/NameTagPool.ts)
 
 - **Parte sem nome**: autônomo tem nome se `autonomousTagged(nid, share)` (hash determinístico do nid; `share` =

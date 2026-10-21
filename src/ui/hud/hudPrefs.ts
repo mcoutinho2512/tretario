@@ -16,7 +16,8 @@ export interface HudPrefs {
   reduceEffects: boolean;
 }
 
-export const DEFAULT_HUD_PREFS: HudPrefs = { names: 'PROXIMOS', hudAutoHide: true, chatCollapsed: true, sound: true, reduceEffects: false };
+// 20/10/2026 (dono: "todos os personagens com o nome na cabeça"): padrão TODOS (era PROXIMOS)
+export const DEFAULT_HUD_PREFS: HudPrefs = { names: 'TODOS', hudAutoHide: true, chatCollapsed: true, sound: true, reduceEffects: false };
 const KEY = 'pv3d.hud';
 const NAMES: NamesMode[] = ['TODOS', 'PROXIMOS', 'NENHUM'];
 
@@ -43,6 +44,8 @@ export class HudPrefsStore {
     let saved: unknown = null;
     try { saved = JSON.parse(localStorage.getItem(KEY) ?? 'null'); } catch { /* sem storage */ }
     this.p = mergePrefs(DEFAULT_HUD_PREFS, saved);
+    // migração única: "Próximos" gravado antes do padrão TODOS (sem a marca v2) vira TODOS; escolhas novas valem
+    if (saved && typeof saved === 'object' && (saved as { v?: number }).v !== 2 && this.p.names === 'PROXIMOS') this.p = { ...this.p, names: 'TODOS' };
   }
 
   get value(): Readonly<HudPrefs> { return this.p; }
@@ -53,7 +56,7 @@ export class HudPrefsStore {
     const next = mergePrefs(this.p, patch);
     if (JSON.stringify(next) === JSON.stringify(this.p)) return;
     this.p = next;
-    try { localStorage.setItem(KEY, JSON.stringify(next)); } catch { /* sem storage */ }
+    try { localStorage.setItem(KEY, JSON.stringify({ ...next, v: 2 })); } catch { /* sem storage */ }
     for (const fn of this.listeners) fn(next);
     this.schedulePush();
   }
