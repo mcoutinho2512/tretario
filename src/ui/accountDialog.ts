@@ -96,7 +96,7 @@ export class AccountDialog {
         <p class="alt"><button type="button" class="home-link" data-go="forgot">ESQUECI MINHA SENHA</button><button type="button" class="home-link" data-go="register">CRIAR CONTA</button></p>`,
       register: `
         <span class="eyebrow">PARTICIPAR</span><h2 id="acct-title">Criar conta</h2>
-        <p class="lead">Grátis para criar. Você confirma o e-mail com um código de 6 dígitos.</p>
+        <p class="lead">Grátis e na hora: criou a conta, já entra jogando.</p>
         <form novalidate>${emailField()}
           <label class="field"><span>Apelido</span><input id="a-nick" name="nickname" autocomplete="nickname" required minlength="3" maxlength="20" spellcheck="false" autocapitalize="off" aria-describedby="a-nick-hint" /></label>
           <p class="hint" id="a-nick-hint" aria-live="polite">Aparece acima do seu personagem. 3 a 20 caracteres.</p>
@@ -226,7 +226,10 @@ export class AccountDialog {
           const r = await accountApi.register(email, pass, this.val('a-nick'));
           if (!r.ok) return this.setStatus(errorText(r.error));
           track('sign_up', { method: 'email' });
-          if ((r.data as { me?: { registration?: string } } | null)?.me?.registration === 'beta') { this.pendingPassword = ''; return this.show('pending'); }
+          const me = (r.data as { me?: { registration?: string; user?: { emailVerified?: boolean } } } | null)?.me;
+          // cadastro livre (PV_REGISTRATION=livre): a conta já nasce verificada e liberada — entra direto, sem código
+          if (me?.user?.emailVerified) return this.done();
+          if (me?.registration === 'beta') { this.pendingPassword = ''; return this.show('pending'); }
           this.pendingPassword = pass;
           this.resendAt = Date.now() + 30_000;
           return this.show('verify', 'Conta criada. Confira seu e-mail.', true);
