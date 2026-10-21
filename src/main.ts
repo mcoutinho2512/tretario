@@ -402,7 +402,27 @@ async function enterAvenue() {
 }
 
 // ------------------------------------------------------------------ jogo
+/**
+ * Página aberta antes de um deploy: os arquivos do jogo da versão anterior (nomes com hash) não existem mais no
+ * servidor e o import dinâmico falha ("Importing a module script failed" no Safari). Recarrega UMA vez (no máximo a
+ * cada 60 s, para nunca entrar em ciclo) e a página pega a versão nova; erro de verdade continua aparecendo.
+ */
+const STALE_BUILD = /Importing a module script failed|Failed to fetch dynamically imported module|error loading dynamically imported module|Unable to preload CSS/i;
+function reloadForNewVersion(e: unknown): boolean {
+  const msg = e instanceof Error ? e.message : String(e ?? '');
+  if (!STALE_BUILD.test(msg)) return false;
+  try {
+    const last = Number(sessionStorage.getItem('pv_stale_reload') ?? 0);
+    if (Date.now() - last < 60_000) return false;
+    sessionStorage.setItem('pv_stale_reload', String(Date.now()));
+  } catch { return false; }
+  location.reload();
+  return true;
+}
+window.addEventListener('vite:preloadError', (ev) => { if (reloadForNewVersion((ev as Event & { payload?: unknown }).payload)) ev.preventDefault(); });
+
 function showError(e: unknown) {
+  if (reloadForNewVersion(e)) return;
   console.error(e);
   home.classList.add('hidden');
   start.classList.add('hidden');
