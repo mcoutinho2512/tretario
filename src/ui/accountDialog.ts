@@ -5,6 +5,7 @@
  */
 import { EscSlot } from './escStack'; // rodada 11 — entrada
 import { accountApi, errorText } from '../identity/client';
+import { track } from '../analytics/ga';
 import { textModeration, TEXT_LIMITS, type TextRejection } from '../moderation/text';
 
 export type AccountView = 'login' | 'register' | 'verify' | 'forgot' | 'reset' | 'pending';
@@ -224,6 +225,7 @@ export class AccountDialog {
         case 'register': {
           const r = await accountApi.register(email, pass, this.val('a-nick'));
           if (!r.ok) return this.setStatus(errorText(r.error));
+          track('sign_up', { method: 'email' });
           if ((r.data as { me?: { registration?: string } } | null)?.me?.registration === 'beta') { this.pendingPassword = ''; return this.show('pending'); }
           this.pendingPassword = pass;
           this.resendAt = Date.now() + 30_000;

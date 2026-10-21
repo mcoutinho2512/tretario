@@ -38,6 +38,7 @@ import { localEntitlements, setLocalEntitlements } from './characters/unlocks';
 import { parseCatalog, requirementOf, type ProgressionCatalog } from './progression/engine';
 import { gameEndpoint } from './net/endpoint'; // rodada 9.1 — produção: wss://<host>/game (mesma origem)
 import './ui/beta.css';
+import { initAnalytics, track } from './analytics/ga'; // Google Analytics só com consentimento (produção)
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const appEl = $('app');
@@ -455,6 +456,7 @@ async function launch(choice: QualityChoice, role?: WorldRole) {
         : 'Sua conta ainda não tem acesso de jogador (beta). Você está assistindo como espectador.', 'warn', 12000), 1500);
     }
     performance.mark('pv:game-start');
+    track('entrar_mundo', { papel: ticketNote ? 'spectator' : role ?? 'visitante' });
     const click = performance.getEntriesByName('pv:watch-click')[0];
     if (click) (window as any).__pvSpectatorStartMs = Math.round(performance.now() - click.startTime);
     (window as any).__pv = game.debugApi();
@@ -485,6 +487,7 @@ registerInventoryAccount({
 });
 
 // automação/validação: ?autostart=1&quality=high (jogo local, como antes) · __pvLaunch({ role }) = mesmo caminho dos botões
+initAnalytics(); // aviso de cookies / GA (só em produção)
 (window as any).__pvLaunch = (o: { role?: WorldRole } = {}) => launch((radios.find((r) => r.checked)?.value ?? 'auto') as QualityChoice, o.role);
 if (autostart) {
   const q = (params.get('quality') ?? 'auto') as QualityChoice;

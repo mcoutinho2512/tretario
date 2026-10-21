@@ -13,6 +13,7 @@
 import type { RideableInstance, RideableKind, RideableSystem } from './Rideable';
 import { PERSONAL_AUTOMOUNT_MAX_M, PERSONAL_DENY_TEXT, PERSONAL_KINDS, PERSONAL_LABEL, PERSONAL_RULES, isPersonalKind, type PersonalDenyReason, type PersonalKind, type PersonalVehicleOk } from './personal';
 import { entryDistance, findPersonalSpawn, type SpawnObstacles, type SpawnWorld } from './personalSpawn';
+import { track } from '../analytics/ga';
 
 export interface PersonalClientHost {
   online(): boolean;
@@ -141,6 +142,7 @@ export class PersonalVehicleClient {
     const p = this.h.player();
     const d = Math.hypot(it.state.x - p.x, it.state.z - p.z);
     this.stats.ok++;
+    track('veiculo_pessoal', { tipo: kind });
     this.stats.last = { kind, okMs: +okMs.toFixed(1), mounted, d: +d.toFixed(2), id: it.state.id };
     this.stats.log.push({ kind, okMs: +okMs.toFixed(1), mounted, d: +d.toFixed(2) });
     if (this.stats.log.length > 40) this.stats.log.shift();

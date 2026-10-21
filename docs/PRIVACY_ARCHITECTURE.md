@@ -177,3 +177,20 @@ presença nem nas métricas públicas, e nada deles é gravado (memória da sess
 um autônomo é recusado (`autonomo`) — não há pessoa por trás para moderar. Os apelidos são gerados (nunca copiados de
 contas: conferidos contra `profiles.byNicknameKey` e contra quem está na sala) e ficam RESERVADOS enquanto vivos, para que
 nenhuma conta se passe por um autônomo nem o contrário. O painel da pessoa não rotula ninguém como "bot"/"NPC".
+
+## Google Analytics 4 (20/10/2026)
+
+- Propriedade "Porrada na Presidente Vargas" (conta MC Consultoria em TI), ID `G-PLKMS11875`, fluxo web
+  tretario.com.br. Código: `src/analytics/ga.ts`.
+- **Só com consentimento**: nada do Google carrega antes do "Aceitar" no aviso de cookies. "Recusar" fica guardado e
+  o aviso não volta; o link "Cookies" do rodapé reabre a escolha. A escolha fica em `localStorage`
+  (`pv_analytics_consent`), sem cookie nosso.
+- **Só em produção** (tretario.com.br): desenvolvimento, QA e servidores de teste nunca enviam dados.
+- **Sem anúncios**: Consent Mode com `ad_storage`, `ad_user_data` e `ad_personalization` negados; Google Signals e
+  personalização de anúncios desligados (também na propriedade: compartilhamento de dados opcional e Indicadores do
+  Google desligados). O GA4 não guarda IP. Retenção de eventos 14 meses.
+- **Eventos do jogo**: `entrar_mundo {papel}`, `sign_up {method}`, `veiculo_pessoal {tipo}` — nunca nome, apelido,
+  e-mail, posição ou mensagens.
+- CSP (`deploy/nginx/snippets/tretario-headers.conf`): `script-src` www.googletagmanager.com; `connect-src` e
+  `img-src` *.google-analytics.com, *.analytics.google.com, *.googletagmanager.com.
+
