@@ -110,6 +110,15 @@ Nunca libera conta banida ou suspensa. Cada liberação grava AuditLog `auth.aut
 fica no limite de cadastros por IP, na moderação de apelido e em `ban`/`suspend` pela CLI. Esqueci-a-senha continua sem
 envio. Voltar ao beta: `PV_REGISTRATION=beta` + restart (contas já liberadas continuam jogando).
 
+## E-mail real: Resend (20/10/2026)
+
+Recuperação de senha por código usa o Resend (`ResendMailProvider`, `server/src/auth/mail.ts`): domínio
+tretario.com.br na região sa-east-1, verificado por DKIM (`resend._domainkey`) e SPF/MX no subdomínio `send` (o SPF
+da raiz, `v=spf1 -all`, continua — o envelope sai por `send.tretario.com.br`). Liga só com `RESEND_API_KEY` no
+`server.env` (chave de ENVIO restrita ao domínio, nunca no Git); remetente `PV_MAIL_FROM` (padrão
+"Porrada na Presidente Vargas <nao-responda@tretario.com.br>"). No cadastro livre o cadastro continua SEM código; só
+"esqueci minha senha" envia. Sem a chave, nada sai (como antes). Rastreamento de abertura/clique desligado.
+
 ## Equipe e administração
 
 Não existe papel "admin" dentro do site nem e-mail/userId fixo no código. Operador = quem tem shell no servidor (CLI)

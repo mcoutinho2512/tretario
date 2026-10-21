@@ -11,7 +11,7 @@ import { sameOriginEndpoint } from '../src/net/endpoint';
 import { MemoryDataStore } from '../server/src/data/memory';
 import { TicketService } from '../server/src/identity/tickets';
 import { AuthService } from '../server/src/auth/service';
-import { BetaHoldMailProvider, devOutboxEnabled, registrationMode } from '../server/src/auth/mail';
+import { BetaHoldMailProvider, ResendMailProvider, codeMail, devOutboxEnabled, registrationMode, type MailMessage } from '../server/src/auth/mail';
 import { approveBeta, demoteStaff, promoteStaff, AdminError } from '../server/src/access/admin';
 import { SESSION_COOKIE } from '../server/src/auth/session';
 import { parseCookies } from '../server/src/http/router';
@@ -229,6 +229,52 @@ describe('cadastro LIVRE sem SMTP (PV_REGISTRATION=livre — cadastrou, já joga
     expect(f.emailVerified).toBe(false);
     expect((await store.access.active(f.id, null, new Date())).length).toBe(0);
     void r2;
+  });
+});
+
+describe('e-mail real (Resend) — nova senha no cadastro livre', () => {
+  const FAST = { logN: 10, r: 8, p: 1 };
+  const req = (body: unknown = {}, cookies: Record<string, string> = {}) => ({ body, cookies, ip: '10.0.0.7', headers: { 'user-agent': 'vitest' } });
+  afterEach(() => vi.unstubAllEnvs());
+
+  it('ResendMailProvider: POST na API com a chave, remetente, destinatário e o código no corpo; HTTP de erro vira exceção', async () => {
+    const calls: { url: string; init: RequestInit }[] = [];
+    const ok = (async (url: string, init: RequestInit) => { calls.push({ url, init }); return new Response('{"id":"x"}', { status: 200 }); }) as unknown as typeof fetch;
+    const p = new ResendMailProvider('re_teste', 'Porrada <nao-responda@tretario.com.br>', ok);
+    await p.send(codeMail('ana@exemplo.test', 'PASSWORD_RESET', '123456'));
+    expect(calls[0].url).toBe('https://api.resend.com/emails');
+    expect((calls[0].init.headers as Record<string, string>).authorization).toBe('Bearer re_teste');
+    const body = JSON.parse(String(calls[0].init.body));
+    expect(body).toMatchObject({ from: 'Porrada <nao-responda@tretario.com.br>', to: ['ana@exemplo.test'] });
+    expect(body.text).toContain('123456'); expect(body.html).toContain('123456');
+    const bad = (async () => new Response('{}', { status: 422 })) as unknown as typeof fetch;
+    await expect(new ResendMailProvider('re_teste', 'x <a@b.c>', bad).send(codeMail('a@b.c', 'PASSWORD_RESET', '1'))).rejects.toThrow('resend 422');
+  });
+
+  it('livre + RESEND_API_KEY: cadastro não envia nada; "esqueci a senha" envia o código e ele troca a senha', async () => {
+    vi.stubEnv('PV_REGISTRATION', 'livre'); vi.stubEnv('RESEND_API_KEY', 're_teste');
+    const store = new MemoryDataStore();
+    const sent: MailMessage[] = [];
+    const mail = { name: 'teste', send: async (m: MailMessage) => { sent.push(m); } };
+    const auth = new AuthService({ store, tickets: new TicketService(), mail, secret: 'segredo-de-teste', currentEventId: () => 'manifestacao', scrypt: FAST });
+    await auth.register(req({ email: 'gabi@exemplo.test', password: 'Copacabana!42', confirm: 'Copacabana!42', nickname: 'Gabi_RJ' }));
+    expect(sent).toHaveLength(0);
+    expect((await auth.forgot(req({ email: 'gabi@exemplo.test' }))).body).toMatchObject({ ok: true });
+    expect(sent).toHaveLength(1);
+    expect(sent[0]).toMatchObject({ to: 'gabi@exemplo.test', kind: 'PASSWORD_RESET' });
+    const r = await auth.reset(req({ email: 'gabi@exemplo.test', code: sent[0].code, password: 'Ipanema!Nova99', confirm: 'Ipanema!Nova99' }));
+    expect(r.status ?? 200).toBe(200);
+    expect((await auth.login(req({ email: 'gabi@exemplo.test', password: 'Ipanema!Nova99' }))).body).toMatchObject({ ok: true });
+  });
+
+  it('livre SEM chave: "esqueci a senha" responde igual e nada sai', async () => {
+    vi.stubEnv('PV_REGISTRATION', 'livre');
+    const store = new MemoryDataStore();
+    const sent: MailMessage[] = [];
+    const auth = new AuthService({ store, tickets: new TicketService(), mail: { name: 't', send: async (m: MailMessage) => { sent.push(m); } }, secret: 'segredo-de-teste', currentEventId: () => 'manifestacao', scrypt: FAST });
+    await auth.register(req({ email: 'hugo@exemplo.test', password: 'Copacabana!42', confirm: 'Copacabana!42', nickname: 'Hugo_RJ' }));
+    expect((await auth.forgot(req({ email: 'hugo@exemplo.test' }))).body).toMatchObject({ ok: true });
+    expect(sent).toHaveLength(0);
   });
 });
 

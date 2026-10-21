@@ -19,7 +19,7 @@ import { checkPasswordPolicy, DEFAULT_SCRYPT, type ScryptParams } from './passwo
 import { EmailPasswordProvider, normalizeEmail } from './providers';
 import { SessionService, type ActiveSession } from './session';
 import { CodeService } from './codes';
-import { codeMail, isProduction, registrationMode, type MailProvider } from './mail';
+import { codeMail, isProduction, realMailConfigured, registrationMode, type MailProvider } from './mail';
 import { Backoff, ipKey, Window } from './rateLimit';
 import { log } from '../log';
 
@@ -214,7 +214,11 @@ export class AuthService {
 
   private async sendCode(user: UserRecord, purpose: 'EMAIL_VERIFY' | 'PASSWORD_RESET') {
     // rodada 9.1 — beta sem SMTP: nenhum código é gerado (ninguém o receberia; nunca aparece ao visitante)
-    if (registrationMode() === 'livre') return; // sem SMTP e sem espera: a conta já foi liberada (releaseIfFree)
+    // cadastro livre: nada de código no cadastro (a conta já foi liberada — releaseIfFree); nova senha SÓ com provedor real
+    if (registrationMode() === 'livre' && (purpose === 'EMAIL_VERIFY' || !realMailConfigured())) {
+      if (purpose === 'PASSWORD_RESET') log.info('auth.pending', 'pedido de nova senha sem provedor de e-mail', { purpose });
+      return;
+    }
     if (registrationMode() === 'beta') { log.info('auth.pending', purpose === 'EMAIL_VERIFY' ? 'cadastro aguardando liberação da equipe' : 'pedido de nova senha sem e-mail (beta)', { purpose }); return; }
     const code = await this.codes.issue(user.id, purpose);
     try { await this.c.mail.send(codeMail(user.email, purpose, code)); }

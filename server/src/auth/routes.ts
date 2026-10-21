@@ -6,7 +6,7 @@ import { router } from '../http/router';
 import { services } from '../services';
 import { API } from '../../../src/identity/types';
 import { AuthService, serverSecret } from './service';
-import { BetaHoldMailProvider, DevelopmentMailProvider, devOutboxEnabled, registrationMode, type MailProvider } from './mail';
+import { BetaHoldMailProvider, DevelopmentMailProvider, ResendMailProvider, devOutboxEnabled, realMailConfigured, registrationMode, type MailProvider } from './mail';
 import { log } from '../log';
 import { currentEventId } from '../events/seed';
 
@@ -15,8 +15,10 @@ let devMail: DevelopmentMailProvider | null = null;
 
 /** provedor de e-mail: beta (rodada 9.1) não envia nada; senão o de desenvolvimento (recusa produção — ver mail.ts) */
 let betaMail: BetaHoldMailProvider | null = null;
+let realMail: ResendMailProvider | null = null;
 function mailProvider(): MailProvider {
-  if (registrationMode() !== 'open') return (betaMail ??= new BetaHoldMailProvider()); // beta/livre: sem SMTP
+  if (realMailConfigured()) return (realMail ??= new ResendMailProvider(process.env.RESEND_API_KEY!, process.env.PV_MAIL_FROM || 'Porrada na Presidente Vargas <nao-responda@tretario.com.br>'));
+  if (registrationMode() !== 'open') return (betaMail ??= new BetaHoldMailProvider()); // beta/livre sem chave: nada sai
   devMail ??= new DevelopmentMailProvider();
   return devMail;
 }
